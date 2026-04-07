@@ -1,0 +1,85 @@
+@using System.Linq
+@using System.Web.Mvc
+@model AssetManagement.Application.ViewModels.AssetAssignmentVm
+@{
+    ViewBag.Title = "Assign Asset";
+    var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var assignmentTypes = ViewBag.AssignmentTypes as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Assign Asset",
+    Subtitle = "Record who is receiving this asset and capture the handover details in one place.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="row g-3">
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ToUserId, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ToUserId, users, "-- Select user --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ToUserId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ToDepartmentId, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ToDepartmentId, departments, "-- Select department --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ToDepartmentId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.AssignmentType, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.AssignmentType, assignmentTypes, "-- Select assignment type --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.AssignmentType, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.AssignedDate, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.AssignedDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+            @Html.ValidationMessageFor(m => m.AssignedDate, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ExpectedReturnDate, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ExpectedReturnDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+            @Html.ValidationMessageFor(m => m.ExpectedReturnDate, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.ConditionBeforeHandover, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ConditionBeforeHandover, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ConditionBeforeHandover, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.AccessoriesHandedOver, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.AccessoriesHandedOver, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.AccessoriesHandedOver, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.HandedOverById, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.HandedOverById, users, "-- Select user --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.HandedOverById, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ReceivedById, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.HandoverNotes, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.HandoverNotes, new { @class = "form-control", rows = "3" })
+            @Html.ValidationMessageFor(m => m.HandoverNotes, "", new { @class = "text-danger" })
+        </div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Assign Asset",
+        BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+        BackLabel = "Back to Asset"
+    })
+}

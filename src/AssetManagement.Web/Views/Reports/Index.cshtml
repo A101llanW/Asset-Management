@@ -1,0 +1,10 @@
+@model AssetManagement.Application.ViewModels.DashboardVm
+@{
+    ViewBag.Title = "Reports";
+}
+<h3>Reports Hub</h3>
+<div class="row g-3">
+    <div class="col-md-4"><div class="card card-kpi"><div class="card-body"><h6>Asset Register</h6><p class="small text-muted">Use Assets list with filters and print/export extension points.</p></div></div></div>
+    <div class="col-md-4"><div class="card card-kpi"><div class="card-body"><h6>Depreciation Summary</h6><p class="small text-muted">Current Book Value: @Model.TotalCurrentBookValue.ToString("N2")</p></div></div></div>
+    <div class="col-md-4"><div class="card card-kpi"><div class="card-body"><h6>Insurance Readiness</h6><p class="small text-muted">Expiring insurance in 60 days: @Model.ExpiringInsuranceCount</p></div></div></div>
+</div>

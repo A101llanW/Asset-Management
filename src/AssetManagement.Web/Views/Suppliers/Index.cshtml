@@ -1,0 +1,53 @@
+@model IEnumerable<AssetManagement.Application.ViewModels.SupplierVm>
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Suppliers";
+    var canCreateSupplier = Html.HasPermission("Suppliers.Create");
+    var canEditSupplier = Html.HasPermission("Suppliers.Edit");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Suppliers",
+    Subtitle = "Keep approved vendors up to date for purchasing and asset sourcing.",
+    PrimaryActionUrl = canCreateSupplier ? Url.Action("Create") : null,
+    PrimaryActionLabel = canCreateSupplier ? "Create Supplier" : null
+})
+@if (!Model.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No suppliers yet</h5>
+            <p class="text-muted mb-3">Add suppliers before creating purchase records so procurement history stays complete.</p>
+            @if (canCreateSupplier)
+            {
+                <a class="btn btn-primary" href="@Url.Action("Create")">Create Supplier</a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+    <table class="table mb-0">
+        <thead class="table-light"><tr><th>Name</th><th>Contact</th><th>Email</th><th>Phone</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.SupplierName</td>
+                <td>@item.ContactPerson</td>
+                <td>@item.Email</td>
+                <td>@item.Phone</td>
+                <td>@(item.IsActive ? "Active" : "Inactive")</td>
+                <td class="text-end">
+                    @if (canEditSupplier)
+                    {
+                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div></div>
+}

@@ -1,0 +1,8 @@
+@model AssetManagement.Web.ViewModels.FormActionsViewModel
+<div class="mt-4 d-flex gap-2 am-form-actions">
+    <button class="btn btn-primary" type="submit">@Model.SubmitLabel</button>
+    @if (!string.IsNullOrWhiteSpace(Model.BackUrl) && !string.IsNullOrWhiteSpace(Model.BackLabel))
+    {
+        <a class="btn btn-outline-secondary" href="@Model.BackUrl">@Model.BackLabel</a>
+    }
+</div>

@@ -1,0 +1,52 @@
+@model IEnumerable<AssetManagement.Application.ViewModels.RoleVm>
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Roles";
+    var canCreateRole = Html.HasPermission("Roles.Create");
+    var canEditRole = Html.HasPermission("Roles.Edit");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Roles",
+    Subtitle = "Define access profiles for admins, custodians, and operational teams.",
+    PrimaryActionUrl = canCreateRole ? Url.Action("Create") : null,
+    PrimaryActionLabel = canCreateRole ? "Create Role" : null
+})
+@if (!Model.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No roles yet</h5>
+            <p class="text-muted mb-3">Create a role before assigning permissions to users and teams.</p>
+            @if (canCreateRole)
+            {
+                <a class="btn btn-primary" href="@Url.Action("Create")">Create Role</a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+    <table class="table mb-0">
+        <thead class="table-light"><tr><th>Name</th><th>Description</th><th>System</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Name</td>
+                <td>@item.Description</td>
+                <td>@(item.IsSystemRole ? "Yes" : "No")</td>
+                <td>@(item.IsActive ? "Active" : "Inactive")</td>
+                <td class="text-end">
+                    @if (canEditRole)
+                    {
+                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div></div>
+}

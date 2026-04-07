@@ -1,0 +1,80 @@
+@using System.Linq
+@using System.Web.Mvc
+@model AssetManagement.Application.ViewModels.AssetTransferVm
+@{
+    ViewBag.Title = "Transfer Asset";
+    var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Transfer Asset",
+    Subtitle = "Move the asset to a new custodian or department while preserving the transfer trail.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="row g-3">
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.FromUserId, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.FromUserId, users, "-- Use current custodian --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.FromUserId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.ToUserId, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ToUserId, users, "-- Select user --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ToUserId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.FromDepartmentId, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.FromDepartmentId, departments, "-- Current department --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.FromDepartmentId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.ToDepartmentId, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ToDepartmentId, departments, "-- Select department --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ToDepartmentId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.ConditionBefore, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ConditionBefore, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ConditionBefore, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.ConditionAfter, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ConditionAfter, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ConditionAfter, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Reason, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Reason, new { @class = "form-control", rows = "2" })
+            @Html.ValidationMessageFor(m => m.Reason, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            <div class="form-check mt-2">
+                @Html.CheckBoxFor(m => m.MissingAccessories, new { @class = "form-check-input" })
+                @Html.LabelFor(m => m.MissingAccessories, new { @class = "form-check-label" })
+            </div>
+        </div>
+        <div class="col-md-8">
+            @Html.LabelFor(m => m.DamageNotes, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.DamageNotes, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.DamageNotes, "", new { @class = "text-danger" })
+        </div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Transfer Asset",
+        BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+        BackLabel = "Back to Asset"
+    })
+}

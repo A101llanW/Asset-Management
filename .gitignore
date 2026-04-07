@@ -1,0 +1,25 @@
+# Build artifacts
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Local uploads
+src/AssetManagement.Web/Uploads/*
+!src/AssetManagement.Web/Uploads/.gitkeep
+
+# Packages
+packages/
+
+# Test results
+TestResults/
+
+
+#Ignore cursor AI rules
+.cursor\rules\codacy.mdc

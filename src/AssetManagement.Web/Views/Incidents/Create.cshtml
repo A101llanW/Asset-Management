@@ -1,0 +1,43 @@
+@model AssetManagement.Application.ViewModels.AssetIncidentVm
+@{
+    ViewBag.Title = "Incident Reporting";
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Report Incident",
+    Subtitle = "Log what happened, when it happened, and preserve a clean audit trail for follow-up.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(false, "", new { @class = "text-danger mb-3" })
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="mb-3">
+        <label class="form-label">Incident Type</label>
+        @Html.DropDownListFor(m => m.IncidentType, (SelectList)ViewBag.IncidentTypes, "-- Select Type --", new { @class = "form-select" })
+        @Html.ValidationMessageFor(m => m.IncidentType, "", new { @class = "text-danger" })
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Incident Date</label>
+        @Html.TextBoxFor(m => m.IncidentDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+        @Html.ValidationMessageFor(m => m.IncidentDate, "", new { @class = "text-danger" })
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        @Html.ValidationMessageFor(m => m.Description, "", new { @class = "text-danger" })
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Submit Incident",
+        BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+        BackLabel = "Back to Asset"
+    })
+}

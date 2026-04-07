@@ -1,0 +1,184 @@
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Domain.Enums
+@{
+    ViewBag.Title = "Asset Details";
+    var canEditAsset = Html.HasPermission("Assets.Edit");
+    var canAssignAsset = Html.HasPermission("Assets.Assign");
+    var canTransferAsset = Html.HasPermission("Assets.Transfer");
+    var canReturnAsset = Html.HasPermission("Assets.Return");
+    var canCreateIncident = Html.HasPermission("Incidents.Create");
+    var canCreateClaim = Html.HasPermission("Claims.Create");
+    var canRequestDisposal = Html.HasPermission("Assets.Dispose");
+    var canApproveDisposal = Html.HasPermission("Assets.ApproveDisposal");
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.AssetName,
+    Subtitle = "Asset tag: " + Model.AssetTag,
+    BackUrl = Url.Action("Index"),
+    BackLabel = "Back to Assets"
+})
+
+<div class="d-flex flex-wrap gap-2 justify-content-end mb-3">
+        @if (canEditAsset)
+        {
+            <a class="btn btn-outline-secondary" href="@Url.Action("Edit", new { id = Model.Id })">Edit</a>
+        }
+        @if (canAssignAsset)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Assignments", new { assetId = Model.Id })">Assign</a>
+        }
+        @if (canTransferAsset)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Transfers", new { assetId = Model.Id })">Transfer</a>
+        }
+        @if (canReturnAsset)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Returns", new { assetId = Model.Id })">Return</a>
+        }
+        @if (canEditAsset)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Maintenance", new { assetId = Model.Id })">Maintenance</a>
+        }
+        @if (canCreateIncident)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Incidents", new { assetId = Model.Id })">Incident</a>
+        }
+        @if (canCreateClaim)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">Claim</a>
+        }
+</div>
+
+<ul class="nav nav-tabs asset-tabs mb-3" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#overview">Overview</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#financial">Financial Info</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#custody">Assignment / Custody History</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#maintenance">Maintenance</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#incidents">Incidents</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#insurance">Insurance / Claims</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#documents">Documents</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#audit">Audit Trail</a></li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="overview">
+        <div class="card card-kpi"><div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4"><strong>Category:</strong> @Model.CategoryName</div>
+                <div class="col-md-4"><strong>Department:</strong> @Model.DepartmentName</div>
+                <div class="col-md-4"><strong>Supplier:</strong> @Model.SupplierName</div>
+                <div class="col-md-4"><strong>Serial:</strong> @Model.SerialNumber</div>
+                <div class="col-md-4"><strong>Brand/Model:</strong> @Model.Brand @Model.Model</div>
+                <div class="col-md-4"><strong>Status:</strong> @Model.CurrentStatus</div>
+            </div>
+        </div></div>
+    </div>
+    <div class="tab-pane fade" id="financial">
+        <div class="card card-kpi"><div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3"><strong>Acquisition Cost:</strong><br />@Model.AcquisitionCost.ToString("N2")</div>
+                <div class="col-md-3"><strong>Current Book Value:</strong><br />@Model.CurrentBookValue.ToString("N2")</div>
+                <div class="col-md-3"><strong>Accumulated Depreciation:</strong><br />@Model.AccumulatedDepreciation.ToString("N2")</div>
+                <div class="col-md-3"><strong>Replacement Value:</strong><br />@Model.ReplacementValue.ToString("N2")</div>
+            </div>
+        </div></div>
+    </div>
+    <div class="tab-pane fade" id="custody">
+        <div class="card card-kpi"><div class="card-body">
+            <h6>Custody Timeline</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Action</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Condition Before</th>
+                            <th>Condition After</th>
+                            <th>Reason</th>
+                            <th>Approved By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var eventItem in Model.CustodyHistory)
+                    {
+                        <tr>
+                            <td>@eventItem.ActionDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@eventItem.ActionType</td>
+                            <td>@eventItem.FromEntity</td>
+                            <td>@eventItem.ToEntity</td>
+                            <td>@eventItem.ConditionBefore</td>
+                            <td>@eventItem.ConditionAfter</td>
+                            <td>@eventItem.Reason</td>
+                            <td>@eventItem.ApprovedById</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div></div>
+    </div>
+    <div class="tab-pane fade" id="maintenance"><div class="card card-kpi"><div class="card-body">Maintenance records are available in the maintenance module. @if (canEditAsset) {<a href="@Url.Action("Create", "Maintenance", new { assetId = Model.Id })">Create ticket</a>}.</div></div></div>
+    <div class="tab-pane fade" id="incidents"><div class="card card-kpi"><div class="card-body">Incident records are available in the incidents module. @if (canCreateIncident) {<a href="@Url.Action("Create", "Incidents", new { assetId = Model.Id })">Report incident</a>}.</div></div></div>
+    <div class="tab-pane fade" id="insurance"><div class="card card-kpi"><div class="card-body">Policy Ref: @Model.PolicyReference<br />Warranty End: @(Model.WarrantyEndDate.HasValue ? Model.WarrantyEndDate.Value.ToString("yyyy-MM-dd") : "N/A")@if (canCreateClaim) {<br /><a href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">Initiate claim</a>}.</div></div></div>
+    <div class="tab-pane fade" id="audit">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <h6 class="mb-3">Disposal Workflow</h6>
+                @if (canRequestDisposal)
+                {
+                    using (Html.BeginForm("RequestDisposal", "Assets", FormMethod.Post, new { @class = "row g-2 mb-3" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <div class="col-md-3">
+                            <label class="form-label">Method</label>
+                            <select class="form-select" name="disposalMethod">
+                                @foreach (DisposalMethod method in Enum.GetValues(typeof(DisposalMethod)))
+                                {
+                                    <option value="@method">@method</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Reason</label>
+                            <input class="form-control" name="disposalReason" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Notes</label>
+                            <input class="form-control" name="notes" />
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-outline-danger">Submit Disposal Request</button>
+                        </div>
+                    }
+                }
+                @if (canApproveDisposal)
+                {
+                    using (Html.BeginForm("ApproveDisposal", "Assets", FormMethod.Post, new { @class = "row g-2" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <div class="col-md-3">
+                            <label class="form-label">Disposal Amount</label>
+                            <input type="number" step="0.01" min="0" class="form-control" name="disposalAmount" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Approval Notes</label>
+                            <input class="form-control" name="notes" />
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-danger w-100">Approve Disposal</button>
+                        </div>
+                    }
+                }
+                <p class="small text-muted mt-3 mb-0">Use Audit Logs report to review full write activity.</p>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="documents">@Html.Partial("_AttachmentUpload", "Asset: " + Model.AssetTag)</div>
+</div>

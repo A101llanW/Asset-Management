@@ -1,0 +1,68 @@
+@model IEnumerable<AssetManagement.Application.ViewModels.UserVm>
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Users";
+    var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
+    var canCreateUser = Html.HasPermission("Users.Create");
+    var canEditUser = Html.HasPermission("Users.Edit");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Users",
+    Subtitle = "Manage people, their access, and the roles they can use in the system.",
+    PrimaryActionUrl = canCreateUser ? Url.Action("Create") : null,
+    PrimaryActionLabel = canCreateUser ? "Create User" : null
+})
+@if (!Model.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No users yet</h5>
+            <p class="text-muted mb-3">Add your first user so assets can be assigned and permissions can be managed in one place.</p>
+            @if (canCreateUser)
+            {
+                <a class="btn btn-primary" href="@Url.Action("Create")">Create User</a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+    <table class="table mb-0">
+        <thead class="table-light"><tr><th>Employee #</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Assign Role</th></tr></thead>
+        <tbody>
+        @foreach (var user in Model)
+        {
+            <tr>
+                <td>@user.EmployeeNumber</td>
+                <td>@user.FirstName @user.LastName</td>
+                <td>@user.Email</td>
+                <td>@user.RoleName</td>
+                <td>@(user.IsActive ? "Active" : "Inactive")</td>
+                <td>
+                    @if (canEditUser)
+                    {
+                        using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "d-flex gap-2" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="userId" value="@user.Id" />
+                            <select name="roleId" class="form-select form-select-sm">
+                                @if (roles != null)
+                                {
+                                    foreach (var role in roles)
+                                    {
+                                        <option value="@role.Id" selected="@(user.RoleId == role.Id)">@role.Name</option>
+                                    }
+                                }
+                            </select>
+                            <button class="btn btn-sm btn-primary" type="submit">Save</button>
+                        }
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div></div>
+}

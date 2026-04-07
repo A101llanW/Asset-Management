@@ -1,0 +1,69 @@
+@using System.Linq
+@using System.Web.Mvc
+@model AssetManagement.Application.ViewModels.AssetReturnVm
+@{
+    ViewBag.Title = "Return Asset";
+    var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Return Asset",
+    Subtitle = "Capture the return condition, receiving user, and any missing accessories before closing the handback.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="row g-3">
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ReturnedById, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ReturnedById, users, "-- Use current custodian --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ReturnedById, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ReceivedById, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ReturnDate, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ReturnDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+            @Html.ValidationMessageFor(m => m.ReturnDate, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            <div class="form-check mt-2">
+                @Html.CheckBoxFor(m => m.MissingAccessories, new { @class = "form-check-input" })
+                @Html.LabelFor(m => m.MissingAccessories, new { @class = "form-check-label" })
+            </div>
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.ReturnCondition, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ReturnCondition, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ReturnCondition, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.DamageNotes, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.DamageNotes, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.DamageNotes, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Notes, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "2" })
+            @Html.ValidationMessageFor(m => m.Notes, "", new { @class = "text-danger" })
+        </div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Submit Return",
+        BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+        BackLabel = "Back to Asset"
+    })
+}

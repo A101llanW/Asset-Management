@@ -1,0 +1,62 @@
+@using AssetManagement.Web.Helpers
+@model AssetManagement.Application.ViewModels.RoleCreateEditVm
+@{
+    ViewBag.Title = "Edit Role";
+}
+<h3>Edit Role</h3>
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Id)
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Description, new { @class = "form-control" })
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check">
+                @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+                @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-body">
+            <h5>Permission Matrix</h5>
+            @foreach (var group in Model.PermissionGroups)
+            {
+                <div class="border rounded p-3 mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>@group.Module</strong>
+                        <label class="form-check-label small">
+                            <input type="checkbox" class="form-check-input js-select-all-module" data-module="@group.Module" /> Select all
+                        </label>
+                    </div>
+                    <div class="row mt-2">
+                        @foreach (var permission in group.Permissions)
+                        {
+                            var isChecked = Model.SelectedPermissionIds.Contains(permission.Id);
+                            <div class="col-md-4">
+                                <label class="form-check-label" title="@permission.Code">
+                                    <input type="checkbox" name="SelectedPermissionIds" value="@permission.Id" data-module-item="@group.Module" class="form-check-input" checked="@isChecked" />
+                                    @PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)
+                                </label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Update Role</button>
+        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to Roles</a>
+    </div>
+}

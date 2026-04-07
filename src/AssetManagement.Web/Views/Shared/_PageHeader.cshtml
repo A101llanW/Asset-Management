@@ -1,0 +1,20 @@
+@model AssetManagement.Web.ViewModels.PageHeaderViewModel
+<div class="am-page-header">
+    <div>
+        @if (!string.IsNullOrWhiteSpace(Model.BackUrl) && !string.IsNullOrWhiteSpace(Model.BackLabel))
+        {
+            <a class="btn btn-outline-secondary btn-sm am-page-header-back" href="@Model.BackUrl">@Model.BackLabel</a>
+        }
+        <h3 class="am-page-title">@Model.Title</h3>
+        @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
+        {
+            <div class="am-page-subtitle">@Model.Subtitle</div>
+        }
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl) && !string.IsNullOrWhiteSpace(Model.PrimaryActionLabel))
+    {
+        <div class="am-page-header-actions">
+            <a class="btn btn-primary" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>
+        </div>
+    }
+</div>

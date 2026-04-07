@@ -1,0 +1,50 @@
+@model AssetManagement.Application.ViewModels.InsuranceClaimVm
+@{
+    ViewBag.Title = "Insurance Claim";
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Claim",
+    Subtitle = "Link the claim to the right asset and incident so insurance follow-up stays traceable.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(false, "", new { @class = "text-danger mb-3" })
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Incident (Optional)</label>
+            @Html.DropDownListFor(m => m.IncidentId, (SelectList)ViewBag.Incidents, "-- None --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.IncidentId, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Claim Date</label>
+            @Html.TextBoxFor(m => m.ClaimDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+            @Html.ValidationMessageFor(m => m.ClaimDate, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Claim Type</label>
+            @Html.DropDownListFor(m => m.ClaimType, (SelectList)ViewBag.ClaimTypes, "-- Select Type --", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ClaimType, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Insurer</label>
+            @Html.TextBoxFor(m => m.Insurer, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.Insurer, "", new { @class = "text-danger" })
+        </div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Claim",
+        BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+        BackLabel = "Back to Asset"
+    })
+}

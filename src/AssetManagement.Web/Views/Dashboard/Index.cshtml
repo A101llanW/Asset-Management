@@ -1,0 +1,59 @@
+@model AssetManagement.Application.ViewModels.DashboardVm
+@{
+    ViewBag.Title = "Dashboard";
+}
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <div class="text-muted small">Total Assets</div>
+                <div class="h3 mb-0">@Model.TotalAssets</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <div class="text-muted small">Assigned</div>
+                <div class="h3 mb-0">@Model.AssignedAssets</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <div class="text-muted small">Unassigned</div>
+                <div class="h3 mb-0">@Model.UnassignedAssets</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <div class="text-muted small">Under Maintenance</div>
+                <div class="h3 mb-0">@Model.AssetsUnderMaintenance</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <h6>Financial Summary</h6>
+                <p class="mb-1">Acquisition Value: <strong>@Model.TotalAcquisitionValue.ToString("N2")</strong></p>
+                <p class="mb-0">Current Book Value: <strong>@Model.TotalCurrentBookValue.ToString("N2")</strong></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <h6>Alerts</h6>
+                <p class="mb-1">Warranty expiring soon: <strong>@Model.ExpiringWarrantyCount</strong></p>
+                <p class="mb-0">Insurance expiring soon: <strong>@Model.ExpiringInsuranceCount</strong></p>
+            </div>
+        </div>
+    </div>
+</div>

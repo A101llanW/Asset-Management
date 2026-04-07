@@ -1,0 +1,14 @@
+@model string
+<div class="card card-kpi mb-3">
+    <div class="card-body">
+        <h6 class="mb-2">Attachments</h6>
+        <p class="text-muted small">Upload supporting documents or photos. Allowed types and storage rules are enforced server-side.</p>
+        <div class="mb-2">
+            <input type="file" name="attachments" class="form-control" multiple />
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Model))
+        {
+            <div class="small text-muted">Context: @Model</div>
+        }
+    </div>
+</div>

@@ -1,0 +1,40 @@
+@model IEnumerable<AssetManagement.Application.ViewModels.AssetAssignmentVm>
+@{
+    ViewBag.Title = "Assignments";
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Assignment History",
+    Subtitle = "Review who received assets, when the handover happened, and the expected return dates."
+})
+@if (!Model.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No assignments yet</h5>
+            <p class="text-muted mb-0">Asset assignments will appear here after the first handover is recorded.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi">
+        <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Date</th><th>Assigned To</th><th>Department</th><th>Type</th><th>Expected Return</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@item.AssignedDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ToUserName) ? "Not specified" : item.ToUserName)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ToDepartmentName) ? "Not specified" : item.ToDepartmentName)</td>
+                        <td>@item.AssignmentType</td>
+                        <td>@(item.ExpectedReturnDate.HasValue ? item.ExpectedReturnDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

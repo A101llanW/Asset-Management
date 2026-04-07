@@ -1,0 +1,64 @@
+@model IEnumerable<AssetManagement.Domain.Entities.Notification>
+@{
+    ViewBag.Title = "Notifications";
+}
+<h3>Notifications</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="text-muted small">Latest 100 system notifications</div>
+    @using (Html.BeginForm("Generate", "Notifications", FormMethod.Post, new { @class = "mb-0" }))
+    {
+        @Html.AntiForgeryToken()
+        <button class="btn btn-sm btn-primary" type="submit">Generate Notifications</button>
+    }
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Subject</th>
+                <th>Message</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Link</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model != null)
+        {
+            var hasRows = false;
+            foreach (var item in Model)
+            {
+                hasRows = true;
+                <tr>
+                    <td>@item.Type</td>
+                    <td>@item.Subject</td>
+                    <td>@item.Message</td>
+                    <td>@item.Status</td>
+                    <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.LinkUrl))
+                        {
+                            <a href="@item.LinkUrl" class="btn btn-sm btn-outline-secondary">Open</a>
+                        }
+                    </td>
+                </tr>
+            }
+
+            if (!hasRows)
+            {
+                <tr>
+                    <td colspan="6" class="text-muted">No notifications found.</td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="6" class="text-muted">No notifications found.</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
