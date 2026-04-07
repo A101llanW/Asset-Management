@@ -23,3 +23,6 @@ TestResults/
 
 #Ignore cursor AI rules
 .cursor\rules\codacy.mdc
+.codacy/
+.cursor/
+tests/
