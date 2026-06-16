@@ -1,58 +1,91 @@
 using System.Collections.Generic;
-using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Queries;
+using AssetManagement.Application.Contracts.Security;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
-using AssetManagement.Domain.Entities;
 
 namespace AssetManagement.Application.Services
 {
     public class AuditLogService : IAuditLogService
     {
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IAuditLogQueryRepository _auditLogQueryRepository;
+        private readonly IDepartmentScopeService _departmentScope;
+        private readonly ICurrentUserContext _currentUser;
+        private readonly IOrganizationScopeService _organizationScope;
 
-        public AuditLogService(IUnitOfWork unitOfWork)
+        public AuditLogService(
+            IAuditLogQueryRepository auditLogQueryRepository,
+            IDepartmentScopeService departmentScope,
+            ICurrentUserContext currentUser,
+            IOrganizationScopeService organizationScope)
         {
-            _unitOfWork = unitOfWork;
+            _auditLogQueryRepository = auditLogQueryRepository;
+            _departmentScope = departmentScope;
+            _currentUser = currentUser;
+            _organizationScope = organizationScope;
         }
 
         public IEnumerable<AuditLogVm> GetLogs(AuditLogFilterVm filter)
         {
-            var query = _unitOfWork.Repository<AuditLog>().GetAll();
-            if (filter != null)
+            return QueryLogs(filter);
+        }
+
+        public byte[] ExportCsv(AuditLogFilterVm filter)
+        {
+            var rows = new List<string[]>
             {
-                if (!string.IsNullOrWhiteSpace(filter.EntityType))
-                {
-                    query = query.Where(x => x.EntityType == filter.EntityType);
-                }
+                new[] { "Timestamp", "ActorUserId", "Action", "EntityType", "EntityId", "IPAddress" }
+            };
 
-                if (!string.IsNullOrWhiteSpace(filter.Action))
+            foreach (var log in QueryLogs(filter))
+            {
+                rows.Add(new[]
                 {
-                    query = query.Where(x => x.Action == filter.Action);
-                }
-
-                if (filter.FromDate.HasValue)
-                {
-                    query = query.Where(x => x.Timestamp >= filter.FromDate.Value);
-                }
-
-                if (filter.ToDate.HasValue)
-                {
-                    query = query.Where(x => x.Timestamp <= filter.ToDate.Value);
-                }
+                    log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
+                    log.ActorUserId ?? string.Empty,
+                    log.ActionLabel ?? log.Action ?? string.Empty,
+                    log.EntityTypeLabel ?? log.EntityType ?? string.Empty,
+                    log.EntityId ?? string.Empty,
+                    log.IPAddress ?? string.Empty
+                });
             }
 
-            return query.OrderByDescending(x => x.Timestamp)
-                .Select(x => new AuditLogVm
-                {
-                    Id = x.Id,
-                    ActorUserId = x.ActorUserId,
-                    Action = x.Action,
-                    EntityType = x.EntityType,
-                    EntityId = x.EntityId,
-                    Timestamp = x.Timestamp,
-                    IPAddress = x.IPAddress
-                })
-                .ToList();
+            return CsvExportHelper.ToUtf8Bytes(rows);
+        }
+
+        private IList<AuditLogVm> QueryLogs(AuditLogFilterVm filter)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new List<AuditLogVm>();
+            }
+
+            var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope;
+            int? departmentId = null;
+            var denyDepartmentScope = false;
+            if (!bypassDepartmentScope)
+            {
+                departmentId = _departmentScope.ScopedDepartmentId;
+                denyDepartmentScope = !departmentId.HasValue;
+            }
+
+            var actorId = _currentUser == null ? null : _currentUser.UserId;
+            var logs = _auditLogQueryRepository.GetLogs(
+                filter,
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                actorId);
+
+            foreach (var log in logs)
+            {
+                AuditDisplayLabelHelper.ApplyDisplayLabels(log);
+            }
+
+            return logs;
         }
     }
 }

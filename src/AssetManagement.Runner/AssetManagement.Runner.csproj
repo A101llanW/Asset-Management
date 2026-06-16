@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net472</TargetFramework>
-    <LangVersion>latest</LangVersion>
+    <TargetFramework>net40</TargetFramework>
+    <LangVersion>6</LangVersion>
     <RootNamespace>AssetManagement.Runner</RootNamespace>
   </PropertyGroup>
 </Project>

@@ -1,0 +1,98 @@
+@model AssetManagement.Web.ViewModels.PlatformUserCreateViewModel
+@{
+    ViewBag.Title = "Create User";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    var organizations = ViewBag.Organizations as SelectList;
+    var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
+    var isSystemUserContext = ViewBag.IsSystemUserContext as bool? ?? !Model.OrganizationId.HasValue;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Create User</h1>
+        <p class="text-muted mb-0">Create a system (platform) user or a company user in a specific organization.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to users</a>
+</div>
+
+<div class="card card-kpi mb-4">
+    <div class="card-header">User context</div>
+    <div class="card-body">
+        <form method="get" action="@Url.Action("Create")" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">Organization</label>
+                <select class="form-select" name="organizationId" onchange="this.form.submit()">
+                    <option value="">System user (platform)</option>
+                    @if (organizations != null)
+                    {
+                        foreach (SelectListItem item in organizations)
+                        {
+                            <option value="@item.Value" @(item.Selected ? "selected" : null)>@item.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <p class="text-muted mb-0 small">
+                    @(isSystemUserContext
+                        ? "System users have platform-wide access and are not tied to an organization."
+                        : "Company users belong to the selected organization and use tenant roles. Department and job title can be assigned later.")
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.OrganizationId)
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="card card-kpi">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Email</label>
+                    @Html.TextBoxFor(m => m.Email, new { @class = "form-control" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Employee Number</label>
+                    @Html.TextBoxFor(m => m.EmployeeNumber, new { @class = "form-control" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Role</label>
+                    <select class="form-select" name="RoleId">
+                        @if (roles != null)
+                        {
+                            foreach (var role in roles)
+                            {
+                                <option value="@role.Id" @(Model.RoleId == role.Id ? "selected" : null)>@role.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">First Name</label>
+                    @Html.TextBoxFor(m => m.FirstName, new { @class = "form-control" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Last Name</label>
+                    @Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Phone</label>
+                    @Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Password</label>
+                    @Html.PasswordFor(m => m.Password, new { @class = "form-control" })
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Create User</button>
+                <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Cancel</a>
+            </div>
+        </div>
+    </div>
+}
+

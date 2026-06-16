@@ -1,10 +1,9 @@
 using System;
-using System.Security.Claims;
 using System.Web;
 using System.Web.Mvc;
-using AssetManagement.Infrastructure.Persistence;
-using AssetManagement.Infrastructure.Repositories;
-using AssetManagement.Infrastructure.Services;
+using AssetManagement.Application.Contracts;
+using AssetManagement.Infrastructure.Security;
+using AssetManagement.Web.Helpers;
 
 namespace AssetManagement.Web.Filters
 {
@@ -25,30 +24,47 @@ namespace AssetManagement.Web.Filters
                 return false;
             }
 
-            var principal = httpContext.User as ClaimsPrincipal;
-            var userId = principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = FormsAuthHelper.GetUserId(httpContext.User);
             if (string.IsNullOrWhiteSpace(userId))
             {
                 return false;
             }
 
-            using (var context = new AssetManagementDbContext())
-            using (var uow = new UnitOfWork(context))
+            var authorizationService = DependencyResolver.Current.GetService<IAuthorizationService>();
+            if (authorizationService == null)
             {
-                var authorizationService = new AuthorizationService(uow);
-                return authorizationService.HasPermission(userId, _permissionCode);
+                return false;
             }
+
+            return authorizationService.HasPermission(userId, _permissionCode);
         }
 
         protected override void HandleUnauthorizedRequest(AuthorizationContext filterContext)
         {
             if (!filterContext.HttpContext.User.Identity.IsAuthenticated)
             {
-                base.HandleUnauthorizedRequest(filterContext);
+                TenantLoginRedirect.RedirectToLogin(filterContext);
+                return;
+            }
+
+            if (TryRedirectPlatformAdminFromTenantPortal(filterContext))
+            {
                 return;
             }
 
             filterContext.Result = new HttpStatusCodeResult(403, "You do not have permission to access this action.");
+        }
+
+        private static bool TryRedirectPlatformAdminFromTenantPortal(AuthorizationContext filterContext)
+        {
+            ActionResult redirect;
+            if (!PlatformAdminHelper.TryCreateTenantPortalRedirect(filterContext, out redirect))
+            {
+                return false;
+            }
+
+            filterContext.Result = redirect;
+            return true;
         }
     }
 }

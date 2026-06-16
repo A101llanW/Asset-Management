@@ -6,5 +6,7 @@ namespace AssetManagement.Application.Contracts
     public interface IAuditLogService
     {
         IEnumerable<AuditLogVm> GetLogs(AuditLogFilterVm filter);
+
+        byte[] ExportCsv(AuditLogFilterVm filter);
     }
 }

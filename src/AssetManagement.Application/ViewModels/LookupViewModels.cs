@@ -17,7 +17,7 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(500)]
         public string Description { get; set; }
 
-        public bool IsActive { get; set; } = true;
+        public bool IsActive { get; set; }
     }
 
     public class SupplierVm
@@ -31,7 +31,7 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(120)]
         public string ContactPerson { get; set; }
 
-        [EmailAddress]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
         public string Email { get; set; }
 
         [StringLength(50)]
@@ -45,6 +45,24 @@ namespace AssetManagement.Application.ViewModels
 
         public string Notes { get; set; }
 
-        public bool IsActive { get; set; } = true;
+        public bool IsActive { get; set; }
+    }
+
+    public class CategoryLookupVm
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public bool IsActive { get; set; }
+    }
+
+    public class AssetTypeLookupVm
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public bool IsActive { get; set; }
     }
 }

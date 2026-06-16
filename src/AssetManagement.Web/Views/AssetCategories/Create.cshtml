@@ -1,0 +1,44 @@
+@model AssetManagement.Web.ViewModels.AssetCategoryVm
+@{
+    ViewBag.Title = "Create Asset Category";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    ViewData["UsefulLifeFormMode"] = "category";
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Asset Category",
+    Subtitle = "Add a category that groups related asset types like laptops, furniture, or networking gear.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Asset Categories", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Category" }
+    }
+})
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+        @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+        @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+    </div>
+    <div class="form-check mb-3">
+        @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+        @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+    </div>
+    @Html.Partial("_TaxonomyUsefulLifeFields")
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Category",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}

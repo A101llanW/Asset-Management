@@ -1,0 +1,71 @@
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
+@using AssetManagement.Web.Helpers
+@{
+    var canUpload = Html.CanUploadAssetDocument(Model.CurrentCustodianId);
+    var canDownload = Html.CanDownloadAssetDocument(Model.CurrentCustodianId);
+    var canDelete = Html.HasPermission("Documents.Delete");
+}
+
+<div class="card card-kpi">
+    <div class="card-body">
+        @if (canUpload)
+        {
+            <form action="@Url.Action("Upload", "Documents")" method="post" enctype="multipart/form-data" class="row g-2 mb-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="assetId" value="@Model.Id" />
+                <div class="col-md-3">
+                    <label class="form-label">Document type</label>
+                    <input class="form-control" name="documentType" placeholder="Condition photo, invoice..." />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">File</label>
+                    <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx,.txt,image/*" required />
+                    <div class="form-text">Upload condition photos or supporting files. PDF, images, Office docs, or text up to 10 MB.</div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Upload</button>
+                </div>
+            </form>
+        }
+
+        @if (Model.Documents == null || !Model.Documents.Any())
+        {
+            <p class="text-muted mb-0">No documents uploaded for this asset yet.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead><tr><th>Type</th><th>File</th><th>Size</th><th>Uploaded</th><th>By</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var doc in Model.Documents)
+                    {
+                        <tr>
+                            <td>@(doc.DocumentType ?? "General")</td>
+                            <td>@doc.FileName</td>
+                            <td>@((doc.FileSizeBytes / 1024.0).ToString("N0")) KB</td>
+                            <td>@doc.UploadedAt.ToString("yyyy-MM-dd")</td>
+                            <td>@(doc.UploadedByName ?? DisplayText.Empty)</td>
+                            <td class="text-end text-nowrap">
+                                @if (canDownload)
+                                {
+                                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Documents", new { id = doc.Id })">Download</a>
+                                }
+                                @if (canDelete)
+                                {
+                                    <form action="@Url.Action("Delete", "Documents")" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@doc.Id" />
+                                        <input type="hidden" name="assetId" value="@Model.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this document?');">Delete</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

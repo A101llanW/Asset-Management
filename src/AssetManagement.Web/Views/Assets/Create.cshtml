@@ -1,9 +1,10 @@
 @using System.Linq
 @model AssetManagement.Application.ViewModels.AssetCreateVm
+@using AssetManagement.Domain.Entities
 @{
     ViewBag.Title = "Create Asset";
     var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetType> ?? Enumerable.Empty<AssetType>();
     var departments = ViewBag.Departments as SelectList;
     var suppliers = ViewBag.Suppliers as SelectList;
 }
@@ -16,78 +17,121 @@
     BackLabel = "Back to Assets"
 })
 
-@using (Html.BeginForm())
+@using (Html.BeginForm("Create", "Assets", FormMethod.Post))
 {
     @Html.AntiForgeryToken()
-    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger rounded-3 mb-4" })
 
-    <div class="row g-3">
-        <div class="col-md-6">
-            @Html.LabelFor(m => m.AssetName, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control" })
+    @* Section 1: Core Details *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                Core Details
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.AssetName, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control" })
+                    @Html.ValidationMessageFor(m => m.AssetName, "", new { @class = "text-danger small" })
+                </div>
+                <div class="col-md-6">
+                    <p class="form-label mb-1">Asset Tag</p>
+                    <p class="text-muted small mb-0 mt-1">Assigned automatically on save using the department and asset type (e.g. IT-LTP-004).</p>
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.SerialNumber, new { @class = "form-control" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.Brand, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Brand, new { @class = "form-control" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.Model, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Model, new { @class = "form-control" })
+                </div>
+                <div class="col-md-12">
+                    @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+                    @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+                </div>
+            </div>
         </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.AssetTag, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.AssetTag, new { @class = "form-control" })
+    </div>
+
+    @* Section 2: Classification *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                Classification
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.CategoryId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.CategoryId, categories, "-- Select category --", new { @class = "form-select", id = "CategoryId" })
+                    @Html.ValidationMessageFor(m => m.CategoryId, "", new { @class = "text-danger small" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.AssetTypeId, new { @class = "form-label" })
+                    <select class="form-select" id="AssetTypeId" name="AssetTypeId">
+                        <option value="">-- Select asset type --</option>
+                        @foreach (var assetType in assetTypeOptions)
+                        {
+                            if (assetType == null) { continue; }
+                            <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId" @(Model != null && Model.AssetTypeId == assetType.Id ? "selected" : null)>@assetType.Name</option>
+                        }
+                    </select>
+                    @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger small" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.DepartmentId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select department --", new { @class = "form-select" })
+                    @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger small" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.SupplierId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select" })
+                </div>
+            </div>
         </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.SerialNumber, new { @class = "form-control" })
+    </div>
+
+    @* Section 3: Financial *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Financial
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.PurchaseDate, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.AcquisitionCost, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.AcquisitionCost, new { @class = "form-control", type = "number", step = "0.01" })
+                </div>
+                @Html.Partial("_AssetTaxAmountFields", Model)
+                <div class="col-md-2">
+                    @Html.LabelFor(m => m.Currency, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Currency, new { @class = "form-control", @readonly = "readonly" })
+                </div>
+            </div>
+            <p class="text-muted small mb-0 mt-3">Expected useful life is applied from asset type or category rules when your company administrator has configured them. Otherwise it remains not set.</p>
         </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.Brand, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Brand, new { @class = "form-control" })
-        </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.Model, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Model, new { @class = "form-control" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.CategoryId, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.CategoryId, categories, "-- Select category --", new { @class = "form-select", id = "CategoryId" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.AssetTypeId, new { @class = "form-label" })
-            <select class="form-select" id="AssetTypeId" name="AssetTypeId">
-                <option value="">-- Select asset type --</option>
-                @foreach (var assetType in assetTypeOptions)
-                {
-                    <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId" @(Model.AssetTypeId == (int)assetType.Id ? "selected" : null)>@assetType.Name</option>
-                }
-            </select>
-            @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.DepartmentId, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select department --", new { @class = "form-select" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.SupplierId, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select" })
-        </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.PurchaseDate, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
-        </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.AcquisitionCost, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.AcquisitionCost, new { @class = "form-control", type = "number", step = "0.01" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.Currency, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Currency, new { @class = "form-control" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.UsefulLifeMonths, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.UsefulLifeMonths, new { @class = "form-control", type = "number" })
-        </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.SalvageValue, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.SalvageValue, new { @class = "form-control", type = "number", step = "0.01" })
-        </div>
-        <div class="col-md-12">
-            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
-            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+    </div>
+
+    @* Section 4: Approval Paths *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-1" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+                Approval Paths
+            </h6>
+            <p class="text-muted small mb-3">Configure how transfer and disposal requests for this asset move through approval. Add stages and choose the approver role for each.</p>
+            @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
         </div>
     </div>
 
@@ -104,31 +148,37 @@
         var category = document.getElementById('CategoryId');
         var assetType = document.getElementById('AssetTypeId');
 
-        if (!category || !assetType) {
-            return;
-        }
+        if (!category || !assetType) { return; }
 
         var options = Array.prototype.slice.call(assetType.options);
 
         function syncAssetTypes() {
             var selectedCategoryId = category.value;
-
             options.forEach(function (option, index) {
-                if (index === 0) {
-                    option.hidden = false;
-                    return;
-                }
-
-                option.hidden = !!selectedCategoryId && option.getAttribute('data-category-id') !== selectedCategoryId;
+                if (index === 0) { option.disabled = false; return; }
+                var matchesCategory = !selectedCategoryId || option.getAttribute('data-category-id') === selectedCategoryId;
+                option.disabled = !matchesCategory;
+                option.hidden = false;
             });
-
             var selectedOption = assetType.options[assetType.selectedIndex];
-            if (selectedOption && selectedOption.hidden) {
-                assetType.value = '';
+            if (selectedOption && selectedOption.disabled) { assetType.value = ''; }
+        }
+
+        function syncCategoryFromAssetType() {
+            var selectedOption = assetType.options[assetType.selectedIndex];
+            if (!selectedOption || !selectedOption.value) { return; }
+
+            var categoryId = selectedOption.getAttribute('data-category-id');
+            if (categoryId && category.value !== categoryId) {
+                category.value = categoryId;
+                syncAssetTypes();
             }
         }
 
         category.addEventListener('change', syncAssetTypes);
+        assetType.addEventListener('change', syncCategoryFromAssetType);
+        syncCategoryFromAssetType();
         syncAssetTypes();
     })();
 </script>
+<script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>

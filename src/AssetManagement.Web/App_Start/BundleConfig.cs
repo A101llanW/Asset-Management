@@ -10,7 +10,10 @@ namespace AssetManagement.Web.App_Start
             bundles.Add(new ScriptBundle("~/bundles/bootstrap").Include("~/Scripts/bootstrap.bundle.min.js"));
             bundles.Add(new ScriptBundle("~/bundles/app").Include("~/Scripts/app/permissions.js"));
 
-            bundles.Add(new StyleBundle("~/Content/css").Include("~/Content/bootstrap.min.css", "~/Content/css/site.css"));
+            bundles.Add(new StyleBundle("~/Content/css").Include(
+                "~/Content/bootstrap.min.css",
+                "~/Content/css/site.css",
+                "~/Content/css/am-modules.css"));
         }
     }
 }

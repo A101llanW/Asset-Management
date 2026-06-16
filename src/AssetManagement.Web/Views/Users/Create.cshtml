@@ -3,11 +3,24 @@
     ViewBag.Title = "Create User";
     var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
     var departments = ViewBag.Departments as IEnumerable<AssetManagement.Application.ViewModels.DepartmentVm>;
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
 }
-<h3>Create User</h3>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create User",
+    Subtitle = "Set up a person, assign their department and role, and then review their profile.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Users", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create User" }
+    }
+})
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3">
         <div class="col-md-4"><label class="form-label">Email</label>@Html.TextBoxFor(m => m.Email, new { @class = "form-control" })</div>
@@ -34,10 +47,12 @@
         <div class="col-md-3"><label class="form-label">Last Name</label>@Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Phone</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Position Title</label>@Html.TextBoxFor(m => m.PositionTitle, new { @class = "form-control" })</div>
-        <div class="col-md-4"><label class="form-label">Password</label>@Html.PasswordFor(m => m.Password, new { @class = "form-control" })</div>
+        <div class="col-md-4"><label class="form-label">Password</label>@Html.PasswordFieldFor(m => m.Password)</div>
     </div>
-    <div class="mt-3 d-flex gap-2">
-        <button class="btn btn-primary" type="submit">Create User</button>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to Users</a>
-    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create User",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
 }

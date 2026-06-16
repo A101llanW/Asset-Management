@@ -1,10 +1,16 @@
-@model IEnumerable<AssetManagement.Application.ViewModels.UserVm>
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.UserVm>
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Users";
     var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
+    var departmentOptions = ViewBag.DepartmentOptions as IEnumerable<AssetManagement.Application.ViewModels.DepartmentVm>;
+    var roleFilter = ViewBag.RoleFilter as SelectList;
+    var departments = ViewBag.Departments as SelectList;
+    var statusFilter = ViewBag.StatusFilter as SelectList;
     var canCreateUser = Html.HasPermission("Users.Create");
     var canEditUser = Html.HasPermission("Users.Edit");
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -13,7 +19,34 @@
     PrimaryActionUrl = canCreateUser ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateUser ? "Create User" : null
 })
-@if (!Model.Any())
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input type="text" class="form-control" name="search" placeholder="Search by name, email, or employee number" value="@Model.Search" />
+        </div>
+        <div class="col-md-2">
+            @Html.DropDownList("roleId", roleFilter, "All roles", new { @class = "form-select" })
+        </div>
+        <div class="col-md-2">
+            @Html.DropDownList("departmentId", departments, "All departments", new { @class = "form-select" })
+        </div>
+        <div class="col-md-2">
+            @Html.DropDownList("isActive", statusFilter, new { @class = "form-select" })
+        </div>
+        <div class="col-md-1">
+            <select class="form-select" name="pageSize">
+                @foreach (var size in new[] { 10, 25, 50 })
+                {
+                    <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-1 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (!Model.Items.Any())
 {
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
@@ -30,23 +63,52 @@ else
 {
     <div class="card card-kpi"><div class="card-body p-0">
     <table class="table mb-0">
-        <thead class="table-light"><tr><th>Employee #</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Assign Role</th></tr></thead>
+        <thead class="table-light"><tr><th>Employee #</th><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>@Html.SortLink("Email", "email", currentSort, currentDirection)</th><th>Department</th><th>@Html.SortLink("Role", "role", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th>Assign Dept</th><th>Assign Role</th></tr></thead>
         <tbody>
-        @foreach (var user in Model)
+        @foreach (var user in Model.Items)
         {
             <tr>
                 <td>@user.EmployeeNumber</td>
                 <td>@user.FirstName @user.LastName</td>
                 <td>@user.Email</td>
+                <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : user.DepartmentName)</td>
                 <td>@user.RoleName</td>
-                <td>@(user.IsActive ? "Active" : "Inactive")</td>
+                <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive) badge-status">@(user.IsActive ? "Active" : "Inactive")</span></td>
                 <td>
+                    @if (canEditUser)
+                    {
+                        using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "d-flex gap-2 flex-wrap" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="userId" value="@user.Id" />
+                            <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                            <select name="departmentId" class="form-select form-select-sm" style="min-width: 8rem;">
+                                <option value="">None</option>
+                                @if (departmentOptions != null)
+                                {
+                                    foreach (var d in departmentOptions)
+                                    {
+                                        <option value="@d.Id" @(user.DepartmentId == d.Id ? "selected" : null)>@d.Name</option>
+                                    }
+                                }
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
+                        }
+                    }
+                    else
+                    {
+                        <span class="text-muted small"></span>
+                    }
+                </td>
+                <td>
+                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id, returnUrl = Request.RawUrl })">Details</a>
                     @if (canEditUser)
                     {
                         using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "d-flex gap-2" }))
                         {
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="userId" value="@user.Id" />
+                            <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
                             <select name="roleId" class="form-select form-select-sm">
                                 @if (roles != null)
                                 {
@@ -65,4 +127,5 @@ else
         </tbody>
     </table>
     </div></div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }

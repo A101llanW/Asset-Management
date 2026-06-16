@@ -30,7 +30,7 @@ else
                         <td>@(string.IsNullOrWhiteSpace(item.ToUserName) ? "Not specified" : item.ToUserName)</td>
                         <td>@(string.IsNullOrWhiteSpace(item.ToDepartmentName) ? "Not specified" : item.ToDepartmentName)</td>
                         <td>@item.AssignmentType</td>
-                        <td>@(item.ExpectedReturnDate.HasValue ? item.ExpectedReturnDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                        <td>@(item.ExpectedReturnDate.HasValue ? item.ExpectedReturnDate.Value.ToString("yyyy-MM-dd") : DisplayText.Empty)</td>
                     </tr>
                 }
                 </tbody>

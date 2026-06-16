@@ -1,0 +1,60 @@
+@model IEnumerable<AssetManagement.Application.ViewModels.PurchaseRequestListItemVm>
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Purchase Requests";
+    var canCreate = Html.HasPermission("Purchases.Create");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Purchase Requests",
+    Subtitle = "Submit requisitions for approval, then record the purchase order against an approved request.",
+    BackUrl = Url.Action("Index", "Purchases"),
+    BackLabel = "Back to Purchases",
+    PrimaryActionUrl = canCreate ? Url.Action("Create") : null,
+    PrimaryActionLabel = canCreate ? "New request" : null,
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index", "Purchases") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchase Requests" }
+    }
+})
+
+<div class="card card-kpi">
+    <div class="card-body p-0">
+        <table class="table mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Request #</th>
+                    <th>Department</th>
+                    <th>Requested by</th>
+                    <th>Status</th>
+                    <th>Est. total</th>
+                    <th>Submitted</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model != null && Model.Any())
+            {
+                foreach (var r in Model)
+                {
+                    var total = r.EstimatedUnitCost * r.Quantity;
+                    <tr>
+                        <td><strong>@r.RequestNumber</strong></td>
+                        <td>@(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : r.DepartmentName)</td>
+                        <td>@r.RequestedById</td>
+                        <td><span class="badge bg-secondary">@r.ApprovalStatus</span></td>
+                        <td>@Html.FormatCurrency(total)</td>
+                        <td>@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = r.Id, returnUrl = Request.RawUrl })">Details</a></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="7" class="text-muted p-4">No purchase requests yet.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,19 @@
+@* Full-screen support session notice shown to company admins while platform support is active. *@
+<div id="am-support-session-overlay" class="am-support-session-overlay" aria-hidden="true">
+    <canvas id="amSupportSessionCanvas" class="am-anti-gravity-canvas am-support-session-canvas" aria-hidden="true"></canvas>
+    <div class="am-portal-panel am-portal-panel--centered am-support-session-panel" role="dialog" aria-modal="true" aria-labelledby="amSupportSessionTitle">
+        <img src="@Url.Content("~/Content/images/nanosoft-logo-transparent.png")"
+             alt="Nanosoft"
+             class="am-portal-logo" />
+        <p class="am-portal-kicker">Nanosoft Asset Suite</p>
+        <h2 id="amSupportSessionTitle" class="am-portal-title">You're receiving live support</h2>
+        <p class="am-portal-copy">
+            A certified Nanosoft platform administrator is performing approved support operations in your organization.
+            Your session is temporarily read-only while they help.
+        </p>
+        <div class="am-support-session-countdown-wrap">
+            <span class="am-support-session-countdown-label">Session ends in</span>
+            <strong class="am-support-session-countdown-value" id="freeze-countdown">--:--</strong>
+        </div>
+    </div>
+</div>

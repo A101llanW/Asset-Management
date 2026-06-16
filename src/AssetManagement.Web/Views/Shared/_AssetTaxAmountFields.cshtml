@@ -1,0 +1,35 @@
+@model AssetManagement.Application.ViewModels.AssetCreateVm
+@using AssetManagement.Application.Helpers
+@{
+    var taxMode = string.IsNullOrWhiteSpace(Model.TaxInputMode)
+        ? AssetTaxInputHelper.AmountMode
+        : Model.TaxInputMode;
+    var taxInputValue = Model.TaxInputValue.HasValue
+        ? Model.TaxInputValue.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
+        : string.Empty;
+}
+
+<div class="col-md-5" id="assetTaxFields">
+    <label class="form-label">Tax / VAT (optional)</label>
+    <div class="row g-2">
+        <div class="col-sm-5">
+            <select class="form-select" id="TaxInputMode" name="TaxInputMode">
+                <option value="@AssetTaxInputHelper.AmountMode" @(taxMode == AssetTaxInputHelper.AmountMode ? "selected=\"selected\"" : null)>Fixed amount</option>
+                <option value="@AssetTaxInputHelper.PercentageMode" @(taxMode == AssetTaxInputHelper.PercentageMode ? "selected=\"selected\"" : null)>Percentage</option>
+            </select>
+        </div>
+        <div class="col-sm-7">
+            <input class="form-control"
+                   type="number"
+                   step="0.01"
+                   min="0"
+                   id="TaxInputValue"
+                   name="TaxInputValue"
+                   value="@taxInputValue"
+                   data-placeholder-amount="Enter tax amount"
+                   data-placeholder-percentage="Enter tax % of acquisition cost" />
+        </div>
+    </div>
+    @Html.HiddenFor(m => m.TaxAmount, new { id = "TaxAmount" })
+    <div class="form-text">Calculated tax: <span id="TaxAmountDisplay">@Model.TaxAmount.ToString("N2")</span>. Leave the value blank if no tax applies.</div>
+</div>

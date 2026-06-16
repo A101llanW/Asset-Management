@@ -1,0 +1,120 @@
+@model AssetManagement.Application.ViewModels.UserVm
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "User Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var canEditUser = Html.HasPermission("Users.Edit");
+    var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
+    var departments = ViewBag.Departments as IEnumerable<AssetManagement.Application.ViewModels.DepartmentVm>;
+    var displayName = (Model.FirstName + " " + Model.LastName).Trim();
+    if (string.IsNullOrWhiteSpace(displayName))
+    {
+        displayName = Model.Email;
+    }
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = displayName,
+    Subtitle = string.IsNullOrWhiteSpace(Model.EmployeeNumber) ? "User profile" : "Employee number: " + Model.EmployeeNumber,
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Users", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = displayName }
+    }
+})
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Profile</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Email</dt>
+                    <dd class="col-sm-7">@Model.Email</dd>
+                    <dt class="col-sm-5">Phone</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Phone) ? "Not set" : Model.Phone)</dd>
+                    <dt class="col-sm-5">Department</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Not set" : Model.DepartmentName)</dd>
+                    <dt class="col-sm-5">Position</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.PositionTitle) ? "Not set" : Model.PositionTitle)</dd>
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">Assigned Assets</dt>
+                    <dd class="col-sm-7">@ViewBag.AssignedAssetCount</dd>
+                </dl>
+                @if (canEditUser)
+                {
+                    <hr class="my-3" />
+                    using (Html.BeginForm("UnlockAccount", "Users", FormMethod.Post, new { @class = "mb-0" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                        <button class="btn btn-outline-warning w-100" type="submit">Unlock account (clear failed logins)</button>
+                    }
+                    <hr class="my-3" />
+                    using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "row g-2 align-items-end" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                        <div class="col-md-8">
+                            <label class="form-label">Assign department</label>
+                            <select name="departmentId" class="form-select">
+                                <option value="">Not assigned</option>
+                                @if (departments != null)
+                                {
+                                    foreach (var d in departments)
+                                    {
+                                        <option value="@d.Id" @(Model.DepartmentId == d.Id ? "selected" : null)>@d.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-primary w-100" type="submit">Save Department</button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Role Access</div>
+            <div class="card-body">
+                <p class="mb-3"><strong>Current role:</strong> @(string.IsNullOrWhiteSpace(ViewBag.RoleName as string) ? "Not assigned" : ViewBag.RoleName)</p>
+                @if (canEditUser)
+                {
+                    using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "row g-2 align-items-end" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                        <div class="col-md-8">
+                            <label class="form-label">Assign role</label>
+                            <select name="roleId" class="form-select">
+                                @if (roles != null)
+                                {
+                                    foreach (var role in roles)
+                                    {
+                                        <option value="@role.Id" selected="@(Model.RoleId == role.Id)">@role.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-primary w-100" type="submit">Save Role</button>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-muted mb-0">You do not have permission to change this user's role.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

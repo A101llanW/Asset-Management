@@ -1,0 +1,88 @@
+@using AssetManagement.Web.App_Start
+@using AssetManagement.Web.Helpers
+@if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
+{
+    <div id="amHelpBot"
+         class="am-helpbot"
+         data-current-controller="@ViewContext.RouteData.Values["controller"]"
+         data-current-action="@ViewContext.RouteData.Values["action"]"
+         data-dashboard-url="@Url.Action("Index", "Dashboard")"
+         data-assets-url="@Url.Action("Index", "Assets")"
+         data-assets-create-url="@Url.Action("Create", "Assets")"
+         data-assignments-url="@Url.Action("Index", "Assignments")"
+         data-purchases-url="@Url.Action("Index", "Purchases")"
+         data-purchases-create-url="@Url.Action("Create", "Purchases")"
+         data-departments-url="@Url.Action("Index", "Departments")"
+         data-suppliers-url="@Url.Action("Index", "Suppliers")"
+         data-users-url="@Url.Action("Index", "Users")"
+         data-users-create-url="@Url.Action("Create", "Users")"
+         data-roles-url="@Url.Action("Index", "Roles")"
+         data-reports-url="@Url.Action("Index", "Reports")"
+         data-notifications-url="@Url.Action("Index", "Notifications")"
+         data-categories-url="@Url.Action("Index", "AssetCategories")"
+         data-types-url="@Url.Action("Index", "AssetTypes")"
+         data-settings-url="@Url.Action("Index", "Settings")">
+        <button type="button"
+                id="amHelpBotToggle"
+                class="am-helpbot-toggle"
+                aria-controls="amHelpBotPanel"
+                aria-expanded="false">
+            <span class="am-helpbot-toggle-badge">Help</span>
+            <span class="am-helpbot-toggle-copy">
+                <strong>Process Assistant</strong>
+                <small>Need guidance?</small>
+            </span>
+        </button>
+
+        <section id="amHelpBotPanel" class="am-helpbot-panel" aria-hidden="true">
+            <header class="am-helpbot-header">
+                <div>
+                    <span class="am-helpbot-kicker">System guide</span>
+                    <h2>Process Assistant</h2>
+                </div>
+                <button type="button" id="amHelpBotClose" class="am-helpbot-close" aria-label="Close assistant">&times;</button>
+            </header>
+
+            <div id="amHelpBotMessages" class="am-helpbot-messages">
+                <article class="am-helpbot-message am-helpbot-message-bot">
+                    <p>I can help users navigate the module and understand the actual system processes.</p>
+                    <p>Ask things like "How do I assign an asset?", "How do I record a purchase?", or "What can I do on this page?"</p>
+                </article>
+            </div>
+
+            <div class="am-helpbot-prompts">
+                @if (Html.HasPermission("Assets.Create") || Html.HasPermission("Assets.View"))
+                {
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I create an asset?">Create asset</button>
+                }
+                @if (Html.HasPermission("Assets.Assign"))
+                {
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I assign an asset?">Assign asset</button>
+                }
+                @if (Html.HasPermission("Assets.Transfer"))
+                {
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I transfer an asset?">Transfer asset</button>
+                }
+                @if (Html.HasPermission("Assets.Return"))
+                {
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I return an asset?">Return asset</button>
+                }
+                @if (Html.HasPermission("Assets.Edit"))
+                {
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="Where do I manage asset categories and types?">Asset categories</button>
+                }
+                @if (Html.HasPermission("Roles.View"))
+                {
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do roles and permissions work?">Roles</button>
+                }
+                <button type="button" class="am-helpbot-chip" data-helpbot-prompt="What can I do on this page?">This page</button>
+            </div>
+
+            <form id="amHelpBotForm" class="am-helpbot-form" autocomplete="off">
+                <label class="visually-hidden" for="amHelpBotInput">Ask the process assistant</label>
+                <input type="text" id="amHelpBotInput" class="form-control" placeholder="Ask about a system process" />
+                <button type="submit" class="btn btn-primary">Send</button>
+            </form>
+        </section>
+    </div>
+}

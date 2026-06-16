@@ -1,0 +1,67 @@
+@model AssetManagement.Application.ViewModels.SecurityLogsPageVm
+@{
+    ViewBag.Title = "Platform Security Logs";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    var activeTab = ViewBag.ActiveTab as string ?? "login";
+}
+<h3>Platform Security Logs</h3>
+<p class="text-muted">Cross-tenant login attempts and security events.</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Login attempts</div><div class="h4 mb-0">@Model.TotalLoginAttempts</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Successful</div><div class="h4 mb-0">@Model.SuccessfulLogins</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Failed</div><div class="h4 mb-0">@Model.FailedLoginAttempts</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Security events</div><div class="h4 mb-0">@Model.TotalSecurityEvents</div></div></div></div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2"><input class="form-control" name="Username" placeholder="Username / email" value="@(Model.Filter != null ? Model.Filter.Username : null)" /></div>
+    <div class="col-md-2"><input class="form-control" name="IpAddress" placeholder="IP address" value="@(Model.Filter != null ? Model.Filter.IpAddress : null)" /></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="StartDate" value="@(Model.Filter != null && Model.Filter.StartDate.HasValue ? Model.Filter.StartDate.Value.ToString("yyyy-MM-dd") : null)" /></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="EndDate" value="@(Model.Filter != null && Model.Filter.EndDate.HasValue ? Model.Filter.EndDate.Value.ToString("yyyy-MM-dd") : null)" /></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Filter</button></div>
+    <input type="hidden" name="tab" value="@activeTab" />
+</form>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link @(activeTab == "login" ? "active" : null)" href="@Url.Action("Index", new { tab = "login" })">Login attempts</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == "events" ? "active" : null)" href="@Url.Action("Index", new { tab = "events" })">Security events</a></li>
+</ul>
+
+@if (activeTab == "events")
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Time (UTC)</th><th>Event</th><th>Email</th><th>IP</th><th>Org Id</th></tr></thead>
+        <tbody>
+        @foreach (var item in Model.SecurityEvents ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.SecurityEventLogVm>())
+        {
+            <tr>
+                <td>@item.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@item.EventType</td>
+                <td>@item.Email</td>
+                <td>@item.IpAddress</td>
+                <td>@(item.OrganizationId.HasValue ? item.OrganizationId.Value.ToString() : "Platform")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+else
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Time (UTC)</th><th>Username</th><th>IP</th><th>Org Id</th><th>Status</th><th>Details</th></tr></thead>
+        <tbody>
+        @foreach (var item in Model.LoginAttempts ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.LoginAttemptLogVm>())
+        {
+            <tr>
+                <td>@item.AttemptedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@item.Username</td>
+                <td>@item.IpAddress</td>
+                <td>@(item.OrganizationId.HasValue ? item.OrganizationId.Value.ToString() : "Platform")</td>
+                <td>@(item.WasSuccessful ? "Success" : "Failed")</td>
+                <td>@item.FailureReason</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

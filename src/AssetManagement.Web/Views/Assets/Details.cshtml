@@ -1,16 +1,34 @@
 @model AssetManagement.Application.ViewModels.AssetDetailsVm
+@using AssetManagement.Application.Services
 @using AssetManagement.Web.Helpers
+@using AssetManagement.Web.ViewModels
 @using AssetManagement.Domain.Enums
+@using System.Linq
 @{
     ViewBag.Title = "Asset Details";
     var canEditAsset = Html.HasPermission("Assets.Edit");
-    var canAssignAsset = Html.HasPermission("Assets.Assign");
+    var canAssignAsset = Html.HasPermission("Assets.Assign") && AssetCustodyRules.CanAssign(Model.CurrentStatus);
+    var assignBlockedMessage = Html.HasPermission("Assets.Assign") && !AssetCustodyRules.CanAssign(Model.CurrentStatus)
+        ? AssetCustodyRules.AlreadyAssignedMessage
+        : null;
     var canTransferAsset = Html.HasPermission("Assets.Transfer");
     var canReturnAsset = Html.HasPermission("Assets.Return");
     var canCreateIncident = Html.HasPermission("Incidents.Create");
     var canCreateClaim = Html.HasPermission("Claims.Create");
     var canRequestDisposal = Html.HasPermission("Assets.Dispose");
-    var canApproveDisposal = Html.HasPermission("Assets.ApproveDisposal");
+    var transferApprovalSummary = ViewBag.TransferApprovalSummary as string;
+    var disposalApprovalSummary = ViewBag.DisposalApprovalSummary as string;
+    var labelVm = ViewBag.AssetLabelPrint as AssetLabelPrintVm
+        ?? AssetLabelPrintHelper.CreateModel(Request, Url, Model);
+    ViewData["CanEditAsset"] = canEditAsset;
+    ViewData["CanCreateIncident"] = canCreateIncident;
+    ViewData["CanCreateClaim"] = canCreateClaim;
+    ViewData["CanRequestDisposal"] = canRequestDisposal;
+    ViewData["DisposalApprovalSummary"] = disposalApprovalSummary;
+    ViewData["DisposalBlockedReason"] = ViewBag.DisposalBlockedReason as string;
+    var openMaintenanceTicket = Model.MaintenanceRecords == null
+        ? null
+        : Model.MaintenanceRecords.FirstOrDefault(x => x.Status == MaintenanceStatus.Open || x.Status == MaintenanceStatus.InProgress);
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -18,41 +36,129 @@
     Title = Model.AssetName,
     Subtitle = "Asset tag: " + Model.AssetTag,
     BackUrl = Url.Action("Index"),
-    BackLabel = "Back to Assets"
+    BackLabel = "Back to Assets",
+    PrimaryActionModalTarget = "assetQrLabelModal",
+    PrimaryActionLabel = "QR label"
 })
 
-<div class="d-flex flex-wrap gap-2 justify-content-end mb-3">
+@if (!string.IsNullOrWhiteSpace(Model.StatusGuidance))
+{
+    <div class="alert alert-light border am-status-banner am-fade-in mb-3" role="status">
+        <strong>Status:</strong> <span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.CurrentStatus) badge-status">@Model.CurrentStatus</span>
+        <span class="ms-2">@Model.StatusGuidance</span>
+    </div>
+}
+
+@if (openMaintenanceTicket != null)
+{
+    <div class="alert alert-warning border am-fade-in mb-3" role="status">
+        Open maintenance ticket <strong>@openMaintenanceTicket.MaintenanceTicketNumber</strong>.
         @if (canEditAsset)
         {
-            <a class="btn btn-outline-secondary" href="@Url.Action("Edit", new { id = Model.Id })">Edit</a>
+            <a class="alert-link ms-1" href="@Url.Action("Complete", "Maintenance", new { id = openMaintenanceTicket.Id })">Complete repair</a>
+            <span class="mx-1">or</span>
+        }
+        <a class="alert-link" href="@Url.Action("Details", "Maintenance", new { id = openMaintenanceTicket.Id })">View ticket</a>
+    </div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-kpi am-kpi-card h-100 border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.04em;">Current Custodian</div>
+                    <div class="h5 mb-0 fw-bold text-dark mt-1">@(string.IsNullOrWhiteSpace(Model.CurrentCustodianName) ? "Unassigned" : Model.CurrentCustodianName)</div>
+                </div>
+                <div class="text-primary bg-light p-2.5 rounded-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-kpi am-kpi-card h-100 border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.04em;">Department</div>
+                    <div class="h5 mb-0 fw-bold text-dark mt-1">@(Model.DepartmentName ?? DisplayText.Empty)</div>
+                </div>
+                <div class="text-success bg-light p-2.5 rounded-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-briefcase"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-kpi am-kpi-card h-100 border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.04em;">Canonical Tag</div>
+                    <div class="h5 mb-0 mt-1"><span class="am-tag-pill">@Model.AssetTag</span></div>
+                </div>
+                <div class="text-warning bg-light p-2.5 rounded-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-kpi border-0 shadow-sm mb-4">
+    <div class="card-body p-3 d-flex flex-wrap gap-2 align-items-center justify-content-end">
+        <span class="me-auto text-secondary fw-semibold ps-2" style="font-size: 0.85rem;">Action Console:</span>
+        @if (canEditAsset)
+        {
+            <a class="btn btn-outline-secondary py-1.5 px-3" href="@Url.Action("Edit", new { id = Model.Id })">Edit</a>
         }
         @if (canAssignAsset)
         {
-            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Assignments", new { assetId = Model.Id })">Assign</a>
+            <a class="btn btn-outline-primary py-1.5 px-3" href="@Url.Action("Create", "Assignments", new { assetId = Model.Id })">Assign</a>
+        }
+        else if (!string.IsNullOrWhiteSpace(assignBlockedMessage))
+        {
+            <span class="text-muted small align-self-center px-2" role="status">
+                @assignBlockedMessage
+                @if (canTransferAsset)
+                {
+                    <a class="ms-1" href="@Url.Action("Create", "Transfers", new { assetId = Model.Id })">Transfer</a>
+                }
+                @if (canReturnAsset)
+                {
+                    <span class="mx-1">or</span>
+                    <a href="@Url.Action("Create", "Returns", new { assetId = Model.Id })">Return</a>
+                }
+            </span>
         }
         @if (canTransferAsset)
         {
-            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Transfers", new { assetId = Model.Id })">Transfer</a>
+            <a class="btn btn-outline-primary py-1.5 px-3 d-none d-md-inline-block" href="@Url.Action("Create", "Transfers", new { assetId = Model.Id })">Transfer</a>
+            <a class="btn btn-outline-primary py-1.5 px-3 d-md-none" href="@Url.Action("Wizard", "Transfers", new { assetId = Model.Id })">Transfer</a>
         }
-        @if (canReturnAsset)
+        @if (canReturnAsset && (Model.CurrentStatus == AssetStatus.Assigned || Model.CurrentStatus == AssetStatus.UnderMaintenance))
         {
-            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Returns", new { assetId = Model.Id })">Return</a>
+            <a class="btn btn-outline-primary py-1.5 px-3 d-none d-md-inline-block" href="@Url.Action("Create", "Returns", new { assetId = Model.Id })">Return</a>
+            <a class="btn btn-outline-primary py-1.5 px-3 d-md-none" href="@Url.Action("Wizard", "Returns", new { assetId = Model.Id })">Return</a>
         }
         @if (canEditAsset)
         {
-            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Maintenance", new { assetId = Model.Id })">Maintenance</a>
+            <a class="btn btn-outline-primary py-1.5 px-3" href="@Url.Action("Create", "Maintenance", new { assetId = Model.Id })">Maintenance</a>
         }
         @if (canCreateIncident)
         {
-            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Incidents", new { assetId = Model.Id })">Incident</a>
+            <a class="btn btn-outline-primary py-1.5 px-3" href="@Url.Action("Create", "Incidents", new { assetId = Model.Id })">Incident</a>
         }
         @if (canCreateClaim)
         {
-            <a class="btn btn-outline-primary" href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">Claim</a>
+            <a class="btn btn-outline-primary py-1.5 px-3" href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">Claim</a>
         }
+    </div>
 </div>
 
-<ul class="nav nav-tabs asset-tabs mb-3" role="tablist">
+@Html.Partial("_AssetLifecyclePanel", Model)
+
+<div class="am-tab-module">
+<ul class="nav nav-tabs asset-tabs" role="tablist">
     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#overview">Overview</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#financial">Financial Info</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#custody">Assignment / Custody History</a></li>
@@ -60,6 +166,10 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#incidents">Incidents</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#insurance">Insurance / Claims</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#documents">Documents</a></li>
+    @if (canRequestDisposal || Html.HasPermission("Assets.ApproveDisposal") || Model.PendingDisposal != null)
+    {
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#disposal">Disposal</a></li>
+    }
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#audit">Audit Trail</a></li>
 </ul>
 
@@ -72,22 +182,72 @@
                 <div class="col-md-4"><strong>Supplier:</strong> @Model.SupplierName</div>
                 <div class="col-md-4"><strong>Serial:</strong> @Model.SerialNumber</div>
                 <div class="col-md-4"><strong>Brand/Model:</strong> @Model.Brand @Model.Model</div>
-                <div class="col-md-4"><strong>Status:</strong> @Model.CurrentStatus</div>
+                <div class="col-md-4"><strong>Status:</strong> <span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.CurrentStatus) badge-status">@Model.CurrentStatus</span></div>
             </div>
         </div></div>
     </div>
     <div class="tab-pane fade" id="financial">
-        <div class="card card-kpi"><div class="card-body">
+        <div class="card card-kpi mb-3"><div class="card-body">
             <div class="row g-3">
-                <div class="col-md-3"><strong>Acquisition Cost:</strong><br />@Model.AcquisitionCost.ToString("N2")</div>
-                <div class="col-md-3"><strong>Current Book Value:</strong><br />@Model.CurrentBookValue.ToString("N2")</div>
-                <div class="col-md-3"><strong>Accumulated Depreciation:</strong><br />@Model.AccumulatedDepreciation.ToString("N2")</div>
-                <div class="col-md-3"><strong>Replacement Value:</strong><br />@Model.ReplacementValue.ToString("N2")</div>
+                <div class="col-md-3"><strong>Acquisition Cost:</strong><br />@Html.FormatCurrency(Model.AcquisitionCost)</div>
+                <div class="col-md-3"><strong>Tax / VAT:</strong><br />@Html.FormatCurrency(Model.TaxAmount)</div>
+                <div class="col-md-3"><strong>Purchase Date:</strong><br />@Model.PurchaseDate.ToString("yyyy-MM-dd")</div>
+                <div class="col-md-3"><strong>Expected Useful Life:</strong><br />@(Model.UsefulLifeMonths > 0 ? string.Format("{0} months", Model.UsefulLifeMonths) : "Not set")</div>
             </div>
+            <p class="text-muted small mb-0 mt-3">Useful life is set from asset type or category rules for operational planning.</p>
         </div></div>
     </div>
     <div class="tab-pane fade" id="custody">
         <div class="card card-kpi"><div class="card-body">
+            @if (Model.PendingTransfers.Any())
+            {
+                <h6 class="mb-3">Pending Transfer Requests</h6>
+                foreach (var pendingTransfer in Model.PendingTransfers)
+                {
+                    <div class="border rounded p-3 mb-3">
+                        <div class="row g-2">
+                            <div class="col-md-3"><strong>Requested By:</strong><br />@pendingTransfer.RequestedByName</div>
+                            <div class="col-md-3"><strong>Submitted:</strong><br />@pendingTransfer.RequestedDateText</div>
+                            <div class="col-md-3"><strong>From:</strong><br />@pendingTransfer.FromEntity</div>
+                            <div class="col-md-3"><strong>To:</strong><br />@pendingTransfer.ToEntity</div>
+                            <div class="col-md-8"><strong>Reason:</strong><br />@(string.IsNullOrWhiteSpace(pendingTransfer.Reason) ? "No reason provided." : pendingTransfer.Reason)</div>
+                            <div class="col-md-4"><strong>Awaiting Stage:</strong><br />Stage @pendingTransfer.CurrentApprovalStage - @pendingTransfer.CurrentStageRoleName</div>
+                        </div>
+                        @Html.Partial("_ApprovalHistory", pendingTransfer.ApprovalHistory)
+                        @if (pendingTransfer.CanCurrentUserApprove)
+                        {
+                            <div class="mt-3">
+                                <form action="@Url.Action("Approve", "Transfers")" method="post" class="row g-2 mb-2">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="transferId" value="@pendingTransfer.Id" />
+                                    <input type="hidden" name="assetId" value="@Model.Id" />
+                                    <div class="col-md-9">
+                                        <input class="form-control" name="notes" placeholder="Approval notes (optional)" />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-primary w-100">Approve Transfer</button>
+                                    </div>
+                                </form>
+                                <form action="@Url.Action("Reject", "Transfers")" method="post" class="row g-2">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="transferId" value="@pendingTransfer.Id" />
+                                    <input type="hidden" name="assetId" value="@Model.Id" />
+                                    <div class="col-md-9">
+                                        <input class="form-control" name="notes" placeholder="Reason for rejection" required />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-outline-danger w-100">Reject Transfer</button>
+                                    </div>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            <div class="alert alert-info">
+                <strong>This asset's transfer approval path:</strong> @transferApprovalSummary
+            </div>
             <h6>Custody Timeline</h6>
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
@@ -122,63 +282,29 @@
             </div>
         </div></div>
     </div>
-    <div class="tab-pane fade" id="maintenance"><div class="card card-kpi"><div class="card-body">Maintenance records are available in the maintenance module. @if (canEditAsset) {<a href="@Url.Action("Create", "Maintenance", new { assetId = Model.Id })">Create ticket</a>}.</div></div></div>
-    <div class="tab-pane fade" id="incidents"><div class="card card-kpi"><div class="card-body">Incident records are available in the incidents module. @if (canCreateIncident) {<a href="@Url.Action("Create", "Incidents", new { assetId = Model.Id })">Report incident</a>}.</div></div></div>
-    <div class="tab-pane fade" id="insurance"><div class="card card-kpi"><div class="card-body">Policy Ref: @Model.PolicyReference<br />Warranty End: @(Model.WarrantyEndDate.HasValue ? Model.WarrantyEndDate.Value.ToString("yyyy-MM-dd") : "N/A")@if (canCreateClaim) {<br /><a href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">Initiate claim</a>}.</div></div></div>
-    <div class="tab-pane fade" id="audit">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <h6 class="mb-3">Disposal Workflow</h6>
-                @if (canRequestDisposal)
-                {
-                    using (Html.BeginForm("RequestDisposal", "Assets", FormMethod.Post, new { @class = "row g-2 mb-3" }))
-                    {
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@Model.Id" />
-                        <div class="col-md-3">
-                            <label class="form-label">Method</label>
-                            <select class="form-select" name="disposalMethod">
-                                @foreach (DisposalMethod method in Enum.GetValues(typeof(DisposalMethod)))
-                                {
-                                    <option value="@method">@method</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-5">
-                            <label class="form-label">Reason</label>
-                            <input class="form-control" name="disposalReason" required />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Notes</label>
-                            <input class="form-control" name="notes" />
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-outline-danger">Submit Disposal Request</button>
-                        </div>
-                    }
-                }
-                @if (canApproveDisposal)
-                {
-                    using (Html.BeginForm("ApproveDisposal", "Assets", FormMethod.Post, new { @class = "row g-2" }))
-                    {
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@Model.Id" />
-                        <div class="col-md-3">
-                            <label class="form-label">Disposal Amount</label>
-                            <input type="number" step="0.01" min="0" class="form-control" name="disposalAmount" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Approval Notes</label>
-                            <input class="form-control" name="notes" />
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button type="submit" class="btn btn-danger w-100">Approve Disposal</button>
-                        </div>
-                    }
-                }
-                <p class="small text-muted mt-3 mb-0">Use Audit Logs report to review full write activity.</p>
-            </div>
-        </div>
+    <div class="tab-pane fade" id="maintenance">
+        @Html.Partial("_AssetMaintenanceTab", Model)
     </div>
-    <div class="tab-pane fade" id="documents">@Html.Partial("_AttachmentUpload", "Asset: " + Model.AssetTag)</div>
+    <div class="tab-pane fade" id="incidents">@Html.Partial("_AssetIncidentsTab", Model)</div>
+    <div class="tab-pane fade" id="insurance">@Html.Partial("_AssetInsuranceTab", Model)</div>
+    <div class="tab-pane fade" id="documents">@Html.Partial("_AssetDocumentsTab", Model)</div>
+    @if (canRequestDisposal || Html.HasPermission("Assets.ApproveDisposal") || Model.PendingDisposal != null)
+    {
+        <div class="tab-pane fade" id="disposal">@Html.Partial("_AssetDisposalTab", Model)</div>
+    }
+    <div class="tab-pane fade" id="audit">@Html.Partial("_AssetAuditTab")</div>
 </div>
+</div>
+
+@section modals {
+    @if (labelVm != null)
+    {
+        @Html.Partial("_AssetQrLabelModal", labelVm)
+    }
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-details-tabs.js")"></script>
+}

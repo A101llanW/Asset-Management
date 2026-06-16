@@ -1,0 +1,85 @@
+@model AssetManagement.Web.ViewModels.AssetScanLookupPageVm
+
+@{
+    var lookup = Model.Lookup;
+}
+
+@if (lookup != null && lookup.Found)
+{
+    <div class="am-scan-result card card-kpi mt-4 am-fade-in border-0">
+        <div class="am-scan-result-header">
+            <div class="am-scan-result-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="am-scan-result-title-wrap">
+                <h5 class="am-scan-result-name mb-0">@lookup.AssetName</h5>
+                <span class="am-tag-pill am-tag-pill--sm mt-1">@lookup.AssetTag</span>
+            </div>
+            <span class="badge bg-@Model.StatusBadgeClass badge-status ms-auto">@lookup.CurrentStatus</span>
+        </div>
+
+        <div class="am-scan-result-body">
+            <dl class="am-scan-details-grid">
+                <div class="am-scan-detail-row">
+                    <dt>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        Custodian
+                    </dt>
+                    <dd>@(string.IsNullOrWhiteSpace(lookup.CustodianName) ? DisplayText.Empty : lookup.CustodianName)</dd>
+                </div>
+                <div class="am-scan-detail-row">
+                    <dt>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                        Department
+                    </dt>
+                    <dd>@(string.IsNullOrWhiteSpace(lookup.DepartmentName) ? DisplayText.Empty : lookup.DepartmentName)</dd>
+                </div>
+                <div class="am-scan-detail-row">
+                    <dt>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        Category
+                    </dt>
+                    <dd>@(string.IsNullOrWhiteSpace(lookup.CategoryName) ? DisplayText.Empty : lookup.CategoryName)</dd>
+                </div>
+                <div class="am-scan-detail-row">
+                    <dt>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        Serial No.
+                    </dt>
+                    <dd>@(string.IsNullOrWhiteSpace(lookup.SerialNumber) ? DisplayText.Empty : lookup.SerialNumber)</dd>
+                </div>
+                <div class="am-scan-detail-row">
+                    <dt>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        Brand / Model
+                    </dt>
+                    <dd>@(string.IsNullOrWhiteSpace(Model.BrandModelDisplay) ? DisplayText.Empty : Model.BrandModelDisplay)</dd>
+                </div>
+            </dl>
+
+            @if (Model.CanManageAsset)
+            {
+                <div class="am-scan-result-actions mt-4">
+                    <a class="btn btn-primary btn-lg w-100" href="@Model.QuickActionsUrl">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        Quick actions
+                    </a>
+                    <a class="btn btn-outline-secondary w-100 mt-2" href="@Model.DetailsUrl">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        Full details
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (lookup != null && !string.IsNullOrWhiteSpace(lookup.Message) && !string.IsNullOrWhiteSpace(Model.InitialCode))
+{
+    <div class="am-scan-no-result mt-4 am-fade-in">
+        <div class="am-scan-no-result-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </div>
+        <p class="am-scan-no-result-text">@lookup.Message</p>
+        <p class="am-scan-no-result-hint">Try scanning again or check the asset tag manually.</p>
+    </div>
+}

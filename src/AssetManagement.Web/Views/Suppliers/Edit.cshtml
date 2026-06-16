@@ -1,12 +1,26 @@
 @model AssetManagement.Application.ViewModels.SupplierVm
 @{
     ViewBag.Title = "Edit Supplier";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
 }
-<h3>Edit Supplier</h3>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Edit Supplier",
+    Subtitle = "Keep supplier contact and registration details accurate for purchasing workflows.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Suppliers", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.SupplierName, Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }) },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Edit Supplier" }
+    }
+})
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
     @Html.HiddenFor(m => m.Id)
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3">
         <div class="col-md-6">@Html.LabelFor(m => m.SupplierName, new { @class = "form-label" }) @Html.TextBoxFor(m => m.SupplierName, new { @class = "form-control" })</div>
@@ -17,8 +31,10 @@
         <div class="col-md-12">@Html.LabelFor(m => m.Notes, new { @class = "form-label" }) @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "2" })</div>
         <div class="col-md-12 form-check">@Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" }) @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })</div>
     </div>
-    <div class="mt-3 d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Update Supplier</button>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to Suppliers</a>
-    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Update Supplier",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
 }

@@ -1,9 +1,12 @@
-@model IEnumerable<AssetManagement.Application.ViewModels.RoleVm>
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.RoleVm>
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Roles";
     var canCreateRole = Html.HasPermission("Roles.Create");
     var canEditRole = Html.HasPermission("Roles.Edit");
+    var statusFilter = ViewBag.StatusFilter as SelectList;
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -12,7 +15,28 @@
     PrimaryActionUrl = canCreateRole ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateRole ? "Create Role" : null
 })
-@if (!Model.Any())
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-7">
+            <input type="text" class="form-control" name="search" placeholder="Search by role name or description" value="@Model.Search" />
+        </div>
+        <div class="col-md-2">
+            @Html.DropDownList("isActive", statusFilter, new { @class = "form-select" })
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="pageSize">
+                @foreach (var size in new[] { 10, 25, 50 })
+                {
+                    <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-1 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (!Model.Items.Any())
 {
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
@@ -29,19 +53,20 @@ else
 {
     <div class="card card-kpi"><div class="card-body p-0">
     <table class="table mb-0">
-        <thead class="table-light"><tr><th>Name</th><th>Description</th><th>System</th><th>Status</th><th></th></tr></thead>
+        <thead class="table-light"><tr><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>Description</th><th>@Html.SortLink("System", "system", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
         <tbody>
-        @foreach (var item in Model)
+        @foreach (var item in Model.Items)
         {
             <tr>
                 <td>@item.Name</td>
                 <td>@item.Description</td>
                 <td>@(item.IsSystemRole ? "Yes" : "No")</td>
-                <td>@(item.IsActive ? "Active" : "Inactive")</td>
+                <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                 <td class="text-end">
+                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
                     @if (canEditRole)
                     {
-                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = item.Id, returnUrl = Request.RawUrl })">Edit</a>
                     }
                 </td>
             </tr>
@@ -49,4 +74,5 @@ else
         </tbody>
     </table>
     </div></div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }

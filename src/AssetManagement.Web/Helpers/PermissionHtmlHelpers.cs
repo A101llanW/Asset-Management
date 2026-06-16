@@ -1,9 +1,8 @@
-using System.Security.Claims;
 using System.Web;
 using System.Web.Mvc;
-using AssetManagement.Infrastructure.Persistence;
-using AssetManagement.Infrastructure.Repositories;
-using AssetManagement.Infrastructure.Services;
+using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Services;
+using AssetManagement.Infrastructure.Security;
 
 namespace AssetManagement.Web.Helpers
 {
@@ -11,15 +10,20 @@ namespace AssetManagement.Web.Helpers
     {
         public static string ToFriendlyPermissionLabel(string permissionCode, string fallbackName = null)
         {
+            if (!string.IsNullOrWhiteSpace(fallbackName))
+            {
+                return fallbackName.Trim();
+            }
+
             if (string.IsNullOrWhiteSpace(permissionCode))
             {
-                return fallbackName ?? string.Empty;
+                return string.Empty;
             }
 
             var parts = permissionCode.Split('.');
             if (parts.Length != 2)
             {
-                return fallbackName ?? permissionCode;
+                return permissionCode;
             }
 
             var module = ToFriendlyModuleName(parts[0]);
@@ -53,28 +57,77 @@ namespace AssetManagement.Web.Helpers
                     return "Manage " + module;
                 case "Upload":
                     return "Upload " + module;
+                case "Download":
+                    return "Download " + module;
                 case "Export":
                     return "Export " + module;
                 default:
-                    return fallbackName ?? (action + " " + module);
+                    return action + " " + module;
             }
         }
 
         public static bool HasPermission(this HtmlHelper htmlHelper, string permissionCode)
         {
-            var user = HttpContext.Current?.User as ClaimsPrincipal;
-            var userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return HasPermissionCore(permissionCode);
+        }
+
+        public static bool HasPermission<TModel>(this HtmlHelper<TModel> htmlHelper, string permissionCode)
+        {
+            return HasPermissionCore(permissionCode);
+        }
+
+        public static bool CanUploadAssetDocument(this HtmlHelper htmlHelper, string assetCustodianId)
+        {
+            return CanUploadAssetDocumentCore(assetCustodianId);
+        }
+
+        public static bool CanUploadAssetDocument<TModel>(this HtmlHelper<TModel> htmlHelper, string assetCustodianId)
+        {
+            return CanUploadAssetDocumentCore(assetCustodianId);
+        }
+
+        public static bool CanDownloadAssetDocument(this HtmlHelper htmlHelper, string assetCustodianId)
+        {
+            return CanDownloadAssetDocumentCore(assetCustodianId);
+        }
+
+        public static bool CanDownloadAssetDocument<TModel>(this HtmlHelper<TModel> htmlHelper, string assetCustodianId)
+        {
+            return CanDownloadAssetDocumentCore(assetCustodianId);
+        }
+
+        private static bool HasPermissionCore(string permissionCode)
+        {
+            var userId = FormsAuthHelper.GetUserId(HttpContext.Current != null ? HttpContext.Current.User : null);
             if (string.IsNullOrWhiteSpace(userId))
             {
                 return false;
             }
 
-            using (var context = new AssetManagementDbContext())
-            using (var unitOfWork = new UnitOfWork(context))
+            var auth = DependencyResolver.Current.GetService<IAuthorizationService>();
+            return auth != null && auth.HasPermission(userId, permissionCode);
+        }
+
+        private static bool CanUploadAssetDocumentCore(string assetCustodianId)
+        {
+            if (HasPermissionCore("Documents.Upload"))
             {
-                var auth = new AuthorizationService(unitOfWork);
-                return auth.HasPermission(userId, permissionCode);
+                return true;
             }
+
+            var userId = FormsAuthHelper.GetUserId(HttpContext.Current != null ? HttpContext.Current.User : null);
+            return AssetDocumentAccessRules.IsCurrentCustodian(assetCustodianId, userId);
+        }
+
+        private static bool CanDownloadAssetDocumentCore(string assetCustodianId)
+        {
+            if (HasPermissionCore("Documents.Download"))
+            {
+                return true;
+            }
+
+            var userId = FormsAuthHelper.GetUserId(HttpContext.Current != null ? HttpContext.Current.User : null);
+            return AssetDocumentAccessRules.IsCurrentCustodian(assetCustodianId, userId);
         }
 
         private static string ToFriendlyModuleName(string module)
@@ -112,6 +165,10 @@ namespace AssetManagement.Web.Helpers
                     return "settings";
                 case "Permissions":
                     return "permissions";
+                case "Insurance":
+                    return "insurance policy";
+                case "SecurityLogs":
+                    return "security log";
                 default:
                     return module.ToLowerInvariant();
             }
@@ -135,8 +192,24 @@ namespace AssetManagement.Web.Helpers
                 case "depreciation":
                     return noun;
                 default:
-                    return "an " + noun;
+                    return ChooseIndefiniteArticle(noun) + noun;
             }
+        }
+
+        private static string ChooseIndefiniteArticle(string noun)
+        {
+            if (string.IsNullOrWhiteSpace(noun))
+            {
+                return string.Empty;
+            }
+
+            var first = char.ToLowerInvariant(noun[0]);
+            if (first == 'a' || first == 'e' || first == 'i' || first == 'o' || first == 'u')
+            {
+                return "an ";
+            }
+
+            return "a ";
         }
     }
 }

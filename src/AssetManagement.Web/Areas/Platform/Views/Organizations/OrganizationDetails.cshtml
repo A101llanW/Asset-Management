@@ -1,0 +1,638 @@
+@model AssetManagement.Web.Areas.Platform.Controllers.OrganizationDetailsViewModel
+@using AssetManagement.Domain.Enums
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Organization Profile - " + Model.Organization.Name;
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    const int previewRowCount = 5;
+    var authorizedStaff = (Model.Users ?? new List<AssetManagement.Application.ViewModels.UserVm>())
+        .OrderBy(u => u.LastName)
+        .ThenBy(u => u.FirstName)
+        .ThenBy(u => u.Email)
+        .ToList();
+    var auditFeed = (Model.RecentAuditLogs ?? new List<AssetManagement.Application.ViewModels.AuditLogVm>())
+        .OrderByDescending(a => a.Timestamp)
+        .ToList();
+    var licenseHistory = (Model.LicenseHistory ?? new List<AssetManagement.Application.ViewModels.Organizations.LicenseHistoryItemVm>())
+        .OrderByDescending(h => h.CreatedAt)
+        .ToList();
+    var impersonationHistory = (Model.ImpersonationHistory ?? new List<AssetManagement.Domain.Entities.ImpersonationRequest>())
+        .OrderByDescending(r => r.RequestDate)
+        .ToList();
+    var canViewLicenses = Html.HasPermission("Platform.Licenses.View");
+    var canImpersonate = Html.HasPermission("Platform.Support.Impersonate");
+    var canElevate = Html.HasPermission("Platform.Support.Operate");
+    var impersonatedOrgId = Session["ImpersonatedOrganizationId"] as int?;
+    var isImpersonatingThisOrg = impersonatedOrgId.HasValue && impersonatedOrgId.Value == Model.Organization.Id;
+    var relativeLogin = Url.RouteUrl("Tenant", new { tenant = Model.Organization.Slug, controller = "Account", action = "Login" });
+    var portalUrl = new Uri(Request.Url, relativeLogin).AbsoluteUri;
+    var tenantDashboardUrl = TenantUrlHelper.TenantRouteUrl(Url, Model.Organization.Slug, "Index", "Dashboard");
+
+    Func<AssetManagement.Application.ViewModels.UserVm, string> displayName = user =>
+    {
+        var name = ((user.FirstName + " " + user.LastName).Trim());
+        return string.IsNullOrWhiteSpace(name) ? user.Email : name;
+    };
+}
+
+<div class="am-platform-profile">
+    @if (TempData["Message"] != null)
+    {
+        <div class="alert alert-success">@TempData["Message"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="card card-kpi am-platform-profile-header mb-4">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="am-platform-profile-logo" aria-hidden="true">Org</div>
+                <div>
+                    <h1 class="am-platform-profile-header__title mb-1">@Model.Organization.Name</h1>
+                    <p class="text-muted mb-0">
+                        System slug: <code>/@Model.Organization.Slug</code>
+                        &bull; Resource ID: #@Model.Organization.Id
+                    </p>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                @if (canViewLicenses)
+                {
+                    <a class="btn btn-outline-primary btn-sm"
+                       href="@Url.Action("Details", "Licenses", new { area = "Platform", orgId = Model.Organization.Id })">
+                        Manage License
+                    </a>
+                }
+                <a class="btn btn-outline-secondary btn-sm"
+                   href="@Url.Action("Index", "Organizations", new { area = "Platform" })">
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card card-kpi am-platform-section-card mb-4">
+                <div class="card-header am-platform-section-card__header">
+                    <h2 class="am-platform-section-card__title mb-0">Organization Details</h2>
+                </div>
+                <div class="card-body">
+                    <table class="table am-platform-info-table mb-0">
+                        <tbody>
+                            <tr>
+                                <th scope="row">Portal URL</th>
+                                <td>
+                                    <div class="am-platform-portal-url">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control am-platform-portal-url__input" value="@portalUrl" readonly aria-label="Portal URL" />
+                                            <button type="button" class="btn btn-outline-secondary am-platform-portal-url__copy" data-portal-url="@portalUrl">Copy</button>
+                                        </div>
+                                        <a href="@(portalUrl)?fresh=1" target="_blank" rel="noopener" class="small am-platform-portal-url__visit">Visit portal</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            @if (!string.IsNullOrWhiteSpace(Model.Organization.Code))
+                            {
+                                <tr>
+                                    <th scope="row">Code</th>
+                                    <td>@Model.Organization.Code</td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.Organization.Email))
+                            {
+                                <tr>
+                                    <th scope="row">Email</th>
+                                    <td>@Model.Organization.Email</td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.Organization.CurrencyCode))
+                            {
+                                <tr>
+                                    <th scope="row">Currency</th>
+                                    <td>@Model.Organization.CurrencyCode</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card card-kpi am-platform-section-card mb-4">
+                <div class="card-header am-platform-section-card__header">
+                    <h2 class="am-platform-section-card__title mb-0">Administrative Info</h2>
+                </div>
+                <div class="card-body">
+                    <table class="table am-platform-info-table mb-0">
+                        <tbody>
+                            <tr>
+                                <th scope="row">Operational Status</th>
+                                <td>
+                                    <span class="badge @(Model.Organization.IsActive ? "bg-success" : "bg-danger")">
+                                        @(Model.Organization.IsActive ? "ACTIVE" : "INACTIVE")
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Registration Date</th>
+                                <td>@Model.Organization.CreatedAt.ToString("dd MMM yyyy")</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Licensing</th>
+                                <td>
+                                    @if (Model.LicenseExpiryDate.HasValue)
+                                    {
+                                        var days = Model.DaysUntilExpiry ?? 0;
+                                        <div class="fw-semibold">@Model.LicenseExpiryDate.Value.ToString("dd MMM yyyy")</div>
+                                        if (!string.IsNullOrWhiteSpace(Model.LicensePlanName))
+                                        {
+                                            <div class="small text-muted">@Model.LicensePlanName</div>
+                                        }
+                                        <div class="small @(days < 0 ? "text-danger" : (days <= 30 ? "text-warning" : "text-success"))">
+                                            @(days < 0 ? "Expired " + Math.Abs(days) + " days ago" : days + " days remaining")
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Indefinite / No Expiry</span>
+                                    }
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    @if (canImpersonate)
+                    {
+                        if (isImpersonatingThisOrg)
+                        {
+                            <div class="alert alert-warning mt-3 mb-0">
+                                <h3 class="h6 fw-bold mb-2">Session in Progress</h3>
+                                <p class="small mb-3">You are currently acting as an administrator for this organization.</p>
+                                <a class="btn btn-warning btn-sm w-100" href="@tenantDashboardUrl">Go to Dashboard</a>
+                            </div>
+                        }
+                        else if (Model.PendingImpersonationRequests != null && Model.PendingImpersonationRequests.Any())
+                        {
+                            var activeRequest = Model.PendingImpersonationRequests.First();
+                            <div class="alert alert-info mt-3 mb-0">
+                                <h3 class="h6 fw-bold mb-2">Request Pending</h3>
+                                <p class="small mb-2">Target: <strong>@activeRequest.RequestedFrom</strong></p>
+                                @using (Html.BeginForm("CancelImpersonationRequest", "Organizations", new { area = "Platform" }, FormMethod.Post))
+                                {
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="requestId" value="@activeRequest.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">Retract Request</button>
+                                }
+                            </div>
+                        }
+                        else if (Model.ActiveApprovedRequest != null && canElevate)
+                        {
+                            <div class="alert alert-success mt-3 mb-0">
+                                <h3 class="h6 fw-bold mb-2">Access Authorized</h3>
+                                @if (impersonatedOrgId == null)
+                                {
+                                    <p class="small mb-2">Signed by @Model.ActiveApprovedRequest.RequestedFrom</p>
+                                    using (Html.BeginForm("Elevate", "Organizations", new { area = "Platform" }, FormMethod.Post, new { id = "autoElevateForm" }))
+                                    {
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="requestId" value="@Model.ActiveApprovedRequest.Id" />
+                                        <button type="submit" class="btn btn-success btn-sm w-100">Enter Admin Mode</button>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="small mb-2">Authorization is ready, but you are currently in another session.</p>
+                                    using (Html.BeginForm("Elevate", "Organizations", new { area = "Platform" }, FormMethod.Post))
+                                    {
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="requestId" value="@Model.ActiveApprovedRequest.Id" />
+                                        <button type="submit" class="btn btn-success btn-sm w-100">Switch to This Organization</button>
+                                    }
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <button type="button"
+                                    class="btn btn-warning w-100 mt-3"
+                                    id="btnOpenImpersonateModal"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#requestImpersonationModal">
+                                Elevate to Admin (Request)
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="card card-kpi am-platform-section-card">
+                <div class="card-header am-platform-section-card__header">
+                    <h2 class="am-platform-section-card__title mb-0">Operational Metrics</h2>
+                </div>
+                <div class="card-body">
+                    <div class="am-platform-mini-stat-grid">
+                        <div class="am-platform-mini-stat">
+                            <p class="am-platform-mini-stat__value">@Model.UserCount</p>
+                            <p class="am-platform-mini-stat__label">Users</p>
+                        </div>
+                        <div class="am-platform-mini-stat">
+                            <p class="am-platform-mini-stat__value">@Model.DepartmentCount</p>
+                            <p class="am-platform-mini-stat__label">Departments</p>
+                        </div>
+                        <div class="am-platform-mini-stat">
+                            <p class="am-platform-mini-stat__value">@Model.AssetCount</p>
+                            <p class="am-platform-mini-stat__label">Assets</p>
+                        </div>
+                        <div class="am-platform-mini-stat">
+                            <p class="am-platform-mini-stat__value">@Model.LicenseEffectiveStatus</p>
+                            <p class="am-platform-mini-stat__label">License</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card card-kpi am-platform-section-card mb-4">
+                <div class="card-header am-platform-section-card__header d-flex justify-content-between align-items-center">
+                    <h2 class="am-platform-section-card__title mb-0">Authorized Staff</h2>
+                    @if (authorizedStaff.Count > previewRowCount)
+                    {
+                        <button type="button"
+                                id="authorizedStaffToggleButton"
+                                class="btn btn-sm btn-link p-0"
+                                onclick="toggleProfileRows('.authorized-staff-extra', 'authorizedStaffToggleLabel', @authorizedStaff.Count, @previewRowCount)">
+                            <span id="authorizedStaffToggleLabel">Show All (@authorizedStaff.Count)</span>
+                        </button>
+                    }
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 am-platform-details-table">
+                        <thead>
+                            <tr>
+                                <th>Account Name</th>
+                                <th>Communication</th>
+                                <th>Security Role</th>
+                                <th>Department</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!authorizedStaff.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">No users registered for this organization.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                for (var i = 0; i < authorizedStaff.Count; i++)
+                                {
+                                    var user = authorizedStaff[i];
+                                    var hideRow = i >= previewRowCount;
+                                    var rowClass = hideRow ? "authorized-staff-extra d-none" : string.Empty;
+                                    <tr class="@rowClass">
+                                        <td><strong>@displayName(user)</strong></td>
+                                        <td>@user.Email</td>
+                                        <td><span class="badge bg-light text-dark border">@(string.IsNullOrWhiteSpace(user.RoleName) ? "User" : user.RoleName)</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : user.DepartmentName)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card card-kpi am-platform-section-card mb-4">
+                <div class="card-header am-platform-section-card__header d-flex justify-content-between align-items-center">
+                    <h2 class="am-platform-section-card__title mb-0">Security Audit Feed</h2>
+                    @if (auditFeed.Count > previewRowCount)
+                    {
+                        <button type="button"
+                                id="auditFeedToggleButton"
+                                class="btn btn-sm btn-link p-0"
+                                onclick="toggleProfileRows('.audit-feed-extra', 'auditFeedToggleLabel', @auditFeed.Count, @previewRowCount)">
+                            <span id="auditFeedToggleLabel">Show All (@auditFeed.Count)</span>
+                        </button>
+                    }
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 am-platform-details-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Subject</th>
+                                <th>Action Signature</th>
+                                <th>Entity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!auditFeed.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">No audit activity recorded for this organization.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                for (var i = 0; i < auditFeed.Count; i++)
+                                {
+                                    var log = auditFeed[i];
+                                    var hideRow = i >= previewRowCount;
+                                    var rowClass = hideRow ? "audit-feed-extra d-none" : string.Empty;
+                                    <tr class="@rowClass">
+                                        <td><span class="text-muted">@log.Timestamp.ToString("HH:mm:ss dd/MM")</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(log.ActorUserId) ? "System" : log.ActorUserId)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(log.ActionLabel) ? log.Action : log.ActionLabel)</td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(log.EntityType))
+                                            {
+                                                <span class="small">@(string.IsNullOrWhiteSpace(log.EntityTypeLabel) ? log.EntityType : log.EntityTypeLabel) @log.EntityId</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">Standard operation</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            @if (canImpersonate)
+            {
+                <div class="card card-kpi am-platform-section-card mb-4">
+                    <div class="card-header am-platform-section-card__header d-flex justify-content-between align-items-center">
+                        <h2 class="am-platform-section-card__title mb-0">Impersonation Requests &amp; Sessions</h2>
+                        @if (impersonationHistory.Count > previewRowCount)
+                        {
+                            <button type="button"
+                                    id="impersonationHistoryToggleButton"
+                                    class="btn btn-sm btn-link p-0"
+                                    onclick="toggleProfileRows('.impersonation-history-extra', 'impersonationHistoryToggleLabel', @impersonationHistory.Count, @previewRowCount)">
+                                <span id="impersonationHistoryToggleLabel">Show All (@impersonationHistory.Count)</span>
+                            </button>
+                        }
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 am-platform-details-table">
+                            <thead>
+                                <tr>
+                                    <th>Requested</th>
+                                    <th>Platform Admin</th>
+                                    <th>Target Admin</th>
+                                    <th>Status</th>
+                                    <th>Decision / Session End</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!impersonationHistory.Any())
+                                {
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No impersonation requests recorded for this organization.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    Func<AssetManagement.Domain.Entities.ImpersonationRequestStatus, string> statusBadgeClass = status =>
+                                    {
+                                        switch (status)
+                                        {
+                                            case AssetManagement.Domain.Entities.ImpersonationRequestStatus.Pending:
+                                                return "bg-info text-dark";
+                                            case AssetManagement.Domain.Entities.ImpersonationRequestStatus.Approved:
+                                            case AssetManagement.Domain.Entities.ImpersonationRequestStatus.Active:
+                                                return "bg-success";
+                                            case AssetManagement.Domain.Entities.ImpersonationRequestStatus.Rejected:
+                                                return "bg-danger";
+                                            case AssetManagement.Domain.Entities.ImpersonationRequestStatus.Cancelled:
+                                                return "bg-secondary";
+                                            case AssetManagement.Domain.Entities.ImpersonationRequestStatus.Expired:
+                                                return "bg-warning text-dark";
+                                            default:
+                                                return "bg-light text-dark border";
+                                        }
+                                    };
+
+                                    for (var i = 0; i < impersonationHistory.Count; i++)
+                                    {
+                                        var entry = impersonationHistory[i];
+                                        var hideRow = i >= previewRowCount;
+                                        var rowClass = hideRow ? "impersonation-history-extra d-none" : string.Empty;
+                                        var sessionEnd = entry.ExpiryDate.HasValue
+                                            ? entry.ExpiryDate.Value.ToString("dd MMM yyyy HH:mm")
+                                            : (entry.DecisionDate.HasValue ? entry.DecisionDate.Value.ToString("dd MMM yyyy HH:mm") : DisplayText.Empty);
+                                        <tr class="@rowClass">
+                                            <td><span class="text-muted">@entry.RequestDate.ToString("dd MMM yyyy HH:mm")</span></td>
+                                            <td><strong>@(string.IsNullOrWhiteSpace(entry.RequestedBy) ? "System" : entry.RequestedBy)</strong></td>
+                                            <td>@(string.IsNullOrWhiteSpace(entry.RequestedFrom) ? DisplayText.Empty : entry.RequestedFrom)</td>
+                                            <td><span class="badge @statusBadgeClass(entry.Status)">@entry.Status</span></td>
+                                            <td>@sessionEnd</td>
+                                            <td><small class="text-muted">@(string.IsNullOrWhiteSpace(entry.Reason) ? DisplayText.Empty : entry.Reason)</small></td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <div class="card card-kpi am-platform-section-card">
+                <div class="card-header am-platform-section-card__header d-flex justify-content-between align-items-center">
+                    <h2 class="am-platform-section-card__title mb-0">Licensing History</h2>
+                    @if (licenseHistory.Count > previewRowCount)
+                    {
+                        <button type="button"
+                                id="licenseHistoryToggleButton"
+                                class="btn btn-sm btn-link p-0"
+                                onclick="toggleProfileRows('.license-history-extra', 'licenseHistoryToggleLabel', @licenseHistory.Count, @previewRowCount)">
+                            <span id="licenseHistoryToggleLabel">Show All (@licenseHistory.Count)</span>
+                        </button>
+                    }
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 am-platform-details-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Executor</th>
+                                <th>Action</th>
+                                <th>Previous Expiry</th>
+                                <th>New Expiry</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!licenseHistory.Any())
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">No license modification history available for this organization.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                for (var i = 0; i < licenseHistory.Count; i++)
+                                {
+                                    var entry = licenseHistory[i];
+                                    var hideRow = i >= previewRowCount;
+                                    var rowClass = hideRow ? "license-history-extra d-none" : string.Empty;
+                                    <tr class="@rowClass">
+                                        <td><span class="text-muted">@entry.CreatedAt.ToString("dd MMM yyyy")</span></td>
+                                        <td><strong>@(string.IsNullOrWhiteSpace(entry.PerformedBy) ? "System" : entry.PerformedBy)</strong></td>
+                                        <td><span class="badge bg-info text-dark">@entry.Action</span></td>
+                                        <td>@(entry.PreviousExpiryDate.HasValue ? entry.PreviousExpiryDate.Value.ToString("dd MMM yyyy") : "Initial")</td>
+                                        <td><strong class="text-success">@(entry.NewExpiryDate.HasValue ? entry.NewExpiryDate.Value.ToString("dd MMM yyyy") : DisplayText.Empty)</strong></td>
+                                        <td><small class="text-muted">@(string.IsNullOrWhiteSpace(entry.Reason) ? "Standard update" : entry.Reason)</small></td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (canImpersonate)
+{
+    <div class="modal fade" id="requestImpersonationModal" tabindex="-1" aria-labelledby="requestImpersonationModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h2 class="modal-title h5" id="requestImpersonationModalLabel">Impersonation Access Request</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="btnCloseImpersonationModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="impersonationRequestFormPanel">
+                        <form id="impersonationRequestForm" method="post" action="@Url.Action("RequestImpersonation", "Organizations", new { area = "Platform" })">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="organizationId" value="@Model.Organization.Id" />
+                            <div class="alert alert-info small">
+                                Once approved, you will be signed in as an administrator for <strong>@Model.Organization.Name</strong>.
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Target administrator for approval</label>
+                                @if ((Model.CompanyAdmins ?? new List<AssetManagement.Application.ViewModels.UserVm>()).Count == 1)
+                                {
+                                    var admin = Model.CompanyAdmins.First();
+                                    var adminLabel = displayName(admin);
+                                    <div class="p-3 border rounded bg-light">
+                                        <strong>@adminLabel</strong> (@admin.Email)
+                                        <input type="hidden" name="targetAdmin" value="@admin.Email" />
+                                    </div>
+                                }
+                                else
+                                {
+                                    <select name="targetAdmin" class="form-select" required>
+                                        <option value="">Select administrator</option>
+                                        @foreach (var admin in Model.CompanyAdmins ?? new List<AssetManagement.Application.ViewModels.UserVm>())
+                                        {
+                                            <option value="@admin.Email">@displayName(admin) (@admin.Email)</option>
+                                        }
+                                    </select>
+                                }
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label">Support reason</label>
+                                <textarea name="reason" class="form-control" rows="3" required></textarea>
+                            </div>
+                            <div class="modal-footer px-0 pb-0 mt-3">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abort</button>
+                                <button type="submit" class="btn btn-warning">Send Request</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="impersonationRequestWaitingPanel" class="d-none text-center py-3">
+                        <div class="spinner-border text-warning mb-3" role="status" aria-hidden="true"></div>
+                        <p id="impersonationRequestWaitingMessage" class="mb-3">Waiting for the company administrator to approve your request.</p>
+                        <button type="button" class="btn btn-outline-danger btn-sm" id="btnCancelPendingImpersonation">Cancel Request</button>
+                    </div>
+                    <div id="impersonationRequestOutcomePanel" class="d-none py-2">
+                        <div class="alert alert-danger" id="impersonationRequestOutcomeMessage"></div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-warning btn-sm" id="btnRetryImpersonationRequest">Try Again</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section scripts {
+<script src="@Url.Content("~/Scripts/app/impersonation-ui.js")"></script>
+<script>
+(function () {
+    document.querySelectorAll('.am-platform-portal-url__copy').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var url = button.getAttribute('data-portal-url');
+            if (!url) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function () {
+                    button.textContent = 'Copied';
+                    setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+                });
+            } else {
+                window.prompt('Copy portal URL:', url);
+            }
+        });
+    });
+
+    @if (canImpersonate)
+    {
+        var pendingRequestId = Model.PendingImpersonationRequests != null && Model.PendingImpersonationRequests.Any()
+            ? Model.PendingImpersonationRequests.First().Id
+            : 0;
+        <text>
+        $(function () {
+            if (window.AmImpersonationUi) {
+                AmImpersonationUi.initPlatformImpersonationRequest({
+                    requestUrl: '@Url.Action("RequestImpersonation", "Organizations", new { area = "Platform" })',
+                    cancelUrl: '@Url.Action("CancelImpersonationRequest", "Organizations", new { area = "Platform" })',
+                    statusUrl: '@Url.Action("CheckRequestStatus", "Organizations", new { area = "Platform" })',
+                    pendingRequestId: @pendingRequestId
+                });
+            }
+        });
+        </text>
+    }
+
+    @if (Model.ActiveApprovedRequest != null && canElevate && impersonatedOrgId == null)
+    {
+        <text>
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(function () {
+                var form = document.getElementById('autoElevateForm');
+                if (form) form.submit();
+            }, 800);
+        });
+        </text>
+    }
+})();
+
+function toggleProfileRows(extraRowSelector, labelElementId, totalRows, previewRows) {
+    var rows = document.querySelectorAll(extraRowSelector);
+    if (!rows.length) return;
+
+    var shouldShowAll = rows[0].classList.contains('d-none');
+    for (var i = 0; i < rows.length; i++) {
+        rows[i].classList.toggle('d-none', !shouldShowAll);
+    }
+
+    var label = document.getElementById(labelElementId);
+    if (label) {
+        label.textContent = shouldShowAll
+            ? 'Show Top ' + previewRows
+            : 'Show All (' + totalRows + ')';
+    }
+}
+</script>
+}

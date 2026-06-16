@@ -1,59 +1,216 @@
 @model AssetManagement.Application.ViewModels.DashboardVm
+@using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Dashboard";
+    var canViewAssets = Html.HasPermission("Assets.View");
+    var canRequest = Html.HasPermission("Assets.Request");
+    var maxTrend = Model.AssignmentsPerMonth == null || !Model.AssignmentsPerMonth.Any()
+        ? 1
+        : System.Math.Max(1, Model.AssignmentsPerMonth.Max(x => x.Count));
+    var deptScopeHint = Model.IsDepartmentScoped ? "Based on your visible assets." : null;
 }
-<div class="row g-3 mb-3">
-    <div class="col-md-3">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <div class="text-muted small">Total Assets</div>
-                <div class="h3 mb-0">@Model.TotalAssets</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <div class="text-muted small">Assigned</div>
-                <div class="h3 mb-0">@Model.AssignedAssets</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <div class="text-muted small">Unassigned</div>
-                <div class="h3 mb-0">@Model.UnassignedAssets</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <div class="text-muted small">Under Maintenance</div>
-                <div class="h3 mb-0">@Model.AssetsUnderMaintenance</div>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="am-dashboard">
+    <section class="am-dashboard-hero" aria-label="Operations dashboard overview">
+        @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+        {
+            Title = "Operations Dashboard",
+            Subtitle = "Custody snapshot with assignment trends, approval backlog, and department value."
+        })
 
-<div class="row g-3">
-    <div class="col-md-6">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <h6>Financial Summary</h6>
-                <p class="mb-1">Acquisition Value: <strong>@Model.TotalAcquisitionValue.ToString("N2")</strong></p>
-                <p class="mb-0">Current Book Value: <strong>@Model.TotalCurrentBookValue.ToString("N2")</strong></p>
+        <div class="am-dashboard-kpi-grid" role="list" aria-label="Key metrics">
+            <!-- Total Assets -->
+            <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--assets am-fade-in-safe border-top border-primary border-4" role="listitem">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="am-kpi-label text-muted">Total Assets</div>
+                        <div class="am-kpi-value h2 mb-0 text-dark fw-bold">@Model.TotalAssets</div>
+                    </div>
+                    <div class="text-primary bg-light p-3 rounded-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-package"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assigned Assets -->
+            <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--assigned am-fade-in-safe border-top border-success border-4" role="listitem">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="am-kpi-label text-muted">Assigned</div>
+                        <div class="am-kpi-value h2 mb-0 text-success fw-bold">@Model.AssignedAssets</div>
+                    </div>
+                    <div class="text-success bg-light p-3 rounded-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user-check"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Approval Backlog -->
+            <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--backlog am-fade-in-safe border-top border-warning border-4" role="listitem">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="am-kpi-label text-muted">Approval Backlog</div>
+                        <div class="am-kpi-value h2 mb-0 text-warning fw-bold">@Model.ApprovalBacklogCount</div>
+                        <div class="small text-muted" style="font-size: 0.72rem;">Visible to you</div>
+                    </div>
+                    <div class="text-warning bg-light p-3 rounded-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-clock"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loss / Damage Rate -->
+            <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--risk am-fade-in-safe border-top border-danger border-4" role="listitem">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="am-kpi-label text-muted">Loss / Damage</div>
+                        <div class="am-kpi-value h2 mb-0 text-danger fw-bold">@Model.LossDamageRatePercent%</div>
+                    </div>
+                    <div class="text-danger bg-light p-3 rounded-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-alert-triangle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-4 mb-4">
+        <!-- Monthly Assignment Trends -->
+        <div class="col-lg-7">
+            <div class="card card-kpi am-fade-in h-100 border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size: 0.78rem; letter-spacing: 0.08em;">Assignments per month</h6>
+                    @if (Model.AssignmentsPerMonth == null || !Model.AssignmentsPerMonth.Any())
+                    {
+                        <div class="py-4 text-center">
+                            <p class="text-muted mb-0">No assignment activity in the last six months.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="am-trend-chart pt-3">
+                            @foreach (var point in Model.AssignmentsPerMonth)
+                            {
+                                var height = (int)System.Math.Round((double)point.Count / maxTrend * 100);
+                                <div class="am-trend-bar" title="@point.Label: @point.Count">
+                                    <div class="am-trend-bar-fill rounded-3" style="height: @(System.Math.Max(height, 4))%; background: linear-gradient(180deg, var(--am-primary), var(--am-primary-strong));"></div>
+                                    <span class="am-trend-bar-label fw-bold text-secondary">@point.Label</span>
+                                    <span class="am-trend-bar-value badge bg-light text-dark fw-bold rounded-pill">@point.Count</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Departments by Book Value -->
+        <div class="col-lg-5">
+            <div class="card card-kpi am-fade-in h-100 border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h6 class="text-uppercase fw-bold text-muted mb-2" style="font-size: 0.78rem; letter-spacing: 0.08em;">Top departments by acquisition value</h6>
+                    @if (!string.IsNullOrWhiteSpace(deptScopeHint))
+                    {
+                        <p class="small text-muted mb-3">@deptScopeHint</p>
+                    }
+                    @if (Model.TopDepartmentValues == null || !Model.TopDepartmentValues.Any())
+                    {
+                        <div class="py-4 text-center">
+                            <p class="text-muted mb-0">No department breakdown available.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <ul class="list-group list-group-flush mt-2">
+                            @foreach (var dept in Model.TopDepartmentValues)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3 border-bottom border-light">
+                                    <span>
+                                        <span class="fw-bold text-dark">@dept.DepartmentName</span> 
+                                        <span class="badge bg-light text-muted ms-2 rounded-pill">@dept.AssetCount assets</span>
+                                    </span>
+                                    <strong class="text-primary">@Html.FormatCurrency(dept.BookValue, 0)</strong>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card card-kpi">
-            <div class="card-body">
-                <h6>Alerts</h6>
-                <p class="mb-1">Warranty expiring soon: <strong>@Model.ExpiringWarrantyCount</strong></p>
-                <p class="mb-0">Insurance expiring soon: <strong>@Model.ExpiringInsuranceCount</strong></p>
+
+    <!-- Analytical Details Grid -->
+    <div class="row g-4 mb-4">
+        <!-- Financial Summary -->
+        <div class="col-md-6">
+            <div class="card card-kpi am-fade-in border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size: 0.78rem; letter-spacing: 0.08em;">Financial Summary</h6>
+                    <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                        <span class="text-muted">Acquisition Value</span>
+                        <strong class="text-dark">@Html.FormatCurrency(Model.TotalAcquisitionValue)</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-2">
+                        <span class="text-muted">Total TCO (Scoped)</span>
+                        <strong class="text-primary">@Html.FormatCurrency(Model.TotalCostOfOwnership)</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Center -->
+        <div class="col-md-6">
+            <div class="card card-kpi am-fade-in border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size: 0.78rem; letter-spacing: 0.08em;">Alert Center</h6>
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-light">
+                        <span class="text-muted">Warranty Expiries (@Model.WarrantyThresholdDays Days)</span>
+                        @if (Model.ExpiringWarrantyCount > 0)
+                        {
+                            <span class="badge bg-danger rounded-pill">@Model.ExpiringWarrantyCount active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-light text-muted rounded-pill">0 alerts</span>
+                        }
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center py-2">
+                        <span class="text-muted">Insurance Expiries (@Model.InsuranceThresholdDays Days)</span>
+                        @if (Model.ExpiringInsuranceCount > 0)
+                        {
+                            <span class="badge bg-warning text-dark rounded-pill">@Model.ExpiringInsuranceCount active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-light text-muted rounded-pill">0 alerts</span>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Quick Navigation Hub -->
+    @if (canViewAssets)
+    {
+        <div class="card card-kpi am-fade-in border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size: 0.78rem; letter-spacing: 0.08em;">Operational Navigation Hub</h6>
+                <div class="d-flex flex-wrap gap-2 pt-1">
+                    <a class="btn btn-primary d-flex align-items-center gap-2" href="@Url.Action("Lookup", "AssetScan")">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-maximize"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                        Scan Asset
+                    </a>
+                    <a class="btn btn-outline-primary" href="@Url.Action("Index", "Assets")">Asset Register</a>
+                    <a class="btn btn-outline-primary" href="@Url.Action("MyAssets", "Assets")">My Assets</a>
+                    <a class="btn btn-outline-primary" href="@Url.Action("Index", "Search")">Global Search</a>
+                    <a class="btn btn-outline-primary" href="@Url.Action("List", "Assignments")">Assignments</a>
+                    <a class="btn btn-outline-secondary" href="@Url.Action("Index", "PendingApprovals")">Pending Approvals (@Model.ApprovalBacklogCount)</a>
+                    @if (canRequest)
+                    {
+                        <a class="btn btn-outline-success" href="@Url.Action("Create", "AssetRequests")">Request an Asset</a>
+                    }
+                </div>
+            </div>
+        </div>
+    }
 </div>

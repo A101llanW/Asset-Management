@@ -1,0 +1,18 @@
+@* Shared portal copy for auth pages (logo lives in the auth header). *@
+@{
+    var portalTitle = ViewBag.AuthPortalTitle as string ?? "Asset Management Module";
+    var portalSubtitle = ViewBag.AuthPortalSubtitle as string;
+    var portalBadge = ViewBag.AuthPortalBadge as string;
+}
+
+<div class="am-portal-brand">
+    @if (!string.IsNullOrWhiteSpace(portalBadge))
+    {
+        <p class="am-portal-badge">@portalBadge</p>
+    }
+    <h1 class="am-portal-title">@portalTitle</h1>
+    @if (!string.IsNullOrWhiteSpace(portalSubtitle))
+    {
+        <p class="am-portal-copy">@Html.Raw(portalSubtitle)</p>
+    }
+</div>

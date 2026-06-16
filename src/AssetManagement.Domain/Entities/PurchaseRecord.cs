@@ -4,9 +4,11 @@ using AssetManagement.Domain.Common;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class PurchaseRecord : AuditableEntity
+    public class PurchaseRecord : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int? PurchaseRequestId { get; set; }
 

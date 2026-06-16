@@ -4,9 +4,11 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class AssetAssignment : AuditableEntity
+    public class AssetAssignment : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int AssetId { get; set; }
 

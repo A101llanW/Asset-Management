@@ -1,0 +1,65 @@
+@model AssetManagement.Application.ViewModels.AssetReturnVm
+@using System.Web.Mvc
+@{
+    ViewBag.Title = "Return (mobile)";
+    var users = ViewBag.Users as System.Collections.Generic.IEnumerable<SelectListItem> ?? System.Linq.Enumerable.Empty<SelectListItem>();
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+    var lockReturnedBy = ViewBag.LockReturnedBy == true;
+    var returnedByName = ViewBag.ReturnedByName as string;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Return Asset",
+    Subtitle = "Mobile-friendly return wizard.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm("Create", "Returns", FormMethod.Post, new { data_am_wizard_form = "return" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="am-wizard" data-am-wizard>
+        <ol class="am-wizard-steps list-unstyled d-flex gap-2 mb-3">
+            <li class="am-wizard-step active" data-am-wizard-step-indicator="0"><span class="am-wizard-step-num">1</span> Parties</li>
+            <li class="am-wizard-step" data-am-wizard-step-indicator="1"><span class="am-wizard-step-num">2</span> Condition</li>
+        </ol>
+        <div class="am-wizard-panel" data-am-wizard-panel="0">
+            <div class="row g-3">
+                <div class="col-12">
+                    @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.ReceivedById, users, "-- Receiving user --", new { @class = "form-select" })
+                </div>
+                <div class="col-12">
+                    @Html.LabelFor(m => m.ReturnDate, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.ReturnDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+                </div>
+                @if (lockReturnedBy)
+                {
+                    @Html.HiddenFor(m => m.ReturnedById)
+                }
+            </div>
+        </div>
+        <div class="am-wizard-panel d-none" data-am-wizard-panel="1">
+            <div class="row g-3">
+                <div class="col-12">
+                    @Html.LabelFor(m => m.ReturnCondition, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.ReturnCondition, new { @class = "form-control" })
+                </div>
+                <div class="col-12">
+                    @Html.LabelFor(m => m.Notes, new { @class = "form-label" })
+                    @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "3" })
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-between mt-3">
+            <button type="button" class="btn btn-outline-secondary" data-am-wizard-prev disabled>Back</button>
+            <button type="button" class="btn btn-primary" data-am-wizard-next>Next</button>
+            <button type="submit" class="btn btn-success d-none" data-am-wizard-finish>Complete return</button>
+        </div>
+    </div>
+}
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/workflow-wizard.js")"></script>
+}

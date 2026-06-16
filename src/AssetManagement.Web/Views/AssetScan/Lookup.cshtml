@@ -1,0 +1,127 @@
+@model AssetManagement.Web.ViewModels.AssetScanLookupPageVm
+
+@{
+    ViewBag.Title = Model.IsPublicScan ? "Asset Information" : "Scan Asset";
+    Layout = Model.IsPublicScan
+        ? "~/Views/Shared/_PublicLayout.cshtml"
+        : "~/Views/Shared/_Layout.cshtml";
+}
+
+@if (!Model.IsPublicScan)
+{
+    @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+    {
+        Title = "Scan Asset",
+        Subtitle = "Use your phone camera, a Zebra TC22 or other wedge scanner, or type a tag, barcode, or serial number."
+    })
+}
+
+<div class="am-scan-panel am-scan-panel--premium">
+    <div class="am-scan-panel-inner">
+
+        <div class="am-scan-icon-wrap" aria-hidden="true">
+            <div class="am-scan-icon-ring am-scan-icon-ring--outer"></div>
+            <div class="am-scan-icon-ring am-scan-icon-ring--inner"></div>
+            <div class="am-scan-icon-core">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                    <rect x="7" y="7" width="10" height="10" rx="1"/>
+                </svg>
+            </div>
+        </div>
+
+        <h2 class="am-scan-heading">Asset Lookup</h2>
+        <p class="am-scan-subtext">Scan a QR label with your phone camera, use a handheld scanner, or type the asset tag below.</p>
+
+        <div class="am-scan-camera-section">
+            <button type="button" class="btn btn-outline-primary btn-lg w-100 am-scan-camera-toggle" id="am-scan-camera-toggle" aria-pressed="false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem;vertical-align:-3px;" aria-hidden="true">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span class="am-scan-camera-toggle-label">Use phone camera</span>
+            </button>
+
+            <p class="am-scan-camera-message" id="am-scan-camera-message" hidden></p>
+
+            <div class="am-scan-camera-wrap d-none" id="am-scan-camera-wrap" hidden>
+                <div class="am-scan-camera-reader" id="am-scan-camera-reader"></div>
+                <p class="am-scan-camera-hint">Point at the asset QR label. Lookup runs automatically when a code is read.</p>
+                <button type="button" class="btn btn-sm btn-outline-secondary am-scan-camera-stop" id="am-scan-camera-stop">Stop camera</button>
+            </div>
+        </div>
+
+        <div class="am-scan-or-divider" aria-hidden="true"><span>or enter manually</span></div>
+
+        @using (Html.BeginForm("LookupPost", "AssetScan", FormMethod.Post, new { @class = "am-scan-form", id = "am-scan-form" }))
+        {
+            @Html.AntiForgeryToken()
+
+            <div class="am-scan-field-wrap">
+                <div class="am-scan-field-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/>
+                        <line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>
+                    </svg>
+                </div>
+                <label class="visually-hidden" for="code">Scan or type code</label>
+                <input class="am-scan-input form-control form-control-lg" id="code" name="code"
+                       type="text" autofocus="autofocus" autocomplete="off" inputmode="text"
+                       placeholder="Asset tag / QR / barcode" value="@Model.InitialCode" />
+            </div>
+
+            <div class="am-scan-status-bar mt-2" aria-live="polite">
+                <span class="am-scan-status am-scan-status--ready" id="am-scan-status">
+                    <span class="am-scan-status-dot"></span>
+                    <span class="am-scan-status-text">Ready to scan</span>
+                </span>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg w-100 mt-3 am-scan-submit-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem;vertical-align:-3px;">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                Look up asset
+            </button>
+        }
+
+        <p class="am-scan-device-hint">
+            Zebra TC22 and other handheld scanners: keep this field focused. DataWedge keyboard-wedge mode sends scans here with Enter, same as USB/BT wedge scanners.
+        </p>
+    </div>
+</div>
+
+<div id="am-scan-result-host">
+    @Html.Partial("_ScanLookupResult", Model)
+</div>
+
+@section scripts
+{
+    <script src="@Url.Content("~/Scripts/vendor/html5-qrcode.min.js")"></script>
+    <script>
+        window.Html5Qrcode = window.Html5Qrcode
+            || (window.__Html5QrcodeLibrary__ && window.__Html5QrcodeLibrary__.Html5Qrcode);
+    </script>
+    <script src="@Url.Content("~/Scripts/app/asset-scan.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-scan-camera.js")"></script>
+    <script>
+        AmAssetScan.init({
+            formSelector: "#am-scan-form",
+            inputSelector: "#code",
+            resultHostSelector: "#am-scan-result-host",
+            statusSelector: "#am-scan-status",
+            lookupJsonUrl: "@Model.LookupJsonUrl",
+            hasInitialResult: @(Model.Lookup != null && Model.Lookup.Found ? "true" : "false")
+        });
+
+        AmAssetScanCamera.init({
+            toggleSelector: "#am-scan-camera-toggle",
+            wrapSelector: "#am-scan-camera-wrap",
+            hostSelector: "#am-scan-camera-reader",
+            stopSelector: "#am-scan-camera-stop",
+            messageSelector: "#am-scan-camera-message",
+            inputSelector: "#code"
+        });
+    </script>
+}

@@ -57,9 +57,9 @@ namespace AssetManagement.Application.Services
             };
         }
 
-        public void Create(SupplierVm model)
+        public int Create(SupplierVm model)
         {
-            _unitOfWork.Repository<Supplier>().Add(new Supplier
+            var entity = new Supplier
             {
                 SupplierName = model.SupplierName,
                 ContactPerson = model.ContactPerson,
@@ -70,9 +70,11 @@ namespace AssetManagement.Application.Services
                 Notes = model.Notes,
                 IsActive = model.IsActive,
                 CreatedAt = DateTime.UtcNow
-            });
+            };
 
+            _unitOfWork.Repository<Supplier>().Add(entity);
             _unitOfWork.SaveChanges();
+            return entity.Id;
         }
 
         public void Update(SupplierVm model)

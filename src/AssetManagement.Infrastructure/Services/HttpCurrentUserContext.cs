@@ -1,5 +1,6 @@
 using System.Web;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Infrastructure.Security;
 
 namespace AssetManagement.Infrastructure.Services
 {
@@ -9,15 +10,25 @@ namespace AssetManagement.Infrastructure.Services
         {
             get
             {
-                var principal = HttpContext.Current?.User;
-                return principal?.Identity?.IsAuthenticated == true
-                    ? System.Security.Claims.ClaimsPrincipal.Current?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                var context = HttpContext.Current;
+                return context == null ? null : FormsAuthHelper.GetUserId(context.User);
+            }
+        }
+
+        public string UserName
+        {
+            get
+            {
+                var context = HttpContext.Current;
+                return context != null && context.User != null && context.User.Identity != null && context.User.Identity.IsAuthenticated
+                    ? context.User.Identity.Name
                     : null;
             }
         }
 
-        public string UserName => HttpContext.Current?.User?.Identity?.Name;
-
-        public string IPAddress => HttpContext.Current?.Request?.UserHostAddress;
+        public string IPAddress
+        {
+            get { return HttpContext.Current != null ? HttpContext.Current.Request.UserHostAddress : null; }
+        }
     }
 }

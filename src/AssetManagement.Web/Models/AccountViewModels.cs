@@ -6,7 +6,7 @@ namespace AssetManagement.Web.Models
     {
         [Required]
         [Display(Name = "Email")]
-        [EmailAddress]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
         public string Email { get; set; }
 
         [Required]
@@ -21,25 +21,58 @@ namespace AssetManagement.Web.Models
     public class ForgotPasswordViewModel
     {
         [Required]
-        [EmailAddress]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
         public string Email { get; set; }
+    }
+
+    public class RegisterViewModel
+    {
+        [Required]
+        [StringLength(80)]
+        [Display(Name = "First name")]
+        public string FirstName { get; set; }
+
+        [Required]
+        [StringLength(80)]
+        [Display(Name = "Last name")]
+        public string LastName { get; set; }
+
+        [Required]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
+        [Display(Name = "Email")]
+        public string Email { get; set; }
+
+        [StringLength(60)]
+        [Display(Name = "Phone")]
+        public string Phone { get; set; }
+
+        [Required]
+        [DataType(DataType.Password)]
+        [StringLength(100)]
+        [Display(Name = "Password")]
+        public string Password { get; set; }
+
+        [Required]
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        public string ConfirmPassword { get; set; }
     }
 
     public class ResetPasswordViewModel
     {
         [Required]
-        [EmailAddress]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
         public string Email { get; set; }
 
         [Required]
-        [StringLength(100, ErrorMessage = "The {0} must be at least {2} characters long.", MinimumLength = 6)]
+        [StringLength(100)]
+        [RegularExpression(@".{6,}", ErrorMessage = "The password must be at least 6 characters long.")]
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
         public string Password { get; set; }
 
         [DataType(DataType.Password)]
         [Display(Name = "Confirm password")]
-        [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; }
 
         public string Code { get; set; }

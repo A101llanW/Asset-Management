@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace AssetManagement.Application.ViewModels
@@ -26,14 +27,12 @@ namespace AssetManagement.Application.ViewModels
         [Display(Name = "Default Currency")]
         public string DefaultCurrency { get; set; }
 
-        [Range(1, 240)]
-        [Display(Name = "Default Useful Life (Months)")]
-        public int DefaultUsefulLifeMonths { get; set; }
-
         [Display(Name = "Require Transfer Approval")]
         public bool RequireTransferApproval { get; set; }
 
         [Display(Name = "Require Disposal Approval")]
         public bool RequireDisposalApproval { get; set; }
+
+        public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
     }
 }

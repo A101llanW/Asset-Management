@@ -1,0 +1,116 @@
+@model AssetManagement.Application.ViewModels.AssetRequestDetailsVm
+@using AssetManagement.Domain.Enums
+@{
+    ViewBag.Title = "Asset Request #" + Model.Id;
+    var canApprove = ViewBag.CanApprove == true;
+    var canFulfill = ViewBag.CanFulfill == true;
+    var availableAssets = ViewBag.AvailableAssets as SelectList;
+    var assigneeUsers = ViewBag.AssigneeUsers as SelectList;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Asset Request #" + Model.Id,
+    Subtitle = "Status: " + Model.Status,
+    BackUrl = Url.Action("Index"),
+    BackLabel = "Back to requests"
+})
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card card-kpi am-fade-in">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Requester</dt><dd class="col-sm-8">@Model.RequestedByName</dd>
+                    <dt class="col-sm-4">Department</dt><dd class="col-sm-8">@(Model.DepartmentName ?? DisplayText.Empty)</dd>
+                    <dt class="col-sm-4">Category</dt><dd class="col-sm-8">@(Model.CategoryName ?? "Any")</dd>
+                    <dt class="col-sm-4">Requested asset</dt>
+                    <dd class="col-sm-8">
+                        @if (!string.IsNullOrWhiteSpace(Model.RequestedAssetName))
+                        {
+                            if (Model.RequestedAssetId.HasValue)
+                            {
+                                <a href="@Url.RouteUrl("Default", new { controller = "Assets", action = "Details", id = Model.RequestedAssetId })">@Model.RequestedAssetName</a>
+                            }
+                            else
+                            {
+                                @Model.RequestedAssetName
+                            }
+                        }
+                        else
+                        {
+                            @(string.IsNullOrWhiteSpace(Model.RequestedAssetTag) ? DisplayText.Empty : Model.RequestedAssetTag)
+                        }
+                    </dd>
+                    <dt class="col-sm-4">Justification</dt><dd class="col-sm-8">@Model.Justification</dd>
+                    <dt class="col-sm-4">Submitted</dt><dd class="col-sm-8">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+                    @if (Model.ReviewedAt.HasValue)
+                    {
+                        <dt class="col-sm-4">Reviewed</dt><dd class="col-sm-8">@Model.ReviewedByName on @Model.ReviewedAt.Value.ToString("yyyy-MM-dd HH:mm")</dd>
+                        <dt class="col-sm-4">Review notes</dt><dd class="col-sm-8">@(Model.ReviewNotes ?? DisplayText.Empty)</dd>
+                    }
+                    @if (Model.FulfilledAssetId.HasValue)
+                    {
+                        <dt class="col-sm-4">Fulfilled asset</dt>
+                        <dd class="col-sm-8"><a href="@Url.RouteUrl("Default", new { controller = "Assets", action = "Details", id = Model.FulfilledAssetId })">@(string.IsNullOrWhiteSpace(Model.FulfilledAssetTag) ? ("Asset #" + Model.FulfilledAssetId) : Model.FulfilledAssetTag)</a></dd>
+                    }
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        @if (canApprove)
+        {
+            <div class="card card-kpi am-fade-in">
+                <div class="card-header">Review</div>
+                <div class="card-body">
+                    @using (Html.BeginForm("Approve", "AssetRequests", FormMethod.Post, new { @class = "mb-3" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <label class="form-label">Approval notes (optional)</label>
+                        <input class="form-control mb-2" name="notes" />
+                        <button type="submit" class="btn btn-primary w-100">Approve request</button>
+                    }
+                    @using (Html.BeginForm("Reject", "AssetRequests", FormMethod.Post))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <label class="form-label">Rejection reason</label>
+                        <input class="form-control mb-2" name="notes" required />
+                        <button type="submit" class="btn btn-outline-danger w-100">Reject request</button>
+                    }
+                </div>
+            </div>
+        }
+        @if (canFulfill)
+        {
+            <div class="card card-kpi am-fade-in">
+                <div class="card-header">Fulfill request</div>
+                <div class="card-body">
+                    @using (Html.BeginForm("Fulfill", "AssetRequests", FormMethod.Post))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="RequestId" value="@Model.Id" />
+                        <div class="mb-2">
+                            <label class="form-label">Asset to assign</label>
+                            @Html.DropDownList("AssetId", availableAssets, "Select asset", new { @class = "form-select", required = "required" })
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Assign to user</label>
+                            @Html.DropDownList("ToUserId", assigneeUsers, new { @class = "form-select", required = "required" })
+                            @if (Model.DepartmentId.HasValue)
+                            {
+                                <div class="form-text">Only users in @(Model.DepartmentName ?? "the request department") are listed.</div>
+                            }
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Handover notes</label>
+                            <input class="form-control" name="HandoverNotes" />
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Assign &amp; fulfill</button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>

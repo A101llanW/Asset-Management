@@ -1,0 +1,52 @@
+@{
+    ViewBag.Title = "Import Assets";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Import Assets",
+    Subtitle = "Bulk onboard assets from an Excel workbook or CSV file. Download the template, fill in your data, then upload the file.",
+    BackUrl = Url.Action("Index"),
+    BackLabel = "Back to Assets"
+})
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <h5 class="mb-3">Upload spreadsheet</h5>
+                @using (Html.BeginForm("Import", "Assets", FormMethod.Post, new { enctype = "multipart/form-data" }))
+                {
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label" for="importFile">Excel or CSV file</label>
+                        <input type="file" class="form-control" id="importFile" name="importFile" accept=".csv,.xlsx,.xls" required />
+                        <div class="form-text">Supported formats: .xlsx, .xls, .csv (max 10 MB, up to 2,000 rows).</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Import assets</button>
+                        <a class="btn btn-outline-secondary" href="@Url.Action("DownloadImportTemplate")">Download template</a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card card-kpi">
+            <div class="card-body">
+                <h6 class="mb-2">Column guide</h6>
+                <p class="small text-muted">The first row must contain column headers. Required fields per row:</p>
+                <ul class="small mb-3">
+                    <li><strong>AssetName, AssetTag, Brand, Model</strong></li>
+                    <li><strong>PurchaseDate, AcquisitionCost, Currency</strong></li>
+                    <li><strong>Category</strong> or <strong>CategoryId</strong></li>
+                    <li><strong>AssetType</strong> or <strong>AssetTypeId</strong></li>
+                    <li><strong>Supplier</strong> or <strong>SupplierId</strong></li>
+                    <li><strong>Department</strong> or <strong>DepartmentId</strong></li>
+                </ul>
+                <p class="small text-muted mb-2">Optional columns include serial number, description, tax, depreciation, warranty, insurance, status, barcode, specifications, custodian, and more. Use the template for the full column list and a sample row.</p>
+                <p class="small text-muted mb-0">Lookup values (category, type, supplier, department) can use names exactly as they appear in the system, or numeric IDs. Dates should use <code>yyyy-MM-dd</code>. Status and depreciation method values match the create-asset form (for example <code>InStore</code>, <code>StraightLine</code>).</p>
+            </div>
+        </div>
+    </div>
+</div>

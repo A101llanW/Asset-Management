@@ -2,9 +2,11 @@ using AssetManagement.Domain.Common;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class Supplier : AuditableEntity
+    public class Supplier : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public string SupplierName { get; set; }
 

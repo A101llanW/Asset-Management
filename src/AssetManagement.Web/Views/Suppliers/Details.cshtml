@@ -1,0 +1,59 @@
+@model AssetManagement.Application.ViewModels.SupplierVm
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Supplier Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var canEditSupplier = Html.HasPermission("Suppliers.Edit");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.SupplierName,
+    Subtitle = "Supplier profile and procurement context.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    PrimaryActionUrl = canEditSupplier ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
+    PrimaryActionLabel = canEditSupplier ? "Edit Supplier" : null,
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Suppliers", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.SupplierName }
+    }
+})
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Overview</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Contact</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.ContactPerson) ? "Not set" : Model.ContactPerson)</dd>
+                    <dt class="col-sm-5">Email</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Email) ? "Not set" : Model.Email)</dd>
+                    <dt class="col-sm-5">Phone</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Phone) ? "Not set" : Model.Phone)</dd>
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">Purchases</dt>
+                    <dd class="col-sm-7">@ViewBag.PurchaseCount</dd>
+                    <dt class="col-sm-5">Assets</dt>
+                    <dd class="col-sm-7">@ViewBag.AssetCount</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card card-kpi mb-3">
+            <div class="card-header">Address</div>
+            <div class="card-body">
+                <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.Address) ? "No address recorded." : Model.Address)</p>
+            </div>
+        </div>
+        <div class="card card-kpi">
+            <div class="card-header">Notes</div>
+            <div class="card-body">
+                <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.Notes) ? "No supplier notes recorded." : Model.Notes)</p>
+            </div>
+        </div>
+    </div>
+</div>

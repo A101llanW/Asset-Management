@@ -1,11 +1,24 @@
 @model AssetManagement.Application.ViewModels.DepartmentVm
 @{
     ViewBag.Title = "Create Department";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
 }
-<h3>Create Department</h3>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Department",
+    Subtitle = "Add a department before assigning users or assets to it.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Department" }
+    }
+})
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="mb-3">
         @Html.LabelFor(m => m.Name, new { @class = "form-label" })
@@ -19,8 +32,10 @@
         @Html.LabelFor(m => m.Description, new { @class = "form-label" })
         @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
     </div>
-    <div class="mt-3 d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Create Department</button>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to Departments</a>
-    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Department",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
 }

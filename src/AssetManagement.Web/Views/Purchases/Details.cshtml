@@ -1,0 +1,122 @@
+@model AssetManagement.Application.ViewModels.PurchaseRecordVm
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Purchase Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var receiveDetail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = string.IsNullOrWhiteSpace(Model.PurchaseOrderNumber) ? "Purchase Record" : "PO " + Model.PurchaseOrderNumber,
+    Subtitle = "Purchase summary and supplier-linked procurement details.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = string.IsNullOrWhiteSpace(Model.PurchaseOrderNumber) ? "Purchase Record" : "PO " + Model.PurchaseOrderNumber }
+    }
+})
+
+<div class="card card-kpi">
+    <div class="card-header">Purchase Summary</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="text-muted small">Supplier</div>
+                <div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.SupplierName) ? "Not set" : Model.SupplierName)</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Invoice Number</div>
+                <div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.InvoiceNumber) ? "Not set" : Model.InvoiceNumber)</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Purchase Date</div>
+                <div class="fw-semibold">@Model.PurchaseDate.ToString("yyyy-MM-dd")</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">Quantity</div>
+                <div class="fw-semibold">@Model.Quantity</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">Unit Cost</div>
+                <div class="fw-semibold">@Html.FormatCurrency(Model.UnitCost)</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">Total Cost</div>
+                <div class="fw-semibold">@Html.FormatCurrency(Model.TotalCost)</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">Currency</div>
+                <div class="fw-semibold">@Model.Currency</div>
+            </div>
+            @if (Model.PurchaseRequestId.HasValue)
+            {
+                <div class="col-12 mt-2">
+                    <div class="text-muted small">Linked requisition</div>
+                    <a href="@Url.Action("Details", "PurchaseRequests", new { id = Model.PurchaseRequestId.Value, returnUrl = Request.RawUrl })">@(string.IsNullOrWhiteSpace(Model.PurchaseRequestNumber) ? ("Request #" + Model.PurchaseRequestId) : Model.PurchaseRequestNumber)</a>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (receiveDetail != null)
+{
+    <div class="card card-kpi mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Receiving</span>
+            @if (Html.HasPermission("Assets.Receive") && receiveDetail.RemainingQuantity > 0)
+            {
+                <a class="btn btn-sm btn-primary" href="@Url.Action("Receive", new { id = Model.Id, returnUrl = Request.RawUrl })">Receive Asset</a>
+            }
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <div class="text-muted small">Received</div>
+                    <div class="fw-semibold">@receiveDetail.QuantityReceived / @receiveDetail.PurchaseQuantity</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Remaining</div>
+                    <div class="fw-semibold">@receiveDetail.RemainingQuantity</div>
+                </div>
+            </div>
+            @if (receiveDetail.Receivings != null && receiveDetail.Receivings.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Received</th>
+                                <th>Qty</th>
+                                <th>Condition</th>
+                                <th>Received By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var line in receiveDetail.Receivings)
+                        {
+                            <tr>
+                                <td>
+                                    <a href="@Url.Action("Details", "Assets", new { id = line.AssetId, returnUrl = Request.RawUrl })">@line.AssetTag</a>
+                                    <div class="text-muted small">@line.AssetName</div>
+                                </td>
+                                <td>@line.ReceivedDate.ToString("yyyy-MM-dd")</td>
+                                <td>@line.QuantityReceived</td>
+                                <td>@(string.IsNullOrWhiteSpace(line.ConditionOnReceipt) ? DisplayText.Empty : line.ConditionOnReceipt)</td>
+                                <td>@(string.IsNullOrWhiteSpace(line.ReceivedById) ? DisplayText.Empty : line.ReceivedById)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted mb-0">No receiving lines recorded yet.</p>
+            }
+        </div>
+    </div>
+}

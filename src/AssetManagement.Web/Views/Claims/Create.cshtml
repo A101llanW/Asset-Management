@@ -2,6 +2,7 @@
 @{
     ViewBag.Title = "Insurance Claim";
     var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+    var otherClaimType = ViewBag.OtherClaimType as string ?? string.Empty;
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -14,7 +15,7 @@
 
 @Html.Partial("_AssetWorkflowContext", assetContext)
 
-@using (Html.BeginForm())
+@using (Html.BeginForm(null, null, FormMethod.Post, new { @class = "am-claim-create-form", data_am_claim_create_form = "true", data_am_other_claim_type = otherClaimType }))
 {
     @Html.AntiForgeryToken()
     @Html.ValidationSummary(false, "", new { @class = "text-danger mb-3" })
@@ -31,8 +32,12 @@
             @Html.ValidationMessageFor(m => m.ClaimDate, "", new { @class = "text-danger" })
         </div>
         <div class="col-md-3">
-            <label class="form-label">Claim Type</label>
-            @Html.DropDownListFor(m => m.ClaimType, (SelectList)ViewBag.ClaimTypes, "-- Select Type --", new { @class = "form-select" })
+            <label class="form-label" for="ClaimTypeSelect">Claim Type</label>
+            @Html.DropDownList("ClaimTypeSelect", (SelectList)ViewBag.ClaimTypes, "-- Select Type --", new { @class = "form-select", id = "ClaimTypeSelect" })
+            @Html.HiddenFor(m => m.ClaimType, new { id = "ClaimType" })
+            <p class="form-text text-muted mb-0 mt-1" id="otherClaimTypeSummary" @(string.IsNullOrWhiteSpace(otherClaimType) ? "hidden=\"hidden\"" : null)>
+                Custom type: <span id="otherClaimTypeSummaryText">@otherClaimType</span>
+            </p>
             @Html.ValidationMessageFor(m => m.ClaimType, "", new { @class = "text-danger" })
         </div>
         <div class="col-md-6">
@@ -47,4 +52,28 @@
         BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
         BackLabel = "Back to Asset"
     })
+}
+
+<div class="modal fade" id="otherClaimTypeModal" tabindex="-1" aria-labelledby="otherClaimTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="otherClaimTypeModalLabel">Describe claim type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="OtherClaimTypeText">Other claim type</label>
+                <input class="form-control" id="OtherClaimTypeText" type="text" maxlength="80" placeholder="e.g. Flood damage, Vandalism" />
+                <div class="form-text">This description will appear as the claim type on the claim record.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="otherClaimTypeConfirm">Use this type</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/claim-create.js")"></script>
 }

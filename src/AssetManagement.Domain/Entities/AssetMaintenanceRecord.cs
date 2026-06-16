@@ -4,9 +4,11 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class AssetMaintenanceRecord : AuditableEntity
+    public class AssetMaintenanceRecord : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public string MaintenanceTicketNumber { get; set; }
 

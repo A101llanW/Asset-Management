@@ -1,0 +1,87 @@
+@model AssetManagement.Application.ViewModels.Platform.PlatformUserListItemVm
+@{
+    ViewBag.Title = "User Details";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    var canManage = ViewBag.CanManage as bool? ?? false;
+    var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">@Model.FirstName @Model.LastName</h1>
+        <p class="text-muted mb-0">@Model.Email</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to users</a>
+</div>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">@TempData["Message"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<div class="card card-kpi mb-3">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Scope</dt>
+            <dd class="col-sm-9">@(Model.IsSystemUser ? "System user" : "Company user")</dd>
+
+            <dt class="col-sm-3">Organization</dt>
+            <dd class="col-sm-9">@(Model.IsSystemUser ? DisplayText.Empty : (string.IsNullOrWhiteSpace(Model.OrganizationName) ? DisplayText.Empty : Model.OrganizationName))</dd>
+
+            <dt class="col-sm-3">Employee number</dt>
+            <dd class="col-sm-9">@Model.EmployeeNumber</dd>
+
+            <dt class="col-sm-3">Role</dt>
+            <dd class="col-sm-9">@Model.RoleName</dd>
+
+            <dt class="col-sm-3">Department</dt>
+            <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
+
+            <dt class="col-sm-3">Position</dt>
+            <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.PositionTitle) ? DisplayText.Empty : Model.PositionTitle)</dd>
+
+            <dt class="col-sm-3">Phone</dt>
+            <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.Phone) ? DisplayText.Empty : Model.Phone)</dd>
+
+            <dt class="col-sm-3">Status</dt>
+            <dd class="col-sm-9">@(Model.IsActive ? "Active" : "Inactive")</dd>
+        </dl>
+    </div>
+</div>
+
+@if (canManage)
+{
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Role access</div>
+        <div class="card-body">
+            @using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "row g-2 align-items-end" }))
+            {
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="userId" value="@Model.Id" />
+                <div class="col-md-8">
+                    <label class="form-label">Assign role</label>
+                    <select name="roleId" class="form-select">
+                        @if (roles != null)
+                        {
+                            foreach (var role in roles)
+                            {
+                                <option value="@role.Id" @(Model.RoleId == role.Id ? "selected" : null)>@role.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-primary w-100" type="submit">Save role</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div>
+        <a class="btn btn-primary" href="@Url.Action("Create", new { organizationId = Model.OrganizationId })">Create another user</a>
+    </div>
+}

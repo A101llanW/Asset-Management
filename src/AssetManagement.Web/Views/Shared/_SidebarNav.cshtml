@@ -1,0 +1,212 @@
+@using AssetManagement.Web.Helpers
+@{
+    const string ctrlDashboard = "Dashboard";
+    const string ctrlAssetScan = "AssetScan";
+    const string ctrlAssets = "Assets";
+    const string ctrlAssignments = "Assignments";
+    const string ctrlSearch = "Search";
+    const string ctrlAssetRequests = "AssetRequests";
+    const string ctrlPendingApprovals = "PendingApprovals";
+    const string ctrlPurchases = "Purchases";
+    const string ctrlPurchaseRequests = "PurchaseRequests";
+    const string ctrlSuppliers = "Suppliers";
+    const string ctrlIncidents = "Incidents";
+    const string ctrlClaims = "Claims";
+    const string ctrlReports = "Reports";
+    const string ctrlDepartments = "Departments";
+    const string ctrlAssetCategories = "AssetCategories";
+    const string ctrlAssetTypes = "AssetTypes";
+    const string ctrlUsers = "Users";
+    const string ctrlRoles = "Roles";
+    const string ctrlPermissions = "Permissions";
+    const string ctrlNotifications = "Notifications";
+    const string ctrlAuditLogs = "AuditLogs";
+    const string ctrlSecurityLogs = "SecurityLogs";
+    const string ctrlSettings = "Settings";
+    const string actIndex = "Index";
+    const string actLookup = "Lookup";
+    const string actList = "List";
+    const string actMyAssets = "MyAssets";
+    const string actDepartmentAssets = "DepartmentAssets";
+}
+
+<ul class="nav flex-column am-sidebar-menu" id="amSidebarMenu">
+    @if (Html.HasPermission("Reports.View"))
+    {
+        <li class="am-nav-module" data-am-module="overview">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Overview</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-overview" aria-label="Toggle Overview section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-overview">
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDashboard)" href="@(Url.RouteUrl("Default", new { controller = ctrlDashboard, action = actIndex }))">Dashboard</a></li>
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Assets.View"))
+    {
+        <li class="am-nav-module" data-am-module="assets">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Assets &amp; custody</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-assets" aria-label="Toggle Assets and custody section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-assets">
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetScan)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetScan, action = actLookup }))">Scan</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actIndex)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actIndex }))">Assets</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actMyAssets)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actMyAssets }))">My Assets</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actDepartmentAssets)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actDepartmentAssets }))">Department Assets</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssignments)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssignments, action = actList }))">Assignments</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSearch)" href="@(Url.RouteUrl("Default", new { controller = ctrlSearch, action = actIndex }))">Search</a></li>
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Assets.Request") || Html.HasPermission("Assets.Request.Approve")
+        || Html.HasPermission("Assets.View") || Html.HasPermission("Purchases.View"))
+    {
+        <li class="am-nav-module" data-am-module="workflow">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Workflow</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-workflow" aria-label="Toggle Workflow section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-workflow">
+                @if (Html.HasPermission("Assets.Request") || Html.HasPermission("Assets.Request.Approve"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetRequests)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetRequests, action = actIndex }))">Asset Requests</a></li>
+                }
+                @if (Html.HasPermission("Assets.View") || Html.HasPermission("Purchases.View") || Html.HasPermission("Assets.Request.Approve"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPendingApprovals)" href="@(Url.RouteUrl("Default", new { controller = ctrlPendingApprovals, action = actIndex }))">Pending Approvals</a></li>
+                }
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Purchases.View") || Html.HasPermission("Suppliers.View"))
+    {
+        <li class="am-nav-module" data-am-module="procurement">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Procurement</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-procurement" aria-label="Toggle Procurement section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-procurement">
+                @if (Html.HasPermission("Purchases.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchases)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchases, action = actIndex }))">Purchases</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchaseRequests)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchaseRequests, action = actIndex }))">Purchase Requests</a></li>
+                }
+                @if (Html.HasPermission("Suppliers.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSuppliers)" href="@(Url.RouteUrl("Default", new { controller = ctrlSuppliers, action = actIndex }))">Suppliers</a></li>
+                }
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Incidents.View") || Html.HasPermission("Claims.View"))
+    {
+        <li class="am-nav-module" data-am-module="risk">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Risk &amp; incidents</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-risk" aria-label="Toggle Risk and incidents section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-risk">
+                @if (Html.HasPermission("Incidents.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlIncidents)" href="@(Url.RouteUrl("Default", new { controller = ctrlIncidents, action = actIndex }))">Incidents</a></li>
+                }
+                @if (Html.HasPermission("Claims.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlClaims)" href="@(Url.RouteUrl("Default", new { controller = ctrlClaims, action = actIndex }))">Claims</a></li>
+                }
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Reports.View"))
+    {
+        <li class="am-nav-module" data-am-module="finance">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Reports</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-finance" aria-label="Toggle Reports section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-finance">
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlReports)" href="@(Url.RouteUrl("Default", new { controller = ctrlReports, action = actIndex }))">Reports</a></li>
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Departments.View") || Html.HasPermission("Assets.Edit")
+        || Html.HasPermission("Users.View") || Html.HasPermission("Roles.View"))
+    {
+        <li class="am-nav-module" data-am-module="organization">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Organization</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-organization" aria-label="Toggle Organization section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-organization">
+                @if (Html.HasPermission("Departments.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDepartments)" href="@(Url.RouteUrl("Default", new { controller = ctrlDepartments, action = actIndex }))">Departments</a></li>
+                }
+                @if (Html.HasPermission("Assets.Edit"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlAssetCategories, ctrlAssetTypes)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetCategories, action = actIndex }))">Asset Categories</a></li>
+                }
+                @if (Html.HasPermission("Users.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@(Url.RouteUrl("Default", new { controller = ctrlUsers, action = actIndex }))">Users</a></li>
+                }
+                @if (Html.HasPermission("Roles.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlRoles, ctrlPermissions)" href="@(Url.RouteUrl("Default", new { controller = ctrlRoles, action = actIndex }))">Roles &amp; Permissions</a></li>
+                }
+            </ul>
+        </li>
+    }
+
+    @if (Html.HasPermission("Reports.View") || Html.HasPermission("AuditLogs.View") || Html.HasPermission("SecurityLogs.View") || Html.HasPermission("Settings.Manage"))
+    {
+        <li class="am-nav-module" data-am-module="administration">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Administration</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-administration" aria-label="Toggle Administration section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-administration">
+                @if (Html.HasPermission("Reports.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlNotifications)" href="@(Url.RouteUrl("Default", new { controller = ctrlNotifications, action = actIndex }))">Notifications</a></li>
+                }
+                @if (Html.HasPermission("AuditLogs.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAuditLogs)" href="@(Url.RouteUrl("Default", new { controller = ctrlAuditLogs, action = actIndex }))">Audit Logs</a></li>
+                }
+                @if (Html.HasPermission("SecurityLogs.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSecurityLogs)" href="@(Url.RouteUrl("Default", new { controller = ctrlSecurityLogs, action = actIndex }))">Security Logs</a></li>
+                }
+                @if (Html.HasPermission("Settings.Manage"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSettings)" href="@(Url.RouteUrl("Default", new { controller = ctrlSettings, action = actIndex }))">Settings</a></li>
+                }
+            </ul>
+        </li>
+    }
+</ul>

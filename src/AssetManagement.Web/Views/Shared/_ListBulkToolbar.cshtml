@@ -1,0 +1,44 @@
+@using AssetManagement.Web.Helpers
+@{
+    var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
+    var departments = ViewBag.Departments as System.Web.Mvc.SelectList;
+}
+@if (canBulkEdit)
+{
+    <div class="card card-kpi mb-3 am-bulk-toolbar" data-am-bulk-toolbar>
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small mb-0">Bulk action</label>
+                    <select class="form-select form-select-sm" name="Action" form="amBulkForm" data-am-bulk-action>
+                        <option value="">Select</option>
+                        <option value="department">Move to department</option>
+                        <option value="status">Update status</option>
+                        <option value="maintenance">Mark under maintenance</option>
+                    </select>
+                </div>
+                <div class="col-md-3" data-am-bulk-dept>
+                    <label class="form-label small mb-0">Department</label>
+                    @Html.DropDownList("TargetDepartmentId", departments, string.Empty, new { @class = "form-select form-select-sm", form = "amBulkForm" })
+                </div>
+                <div class="col-md-3 d-none" data-am-bulk-status>
+                    <label class="form-label small mb-0">Status</label>
+                    <select class="form-select form-select-sm" name="TargetStatus" form="amBulkForm">
+                        @foreach (AssetManagement.Domain.Enums.AssetStatus status in System.Enum.GetValues(typeof(AssetManagement.Domain.Enums.AssetStatus)))
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-sm btn-outline-primary w-100" form="amBulkForm" data-am-bulk-submit disabled>Apply to selected</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    using (Html.BeginForm("Bulk", "Assets", FormMethod.Post, new { id = "amBulkForm" }))
+    {
+        @Html.AntiForgeryToken()
+        <div id="amBulkAssetIds"></div>
+    }
+}

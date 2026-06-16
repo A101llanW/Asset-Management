@@ -4,9 +4,11 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class InsuranceClaim : AuditableEntity
+    public class InsuranceClaim : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public string ClaimNumber { get; set; }
 

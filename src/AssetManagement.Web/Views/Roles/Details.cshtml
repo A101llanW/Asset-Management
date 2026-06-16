@@ -1,0 +1,69 @@
+@model AssetManagement.Application.ViewModels.RoleVm
+@using System.Linq
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Role Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var canEditRole = Html.HasPermission("Roles.Edit");
+    var permissionGroups = ViewBag.PermissionGroups as IEnumerable<IGrouping<string, AssetManagement.Application.ViewModels.PermissionVm>> ?? Enumerable.Empty<IGrouping<string, AssetManagement.Application.ViewModels.PermissionVm>>();
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.Name,
+    Subtitle = "Role profile, assigned permissions, and usage across users.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    PrimaryActionUrl = canEditRole ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
+    PrimaryActionLabel = canEditRole ? "Edit Role" : null,
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Roles", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name }
+    }
+})
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Overview</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">System Role</dt>
+                    <dd class="col-sm-7">@(Model.IsSystemRole ? "Yes" : "No")</dd>
+                    <dt class="col-sm-5">Users</dt>
+                    <dd class="col-sm-7">@ViewBag.UserCount</dd>
+                    <dt class="col-sm-5">Description</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Description) ? "No description" : Model.Description)</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Permissions</div>
+            <div class="card-body">
+                @if (!permissionGroups.Any())
+                {
+                    <p class="text-muted mb-0">No permissions are assigned to this role yet.</p>
+                }
+                else
+                {
+                    foreach (var group in permissionGroups)
+                    {
+                        <div class="mb-3">
+                            <h6 class="mb-2">@group.Key</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var permission in group)
+                                {
+                                    <span class="badge bg-light text-dark border">@PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,3 +1,4 @@
+@using AssetManagement.Web.App_Start
 @using AssetManagement.Web.Helpers
 <!DOCTYPE html>
 <html>
@@ -5,16 +6,91 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title - Asset Management Module</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/Content/css/site.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")" />
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <link rel="stylesheet" href="@Url.Content("~/Content/css/auth-portal.css")" />
+        <script>
+            (function () {
+                try {
+                    var theme = localStorage.getItem("amAuthTheme") || "light";
+                    document.documentElement.setAttribute("data-am-auth-theme", theme);
+                } catch (e) { }
+            })();
+        </script>
+    }
+    <style>
+        .app-impersonation-bar { background: #f39c12; color: #1a1a1a; }
+    </style>
 </head>
-<body>
-    @{
-        string currentController = ViewContext.RouteData.Values["controller"] != null
-            ? ViewContext.RouteData.Values["controller"].ToString()
-            : string.Empty;
+<body class="@(ViewBag.ShowLoginBackground == true ? "am-login-page am-auth-theme-light" : null)">
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <script>
+            (function () {
+                try {
+                    var theme = document.documentElement.getAttribute("data-am-auth-theme") || "light";
+                    document.body.classList.remove("am-auth-theme-light", "am-auth-theme-dark");
+                    document.body.classList.add(theme === "dark" ? "am-auth-theme-dark" : "am-auth-theme-light");
+                } catch (e) { }
+            })();
+        </script>
+    }
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        @Html.Partial("_LoginBackground")
+    }
+    @if (Session["ImpersonatedOrganizationId"] != null)
+    {
+        <div class="app-impersonation-bar py-2">
+            <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center">
+                <span>
+                    <strong>ELEVATED:</strong> @(Session["ImpersonatedOrganizationName"] ?? "Organization")
+                    <small class="ms-2">(@(Session["ImpersonationReason"] ?? "N/A"))</small>
+                    <span class="app-impersonation-chip ms-3"><span id="impersonation-countdown">--:--</span> left</span>
+                </span>
+                <a href="@Url.Action("StopImpersonating", "Organizations", new { area = "Platform" })" class="btn btn-dark btn-sm">Return to platform portal</a>
+            </div>
+        </div>
     }
 
+    @if (Request.IsAuthenticated)
+    {
+        @Html.Partial("_SupportSessionOverlay")
+    }
+
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <header class="am-shell-header am-auth-page-header">
+            <div class="am-header-inner am-auth-header-inner">
+                <a class="am-auth-header-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">
+                    <img src="@Url.Content("~/Content/images/nanosoft-logo-transparent.png")"
+                         alt="Nanosoft"
+                         class="am-auth-header-logo" />
+                    <span class="am-auth-header-copy">
+                        <small class="am-auth-header-kicker">Nanosoft Asset Suite</small>
+                        <span class="am-auth-header-title">Asset Management Module</span>
+                    </span>
+                </a>
+                <button type="button"
+                        id="amAuthThemeToggle"
+                        class="am-auth-theme-toggle"
+                        aria-pressed="false"
+                        aria-label="Switch to dark mode">
+                    <span class="am-auth-theme-toggle__icon am-auth-theme-toggle__icon--sun" aria-hidden="true">&#9728;</span>
+                    <span class="am-auth-theme-toggle__icon am-auth-theme-toggle__icon--moon" aria-hidden="true">&#9790;</span>
+                    <span class="am-auth-theme-toggle__label">Light</span>
+                </button>
+            </div>
+        </header>
+    }
+    else
+    {
     <header class="am-shell-header">
         <div class="am-header-inner">
             <div class="am-header-branding">
@@ -26,7 +102,7 @@
                         <span class="am-menu-button-dot"></span>
                     </button>
                 }
-                <a class="am-brand" href="@Url.Action("Landing", "Account")">
+                <a class="am-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">
                     <span class="am-brand-mark">AM</span>
                     <span class="am-brand-copy">
                         <small class="am-brand-kicker">Nanosoft Asset Suite</small>
@@ -37,13 +113,23 @@
 
             @if (Request.IsAuthenticated)
             {
-                <div class="am-header-user">
-                    <span class="am-header-user-label">Welcome</span>
-                    <strong class="am-header-user-name">@User.Identity.Name</strong>
+                <div class="am-header-actions d-flex align-items-center gap-3">
+                    @if (Html.HasPermission("Assets.View"))
+                    {
+                        <form class="am-global-search" method="get" action="@Url.RouteUrl("Default", new { controller = "Search", action = "Index" })" role="search">
+                            <input type="search" class="form-control form-control-sm" name="q" placeholder="Search assets..." aria-label="Search assets" />
+                        </form>
+                    }
+                    <div class="am-header-user">
+                        <span class="am-header-user-label">Welcome</span>
+                        <strong class="am-header-user-name">@User.Identity.Name</strong>
+                        <a class="btn btn-sm btn-outline-light ms-2" href="@Url.Action("Profile", "Account")">Profile</a>
+                    </div>
                 </div>
             }
         </div>
     </header>
+    }
 
     @if (Request.IsAuthenticated)
     {
@@ -51,61 +137,19 @@
 
         <aside id="amSidebar" class="am-sidebar" aria-hidden="true">
             <div class="am-sidebar-header">
-                <a class="am-sidebar-brand" href="@Url.Action("Landing", "Account")">Asset Management Module</a>
+                <a class="am-sidebar-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">Asset Management Module</a>
             </div>
 
             <nav class="am-sidebar-nav">
-                <ul class="nav flex-column">
-                    @if (Html.HasPermission("Reports.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Dashboard" ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard")">Dashboard</a></li>
-                    }
-                    @if (Html.HasPermission("Assets.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Assets" ? "active" : string.Empty)" href="@Url.Action("Index", "Assets")">Assets</a></li>
-                    }
-                    @if (Html.HasPermission("Purchases.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Purchases" ? "active" : string.Empty)" href="@Url.Action("Index", "Purchases")">Purchases</a></li>
-                    }
-                    @if (Html.HasPermission("Departments.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Departments" ? "active" : string.Empty)" href="@Url.Action("Index", "Departments")">Departments</a></li>
-                    }
-                    @if (Html.HasPermission("Suppliers.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Suppliers" ? "active" : string.Empty)" href="@Url.Action("Index", "Suppliers")">Suppliers</a></li>
-                    }
-                    @if (Html.HasPermission("Users.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Users" ? "active" : string.Empty)" href="@Url.Action("Index", "Users")">Users</a></li>
-                    }
-                    @if (Html.HasPermission("Roles.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Roles" || currentController == "Permissions" ? "active" : string.Empty)" href="@Url.Action("Index", "Roles")">Roles & Permissions</a></li>
-                    }
-                    @if (Html.HasPermission("AuditLogs.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "AuditLogs" ? "active" : string.Empty)" href="@Url.Action("Index", "AuditLogs")">Audit Logs</a></li>
-                    }
-                    @if (Html.HasPermission("Reports.View"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Notifications" ? "active" : string.Empty)" href="@Url.Action("Index", "Notifications")">Notifications</a></li>
-                    }
-                    @if (Html.HasPermission("Settings.Manage"))
-                    {
-                        <li class="nav-item"><a class="nav-link @(currentController == "Settings" ? "active" : string.Empty)" href="@Url.Action("Index", "Settings")">Settings</a></li>
-                    }
-                </ul>
+                @Html.Partial("_SidebarNav")
             </nav>
 
             <div class="am-sidebar-footer">
                 <span class="am-user-name">@User.Identity.Name</span>
-                @using (Html.BeginForm("LogOff", "Account", FormMethod.Post, new { @class = "mb-0" }))
-                {
+                <form action="@TenantUrlHelper.TenantRouteUrl(Url, "LogOff", "Account")" method="post" class="mb-0">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-sm btn-light w-100">Logout</button>
-                }
+                </form>
             </div>
         </aside>
     }
@@ -115,12 +159,113 @@
         @RenderBody()
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/Scripts/app/permissions.js"></script>
+    @if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
+    {
+        @Html.Partial("_HelpBot")
+    }
+
+    @RenderSection("modals", required: false)
 
     @if (Request.IsAuthenticated)
     {
+        <div class="modal fade" id="elevationRequestModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-warning">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title">Elevation request</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>A platform administrator is requesting temporary access to your organization context.</p>
+                        <p class="small text-muted mb-2">Choose how long the approved support session may remain active.</p>
+                        <div id="elevationRequestDetails" class="p-3 bg-light border-start border-warning border-4"></div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between">
+                        @using (Html.BeginForm("HandleImpersonationRequest", "Dashboard", FormMethod.Post, new { id = "denyElevationForm" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="requestId" id="denyRequestId" />
+                            <input type="hidden" name="approved" value="false" />
+                            <button type="submit" class="btn btn-outline-danger">Deny</button>
+                        }
+                        @using (Html.BeginForm("HandleImpersonationRequest", "Dashboard", FormMethod.Post, new { id = "approveElevationForm", @class = "d-flex flex-wrap align-items-center gap-2" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="requestId" id="approveRequestId" />
+                            <input type="hidden" name="approved" value="true" />
+                            <label class="small mb-0" for="elevationDurationMinutes">Session length</label>
+                            <select name="durationMinutes" id="elevationDurationMinutes" class="form-select form-select-sm w-auto">
+                                @foreach (var option in ImpersonationDurationOptions.All)
+                                {
+                                    <option value="@option.Minutes" @(option.IsDefault ? "selected" : null)>@option.Label</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-warning">Approve</button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <script src="@Url.Content("~/Scripts/jquery-3.7.1.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/bootstrap.bundle.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/permissions.js")"></script>
+    @if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
+    {
+        <script src="@Url.Content("~/Scripts/app/help-bot.js")"></script>
+    }
+    <script src="@Url.Content("~/Scripts/app/site-interactive.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/password-toggle.js")"></script>
+    @if (ViewBag.ShowLoginBackground == true || Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/anti-gravity-bubbles.js")"></script>
+    }
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <script src="@Url.Content("~/Scripts/app/auth-theme.js")"></script>
+    }
+    @if (Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/impersonation-ui.js")"></script>
+    }
+    @if (Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/sidebar-nav.js")"></script>
+    }
+
+    @if (Request.IsAuthenticated && Session["ImpersonatedOrganizationId"] != null)
+    {
+        <script>
+            $(function () {
+                if (window.AmImpersonationUi) {
+                    AmImpersonationUi.initImpersonationCountdown({
+                        statusUrl: '@Url.Action("GetMyImpersonationStatus", "Organizations", new { area = "Platform" })',
+                        countdownSelector: '#impersonation-countdown',
+                        endSessionUrl: '@Url.Action("StopImpersonating", "Organizations", new { area = "Platform" })'
+                    });
+                }
+            });
+        </script>
+    }
+
+    @if (Request.IsAuthenticated)
+    {
+        <script>
+            $(function () {
+                if (window.AmImpersonationUi) {
+                    AmImpersonationUi.initElevationRequests({
+                        pendingUrl: '@Url.Action("GetPendingRequests", "Dashboard")',
+                        pollIntervalMs: 3000
+                    });
+
+                    AmImpersonationUi.initSupportSessionFreeze({
+                        statusUrl: '@Url.Action("GetImpersonationStatus", "Dashboard")',
+                        pollIntervalMs: 5000
+                    });
+                }
+            });
+        </script>
         <script>
             (function () {
                 var body = document.body;

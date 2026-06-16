@@ -1,0 +1,29 @@
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "License suspended";
+    var organizationName = ViewBag.OrganizationName as string;
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card card-kpi">
+            <div class="card-header">License suspended</div>
+            <div class="card-body">
+                <h1 class="h4 mb-3">Portal access suspended</h1>
+                @if (!string.IsNullOrWhiteSpace(organizationName))
+                {
+                    <p>The license for <strong>@organizationName</strong> has been paused by a platform administrator.</p>
+                }
+                else
+                {
+                    <p>Your organization's license has been paused.</p>
+                }
+                <p class="text-muted mb-4">Please contact your platform support team to restore access.</p>
+                <form action="@TenantUrlHelper.TenantRouteUrl(Url, ViewBag.TenantToken as string, "LogOff", "Account")" method="post" class="mb-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-secondary">Sign out</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

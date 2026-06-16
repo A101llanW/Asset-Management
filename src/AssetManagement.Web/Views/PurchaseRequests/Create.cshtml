@@ -1,0 +1,74 @@
+@model AssetManagement.Application.ViewModels.PurchaseRequestCreateVm
+@{
+    ViewBag.Title = "New purchase request";
+    var departments = ViewBag.Departments as SelectList;
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
+    var lockDepartment = ViewBag.LockDepartment == true;
+    var departmentName = ViewBag.DepartmentName as string;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "New purchase request",
+    Subtitle = "Describe the need and estimated cost. Approvers are configured under Settings for the Purchase Request process.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index", "Purchases") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchase Requests", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "New request" }
+    }
+})
+
+@if (!string.IsNullOrWhiteSpace(approvalSummary))
+{
+    <div class="alert alert-light border mb-3"><strong>Approval path:</strong> @approvalSummary</div>
+}
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Department</label>
+            @if (lockDepartment)
+            {
+                @Html.HiddenFor(m => m.DepartmentId)
+                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(departmentName) ? "Your department" : departmentName)" />
+            }
+            else
+            {
+                @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select department --", new { @class = "form-select" })
+            }
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Quantity</label>
+            @Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number", min = "1" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Est. unit cost</label>
+            @Html.TextBoxFor(m => m.EstimatedUnitCost, new { @class = "form-control", type = "number", step = "0.01" })
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Currency</label>
+            @Html.TextBoxFor(m => m.Currency, new { @class = "form-control text-uppercase", maxlength = "10", @readonly = "readonly" })
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Justification</label>
+            @Html.TextAreaFor(m => m.Justification, new { @class = "form-control", rows = 4 })
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Notes (optional)</label>
+            @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = 2 })
+        </div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Submit request",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}

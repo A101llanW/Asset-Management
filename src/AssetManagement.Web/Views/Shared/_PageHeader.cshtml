@@ -1,6 +1,28 @@
+@using System.Linq
 @model AssetManagement.Web.ViewModels.PageHeaderViewModel
 <div class="am-page-header">
     <div>
+        @if (Model.Breadcrumbs != null && Model.Breadcrumbs.Any())
+        {
+            <nav aria-label="breadcrumb" class="am-breadcrumbs">
+                <ol class="breadcrumb mb-2">
+                    @foreach (var crumb in Model.Breadcrumbs)
+                    {
+                        var isCurrent = string.IsNullOrWhiteSpace(crumb.Url);
+                        <li class="breadcrumb-item @(isCurrent ? "active" : null)">
+                            @if (isCurrent)
+                            {
+                                @crumb.Label
+                            }
+                            else
+                            {
+                                <a href="@crumb.Url">@crumb.Label</a>
+                            }
+                        </li>
+                    }
+                </ol>
+            </nav>
+        }
         @if (!string.IsNullOrWhiteSpace(Model.BackUrl) && !string.IsNullOrWhiteSpace(Model.BackLabel))
         {
             <a class="btn btn-outline-secondary btn-sm am-page-header-back" href="@Model.BackUrl">@Model.BackLabel</a>
@@ -11,10 +33,24 @@
             <div class="am-page-subtitle">@Model.Subtitle</div>
         }
     </div>
-    @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl) && !string.IsNullOrWhiteSpace(Model.PrimaryActionLabel))
+    @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionLabel) || !string.IsNullOrWhiteSpace(Model.SecondaryActionLabel))
     {
-        <div class="am-page-header-actions">
-            <a class="btn btn-primary" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>
+        <div class="am-page-header-actions d-flex gap-2">
+            @if (!string.IsNullOrWhiteSpace(Model.SecondaryActionUrl) && !string.IsNullOrWhiteSpace(Model.SecondaryActionLabel))
+            {
+                <a class="btn btn-outline-primary" href="@Model.SecondaryActionUrl">@Model.SecondaryActionLabel</a>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionLabel))
+            {
+                if (!string.IsNullOrWhiteSpace(Model.PrimaryActionModalTarget))
+                {
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#@Model.PrimaryActionModalTarget">@Model.PrimaryActionLabel</button>
+                }
+                else if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl))
+                {
+                    <a class="btn btn-primary" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>
+                }
+            }
         </div>
     }
 </div>

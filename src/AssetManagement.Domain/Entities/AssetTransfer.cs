@@ -4,9 +4,11 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class AssetTransfer : AuditableEntity
+    public class AssetTransfer : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int AssetId { get; set; }
 
@@ -32,7 +34,17 @@ namespace AssetManagement.Domain.Entities
 
         public string ApprovedById { get; set; }
 
+        public string RequestedById { get; set; }
+
+        public int CurrentApprovalStage { get; set; }
+
+        public string ApprovalStageRoleIds { get; set; }
+
+        public string ApprovalStageUserIds { get; set; }
+
         public DateTime TransferDate { get; set; }
+
+        public AssetStatus OriginalAssetStatus { get; set; }
 
         public byte[] RowVersion { get; set; }
 

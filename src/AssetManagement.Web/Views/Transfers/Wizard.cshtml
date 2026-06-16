@@ -1,0 +1,71 @@
+@model AssetManagement.Application.ViewModels.AssetTransferVm
+@using System.Web.Mvc
+@{
+    ViewBag.Title = "Transfer (mobile)";
+    var users = ViewBag.Users as System.Collections.Generic.IEnumerable<SelectListItem> ?? System.Linq.Enumerable.Empty<SelectListItem>();
+    var departments = ViewBag.Departments as System.Collections.Generic.IEnumerable<SelectListItem> ?? System.Linq.Enumerable.Empty<SelectListItem>();
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+    var lockToDepartment = ViewBag.LockToDepartment == true;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Transfer Asset",
+    Subtitle = "Mobile-friendly transfer wizard.",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset"
+})
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@using (Html.BeginForm("Create", "Transfers", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.AssetId)
+    @Html.HiddenFor(m => m.FromUserId)
+    @Html.HiddenFor(m => m.FromDepartmentId)
+    <div class="am-wizard" data-am-wizard>
+        <ol class="am-wizard-steps list-unstyled d-flex gap-2 mb-3">
+            <li class="am-wizard-step active" data-am-wizard-step-indicator="0"><span class="am-wizard-step-num">1</span> Destination</li>
+            <li class="am-wizard-step" data-am-wizard-step-indicator="1"><span class="am-wizard-step-num">2</span> Details</li>
+        </ol>
+        <div class="am-wizard-panel" data-am-wizard-panel="0">
+            <div class="row g-3">
+                <div class="col-12">
+                    @Html.LabelFor(m => m.ToDepartmentId, new { @class = "form-label" })
+                    @if (lockToDepartment)
+                    {
+                        @Html.HiddenFor(m => m.ToDepartmentId)
+                        <input type="text" class="form-control" readonly="readonly" value="@(ViewBag.ToDepartmentName as string)" />
+                    }
+                    else
+                    {
+                        @Html.DropDownListFor(m => m.ToDepartmentId, departments, "-- Department --", new { @class = "form-select" })
+                    }
+                </div>
+                <div class="col-12">
+                    @Html.LabelFor(m => m.ToUserId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.ToUserId, users, "-- Optional custodian --", new { @class = "form-select" })
+                </div>
+            </div>
+        </div>
+        <div class="am-wizard-panel d-none" data-am-wizard-panel="1">
+            <div class="row g-3">
+                <div class="col-12">
+                    @Html.LabelFor(m => m.Reason, new { @class = "form-label" })
+                    @Html.TextAreaFor(m => m.Reason, new { @class = "form-control", rows = "3" })
+                </div>
+                <div class="col-12">
+                    @Html.LabelFor(m => m.ConditionBefore, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.ConditionBefore, new { @class = "form-control" })
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-between mt-3">
+            <button type="button" class="btn btn-outline-secondary" data-am-wizard-prev disabled>Back</button>
+            <button type="button" class="btn btn-primary" data-am-wizard-next>Next</button>
+            <button type="submit" class="btn btn-success d-none" data-am-wizard-finish>Submit transfer</button>
+        </div>
+    </div>
+}
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/workflow-wizard.js")"></script>
+}

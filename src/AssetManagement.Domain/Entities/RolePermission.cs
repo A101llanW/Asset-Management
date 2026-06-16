@@ -1,8 +1,12 @@
+using AssetManagement.Domain.Common;
+
 namespace AssetManagement.Domain.Entities
 {
-    public class RolePermission
+    public class RolePermission : ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int RoleId { get; set; }
 

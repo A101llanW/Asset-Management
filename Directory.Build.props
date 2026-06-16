@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    <NuGetPackageRoot Condition="'$(NuGetPackageRoot)' == ''">$(RepoRoot).nuget\packages\</NuGetPackageRoot>
+    <LocalNuGetPackageRoot Condition="'$(LocalNuGetPackageRoot)' == ''">$(NuGetPackageRoot)</LocalNuGetPackageRoot>
+  </PropertyGroup>
+</Project>

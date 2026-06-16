@@ -9,7 +9,7 @@ namespace AssetManagement.Application.Contracts
 
         DepartmentVm GetById(int id);
 
-        void Create(DepartmentVm model);
+        int Create(DepartmentVm model);
 
         void Update(DepartmentVm model);
     }

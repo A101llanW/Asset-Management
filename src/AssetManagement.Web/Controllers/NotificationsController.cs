@@ -1,8 +1,7 @@
-using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
-using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
+using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -16,13 +15,19 @@ namespace AssetManagement.Web.Controllers
             _notificationService = BuildNotificationService();
         }
 
-        public ActionResult Index()
+        public ActionResult Index(bool unreadOnly = false)
         {
-            var notifications = UnitOfWork.Repository<Notification>().GetAll()
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(100)
-                .ToList();
-            return View(notifications);
+            var userId = User.GetUserId();
+            ViewBag.UnreadOnly = unreadOnly;
+            return View(_notificationService.GetInboxForUser(userId, unreadOnly, 100));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult MarkRead(int id)
+        {
+            _notificationService.MarkAsRead(id, User.GetUserId());
+            return RedirectToAction("Index");
         }
 
         [HttpPost]

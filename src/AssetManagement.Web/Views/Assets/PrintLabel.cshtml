@@ -1,0 +1,54 @@
+@model AssetManagement.Web.ViewModels.AssetLabelPrintVm
+
+@{
+
+    ViewBag.Title = "Asset label - " + Model.AssetTag;
+
+    Layout = "~/Views/Shared/_PrintLayout.cshtml";
+
+}
+
+<div class="am-asset-label-sheet">
+
+    @Html.Partial("_AssetLabelContent", Model)
+
+    <div class="am-asset-label-actions no-print">
+
+        <button type="button" class="btn btn-primary" data-am-asset-label-print="true">Print label</button>
+
+        <a class="btn btn-outline-secondary" href="@Url.Action("Details", new { id = Model.AssetId })">Back to asset</a>
+
+    </div>
+
+</div>
+
+
+
+@section scripts {
+
+    <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
+
+    <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
+
+    <script>
+
+        (function () {
+
+            var printButton = document.querySelector("[data-am-asset-label-print]");
+
+            if (printButton && window.AssetLabel) {
+
+                printButton.addEventListener("click", function () {
+
+                    AssetLabel.print();
+
+                });
+
+            }
+
+        })();
+
+    </script>
+
+}
+

@@ -1,0 +1,126 @@
+@model AssetManagement.Application.ViewModels.MaintenanceCompleteVm
+@using System.Linq
+@using System.Web.Mvc
+@using System.Web.Script.Serialization
+@using AssetManagement.Domain.Enums
+@{
+    ViewBag.Title = "Complete Maintenance";
+    var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
+    var dispositionOptions = ViewBag.DispositionOptions as IEnumerable<System.Web.Mvc.SelectListItem> ?? Enumerable.Empty<System.Web.Mvc.SelectListItem>();
+    var hasPreviousOwner = ViewBag.HasPreviousOwner as bool? ?? false;
+    var workflowConfig = ViewBag.WorkflowFormConfig as AssetManagement.Web.ViewModels.WorkflowFormConfigVm;
+    var serializer = new JavaScriptSerializer();
+    var workflowPairsJson = workflowConfig == null ? "[]" : serializer.Serialize(workflowConfig.DepartmentUserPairs);
+    var usersByDepartmentJson = workflowConfig == null ? "{}" : workflowConfig.UsersByDepartmentJson;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Complete Maintenance",
+    Subtitle = Model.MaintenanceTicketNumber + " · " + Model.AssetTag,
+    BackUrl = Url.Action("Details", new { id = Model.Id }),
+    BackLabel = "Back to ticket"
+})
+
+@Html.Partial("_AssetWorkflowContext", assetContext)
+
+@if (hasPreviousOwner)
+{
+    <div class="alert alert-light border mb-3" role="status">
+        Previous owner before maintenance: <strong>@(string.IsNullOrWhiteSpace(Model.PreviousOwnerName) ? Model.PreviousOwnerUserId : Model.PreviousOwnerName)</strong>.
+        You can return the asset to them, keep it in store, or assign it to someone else.
+    </div>
+}
+
+@using (Html.BeginForm(null, null, FormMethod.Post, new
+{
+    data_am_workflow_form = "maintenance-complete",
+    data_am_users_by_dept = usersByDepartmentJson,
+    data_am_dept_user_pairs = workflowPairsJson,
+    data_am_locked_fields = "[]"
+}))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Id)
+    @Html.HiddenFor(m => m.AssetId)
+    @Html.HiddenFor(m => m.MaintenanceTicketNumber)
+    @Html.HiddenFor(m => m.AssetTag)
+    @Html.HiddenFor(m => m.AssetName)
+    @Html.HiddenFor(m => m.PreviousOwnerUserId)
+    @Html.HiddenFor(m => m.PreviousOwnerName)
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.CompletionDate, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.CompletionDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+            @Html.ValidationMessageFor(m => m.CompletionDate, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ConditionAfter, new { @class = "form-label" })
+            @Html.DropDownListFor(
+                m => m.ConditionAfter,
+                ViewBag.ConditionOptions as IEnumerable<System.Web.Mvc.SelectListItem>,
+                "-- Select condition --",
+                new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.ConditionAfter, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Outcome, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Outcome, new { @class = "form-control", rows = "3", placeholder = "Describe the repair work completed and current device state." })
+            @Html.ValidationMessageFor(m => m.Outcome, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Disposition, new { @class = "form-label" })
+            @Html.DropDownListFor(m => m.Disposition, dispositionOptions, new { @class = "form-select", id = "Disposition" })
+            @Html.ValidationMessageFor(m => m.Disposition, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-12" id="assignFields" style="display:none;">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.ToDepartmentId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.ToDepartmentId, ViewBag.AllDepartments as IEnumerable<SelectListItem> ?? ViewBag.Departments as IEnumerable<SelectListItem>, "-- Select department --", new { @class = "form-select", id = "ToDepartmentId" })
+                    @Html.ValidationMessageFor(m => m.ToDepartmentId, "", new { @class = "text-danger" })
+                </div>
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.ToUserId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.ToUserId, ViewBag.Users as IEnumerable<SelectListItem>, "-- Select user --", new { @class = "form-select", id = "ToUserId", data_am_user_placeholder = "-- Select user --" })
+                    <div class="form-text">Pick a department to filter users, or pick a user to set the department.</div>
+                    @Html.ValidationMessageFor(m => m.ToUserId, "", new { @class = "text-danger" })
+                </div>
+            </div>
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.HandoverNotes, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.HandoverNotes, new { @class = "form-control", rows = "2", placeholder = "Optional notes for custody history." })
+        </div>
+    </div>
+
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Complete & close ticket",
+        BackUrl = Url.Action("Details", new { id = Model.Id }),
+        BackLabel = "Cancel"
+    })
+}
+
+@section scripts {
+    @Html.Partial("_WorkflowFormScripts")
+    <script>
+        (function () {
+            var disposition = document.getElementById('Disposition');
+            var assignFields = document.getElementById('assignFields');
+            if (!disposition || !assignFields) {
+                return;
+            }
+
+            function syncAssignFields() {
+                var assignValue = '@MaintenanceDisposition.AssignToUser';
+                assignFields.style.display = disposition.value === assignValue ? '' : 'none';
+            }
+
+            disposition.addEventListener('change', syncAssignFields);
+            syncAssignFields();
+        })();
+    </script>
+}

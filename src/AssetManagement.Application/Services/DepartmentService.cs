@@ -10,15 +10,17 @@ namespace AssetManagement.Application.Services
     public class DepartmentService : IDepartmentService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IDepartmentScopeService _departmentScope;
 
-        public DepartmentService(IUnitOfWork unitOfWork)
+        public DepartmentService(IUnitOfWork unitOfWork, IDepartmentScopeService departmentScope)
         {
             _unitOfWork = unitOfWork;
+            _departmentScope = departmentScope;
         }
 
         public IEnumerable<DepartmentVm> GetAll()
         {
-            return _unitOfWork.Repository<Department>().GetAll()
+            return _departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
                 .OrderBy(x => x.Name)
                 .Select(x => new DepartmentVm
                 {
@@ -49,7 +51,7 @@ namespace AssetManagement.Application.Services
             };
         }
 
-        public void Create(DepartmentVm model)
+        public int Create(DepartmentVm model)
         {
             var entity = new Department
             {
@@ -62,6 +64,7 @@ namespace AssetManagement.Application.Services
 
             _unitOfWork.Repository<Department>().Add(entity);
             _unitOfWork.SaveChanges();
+            return entity.Id;
         }
 
         public void Update(DepartmentVm model)

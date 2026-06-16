@@ -3,9 +3,11 @@ using AssetManagement.Domain.Common;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class AssetReturn : AuditableEntity
+    public class AssetReturn : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int AssetId { get; set; }
 

@@ -1,0 +1,9 @@
+@using AssetManagement.Web.Helpers
+@if (Html.HasPermission("Assets.View"))
+{
+    <form class="am-global-search" method="get" action="@Url.Action("Index", "Search")" role="search">
+        <label class="visually-hidden" for="amGlobalSearchInput">Search assets</label>
+        <input id="amGlobalSearchInput" type="search" class="form-control form-control-sm" name="q" placeholder="Search tag, serial, custodian, department..." value="@(ViewBag.GlobalSearchQuery as string)" autocomplete="off" />
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+    </form>
+}

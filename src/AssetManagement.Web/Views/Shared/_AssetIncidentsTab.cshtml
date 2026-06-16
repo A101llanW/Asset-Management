@@ -1,0 +1,41 @@
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
+@{
+    var canCreateIncident = ViewData["CanCreateIncident"] as bool? ?? false;
+}
+<div class="card card-kpi">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Incidents</h6>
+            <div>
+                <a class="btn btn-sm btn-outline-secondary me-1" href="@Url.Action("Index", "Incidents", new { assetId = Model.Id })">All incidents</a>
+                @if (canCreateIncident)
+                {
+                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", "Incidents", new { assetId = Model.Id })">Report incident</a>
+                }
+            </div>
+        </div>
+        @if (Model.Incidents == null || !Model.Incidents.Any())
+        {
+            <p class="text-muted mb-0">No incidents recorded for this asset.</p>
+        }
+        else
+        {
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Number</th><th>Type</th><th>Severity</th><th>Date</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var incident in Model.Incidents)
+                {
+                    <tr>
+                        <td>@incident.IncidentNumber</td>
+                        <td>@incident.IncidentType</td>
+                        <td>@incident.Severity</td>
+                        <td>@incident.IncidentDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(incident.ResolutionStatus ?? DisplayText.Empty)</td>
+                        <td class="text-end"><a href="@Url.Action("Details", "Incidents", new { id = incident.Id })">View</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

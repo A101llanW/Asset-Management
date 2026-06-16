@@ -1,0 +1,91 @@
+@model AssetManagement.Application.ViewModels.SecurityLogsPageVm
+@{
+    ViewBag.Title = "Security Logs";
+    var activeTab = ViewBag.ActiveTab as string ?? "login";
+}
+<h3>Security Logs</h3>
+<p class="text-muted">Login attempts, security events, and links to detailed audit history.</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card card-kpi"><div class="card-body"><div class="text-muted small">Login attempts</div><div class="h4 mb-0">@Model.TotalLoginAttempts</div></div></div></div>
+    <div class="col-md-3"><div class="card card-kpi"><div class="card-body"><div class="text-muted small">Successful</div><div class="h4 mb-0 text-success">@Model.SuccessfulLogins</div></div></div></div>
+    <div class="col-md-3"><div class="card card-kpi"><div class="card-body"><div class="text-muted small">Failed</div><div class="h4 mb-0 text-danger">@Model.FailedLoginAttempts</div></div></div></div>
+    <div class="col-md-3"><div class="card card-kpi"><div class="card-body"><div class="text-muted small">Security events</div><div class="h4 mb-0">@Model.TotalSecurityEvents</div></div></div></div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2"><input class="form-control" name="Username" placeholder="Username / email" value="@(Model.Filter != null ? Model.Filter.Username : null)" /></div>
+    <div class="col-md-2"><input class="form-control" name="IpAddress" placeholder="IP address" value="@(Model.Filter != null ? Model.Filter.IpAddress : null)" /></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="StartDate" value="@(Model.Filter != null && Model.Filter.StartDate.HasValue ? Model.Filter.StartDate.Value.ToString("yyyy-MM-dd") : null)" /></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="EndDate" value="@(Model.Filter != null && Model.Filter.EndDate.HasValue ? Model.Filter.EndDate.Value.ToString("yyyy-MM-dd") : null)" /></div>
+    <div class="col-md-2">
+        <select class="form-select" name="WasSuccessful">
+            <option value="">All outcomes</option>
+            <option value="true" @(Model.Filter != null && Model.Filter.WasSuccessful == true ? "selected" : null)>Successful</option>
+            <option value="false" @(Model.Filter != null && Model.Filter.WasSuccessful == false ? "selected" : null)>Failed</option>
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filter</button></div>
+    <input type="hidden" name="tab" value="@activeTab" />
+</form>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link @(activeTab == "login" ? "active" : null)" href="@Url.Action("Index", new { tab = "login", Username = Model.Filter != null ? Model.Filter.Username : null, IpAddress = Model.Filter != null ? Model.Filter.IpAddress : null, StartDate = Model.Filter != null && Model.Filter.StartDate.HasValue ? Model.Filter.StartDate.Value.ToString("yyyy-MM-dd") : null, EndDate = Model.Filter != null && Model.Filter.EndDate.HasValue ? Model.Filter.EndDate.Value.ToString("yyyy-MM-dd") : null, WasSuccessful = Model.Filter != null && Model.Filter.WasSuccessful.HasValue ? Model.Filter.WasSuccessful.Value.ToString().ToLowerInvariant() : null })">Login attempts</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == "events" ? "active" : null)" href="@Url.Action("Index", new { tab = "events", Username = Model.Filter != null ? Model.Filter.Username : null, IpAddress = Model.Filter != null ? Model.Filter.IpAddress : null, StartDate = Model.Filter != null && Model.Filter.StartDate.HasValue ? Model.Filter.StartDate.Value.ToString("yyyy-MM-dd") : null, EndDate = Model.Filter != null && Model.Filter.EndDate.HasValue ? Model.Filter.EndDate.Value.ToString("yyyy-MM-dd") : null })">Security events</a></li>
+    <li class="nav-item"><a class="nav-link" href="@Url.Action("Index", "AuditLogs")">Audit logs</a></li>
+</ul>
+
+@if (activeTab == "events")
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+        <table class="table mb-0 table-sm">
+            <thead class="table-light"><tr><th>Time (UTC)</th><th>Event</th><th>Email</th><th>IP</th><th>Org Id</th></tr></thead>
+            <tbody>
+            @if (Model.SecurityEvents == null || !Model.SecurityEvents.Any())
+            {
+                <tr><td colspan="5" class="text-muted p-3">No security events match the current filters.</td></tr>
+            }
+            else
+            {
+                foreach (var item in Model.SecurityEvents)
+                {
+                    <tr>
+                        <td>@item.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@item.EventType</td>
+                        <td>@item.Email</td>
+                        <td>@item.IpAddress</td>
+                        <td>@(item.OrganizationId.HasValue ? item.OrganizationId.Value.ToString() : "Platform")</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div></div>
+}
+else
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+        <table class="table mb-0 table-sm">
+            <thead class="table-light"><tr><th>Time (UTC)</th><th>Username</th><th>IP</th><th>Status</th><th>Details</th></tr></thead>
+            <tbody>
+            @if (Model.LoginAttempts == null || !Model.LoginAttempts.Any())
+            {
+                <tr><td colspan="5" class="text-muted p-3">No login attempts match the current filters.</td></tr>
+            }
+            else
+            {
+                foreach (var item in Model.LoginAttempts)
+                {
+                    <tr>
+                        <td>@item.AttemptedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@item.Username</td>
+                        <td>@item.IpAddress</td>
+                        <td><span class="badge bg-@(item.WasSuccessful ? "success" : "danger")">@(item.WasSuccessful ? "Success" : "Failed")</span></td>
+                        <td>@item.FailureReason</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div></div>
+}

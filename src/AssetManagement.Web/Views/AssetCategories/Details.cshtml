@@ -1,0 +1,83 @@
+@model AssetManagement.Web.ViewModels.AssetCategoryVm
+@using System.Collections.Generic
+@using AssetManagement.Domain.Entities
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Asset Category Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var assetTypes = ViewBag.AssetTypes as IEnumerable<AssetType> ?? new List<AssetType>();
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.Name,
+    Subtitle = "Category setup and linked asset types.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    PrimaryActionUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }),
+    PrimaryActionLabel = "Edit Category",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Asset Categories", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name }
+    }
+})
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Overview</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">Asset Types</dt>
+                    <dd class="col-sm-7">@ViewBag.AssetTypeCount</dd>
+                    <dt class="col-sm-5">Assets</dt>
+                    <dd class="col-sm-7">@ViewBag.AssetCount</dd>
+                    <dt class="col-sm-5">Default useful life</dt>
+                    <dd class="col-sm-7">@(Model.DefaultUsefulLifeMonths.HasValue ? (Model.DefaultUsefulLifeMonths + " months") : "Not set")</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card card-kpi mb-3">
+            <div class="card-header">Description</div>
+            <div class="card-body">
+                <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.Description) ? "No category description has been added yet." : Model.Description)</p>
+            </div>
+        </div>
+        <div class="card card-kpi">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Asset Types</span>
+                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", "AssetTypes", new { categoryId = Model.Id, returnUrl = Request.RawUrl })">Add Type</a>
+            </div>
+            <div class="card-body">
+                @if (!assetTypes.Any())
+                {
+                    <p class="text-muted mb-0">No asset types are linked to this category yet.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead class="table-light">
+                                <tr><th>Type</th><th>Useful life</th><th>Status</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var item in assetTypes)
+                            {
+                                <tr>
+                                    <td>@item.Name</td>
+                                    <td>@(item.UsefulLifeMonths.HasValue ? (item.UsefulLifeMonths + " months (custom)") : (Model.DefaultUsefulLifeMonths.HasValue ? (Model.DefaultUsefulLifeMonths + " months (category)") : "Not set"))</td>
+                                    <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
+                                    <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Details", "AssetTypes", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

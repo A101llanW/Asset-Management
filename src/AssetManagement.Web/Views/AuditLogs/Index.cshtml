@@ -1,30 +1,86 @@
 @model IEnumerable<AssetManagement.Application.ViewModels.AuditLogVm>
+@using System.Linq
+@using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Audit Logs";
+    var canExport = Html.HasPermission("AuditLogs.Export");
+    var filter = ViewBag.Filter as AssetManagement.Application.ViewModels.AuditLogFilterVm ?? new AssetManagement.Application.ViewModels.AuditLogFilterVm();
+    var relatedAssetTag = ViewBag.RelatedAssetTag as string;
+    var relatedAssetName = ViewBag.RelatedAssetName as string;
+    var backUrl = ViewBag.BackUrl as string;
+    var logs = Model == null ? Enumerable.Empty<AssetManagement.Application.ViewModels.AuditLogVm>() : Model.ToList();
 }
-<h3>Audit Logs</h3>
+
+@if (!string.IsNullOrWhiteSpace(relatedAssetTag))
+{
+    @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+    {
+        Title = "Asset audit log",
+        Subtitle = relatedAssetName + " · " + relatedAssetTag,
+        BackUrl = backUrl,
+        BackLabel = "Back to asset"
+    })
+}
+else
+{
+    <h3>Audit Logs</h3>
+}
+
+@if (!string.IsNullOrWhiteSpace(relatedAssetTag))
+{
+    <div class="alert alert-light border mb-3" role="status">
+        Showing audit activity for this asset, including assignments, transfers, maintenance, incidents, and returns.
+    </div>
+}
+
+@if (canExport)
+{
+    <p><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Export", "AuditLogs", Request.QueryString)">Export CSV</a></p>
+}
+
 <form method="get" class="row g-2 mb-3">
-    <div class="col-md-3"><input class="form-control" name="EntityType" placeholder="Entity Type" value="@Request.QueryString["EntityType"]" /></div>
-    <div class="col-md-3"><input class="form-control" name="Action" placeholder="Action" value="@Request.QueryString["Action"]" /></div>
-    <div class="col-md-2"><input class="form-control" type="date" name="FromDate" value="@Request.QueryString["FromDate"]" /></div>
-    <div class="col-md-2"><input class="form-control" type="date" name="ToDate" value="@Request.QueryString["ToDate"]" /></div>
+    @if (filter.RelatedAssetId.HasValue)
+    {
+        <input type="hidden" name="RelatedAssetId" value="@filter.RelatedAssetId.Value" />
+    }
+    <div class="col-md-3"><input class="form-control" name="EntityType" placeholder="Record type (e.g. Asset)" value="@(filter.EntityType ?? Request.QueryString["EntityType"])" /></div>
+    <div class="col-md-3"><input class="form-control" name="Action" placeholder="Action code (optional)" value="@(filter.Action ?? Request.QueryString["Action"])" /></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="FromDate" value="@(filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : Request.QueryString["FromDate"])" /></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="ToDate" value="@(filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : Request.QueryString["ToDate"])" /></div>
     <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Filter</button></div>
 </form>
+
 <div class="card card-kpi"><div class="card-body p-0">
-<table class="table mb-0 table-sm">
-    <thead class="table-light"><tr><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Entity Id</th><th>IP</th></tr></thead>
-    <tbody>
-    @foreach (var item in Model)
-    {
-        <tr>
-            <td>@item.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
-            <td>@item.ActorUserId</td>
-            <td>@item.Action</td>
-            <td>@item.EntityType</td>
-            <td>@item.EntityId</td>
-            <td>@item.IPAddress</td>
-        </tr>
-    }
-    </tbody>
-</table>
+@if (logs.Any())
+{
+    <table class="table mb-0 table-sm">
+        <thead class="table-light"><tr><th>Time</th><th>Actor</th><th>Action</th><th>Record</th><th>Record Id</th><th>IP</th></tr></thead>
+        <tbody>
+        @foreach (var item in logs)
+        {
+            <tr>
+                <td>@item.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@item.ActorUserId</td>
+                <td>@(string.IsNullOrWhiteSpace(item.ActionLabel) ? item.Action : item.ActionLabel)</td>
+                <td>@(string.IsNullOrWhiteSpace(item.EntityTypeLabel) ? item.EntityType : item.EntityTypeLabel)</td>
+                <td>@item.EntityId</td>
+                <td>@item.IPAddress</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+else
+{
+    <div class="p-4 text-muted">
+        @if (filter.RelatedAssetId.HasValue)
+        {
+            <p class="mb-0">No audit entries are recorded for this asset yet.</p>
+        }
+        else
+        {
+            <p class="mb-0">No audit entries match the current filters.</p>
+        }
+    </div>
+}
 </div></div>

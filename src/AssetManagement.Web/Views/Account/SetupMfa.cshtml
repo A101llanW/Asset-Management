@@ -1,0 +1,112 @@
+@{
+
+    ViewBag.Title = "Set Up MFA";
+
+    ViewBag.ShowLoginBackground = true;
+
+    var tenantToken = ViewBag.TenantToken as string;
+
+    var email = ViewBag.Email as string;
+
+
+
+    ViewBag.AuthPortalBadge = "Security setup required";
+
+    ViewBag.AuthPortalTitle = "Enable email verification";
+
+    ViewBag.AuthPortalSubtitle = "Privileged accounts must enable two-step verification. We'll send a code to <strong>" + email + "</strong>.";
+
+}
+
+
+
+<div class="am-auth-container">
+
+    <div class="am-auth-shell">
+
+        <div class="am-portal-panel am-auth-panel">
+
+            @Html.Partial("_AuthPortalBrand")
+
+            @using (Html.BeginForm("SetupMfa", "Account", new { tenant = tenantToken }, FormMethod.Post, new { @class = "am-auth-form" }))
+
+            {
+
+                @Html.AntiForgeryToken()
+
+                @Html.ValidationSummary(true, "", new { @class = "text-danger alert alert-danger am-portal-alert py-2 mb-3" })
+
+                <input type="hidden" name="method" value="Email" />
+
+                <div class="mb-3">
+
+                    <label for="code" class="form-label">Verification code</label>
+
+                    <input class="form-control text-center" id="code" name="code" type="text" maxlength="6"
+
+                           placeholder="000000" required autocomplete="off" />
+
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 mb-2">Verify and continue</button>
+
+            }
+
+
+
+            <div class="am-auth-links text-center">
+
+                <button type="button" id="btnSendSetupCode" class="btn btn-outline-primary btn-sm">Send verification code</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+@section scripts {
+
+    <script>
+
+        (function () {
+
+            var btn = document.getElementById('btnSendSetupCode');
+
+            if (!btn) return;
+
+            btn.addEventListener('click', function () {
+
+                var token = document.querySelector('input[name="__RequestVerificationToken"]');
+
+                var formData = new FormData();
+
+                if (token) formData.append('__RequestVerificationToken', token.value);
+
+                formData.append('method', 'Email');
+
+                fetch('@(string.IsNullOrWhiteSpace(tenantToken) ? Url.Action("SendSetupMfaCode", "Account") : Url.RouteUrl("Tenant", new { tenant = tenantToken, controller = "Account", action = "SendSetupMfaCode" }))', {
+
+                    method: 'POST',
+
+                    body: formData,
+
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+
+                }).then(function (r) { return r.json(); }).then(function (data) {
+
+                    alert(data.message || (data.success ? 'Code sent. Check debug output for dev environments.' : 'Could not send code.'));
+
+                });
+
+            });
+
+        })();
+
+    </script>
+
+}
+

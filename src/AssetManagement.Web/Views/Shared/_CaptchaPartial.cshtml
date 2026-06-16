@@ -1,0 +1,208 @@
+@{
+    var tenantToken = ViewBag.TenantToken as string;
+    string generateUrl;
+    string validateUrl;
+    string refreshUrl;
+    if (string.IsNullOrWhiteSpace(tenantToken))
+    {
+        generateUrl = Url.RouteUrl("Default", new { controller = "Captcha", action = "Generate" });
+        validateUrl = Url.RouteUrl("Default", new { controller = "Captcha", action = "Validate" });
+        refreshUrl = Url.RouteUrl("Default", new { controller = "Captcha", action = "Refresh" });
+    }
+    else
+    {
+        generateUrl = Url.RouteUrl("Tenant", new { tenant = tenantToken, controller = "Captcha", action = "Generate" });
+        validateUrl = Url.RouteUrl("Tenant", new { tenant = tenantToken, controller = "Captcha", action = "Validate" });
+        refreshUrl = Url.RouteUrl("Tenant", new { tenant = tenantToken, controller = "Captcha", action = "Refresh" });
+    }
+}
+
+<div class="am-captcha-container" id="captchaContainer"
+     data-captcha-url-generate="@generateUrl"
+     data-captcha-url-validate="@validateUrl"
+     data-captcha-url-refresh="@refreshUrl">
+    <label class="form-label fw-semibold">Security verification</label>
+    <p class="text-muted small mb-2">Enter the characters shown in the image below.</p>
+
+    <div class="am-captcha-image-row mb-2">
+        <div class="am-captcha-image-wrap">
+            <img id="captchaImage" src="" alt="CAPTCHA" class="am-captcha-img" />
+            <div class="am-captcha-loading" id="captchaLoading">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span class="ms-1 small">Loading...</span>
+            </div>
+        </div>
+        <button type="button" id="refreshCaptcha" class="btn btn-outline-secondary btn-sm" title="New image">Refresh</button>
+    </div>
+
+    <div class="mb-0">
+        <input type="text"
+               id="captchaInput"
+               name="captcha"
+               class="form-control text-center"
+               placeholder="Enter characters"
+               maxlength="10"
+               autocomplete="off"
+               required />
+        <div class="small mt-1" id="captchaFeedback"></div>
+    </div>
+
+    <input type="hidden" id="captchaId" name="captchaId" value="" />
+</div>
+
+<style>
+    .am-captcha-container {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .am-captcha-image-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .am-captcha-image-wrap {
+        position: relative;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .am-captcha-img {
+        display: block;
+        width: 200px;
+        height: 80px;
+    }
+
+    .am-captcha-loading {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.92);
+    }
+
+    .am-captcha-container.is-loading .am-captcha-loading {
+        display: flex;
+    }
+
+    .am-captcha-container.is-loading .am-captcha-img {
+        visibility: hidden;
+    }
+
+    #captchaFeedback.error { color: #dc3545; }
+    #captchaFeedback.success { color: #198754; }
+</style>
+
+<script>
+(function () {
+    var currentCaptchaId = '';
+    var isLoading = false;
+
+    function getEl(id) { return document.getElementById(id); }
+
+    function readUrls() {
+        var container = getEl('captchaContainer');
+        if (!container) {
+            return { generate: '', validate: '', refresh: '' };
+        }
+        return {
+            generate: container.getAttribute('data-captcha-url-generate') || '',
+            validate: container.getAttribute('data-captcha-url-validate') || '',
+            refresh: container.getAttribute('data-captcha-url-refresh') || ''
+        };
+    }
+
+    function parseJson(text, status) {
+        try { return JSON.parse(text); }
+        catch (e) { return { success: false, message: 'Invalid server response (HTTP ' + status + ').' }; }
+    }
+
+    function setLoading(show) {
+        var container = getEl('captchaContainer');
+        if (!container) return;
+        container.classList.toggle('is-loading', !!show);
+    }
+
+    function setFeedback(message, type) {
+        var el = getEl('captchaFeedback');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'small mt-1' + (type ? ' ' + type : '');
+    }
+
+    function applyCaptchaResponse(response) {
+        if (!response || !response.success || !response.captchaImage) {
+            setFeedback((response && response.message) ? response.message : 'Unable to load CAPTCHA.', 'error');
+            isLoading = false;
+            setLoading(false);
+            return;
+        }
+
+        currentCaptchaId = response.captchaId || '';
+        var img = getEl('captchaImage');
+        var hiddenId = getEl('captchaId');
+        var input = getEl('captchaInput');
+        if (img) img.src = 'data:image/png;base64,' + response.captchaImage;
+        if (hiddenId) hiddenId.value = response.captchaId || '';
+        if (input) {
+            input.value = '';
+            input.classList.remove('is-valid', 'is-invalid');
+        }
+        isLoading = false;
+        setLoading(false);
+        setFeedback('', null);
+    }
+
+    function loadCaptcha(useRefresh) {
+        if (isLoading) return;
+        var urls = readUrls();
+        var url = useRefresh && urls.refresh ? urls.refresh : urls.generate;
+        if (!url) {
+            setFeedback('CAPTCHA configuration error.', 'error');
+            return;
+        }
+
+        isLoading = true;
+        setLoading(true);
+        fetch(url, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (res) { return res.text().then(function (text) { return parseJson(text, res.status); }); })
+            .then(applyCaptchaResponse)
+            .catch(function () {
+                setFeedback('Network error loading CAPTCHA.', 'error');
+                isLoading = false;
+                setLoading(false);
+            });
+    }
+
+    function bindEvents() {
+        var refreshBtn = getEl('refreshCaptcha');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function () {
+                if (!isLoading) loadCaptcha(true);
+            });
+        }
+    }
+
+    function init() {
+        bindEvents();
+        loadCaptcha(false);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>

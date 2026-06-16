@@ -9,7 +9,7 @@ namespace AssetManagement.Application.Contracts
 
         SupplierVm GetById(int id);
 
-        void Create(SupplierVm model);
+        int Create(SupplierVm model);
 
         void Update(SupplierVm model);
     }

@@ -4,9 +4,11 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class DepreciationRecord : AuditableEntity
+    public class DepreciationRecord : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int AssetId { get; set; }
 

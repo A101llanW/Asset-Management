@@ -1,0 +1,15 @@
+@model IEnumerable<AssetManagement.Application.ViewModels.ApprovalDecisionHistoryVm>
+@if (Model != null && Model.Any())
+{
+    <div class="card card-kpi mt-3">
+        <div class="card-header">Approval history</div>
+        <div class="card-body">
+            <ul class="mb-0">
+                @foreach (var d in Model)
+                {
+                    <li>Stage @d.StageNumber - @d.RoleName - @d.Decision by @d.ApproverName on @d.DecisionDateText</li>
+                }
+            </ul>
+        </div>
+    </div>
+}

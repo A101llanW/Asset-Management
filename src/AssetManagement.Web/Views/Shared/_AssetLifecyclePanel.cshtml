@@ -1,0 +1,49 @@
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
+@using AssetManagement.Web.Helpers
+@{
+    var canDispose = Html.HasPermission("Assets.Dispose");
+    var canApproveDisposal = Html.HasPermission("Assets.ApproveDisposal");
+    var canCreateClaim = Html.HasPermission("Claims.Create");
+    var showDisposalTab = canDispose || canApproveDisposal || Model.PendingDisposal != null;
+}
+<div class="card card-kpi mb-3">
+    <div class="card-body">
+        <h6 class="mb-3">Lifecycle controls</h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <strong>Financial</strong>
+                    <p class="small text-muted mb-2">Acquisition @Html.FormatCurrency(Model.AcquisitionCost)@(Model.UsefulLifeMonths > 0 ? string.Format(" · useful life {0} months", Model.UsefulLifeMonths) : "")</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-am-asset-tab="financial">Financial details</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <strong>Insurance</strong>
+                    <p class="small text-muted mb-2">@(string.IsNullOrWhiteSpace(Model.PolicyReference) ? "No policy on file" : Model.PolicyReference)</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-am-asset-tab="insurance">Insurance &amp; claims</button>
+                        @if (canCreateClaim)
+                        {
+                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">File claim</a>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <strong>Disposal</strong>
+                    <p class="small text-muted mb-2">@(Model.PendingDisposal != null ? "Pending approval" : "No open disposal request")</p>
+                    @if (showDisposalTab)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-am-asset-tab="disposal">Disposal workflow</button>
+                    }
+                    else
+                    {
+                        <p class="small text-muted mb-0">You do not have permission to manage disposal for this asset.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

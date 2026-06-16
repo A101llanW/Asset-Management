@@ -1,8 +1,11 @@
-@model IEnumerable<AssetManagement.Application.ViewModels.PurchaseRecordVm>
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.PurchaseRecordVm>
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Purchases";
     var canCreatePurchase = Html.HasPermission("Purchases.Create");
+    var supplierFilter = ViewBag.SupplierFilter as SelectList;
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -11,7 +14,34 @@
     PrimaryActionUrl = canCreatePurchase ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreatePurchase ? "New Purchase Record" : null
 })
-@if (!Model.Any())
+@if (Html.HasPermission("Purchases.View"))
+{
+    <div class="mb-3">
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", "PurchaseRequests")">Purchase requests (requisitions)</a>
+    </div>
+}
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-6">
+            <input type="text" class="form-control" name="search" placeholder="Search by PO number, invoice, or supplier" value="@Model.Search" />
+        </div>
+        <div class="col-md-3">
+            @Html.DropDownList("supplierId", supplierFilter, "All suppliers", new { @class = "form-select" })
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="pageSize">
+                @foreach (var size in new[] { 10, 25, 50 })
+                {
+                    <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-1 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (!Model.Items.Any())
 {
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
@@ -28,9 +58,9 @@ else
 {
     <div class="card card-kpi"><div class="card-body p-0">
     <table class="table mb-0">
-        <thead class="table-light"><tr><th>PO #</th><th>Supplier</th><th>Invoice #</th><th>Date</th><th>Qty</th><th>Total Cost</th></tr></thead>
+        <thead class="table-light"><tr><th>PO #</th><th>@Html.SortLink("Supplier", "supplier", currentSort, currentDirection)</th><th>Invoice #</th><th>@Html.SortLink("Date", "date", currentSort, currentDirection)</th><th>Qty</th><th>@Html.SortLink("Total Cost", "total", currentSort, currentDirection)</th><th></th></tr></thead>
         <tbody>
-        @foreach (var item in Model)
+        @foreach (var item in Model.Items)
         {
             <tr>
                 <td>@item.PurchaseOrderNumber</td>
@@ -38,10 +68,14 @@ else
                 <td>@item.InvoiceNumber</td>
                 <td>@item.PurchaseDate.ToString("yyyy-MM-dd")</td>
                 <td>@item.Quantity</td>
-                <td>@item.TotalCost.ToString("N2") @item.Currency</td>
+                <td>@Html.FormatCurrency(item.TotalCost)</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
+                </td>
             </tr>
         }
         </tbody>
     </table>
     </div></div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }

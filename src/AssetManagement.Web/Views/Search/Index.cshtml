@@ -1,0 +1,106 @@
+@model AssetManagement.Application.ViewModels.GlobalSearchResultVm
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Search";
+    var hasQuery = !string.IsNullOrWhiteSpace(Model.Query);
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Global Search",
+    Subtitle = "Find assets by tag, serial number, custodian, or department.",
+    BackUrl = Url.Action("Index", "Dashboard"),
+    BackLabel = "Dashboard"
+})
+
+@* Search Bar *@
+<div class="card card-kpi border-0 shadow-sm mb-4 am-global-search-card">
+    <div class="card-body p-4">
+        <form method="get" action="@Url.Action("Index")">
+            <div class="am-search-bar-wrap">
+                <div class="am-search-bar-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                <input type="search" class="form-control form-control-lg am-search-bar-input" name="q"
+                       placeholder="Search tag, serial, custodian, department..." value="@Model.Query" autofocus="autofocus" />
+                <button type="submit" class="btn btn-primary am-search-bar-btn">Search</button>
+            </div>
+        </form>
+        @if (hasQuery)
+        {
+            <div class="mt-2 ms-1">
+                <span class="text-muted small">
+                    Searching for: <strong class="text-dark">"@Model.Query"</strong>
+                    &mdash; @Model.TotalCount result(s) found
+                </span>
+            </div>
+        }
+    </div>
+</div>
+
+@* Results *@
+@if (!hasQuery)
+{
+    <div class="card card-kpi border-0 shadow-sm">
+        <div class="card-body am-empty-state py-5">
+            <div class="text-muted mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <h5 class="fw-bold">Start your search</h5>
+            <p class="text-muted mb-0">Enter an asset tag, serial number, custodian name, or department to search across the register.</p>
+        </div>
+    </div>
+}
+else if (!Model.Assets.Any())
+{
+    <div class="card card-kpi border-0 shadow-sm">
+        <div class="card-body am-empty-state py-5">
+            <div class="text-muted mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            </div>
+            <h5 class="fw-bold">No matches for "@Model.Query"</h5>
+            <p class="text-muted mb-0">Try a partial tag, custodian name, or department keyword.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi border-0 shadow-sm am-fade-in">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="bg-light" style="font-size:0.82rem;letter-spacing:0.04em;">
+                            <th class="ps-3">Tag</th>
+                            <th>Name</th>
+                            <th>Serial</th>
+                            <th>Department</th>
+                            <th>Custodian</th>
+                            <th>Status</th>
+                            <th>Matched on</th>
+                            <th class="pe-3 text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var hit in Model.Assets)
+                    {
+                        <tr class="border-bottom border-light">
+                            <td class="ps-3"><span class="am-tag-pill am-tag-pill--sm">@hit.AssetTag</span></td>
+                            <td class="fw-semibold text-dark">@hit.AssetName</td>
+                            <td class="text-muted small">@(string.IsNullOrWhiteSpace(hit.SerialNumber) ? DisplayText.Empty : hit.SerialNumber)</td>
+                            <td class="text-muted small">@hit.DepartmentName</td>
+                            <td class="text-muted small">@hit.CustodianName</td>
+                            <td><span class="badge rounded-pill bg-light border text-secondary">@hit.Status</span></td>
+                            <td class="small text-muted">
+                                <span style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;">@hit.MatchReason</span>
+                            </td>
+                            <td class="text-end pe-3">
+                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", "Assets", new { id = hit.AssetId })">Open</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}

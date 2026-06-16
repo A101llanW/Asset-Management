@@ -1,5 +1,12 @@
 namespace AssetManagement.Web.ViewModels
 {
+    public class BreadcrumbItemViewModel
+    {
+        public string Label { get; set; }
+
+        public string Url { get; set; }
+    }
+
     public class PageHeaderViewModel
     {
         public string Title { get; set; }
@@ -13,6 +20,15 @@ namespace AssetManagement.Web.ViewModels
         public string PrimaryActionUrl { get; set; }
 
         public string PrimaryActionLabel { get; set; }
+
+        public string SecondaryActionUrl { get; set; }
+
+        public string SecondaryActionLabel { get; set; }
+
+        /// <summary>When set, primary action opens this Bootstrap modal instead of navigating away.</summary>
+        public string PrimaryActionModalTarget { get; set; }
+
+        public System.Collections.Generic.IEnumerable<BreadcrumbItemViewModel> Breadcrumbs { get; set; }
     }
 
     public class FormActionsViewModel

@@ -3,9 +3,11 @@ using AssetManagement.Domain.Common;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class InsurancePolicy : AuditableEntity
+    public class InsurancePolicy : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public int AssetId { get; set; }
 
@@ -18,8 +20,6 @@ namespace AssetManagement.Domain.Entities
         public DateTime PolicyEndDate { get; set; }
 
         public decimal InsuredValue { get; set; }
-
-        public decimal ReplacementValue { get; set; }
 
         public DateTime? ValuationDate { get; set; }
 

@@ -1,0 +1,277 @@
+@using System.Linq
+@using AssetManagement.Domain.Enums
+@model AssetManagement.Application.ViewModels.Organizations.OrganizationLicenseDetailVm
+@{
+    ViewBag.Title = Model.OrganizationName + " License";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    Func<LicenseStatus, string> statusClass = status =>
+    {
+        switch (status)
+        {
+            case LicenseStatus.Active:
+                return "bg-success";
+            case LicenseStatus.Paused:
+                return "bg-warning text-dark";
+            case LicenseStatus.Expired:
+                return "bg-danger";
+            case LicenseStatus.PendingRenewal:
+                return "bg-info text-dark";
+            default:
+                return "bg-secondary";
+        }
+    };
+    var canManage = Html.HasPermission("Platform.Licenses.Manage");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">@Model.OrganizationName</h1>
+        <p class="text-muted mb-0">
+            Portal: <code>/@Model.OrganizationSlug</code>
+            &middot; <span class="badge @statusClass(Model.EffectiveStatus)">@Model.EffectiveStatus</span>
+        </p>
+    </div>
+    <a class="btn btn-outline-secondary" href="@Url.Action("Index", "Licenses", new { area = "Platform" })">Back to licenses</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-5 mb-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">License summary</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Plan</dt>
+                    <dd class="col-sm-8">@Model.PlanName <span class="text-muted">(@Model.PlanCode)</span></dd>
+                    <dt class="col-sm-4">Stored status</dt>
+                    <dd class="col-sm-8">@Model.Status</dd>
+                    <dt class="col-sm-4">Start</dt>
+                    <dd class="col-sm-8">@Model.StartDate.ToString("yyyy-MM-dd")</dd>
+                    <dt class="col-sm-4">Expiry</dt>
+                    <dd class="col-sm-8">@Model.ExpiryDate.ToString("yyyy-MM-dd") (@Model.DaysRemaining days)</dd>
+                    <dt class="col-sm-4">Max users</dt>
+                    <dd class="col-sm-8">@(Model.MaxUsers.HasValue ? Model.MaxUsers.Value.ToString() : "Unlimited")</dd>
+                    @if (Model.PausedAt.HasValue)
+                    {
+                        <dt class="col-sm-4">Paused</dt>
+                        <dd class="col-sm-8">@Model.PausedAt.Value.ToString("g") by @Model.PausedBy</dd>
+                        <dt class="col-sm-4">Pause reason</dt>
+                        <dd class="col-sm-8">@Model.PauseReason</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+                    {
+                        <dt class="col-sm-4">Notes</dt>
+                        <dd class="col-sm-8">@Model.Notes</dd>
+                    }
+                </dl>
+
+                @if (canManage)
+                {
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#renewModal">Renew</button>
+                        @if (Model.EffectiveStatus != LicenseStatus.Paused)
+                        {
+                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#pauseModal">Pause</button>
+                        }
+                        @if (Model.EffectiveStatus == LicenseStatus.Paused)
+                        {
+                            using (Html.BeginForm("Resume", "Licenses", new { area = "Platform" }, FormMethod.Post, new { @class = "d-inline" }))
+                            {
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="OrganizationId" value="@Model.OrganizationId" />
+                                <button type="submit" class="btn btn-sm btn-success">Resume</button>
+                            }
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#planModal">Update plan</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7 mb-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">History</div>
+            <div class="card-body">
+                @if (Model.History == null || !Model.History.Any())
+                {
+                    <p class="text-muted mb-0">No license history recorded yet.</p>
+                }
+                else
+                {
+                    <div class="timeline">
+                        @foreach (var entry in Model.History)
+                        {
+                            <div class="border-start ps-3 mb-3">
+                                <div class="fw-semibold">@entry.Action</div>
+                                <div class="small text-muted">@entry.CreatedAt.ToString("g") &middot; @entry.PerformedBy</div>
+                                @if (!string.IsNullOrWhiteSpace(entry.PreviousStatus) || !string.IsNullOrWhiteSpace(entry.NewStatus))
+                                {
+                                    <div class="small">@entry.PreviousStatus &rarr; @entry.NewStatus</div>
+                                }
+                                @if (entry.PreviousExpiryDate.HasValue || entry.NewExpiryDate.HasValue)
+                                {
+                                    <div class="small">
+                                        Expiry:
+                                        @(entry.PreviousExpiryDate.HasValue ? entry.PreviousExpiryDate.Value.ToString("yyyy-MM-dd") : DisplayText.Empty)
+                                        &rarr;
+                                        @(entry.NewExpiryDate.HasValue ? entry.NewExpiryDate.Value.ToString("yyyy-MM-dd") : DisplayText.Empty)
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.Reason))
+                                {
+                                    <div class="small text-muted">@entry.Reason</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (canManage)
+{
+    <div class="modal fade" id="renewModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                @using (Html.BeginForm("Renew", "Licenses", new { area = "Platform" }, FormMethod.Post))
+                {
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="OrganizationId" value="@Model.OrganizationId" />
+                    <div class="modal-header"><h5 class="modal-title">Renew license</h5></div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">New expiry date</label>
+                            <input type="date" name="NewExpiryDate" class="form-control" required
+                                   value="@DateTime.UtcNow.AddMonths(12).ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quick term</label>
+                            <div class="btn-group w-100 mb-2" role="group" aria-label="Renewal term in months">
+                                <button type="button" class="btn btn-outline-secondary" onclick="setRenewMonths(12)">12 mo</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setRenewMonths(24)">24 mo</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setRenewMonths(36)">36 mo</button>
+                            </div>
+                            <label class="form-label small text-muted mb-1" for="renewCustomDays">Or custom term (days)</label>
+                            <div class="input-group">
+                                <input type="number"
+                                       id="renewCustomDays"
+                                       class="form-control"
+                                       min="1"
+                                       max="3650"
+                                       placeholder="e.g. 45"
+                                       aria-label="Custom renewal term in days" />
+                                <button type="button" class="btn btn-outline-secondary" onclick="applyRenewCustomDays()">Apply</button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea name="Notes" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Renew</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="pauseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                @using (Html.BeginForm("Pause", "Licenses", new { area = "Platform" }, FormMethod.Post))
+                {
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="OrganizationId" value="@Model.OrganizationId" />
+                    <div class="modal-header"><h5 class="modal-title">Pause license</h5></div>
+                    <div class="modal-body">
+                        <p class="text-muted">Pausing immediately blocks tenant portal access (platform impersonation still works).</p>
+                        <div class="mb-3">
+                            <label class="form-label">Reason (required)</label>
+                            <textarea name="Reason" class="form-control" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning">Pause license</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="planModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                @using (Html.BeginForm("UpdatePlan", "Licenses", new { area = "Platform" }, FormMethod.Post))
+                {
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="OrganizationId" value="@Model.OrganizationId" />
+                    <div class="modal-header"><h5 class="modal-title">Update plan</h5></div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Plan code</label>
+                            <select name="PlanCode" class="form-select" required>
+                                <option value="Standard" @(Model.PlanCode == "Standard" ? "selected" : null)>Standard</option>
+                                <option value="Professional" @(Model.PlanCode == "Professional" ? "selected" : null)>Professional</option>
+                                <option value="Enterprise" @(Model.PlanCode == "Enterprise" ? "selected" : null)>Enterprise</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Plan name</label>
+                            <input type="text" name="PlanName" class="form-control" value="@Model.PlanName" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Max users (optional)</label>
+                            <input type="number" name="MaxUsers" class="form-control" min="1" value="@Model.MaxUsers" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea name="Notes" class="form-control" rows="2">@Model.Notes</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save plan</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setRenewExpiryDate(date) {
+            var input = document.querySelector('#renewModal input[name="NewExpiryDate"]');
+            if (!input) {
+                return;
+            }
+
+            input.value = date.toISOString().slice(0, 10);
+        }
+
+        function setRenewMonths(months) {
+            var date = new Date();
+            date.setMonth(date.getMonth() + months);
+            setRenewExpiryDate(date);
+        }
+
+        function applyRenewCustomDays() {
+            var daysInput = document.getElementById('renewCustomDays');
+            if (!daysInput) {
+                return;
+            }
+
+            var days = parseInt(daysInput.value, 10);
+            if (isNaN(days) || days < 1) {
+                daysInput.focus();
+                return;
+            }
+
+            var date = new Date();
+            date.setDate(date.getDate() + days);
+            setRenewExpiryDate(date);
+        }
+    </script>
+}

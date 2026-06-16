@@ -1,0 +1,198 @@
+@model AssetManagement.Application.ViewModels.Platform.PlatformUserIndexViewModel
+@{
+    ViewBag.Title = "Users";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    var organizationFilter = ViewBag.Organizations as SelectList;
+    var roleFilter = ViewBag.RoleFilter as SelectList;
+    var statusFilter = ViewBag.StatusFilter as SelectList;
+    var canManage = ViewBag.CanManage as bool? ?? false;
+    var activeCategory = Model.Category ?? "system";
+
+    Func<string, string> categoryUrl = category =>
+    {
+        var routeValues = new System.Web.Routing.RouteValueDictionary
+        {
+            { "area", "Platform" },
+            { "category", category },
+            { "search", Model.Search },
+            { "userScope", Model.UserScope },
+            { "sort", Model.Sort },
+            { "direction", Model.Direction },
+            { "pageSize", Model.PageSize }
+        };
+
+        if (Model.OrganizationId.HasValue)
+        {
+            routeValues["organizationId"] = Model.OrganizationId.Value;
+        }
+
+        if (Model.RoleId.HasValue)
+        {
+            routeValues["roleId"] = Model.RoleId.Value;
+        }
+
+        if (Model.IsActive.HasValue)
+        {
+            routeValues["isActive"] = Model.IsActive.Value;
+        }
+
+        return Url.Action("Index", "Users", routeValues);
+    };
+
+    var hasActiveCategoryContent = activeCategory == "system"
+        ? Model.SystemUsers.Any()
+        : activeCategory == "admins"
+            ? Model.OrganizationAdmins.Any()
+            : Model.OrganizationGroups.Any();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Platform Users</h1>
+        <p class="text-muted mb-0">System-wide user orchestration across platform and tenant organizations.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">@Model.TotalCount total</span>
+        @if (canManage)
+        {
+            <a class="btn btn-primary" href="@Url.Action("Create", "Users", new { area = "Platform" })">Create User</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-kpi am-platform-stat-card am-platform-stat-card--primary h-100">
+            <div class="card-body text-center">
+                <p class="am-platform-stat-card__label mb-1">System Users</p>
+                <p class="am-platform-stat-card__value mb-0">@Model.SystemUserCount</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-kpi am-platform-stat-card am-platform-stat-card--warning h-100">
+            <div class="card-body text-center">
+                <p class="am-platform-stat-card__label mb-1">Organization Admins</p>
+                <p class="am-platform-stat-card__value mb-0">@Model.OrganizationAdminCount</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-kpi am-platform-stat-card am-platform-stat-card--success h-100">
+            <div class="card-body text-center">
+                <p class="am-platform-stat-card__label mb-1">Active Organizations</p>
+                <p class="am-platform-stat-card__value mb-0">@Model.OrganizationCount</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-kpi mb-4">
+    <div class="card-header">Filters</div>
+    <div class="card-body">
+        <form class="row g-2" method="get" action="@Url.Action("Index", "Users", new { area = "Platform" })">
+            <input type="hidden" name="category" value="@activeCategory" />
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" name="search" placeholder="Name, email, org..." value="@Model.Search" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Scope</label>
+                <select class="form-select" name="userScope">
+                    <option value="">All users</option>
+                    <option value="system" @(string.Equals(Model.UserScope, "system", System.StringComparison.OrdinalIgnoreCase) ? "selected" : null)>System only</option>
+                    <option value="company" @(string.Equals(Model.UserScope, "company", System.StringComparison.OrdinalIgnoreCase) ? "selected" : null)>Company only</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Organization</label>
+                @Html.DropDownList("organizationId", organizationFilter, "All organizations", new { @class = "form-select" })
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Role</label>
+                @Html.DropDownList("roleId", roleFilter, "All roles", new { @class = "form-select" })
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Status</label>
+                @Html.DropDownList("isActive", statusFilter, new { @class = "form-select" })
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Page size</label>
+                <select class="form-select" name="pageSize">
+                    @foreach (var size in new[] { 10, 25, 50, 100 })
+                    {
+                        <option value="@size" @(Model.PageSize == size ? "selected" : null)>@size</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary w-100">Apply</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card card-kpi overflow-hidden">
+    <ul class="nav nav-tabs am-platform-user-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link @(activeCategory == "system" ? "active" : null)" href="@categoryUrl("system")">System Users</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link @(activeCategory == "admins" ? "active" : null)" href="@categoryUrl("admins")">Organization Admins</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link @(activeCategory == "tenant" ? "active" : null)" href="@categoryUrl("tenant")">Tenant Users</a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        @if (activeCategory == "system")
+        {
+            <div class="tab-pane fade show active" role="tabpanel">
+                @Html.Partial("_PlatformUserList", Model.SystemUsers)
+            </div>
+        }
+        else if (activeCategory == "admins")
+        {
+            <div class="tab-pane fade show active" role="tabpanel">
+                @Html.Partial("_PlatformUserList", Model.OrganizationAdmins)
+            </div>
+        }
+        else
+        {
+            <div class="tab-pane fade show active" role="tabpanel">
+                @if (!Model.OrganizationGroups.Any())
+                {
+                    <div class="am-empty-state py-4 px-3">
+                        <p class="text-muted mb-0">No tenant users match the current filters.</p>
+                    </div>
+                }
+                else
+                {
+                    foreach (var group in Model.OrganizationGroups)
+                    {
+                        <div class="am-platform-org-header">
+                            <span>@group.OrganizationName</span>
+                            <span class="badge bg-light text-dark border">@group.Users.Count user@(group.Users.Count == 1 ? string.Empty : "s")</span>
+                        </div>
+                        @Html.Partial("_PlatformUserList", group.Users)
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    @if (hasActiveCategoryContent)
+    {
+        <div class="card-footer border-0 bg-transparent">
+            @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel
+            {
+                Page = Model.Page,
+                TotalPages = Model.ActiveTotalPages,
+                TotalCount = Model.ActiveTotalCount,
+                StartItem = Model.ActiveStartItem,
+                EndItem = Model.ActiveEndItem
+            })
+        </div>
+    }
+</div>

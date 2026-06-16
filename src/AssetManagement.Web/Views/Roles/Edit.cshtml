@@ -2,12 +2,26 @@
 @model AssetManagement.Application.ViewModels.RoleCreateEditVm
 @{
     ViewBag.Title = "Edit Role";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
 }
-<h3>Edit Role</h3>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Edit Role",
+    Subtitle = "Update the role and keep the permission set aligned with what users should be allowed to do. Roles appear in Settings as approval stage assignees for transfer, disposal, and purchase workflows.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Roles", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name, Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }) },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Edit Role" }
+    }
+})
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
     @Html.HiddenFor(m => m.Id)
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3 mb-3">
         <div class="col-md-4">
@@ -55,8 +69,10 @@
         </div>
     </div>
 
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Update Role</button>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to Roles</a>
-    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Update Role",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
 }

@@ -1,0 +1,59 @@
+@model AssetManagement.Web.ViewModels.PlatformEmailSettingsViewModel
+@{
+    ViewBag.Title = "Platform Email Settings";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+}
+<h3>Platform Email Settings</h3>
+<p class="text-muted">Configure SMTP for MFA codes and password reset emails. Values here override Web.config when set. Leave SMTP host empty to use development diagnostics logging only.</p>
+
+@using (Html.BeginForm("Email", "PlatformSettings", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.SmtpHost, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.SmtpHost, new { @class = "form-control" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.SmtpPort, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.SmtpPort, new { @class = "form-control", type = "number" })
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                @Html.CheckBoxFor(m => m.SmtpEnableSsl, new { @class = "form-check-input" })
+                @Html.LabelFor(m => m.SmtpEnableSsl, new { @class = "form-check-label" })
+            </div>
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.SmtpUser, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.SmtpUser, new { @class = "form-control" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.SmtpPassword, new { @class = "form-label" })
+            @Html.PasswordFor(m => m.SmtpPassword, new { @class = "form-control", placeholder = "Leave blank to keep existing password" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.FromEmail, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.FromEmail, new { @class = "form-control" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.FromName, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.FromName, new { @class = "form-control" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.ExternalBaseUrl, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ExternalBaseUrl, new { @class = "form-control", placeholder = "https://assets.example.com" })
+            <div class="form-text">Used to build password reset links in outbound email.</div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary">Save settings</button>
+    </div>
+}
+
+<div class="alert alert-secondary mt-4 mb-0">
+    <strong>Web.config fallback keys:</strong> SmtpHost, SmtpPort, SmtpUser, SmtpPassword, SmtpEnableSsl, FromEmail, FromName, ExternalBaseUrl
+</div>

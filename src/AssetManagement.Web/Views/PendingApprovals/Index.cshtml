@@ -1,0 +1,170 @@
+@model AssetManagement.Web.ViewModels.PendingApprovalsIndexViewModel
+@{
+    ViewBag.Title = "Pending Approvals";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Pending Approvals",
+    Subtitle = "Track approval requests across transfer, disposal, and purchase requisition workflows.",
+    BackUrl = Url.Action("Index", "Dashboard"),
+    BackLabel = "Back to Dashboard"
+})
+
+@* KPI Summary Strip *@
+<div class="am-dashboard mb-4">
+    <div class="am-dashboard-kpi-grid am-dashboard-kpi-grid--3col" role="list" aria-label="Pending approval metrics">
+        <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--assets am-fade-in-safe border-top border-primary border-4" role="listitem">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="am-kpi-label text-muted">Total Pending</div>
+                    <div class="am-kpi-value h2 mb-0 text-dark fw-bold">@Model.TotalPendingCount</div>
+                </div>
+                <div class="text-primary bg-light p-3 rounded-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+            </div>
+        </div>
+        <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--backlog am-fade-in-safe border-top border-warning border-4" role="listitem">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="am-kpi-label text-muted">Actionable For You</div>
+                    <div class="am-kpi-value h2 mb-0 text-warning fw-bold">@Model.ActionableCount</div>
+                </div>
+                <div class="text-warning bg-light p-3 rounded-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                </div>
+            </div>
+        </div>
+        <div class="card card-kpi am-kpi-card am-dashboard-kpi am-dashboard-kpi--assigned am-fade-in-safe border-top border-success border-4" role="listitem">
+            <div class="card-body d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="am-kpi-label text-muted">Requested By You</div>
+                    <div class="am-kpi-value h2 mb-0 text-success fw-bold">@Model.RequestedByMeCount</div>
+                </div>
+                <div class="text-success bg-light p-3 rounded-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Filters *@
+<div class="card card-kpi border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+        @using (Html.BeginForm("Index", "PendingApprovals", FormMethod.Get, new { @class = "row g-2 align-items-end" }))
+        {
+            var processOptions = ViewBag.ProcessOptions as IEnumerable<string> ?? Enumerable.Empty<string>();
+            <div class="col-md-4">
+                <label class="form-label">Process</label>
+                <select name="process" class="form-select">
+                    <option value="">All processes</option>
+                    @foreach (var name in processOptions)
+                    {
+                        <option value="@name" @(string.Equals(Model.ProcessFilter, name, StringComparison.OrdinalIgnoreCase) ? "selected" : null)>@name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Min age (days)</label>
+                <input type="number" name="minAgeDays" class="form-control" min="0" value="@(Model.MinAgeDays.HasValue ? Model.MinAgeDays.Value.ToString() : "")" placeholder="e.g. 7" />
+            </div>
+            <div class="col-md-3">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" name="actionableOnly" value="true" id="actionableOnly" @(Model.ActionableOnly ? "checked" : null) />
+                    <label class="form-check-label" for="actionableOnly">Actionable for me only</label>
+                </div>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button type="submit" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:.35rem"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    Apply Filter
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@* Approval Table *@
+<div class="card card-kpi border-0 shadow-sm am-fade-in">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr class="bg-light" style="font-size:0.82rem;letter-spacing:0.04em;">
+                        <th class="ps-3">Process</th>
+                        <th>Asset</th>
+                        <th>Requested By</th>
+                        <th>Submitted</th>
+                        <th>Age</th>
+                        <th>Current Stage</th>
+                        <th>Summary</th>
+                        <th>Your Status</th>
+                        <th class="pe-3 text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Items != null && Model.Items.Any())
+                {
+                    foreach (var item in Model.Items)
+                    {
+                        <tr class="border-bottom border-light">
+                            <td class="ps-3">
+                                <span class="badge rounded-pill" style="background:hsla(200,85%,52%,.12);color:var(--am-primary-strong);font-size:.78rem;font-weight:700;">@item.ProcessName</span>
+                            </td>
+                            <td>
+                                <span class="am-tag-pill am-tag-pill--sm">@item.AssetTag</span>
+                                <div class="text-muted small mt-1">@item.AssetName</div>
+                            </td>
+                            <td class="text-muted small">@item.RequestedById</td>
+                            <td class="text-muted small">@item.RequestedDateText</td>
+                            <td>
+                                <span class="badge @item.AgingBadgeClass rounded-pill">@item.AgeDays d</span>
+                                <div class="text-muted" style="font-size:.72rem">@item.AgingBand</div>
+                            </td>
+                            <td class="small">
+                                <span class="fw-semibold">Stage @item.StageNumber</span>
+                                <div class="text-muted">@item.StageRoleName</div>
+                            </td>
+                            <td class="small text-muted" style="max-width:200px;white-space:normal">@item.Summary</td>
+                            <td>
+                                @if (item.CanCurrentUserAct)
+                                {
+                                    <span class="badge bg-warning text-dark rounded-pill fw-bold">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:-1px;margin-right:.25rem"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                        Action Required
+                                    </span>
+                                }
+                                else if (item.RequestedByCurrentUser)
+                                {
+                                    <span class="badge bg-light text-secondary border rounded-pill">Awaiting Others</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted border rounded-pill">Monitoring</span>
+                                }
+                            </td>
+                            <td class="text-end pe-3">
+                                <a class="btn btn-sm btn-outline-primary" href="@item.DetailsUrl">Open Asset</a>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="9" class="py-5 text-center">
+                            <div class="text-muted mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            </div>
+                            <div class="fw-semibold text-dark">No pending approvals</div>
+                            <p class="text-muted small mb-0">No approval requests found for your current role context.</p>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

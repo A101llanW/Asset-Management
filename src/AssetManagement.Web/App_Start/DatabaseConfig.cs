@@ -1,6 +1,5 @@
-using System.Data.Entity;
+using System.Configuration;
 using AssetManagement.Infrastructure.Persistence;
-using AssetManagement.Infrastructure.Persistence.Migrations;
 
 namespace AssetManagement.Web.App_Start
 {
@@ -8,11 +7,13 @@ namespace AssetManagement.Web.App_Start
     {
         public static void Configure()
         {
-            Database.SetInitializer(new MigrateDatabaseToLatestVersion<AssetManagementDbContext, Configuration>());
-            using (var context = new AssetManagementDbContext())
+            var autoInitialize = ConfigurationManager.AppSettings["AutoInitializeDatabase"];
+            if (autoInitialize != null && autoInitialize.Equals("false", System.StringComparison.OrdinalIgnoreCase))
             {
-                context.Database.Initialize(false);
+                return;
             }
+
+            SqlDatabaseInitializer.Initialize("AssetManagementConnection");
         }
     }
 }

@@ -5,9 +5,11 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class Asset : AuditableEntity
+    public class Asset : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public string AssetName { get; set; }
 
@@ -49,7 +51,7 @@ namespace AssetManagement.Domain.Entities
 
         public string ConditionOnReceipt { get; set; }
 
-        public int UsefulLifeMonths { get; set; }
+        public int? UsefulLifeMonths { get; set; }
 
         public decimal SalvageValue { get; set; }
 
@@ -60,8 +62,6 @@ namespace AssetManagement.Domain.Entities
         public decimal CurrentBookValue { get; set; }
 
         public decimal AccumulatedDepreciation { get; set; }
-
-        public decimal ReplacementValue { get; set; }
 
         public string ImpairmentNotes { get; set; }
 
@@ -78,6 +78,18 @@ namespace AssetManagement.Domain.Entities
         public bool IsLeased { get; set; }
 
         public bool IsInsured { get; set; }
+
+        public bool RequireTransferApproval { get; set; }
+
+        public string TransferApprovalStageRoleIds { get; set; }
+
+        public string TransferApprovalStageUserIds { get; set; }
+
+        public bool RequireDisposalApproval { get; set; }
+
+        public string DisposalApprovalStageRoleIds { get; set; }
+
+        public string DisposalApprovalStageUserIds { get; set; }
 
         public byte[] RowVersion { get; set; }
 

@@ -1,0 +1,107 @@
+@model AssetManagement.Application.ViewModels.PurchaseRequestDetailVm
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Purchase request " + Model.RequestNumber;
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
+    var canApprove = Model.CanCurrentUserApprove && Html.HasPermission("Purchases.Approve");
+    var canCreatePo = Model.IsApproved && !Model.HasPurchaseRecord && Html.HasPermission("Purchases.Create");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.RequestNumber,
+    Subtitle = "Purchase requisition and approval status.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchase Requests", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.RequestNumber }
+    }
+})
+
+@if (!string.IsNullOrWhiteSpace(approvalSummary))
+{
+    <div class="alert alert-light border mb-3"><strong>Configured approval path:</strong> @approvalSummary</div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Request</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8"><span class="badge bg-secondary">@Model.ApprovalStatus</span></dd>
+                    <dt class="col-sm-4">Department</dt>
+                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
+                    <dt class="col-sm-4">Requested by</dt>
+                    <dd class="col-sm-8">@Model.RequestedById</dd>
+                    <dt class="col-sm-4">Quantity</dt>
+                    <dd class="col-sm-8">@Model.Quantity</dd>
+                    <dt class="col-sm-4">Est. unit</dt>
+                    <dd class="col-sm-8">@Html.FormatCurrency(Model.EstimatedUnitCost)</dd>
+                    <dt class="col-sm-4">Est. total</dt>
+                    <dd class="col-sm-8">@Html.FormatCurrency(Model.EstimatedUnitCost * Model.Quantity)</dd>
+                    <dt class="col-sm-4">Submitted</dt>
+                    <dd class="col-sm-8">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm")</dd>
+                    @if (Model.ApprovedAt.HasValue)
+                    {
+                        <dt class="col-sm-4">Approved</dt>
+                        <dd class="col-sm-8">@Model.ApprovedAt.Value.ToString("yyyy-MM-dd HH:mm")</dd>
+                    }
+                </dl>
+                <div class="mt-3">
+                    <div class="text-muted small">Justification</div>
+                    <p class="mb-0">@Model.Justification</p>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.Notes))
+                {
+                    <div class="mt-2">
+                        <div class="text-muted small">Notes</div>
+                        <p class="mb-0">@Model.Notes</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Actions</div>
+            <div class="card-body">
+                @if (Model.IsPending)
+                {
+                    <p class="mb-2"><strong>Current stage:</strong> Stage @Model.CurrentApprovalStage - @(string.IsNullOrWhiteSpace(Model.CurrentStageRoleName) ? DisplayText.Empty : Model.CurrentStageRoleName)</p>
+                }
+                @if (canCreatePo)
+                {
+                    <a class="btn btn-primary mb-3" href="@Url.Action("Create", "Purchases", new { purchaseRequestId = Model.Id, returnUrl = Request.RawUrl })">Record purchase order</a>
+                }
+                else if (Model.IsApproved && Model.HasPurchaseRecord && Model.LinkedPurchaseRecordId.HasValue)
+                {
+                    <p class="mb-2">Linked purchase record:</p>
+                    <a class="btn btn-outline-primary" href="@Url.Action("Details", "Purchases", new { id = Model.LinkedPurchaseRecordId.Value, returnUrl = Request.RawUrl })">Open purchase #@Model.LinkedPurchaseRecordId</a>
+                }
+
+                @if (Model.IsPending)
+                {
+                    @{
+                        ViewData["CanApprove"] = canApprove;
+                        ViewData["ApproveAction"] = "Approve";
+                        ViewData["RejectAction"] = "Reject";
+                        ViewData["ApprovalController"] = "PurchaseRequests";
+                        ViewData["ApprovalEntityId"] = Model.Id;
+                        ViewData["ReturnUrl"] = Request.RawUrl;
+                    }
+                    @Html.Partial("_ApprovalActions")
+                    if (!canApprove)
+                    {
+                        <p class="text-muted mb-0">You are not the current stage approver, or you submitted this request.</p>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.Partial("_ApprovalHistory", Model.ApprovalHistory)

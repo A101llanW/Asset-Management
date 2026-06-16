@@ -1,34 +1,69 @@
-@model IEnumerable<AssetManagement.Application.ViewModels.AssetListVm>
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
 @using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Assets";
     var canCreateAsset = Html.HasPermission("Assets.Create");
     var canEditAsset = Html.HasPermission("Assets.Edit");
+    var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
+    var departments = ViewBag.Departments as System.Web.Mvc.SelectList;
+    var statuses = ViewBag.Statuses as System.Web.Mvc.SelectList;
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Asset Register",
     Subtitle = "Search, review, and act on every tracked asset from one place.",
     PrimaryActionUrl = canCreateAsset ? Url.Action("Create") : null,
-    PrimaryActionLabel = canCreateAsset ? "Create Asset" : null
+    PrimaryActionLabel = canCreateAsset ? "Create Asset" : null,
+    SecondaryActionUrl = canCreateAsset ? Url.Action("Import") : null,
+    SecondaryActionLabel = canCreateAsset ? "Import from Excel" : null
 })
 
-<form class="row g-2 mb-3" method="get">
-    <div class="col-md-5">
-        <input type="text" class="form-control" name="Search" placeholder="Search by asset tag, name or serial" value="@Request.QueryString["Search"]" />
+<div class="card card-kpi border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+        <form class="am-list-toolbar mb-0" method="get">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="Search" placeholder="Search tag, name, serial, custodian..." value="@Model.Search" data-am-table-filter />
+                </div>
+                <div class="col-md-3">
+                    @Html.DropDownList("DepartmentId", departments, "All departments", new { @class = "form-select" })
+                </div>
+                <div class="col-md-2">
+                    @Html.DropDownList("Status", statuses, "All statuses", new { @class = "form-select" })
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="pageSize">
+                        @foreach (var size in new[] { 10, 25, 50 })
+                        {
+                            <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </div>
+            </div>
+        </form>
     </div>
-    <div class="col-md-2">
-        <button type="submit" class="btn btn-outline-primary">Filter</button>
-    </div>
-</form>
+</div>
 
-@if (!Model.Any())
+@if (canBulkEdit)
 {
-    <div class="card card-kpi">
-        <div class="card-body am-empty-state">
-            <h5>No assets yet</h5>
-            <p class="text-muted mb-3">Start by creating your first asset record, then use the asset profile to assign it, transfer it, or track maintenance.</p>
+    @Html.Partial("_ListBulkToolbar")
+}
+
+@if (!Model.Items.Any())
+{
+    <div class="card card-kpi border-0 shadow-sm">
+        <div class="card-body am-empty-state py-5">
+            <div class="text-muted mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-info"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            </div>
+            <h5 class="fw-bold text-dark">@(string.IsNullOrWhiteSpace(Model.Search) ? "No assets yet" : "No assets match these filters")</h5>
+            <p class="text-muted mb-4">@(string.IsNullOrWhiteSpace(Model.Search) ? "Start by creating your first asset record, then use the asset profile to assign it, transfer it, or track maintenance." : "Try adjusting the search, department, or status filters to widen the results.")</p>
             @if (canCreateAsset)
             {
                 <a class="btn btn-primary" href="@Url.Action("Create")">Create Asset</a>
@@ -38,39 +73,46 @@
 }
 else
 {
-    <div class="card card-kpi">
+    <div class="card card-kpi border-0 shadow-sm am-fade-in mb-4">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-striped mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Asset Tag</th>
-                            <th>Name</th>
-                            <th>Category</th>
-                            <th>Department</th>
-                            <th>Status</th>
-                            <th>Current Book Value</th>
-                            <th class="text-end">Actions</th>
+                <table class="table table-hover align-middle mb-0 am-filterable-table" data-am-filterable>
+                    <thead>
+                        <tr class="bg-light text-secondary" style="font-size: 0.82rem; letter-spacing: 0.04em;">
+                            @if (canBulkEdit)
+                            {
+                                <th class="am-bulk-col ps-3"><input type="checkbox" data-am-bulk-master aria-label="Select all on page" class="form-check-input" /></th>
+                            }
+                            <th class="@(canBulkEdit ? "" : "ps-3")">@Html.SortLink("Asset Tag", "tag", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Category", "category", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Department", "department", currentSort, currentDirection)</th>
+                            <th>Custodian</th>
+                            <th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Acquisition Cost", "acquisition", currentSort, currentDirection)</th>
+                            <th class="text-end pe-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                    @foreach (var item in Model)
+                    @foreach (var item in Model.Items)
                     {
-                        var badge = item.CurrentStatus == AssetStatus.Assigned ? "success" :
-                                    item.CurrentStatus == AssetStatus.UnderMaintenance ? "warning" :
-                                    item.CurrentStatus == AssetStatus.Lost || item.CurrentStatus == AssetStatus.Stolen ? "danger" : "secondary";
-                        <tr>
-                            <td>@item.AssetTag</td>
-                            <td>@item.AssetName</td>
+                        <tr class="border-bottom border-light">
+                            @if (canBulkEdit)
+                            {
+                                <td class="ps-3"><input type="checkbox" data-am-bulk-id value="@item.Id" aria-label="Select @item.AssetTag" class="form-check-input" /></td>
+                            }
+                            <td class="@(canBulkEdit ? "" : "ps-3")"><span class="am-tag-pill">@item.AssetTag</span></td>
+                            <td class="fw-bold text-dark">@item.AssetName</td>
                             <td>@item.CategoryName</td>
-                            <td>@item.DepartmentName</td>
-                            <td><span class="badge bg-@badge badge-status">@item.CurrentStatus</span></td>
-                            <td>@item.CurrentBookValue.ToString("N2")</td>
-                            <td class="text-end">
-                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = item.Id })">Details</a>
+                            <td><span class="text-secondary small fw-medium">@item.DepartmentName</span></td>
+                            <td class="text-muted" style="font-size: 0.85rem;">@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? DisplayText.Empty : item.CurrentCustodianName)</td>
+                            <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.CurrentStatus) badge-status px-2 py-1.5 rounded-pill text-capitalize">@item.CurrentStatus.ToString().Replace("AwaitingApproval", "Pending Approval").Replace("InStore", "In Store")</span></td>
+                            <td class="fw-bold text-primary">@Html.FormatCurrency(item.AcquisitionCost)</td>
+                            <td class="text-end pe-3">
+                                <a class="btn btn-sm btn-outline-primary py-1 px-3 me-1" href="@Url.Action("Details", new { id = item.Id })">Details</a>
                                 @if (canEditAsset)
                                 {
-                                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
+                                    <a class="btn btn-sm btn-outline-secondary py-1 px-3" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
                                 }
                             </td>
                         </tr>
@@ -80,4 +122,19 @@ else
             </div>
         </div>
     </div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel
+    {
+        Page = Model.Page,
+        TotalPages = Model.TotalPages,
+        TotalCount = Model.TotalCount,
+        StartItem = Model.StartItem,
+        EndItem = Model.EndItem
+    })
+}
+
+@section scripts {
+    @if (canBulkEdit)
+    {
+        <script src="@Url.Content("~/Scripts/app/list-bulk.js")"></script>
+    }
 }

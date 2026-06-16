@@ -10,5 +10,7 @@ namespace AssetManagement.Application.Contracts
         UserVm GetById(string id);
 
         void AssignRole(string userId, int roleId);
+
+        void AssignDepartment(string userId, int? departmentId);
     }
 }

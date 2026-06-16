@@ -1,0 +1,37 @@
+@using System
+@using System.Web
+@model AssetManagement.Web.ViewModels.PaginationViewModel
+@if (Model != null && Model.TotalPages > 1)
+{
+    var query = HttpUtility.ParseQueryString(Request.QueryString.ToString());
+    var currentPath = Request.Path;
+    var startPage = Math.Max(1, Model.Page - 2);
+    var endPage = Math.Min(Model.TotalPages, Model.Page + 2);
+
+    <div class="am-pagination">
+        <div class="text-muted small">Showing @Model.StartItem-@Model.EndItem of @Model.TotalCount</div>
+        <nav aria-label="Pagination">
+            <ul class="pagination mb-0">
+                @{
+                    query["page"] = Math.Max(1, Model.Page - 1).ToString();
+                }
+                <li class="page-item @(Model.Page <= 1 ? "disabled" : null)">
+                    <a class="page-link" href="@(Model.Page <= 1 ? "#" : currentPath + "?" + query)">Previous</a>
+                </li>
+                @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                {
+                    query["page"] = pageNumber.ToString();
+                    <li class="page-item @(pageNumber == Model.Page ? "active" : null)">
+                        <a class="page-link" href="@(currentPath + "?" + query)">@pageNumber</a>
+                    </li>
+                }
+                @{
+                    query["page"] = Math.Min(Model.TotalPages, Model.Page + 1).ToString();
+                }
+                <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : null)">
+                    <a class="page-link" href="@(Model.Page >= Model.TotalPages ? "#" : currentPath + "?" + query)">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}

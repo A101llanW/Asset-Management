@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<connectionStrings>
+  <!-- Copy to connectionStrings.config (gitignored) before Release deployment. -->
+  <add name="AssetManagementConnection"
+       connectionString="Data Source=YOUR_SERVER;Initial Catalog=AssetManagementModuleDb;Integrated Security=True;MultipleActiveResultSets=True;Connect Timeout=60"
+       providerName="System.Data.SqlClient" />
+</connectionStrings>

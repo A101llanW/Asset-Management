@@ -1,64 +1,98 @@
-@model IEnumerable<AssetManagement.Domain.Entities.Notification>
+@model IEnumerable<AssetManagement.Application.ViewModels.NotificationInboxVm>
 @{
     ViewBag.Title = "Notifications";
+    var unreadOnly = ViewBag.UnreadOnly as bool? ?? false;
+    var items = Model != null
+        ? Model.ToList()
+        : new System.Collections.Generic.List<AssetManagement.Application.ViewModels.NotificationInboxVm>();
+    var unreadCount = items.Count(n => string.Equals(n.Status, "Unread", StringComparison.OrdinalIgnoreCase));
 }
-<h3>Notifications</h3>
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="text-muted small">Latest 100 system notifications</div>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Notifications",
+    Subtitle = "Personal and system alerts for your account."
+})
+
+@* Toolbar *@
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <div class="am-notif-tab-group">
+            <a class="am-notif-tab @(!unreadOnly ? "am-notif-tab--active" : "")" href="@Url.Action("Index", new { unreadOnly = false })">
+                All
+                <span class="am-notif-tab-count">@items.Count</span>
+            </a>
+            <a class="am-notif-tab @(unreadOnly ? "am-notif-tab--active" : "")" href="@Url.Action("Index", new { unreadOnly = true })">
+                Unread
+                @if (unreadCount > 0)
+                {
+                    <span class="am-notif-tab-count am-notif-tab-count--unread">@unreadCount</span>
+                }
+            </a>
+        </div>
+    </div>
     @using (Html.BeginForm("Generate", "Notifications", FormMethod.Post, new { @class = "mb-0" }))
     {
         @Html.AntiForgeryToken()
-        <button class="btn btn-sm btn-primary" type="submit">Generate Notifications</button>
+        <button class="btn btn-sm btn-outline-secondary" type="submit">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:.3rem"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Run generation now
+        </button>
     }
 </div>
 
-<div class="table-responsive">
-    <table class="table table-sm align-middle">
-        <thead>
-            <tr>
-                <th>Type</th>
-                <th>Subject</th>
-                <th>Message</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Link</th>
-            </tr>
-        </thead>
-        <tbody>
-        @if (Model != null)
+@* Notification Feed *@
+@if (!items.Any())
+{
+    <div class="card card-kpi border-0 shadow-sm">
+        <div class="card-body am-empty-state py-5">
+            <div class="text-muted mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 1 30 8c0 7 3 9 3 9H15s3-2 3-9"/><path d="M13.73 21a2 2 0 0 0 3.54 0"/></svg>
+            </div>
+            <h5 class="fw-bold">No notifications</h5>
+            <p class="text-muted mb-0">@(unreadOnly ? "No unread notifications." : "Your inbox is empty. Check back after the next generation run.")</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="am-notif-feed">
+        @foreach (var item in items)
         {
-            var hasRows = false;
-            foreach (var item in Model)
-            {
-                hasRows = true;
-                <tr>
-                    <td>@item.Type</td>
-                    <td>@item.Subject</td>
-                    <td>@item.Message</td>
-                    <td>@item.Status</td>
-                    <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>
+            var isUnread = string.Equals(item.Status, "Unread", StringComparison.OrdinalIgnoreCase);
+            <div class="am-notif-item @(isUnread ? "am-notif-item--unread" : "")">
+                <div class="am-notif-item-dot" aria-hidden="true"></div>
+                <div class="am-notif-item-body">
+                    <div class="am-notif-item-header">
+                        <div class="am-notif-item-meta">
+                            <span class="am-notif-scope-badge @(item.IsPersonal ? "am-notif-scope-badge--personal" : "am-notif-scope-badge--system")">
+                                @(item.IsPersonal ? "Personal" : "System")
+                            </span>
+                            <span class="am-notif-type">@item.Type</span>
+                        </div>
+                        <span class="am-notif-time">@item.CreatedAt.ToString("MMM d, yyyy · HH:mm")</span>
+                    </div>
+                    <div class="am-notif-subject">@item.Subject</div>
+                    <div class="am-notif-message">@item.Message</div>
+                    <div class="am-notif-actions">
                         @if (!string.IsNullOrWhiteSpace(item.LinkUrl))
                         {
-                            <a href="@item.LinkUrl" class="btn btn-sm btn-outline-secondary">Open</a>
+                            <a href="@item.LinkUrl" class="btn btn-sm btn-outline-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.25rem"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                Open
+                            </a>
                         }
-                    </td>
-                </tr>
-            }
-
-            if (!hasRows)
-            {
-                <tr>
-                    <td colspan="6" class="text-muted">No notifications found.</td>
-                </tr>
-            }
+                        @if (isUnread)
+                        {
+                            using (Html.BeginForm("MarkRead", "Notifications", FormMethod.Post, new { @class = "d-inline" }))
+                            {
+                                @Html.AntiForgeryToken()
+                                @Html.Hidden("id", item.Id)
+                                <button type="submit" class="btn btn-sm btn-link text-muted p-0 ms-2">Mark as read</button>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
         }
-        else
-        {
-            <tr>
-                <td colspan="6" class="text-muted">No notifications found.</td>
-            </tr>
-        }
-        </tbody>
-    </table>
-</div>
+    </div>
+}

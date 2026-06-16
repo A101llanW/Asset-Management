@@ -2,11 +2,24 @@
 @model AssetManagement.Application.ViewModels.RoleCreateEditVm
 @{
     ViewBag.Title = "Create Role";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
 }
-<h3>Create Role</h3>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Role",
+    Subtitle = "Combine permissions into a reusable role, then confirm the access profile on the role details page. Roles you create here appear as choices in Settings for approval stages (transfer, disposal, and purchase requests).",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Roles", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Role" }
+    }
+})
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3 mb-3">
         <div class="col-md-4">
@@ -54,8 +67,10 @@
         </div>
     </div>
 
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Create Role</button>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Index")">Back to Roles</a>
-    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Role",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
 }

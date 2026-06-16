@@ -74,13 +74,22 @@
             @Html.LabelFor(m => m.AcquisitionCost, new { @class = "form-label" })
             @Html.TextBoxFor(m => m.AcquisitionCost, new { @class = "form-control", type = "number", step = "0.01" })
         </div>
+        @Html.Partial("_AssetTaxAmountFields", Model)
         <div class="col-md-2">
             @Html.LabelFor(m => m.Currency, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Currency, new { @class = "form-control" })
+            @Html.TextBoxFor(m => m.Currency, new { @class = "form-control", @readonly = "readonly" })
         </div>
         <div class="col-md-12">
             @Html.LabelFor(m => m.Description, new { @class = "form-label" })
             @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        </div>
+    </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Request Approval Paths</div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Configure how transfer and disposal requests for this asset move through approval. For each stage, open the approver dropdown, choose a title, then select the specific person who must approve that stage. Changes apply to new requests submitted after you save.</p>
+            @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
         </div>
     </div>
 
@@ -121,7 +130,21 @@
             }
         }
 
+        function syncCategoryFromAssetType() {
+            var selectedOption = assetType.options[assetType.selectedIndex];
+            if (!selectedOption || !selectedOption.value) { return; }
+
+            var categoryId = selectedOption.getAttribute('data-category-id');
+            if (categoryId && category.value !== categoryId) {
+                category.value = categoryId;
+                syncAssetTypes();
+            }
+        }
+
         category.addEventListener('change', syncAssetTypes);
+        assetType.addEventListener('change', syncCategoryFromAssetType);
+        syncCategoryFromAssetType();
         syncAssetTypes();
     })();
 </script>
+<script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>

@@ -3,9 +3,11 @@ using AssetManagement.Domain.Common;
 
 namespace AssetManagement.Domain.Entities
 {
-    public class AuditLog : AuditableEntity
+    public class AuditLog : AuditableEntity, ITenantEntity
     {
         public int Id { get; set; }
+
+        public int? OrganizationId { get; set; }
 
         public string ActorUserId { get; set; }
 
@@ -22,5 +24,7 @@ namespace AssetManagement.Domain.Entities
         public DateTime Timestamp { get; set; }
 
         public string IPAddress { get; set; }
+
+        public int? ImpersonationRequestId { get; set; }
     }
 }

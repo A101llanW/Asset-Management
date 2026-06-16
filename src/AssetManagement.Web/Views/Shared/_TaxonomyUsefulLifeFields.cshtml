@@ -1,0 +1,64 @@
+@{
+    var canManageUsefulLife = ViewBag.CanManageUsefulLife == true;
+    var categoryDefaultMonths = ViewBag.CategoryDefaultUsefulLifeMonths as int?;
+    var isCategoryForm = ViewData["UsefulLifeFormMode"] as string == "category";
+    var isTypeForm = ViewData["UsefulLifeFormMode"] as string == "type";
+}
+
+@if (canManageUsefulLife)
+{
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-1" style="font-size:.78rem;letter-spacing:.08em;">Operational useful life</h6>
+            <p class="text-muted small mb-3">
+                Set expected asset lifespan for operations planning. This is not accounting depreciation.
+                @if (isTypeForm)
+                {
+                    <span>Leave custom unset to inherit the category default.</span>
+                }
+            </p>
+
+            @if (isCategoryForm)
+            {
+                <div class="mb-0">
+                    <label class="form-label" for="DefaultUsefulLifeMonths">Default useful life (months)</label>
+                    <input class="form-control" id="DefaultUsefulLifeMonths" name="DefaultUsefulLifeMonths" type="number" min="1" value="@(Model.DefaultUsefulLifeMonths)" />
+                    <div class="form-text">Example: laptops 36 months, furniture 120 months.</div>
+                </div>
+            }
+
+            @if (isTypeForm)
+            {
+                <div class="form-check mb-3">
+                    <input type="hidden" name="UseCustomUsefulLife" value="false" />
+                    <input class="form-check-input" id="UseCustomUsefulLife" name="UseCustomUsefulLife" type="checkbox" value="true" @(Model.UseCustomUsefulLife ? "checked=\"checked\"" : null) />
+                    <label class="form-check-label" for="UseCustomUsefulLife">Override category default for this asset type</label>
+                </div>
+                if (categoryDefaultMonths.HasValue)
+                {
+                    <p class="small text-muted">Category default: <strong>@categoryDefaultMonths months</strong></p>
+                }
+                else
+                {
+                    <p class="small text-muted">Category default: <strong>not set</strong></p>
+                }
+                <div id="custom-useful-life-group">
+                    <label class="form-label" for="UsefulLifeMonths">Custom useful life (months)</label>
+                    <input class="form-control" id="UsefulLifeMonths" name="UsefulLifeMonths" type="number" min="1" value="@(Model.UsefulLifeMonths)" />
+                </div>
+                <script>
+                    (function () {
+                        var checkbox = document.getElementById("UseCustomUsefulLife");
+                        var group = document.getElementById("custom-useful-life-group");
+                        if (!checkbox || !group) { return; }
+                        function sync() {
+                            group.style.display = checkbox.checked ? "" : "none";
+                        }
+                        checkbox.addEventListener("change", sync);
+                        sync();
+                    })();
+                </script>
+            }
+        </div>
+    </div>
+}

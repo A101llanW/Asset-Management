@@ -5,7 +5,7 @@ namespace AssetManagement.Web.ViewModels
     public class UserCreateViewModel
     {
         [Required]
-        [EmailAddress]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
         public string Email { get; set; }
 
         [Required]
@@ -30,7 +30,8 @@ namespace AssetManagement.Web.ViewModels
 
         [Required]
         [DataType(DataType.Password)]
-        [MinLength(6)]
+        [StringLength(100)]
+        [RegularExpression(@".{6,}", ErrorMessage = "Password must be at least 6 characters.")]
         public string Password { get; set; }
 
         [Required]

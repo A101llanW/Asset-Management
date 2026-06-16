@@ -1,0 +1,113 @@
+@model AssetManagement.Application.ViewModels.ReportDefinitionVm
+@using AssetManagement.Domain.Enums
+@{
+    var hub = ViewData["Hub"] as AssetManagement.Application.ViewModels.ReportsHubVm;
+    var departments = hub != null && hub.Departments != null ? hub.Departments : new System.Collections.Generic.List<AssetManagement.Application.ViewModels.ReportLookupVm>();
+    var categories = hub != null && hub.Categories != null ? hub.Categories : new System.Collections.Generic.List<AssetManagement.Application.ViewModels.ReportLookupVm>();
+    var key = Model.Key;
+}
+<div class="row g-2">
+    @if (Model.SupportsDateRange)
+    {
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="period-@key">Period</label>
+            <select class="form-select form-select-sm am-report-period" id="period-@key" data-report-key="@key">
+                @if (Model.UsesForwardPeriods)
+                {
+                    <option value="next-30-days" @(Model.DefaultPeriodPreset == "next-30-days" ? "selected" : null)>Next 30 days</option>
+                    <option value="next-90-days" @(Model.DefaultPeriodPreset == "next-90-days" ? "selected" : null)>Next 90 days</option>
+                    <option value="this-month" @(Model.DefaultPeriodPreset == "this-month" ? "selected" : null)>This month</option>
+                    <option value="this-year" @(Model.DefaultPeriodPreset == "this-year" ? "selected" : null)>This year</option>
+                }
+                else
+                {
+                    <option value="this-week" @(Model.DefaultPeriodPreset == "this-week" ? "selected" : null)>This week</option>
+                    <option value="last-week" @(Model.DefaultPeriodPreset == "last-week" ? "selected" : null)>Last week</option>
+                    <option value="this-month" @(Model.DefaultPeriodPreset == "this-month" ? "selected" : null)>This month</option>
+                    <option value="last-month" @(Model.DefaultPeriodPreset == "last-month" ? "selected" : null)>Last month</option>
+                    <option value="last-3-months" @(Model.DefaultPeriodPreset == "last-3-months" ? "selected" : null)>Last 3 months</option>
+                    <option value="this-year" @(Model.DefaultPeriodPreset == "this-year" ? "selected" : null)>This year</option>
+                }
+                <option value="custom">Custom range</option>
+            </select>
+        </div>
+        <div class="col-md-4 am-report-custom-dates d-none" data-report-key="@key">
+            <label class="form-label small mb-1" for="from-@key">From</label>
+            <input type="date" class="form-control form-control-sm am-report-from" id="from-@key" data-report-key="@key" />
+        </div>
+        <div class="col-md-4 am-report-custom-dates d-none" data-report-key="@key">
+            <label class="form-label small mb-1" for="to-@key">To</label>
+            <input type="date" class="form-control form-control-sm am-report-to" id="to-@key" data-report-key="@key" />
+        </div>
+    }
+    @if (Model.SupportsDepartmentFilter)
+    {
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="dept-@key">Department</label>
+            <select class="form-select form-select-sm am-report-department" id="dept-@key" data-report-key="@key">
+                <option value="">All departments</option>
+                @foreach (var dept in departments)
+                {
+                    <option value="@dept.Id">@dept.Name</option>
+                }
+            </select>
+        </div>
+    }
+    @if (Model.SupportsCategoryFilter)
+    {
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="cat-@key">Category</label>
+            <select class="form-select form-select-sm am-report-category" id="cat-@key" data-report-key="@key">
+                <option value="">All categories</option>
+                @foreach (var cat in categories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </select>
+        </div>
+    }
+    @if (Model.SupportsStatusFilter)
+    {
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="status-@key">Status</label>
+            <select class="form-select form-select-sm am-report-status" id="status-@key" data-report-key="@key">
+                <option value="">All statuses</option>
+                @foreach (AssetStatus status in Enum.GetValues(typeof(AssetStatus)))
+                {
+                    <option value="@((int)status)">@status</option>
+                }
+            </select>
+        </div>
+    }
+    @if (Model.Key == "asset-register")
+    {
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="sort-@key">Sort by</label>
+            <select class="form-select form-select-sm am-report-sort" id="sort-@key" data-report-key="@key">
+                <option value="tag">Asset tag</option>
+                <option value="name">Name</option>
+                <option value="department">Department</option>
+                <option value="cost">Acquisition cost</option>
+                <option value="date">Purchase date</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="sortdir-@key">Direction</label>
+            <select class="form-select form-select-sm am-report-sort-direction" id="sortdir-@key" data-report-key="@key">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+            </select>
+        </div>
+    }
+</div>
+<div class="row g-2 mt-2 pt-2 border-top am-report-template-row">
+    <div class="col-md-8">
+        <label class="form-label small mb-1" for="template-name-@key">Save as template</label>
+        <input type="text" class="form-control form-control-sm am-report-template-name" id="template-name-@key" data-report-key="@key" placeholder="e.g. Weekly IT custody review" maxlength="80" />
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-secondary btn-sm w-100 am-report-save-template" data-report-key="@key">
+            Save template
+        </button>
+    </div>
+</div>

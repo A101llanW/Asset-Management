@@ -1,0 +1,210 @@
+@model OrganizationsIndexViewModel
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Organizations";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+    var canManage = Html.HasPermission("Platform.Organizations.Manage");
+    var canViewLicenses = Html.HasPermission("Platform.Licenses.View");
+}
+
+<div class="am-platform-companies-dashboard">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="am-platform-companies-dashboard__title mb-1">
+                Organizations <span class="am-platform-companies-dashboard__title-light">Management</span>
+            </h1>
+            <p class="text-muted mb-0">System-wide overview of all registered tenants.</p>
+        </div>
+        @if (canManage)
+        {
+            <a class="btn btn-primary" href="@Url.Action("Create", "Organizations", new { area = "Platform" })">Register New Organization</a>
+        }
+    </div>
+
+    @if (TempData["Message"] != null)
+    {
+        <div class="alert alert-success">@TempData["Message"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card card-kpi am-platform-stat-card am-platform-stat-card--primary h-100">
+                <div class="card-body text-center">
+                    <p class="am-platform-stat-card__value mb-0">@Model.TotalOrganizations</p>
+                    <p class="am-platform-stat-card__label mb-0">Total Registered</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-kpi am-platform-stat-card am-platform-stat-card--success h-100">
+                <div class="card-body text-center">
+                    <p class="am-platform-stat-card__value mb-0">@Model.ActiveOrganizations</p>
+                    <p class="am-platform-stat-card__label mb-0">Active Tenants</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-kpi am-platform-stat-card am-platform-stat-card--warning h-100">
+                <div class="card-body text-center">
+                    <p class="am-platform-stat-card__value mb-0">@Model.ExpiringSoon</p>
+                    <p class="am-platform-stat-card__label mb-0">Expiring Soon</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-kpi am-platform-stat-card am-platform-stat-card--danger h-100">
+                <div class="card-body text-center">
+                    <p class="am-platform-stat-card__value mb-0">@Model.ExpiredLicenses</p>
+                    <p class="am-platform-stat-card__label mb-0">Expired Licenses</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-kpi am-platform-companies-table-card">
+        <div class="card-header am-platform-companies-table-card__header">
+            <h2 class="am-platform-companies-table-card__title mb-0">Registered Organizations</h2>
+        </div>
+
+        @if (Model.Organizations == null || !Model.Organizations.Any())
+        {
+            <div class="card-body am-empty-state">
+                <h5>No organizations yet</h5>
+                <p class="text-muted mb-3">Register the first tenant organization to begin platform administration.</p>
+                @if (canManage)
+                {
+                    <a class="btn btn-primary" href="@Url.Action("Create", "Organizations", new { area = "Platform" })">Register New Organization</a>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 am-platform-companies-table">
+                    <thead>
+                        <tr>
+                            <th>Organization Identity</th>
+                            <th>Portal URL</th>
+                            <th>Status</th>
+                            <th>License Status</th>
+                            <th class="text-center">Usage</th>
+                            <th class="text-end">Management</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var org in Model.Organizations.OrderBy(o => o.Name))
+                        {
+                            var relativeLogin = Url.RouteUrl("Tenant", new { tenant = org.Slug, controller = "Account", action = "Login" });
+                            var portalUrl = new Uri(Request.Url, relativeLogin).AbsoluteUri;
+                            var expiryTone = org.DaysUntilExpiry.HasValue && org.DaysUntilExpiry.Value < 0
+                                ? "danger"
+                                : (org.DaysUntilExpiry.HasValue && org.DaysUntilExpiry.Value <= 30 ? "warning" : "success");
+                            <tr>
+                                <td>
+                                    <div class="am-platform-companies-table__name">@org.Name</div>
+                                    <div class="text-muted small">ID: @org.Id &bull; Created @org.CreatedDate.ToString("MMM yyyy")</div>
+                                </td>
+                                <td>
+                                    <div class="am-platform-portal-url">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text"
+                                                   class="form-control am-platform-portal-url__input"
+                                                   value="@portalUrl"
+                                                   readonly
+                                                   aria-label="Portal URL for @org.Name" />
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary am-platform-portal-url__copy"
+                                                    data-portal-url="@portalUrl"
+                                                    title="Copy portal URL">
+                                                Copy
+                                            </button>
+                                        </div>
+                                        <a href="@(portalUrl)?fresh=1" target="_blank" rel="noopener" class="small am-platform-portal-url__visit">Visit portal</a>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge @(org.IsActive ? "bg-success" : "bg-danger")">
+                                        @(org.IsActive ? "ACTIVE" : "INACTIVE")
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (org.LicenseExpiryDate.HasValue)
+                                    {
+                                        <div class="fw-semibold">@org.LicenseExpiryDate.Value.ToString("dd MMM yyyy")</div>
+                                        <div class="small text-@expiryTone">
+                                            @if (org.DaysUntilExpiry.HasValue && org.DaysUntilExpiry.Value < 0)
+                                            {
+                                                <span>Expired</span>
+                                            }
+                                            else if (org.DaysUntilExpiry.HasValue)
+                                            {
+                                                <span>@org.DaysUntilExpiry.Value days left</span>
+                                            }
+                                        </div>
+                                        if (!string.IsNullOrWhiteSpace(org.LicensePlanName))
+                                        {
+                                            <div class="small text-muted">@org.LicensePlanName</div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">No expiry set</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <div class="am-platform-companies-usage">
+                                        <span class="small" title="Users">Users @org.UserCount</span>
+                                        <span class="small" title="Assets">Assets @org.AssetCount</span>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex justify-content-end flex-wrap gap-2">
+                                        @if (canViewLicenses)
+                                        {
+                                            <a class="btn btn-sm btn-outline-primary"
+                                               href="@Url.Action("Details", "Licenses", new { area = "Platform", orgId = org.Id })">
+                                                License
+                                            </a>
+                                        }
+                                        <a class="btn btn-sm btn-outline-secondary"
+                                           href="@Url.Action("OrganizationDetails", "Organizations", new { area = "Platform", id = org.Id })">
+                                            Profile
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        (function () {
+            document.querySelectorAll('.am-platform-portal-url__copy').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var url = button.getAttribute('data-portal-url');
+                    if (!url) {
+                        return;
+                    }
+
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(url).then(function () {
+                            button.textContent = 'Copied';
+                            setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+                        });
+                    } else {
+                        window.prompt('Copy portal URL:', url);
+                    }
+                });
+            });
+        })();
+    </script>
+}

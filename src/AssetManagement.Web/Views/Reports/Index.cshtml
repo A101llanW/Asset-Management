@@ -1,10 +1,209 @@
-@model AssetManagement.Application.ViewModels.DashboardVm
+@model AssetManagement.Application.ViewModels.ReportsHubVm
+@using AssetManagement.Domain.Enums
+@using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Reports";
+    var dash = Model != null ? Model.Dashboard : null;
+    var definitions = Model != null && Model.ReportDefinitions != null
+        ? Model.ReportDefinitions
+        : new System.Collections.Generic.List<AssetManagement.Application.ViewModels.ReportDefinitionVm>();
+    var sections = definitions.GroupBy(x => x.Section ?? "Reports").OrderBy(x => x.Key);
+    var previewUrl = TenantUrlHelper.TenantRouteUrl(Url, "Preview", "Reports");
+    var exportUrl = TenantUrlHelper.TenantRouteUrl(Url, "Export", "Reports");
 }
-<h3>Reports Hub</h3>
-<div class="row g-3">
-    <div class="col-md-4"><div class="card card-kpi"><div class="card-body"><h6>Asset Register</h6><p class="small text-muted">Use Assets list with filters and print/export extension points.</p></div></div></div>
-    <div class="col-md-4"><div class="card card-kpi"><div class="card-body"><h6>Depreciation Summary</h6><p class="small text-muted">Current Book Value: @Model.TotalCurrentBookValue.ToString("N2")</p></div></div></div>
-    <div class="col-md-4"><div class="card card-kpi"><div class="card-body"><h6>Insurance Readiness</h6><p class="small text-muted">Expiring insurance in 60 days: @Model.ExpiringInsuranceCount</p></div></div></div>
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Reports Hub",
+    Subtitle = "Build customized operational and financial reports with live preview and PDF export.",
+    BackUrl = Url.Action("Index", "Dashboard"),
+    BackLabel = "Back to Dashboard"
+})
+
+<div style="display:none;">
+    @Html.AntiForgeryToken()
 </div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-kpi h-100">
+            <div class="card-body">
+                <div class="text-muted small">Assets in register</div>
+                <div class="h4 mb-0">@(Model != null ? Model.AssetRegisterCount : 0)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi h-100">
+            <div class="card-body">
+                <div class="text-muted small">Custody movements (90d)</div>
+                <div class="h4 mb-0">@(Model != null ? Model.CustodyMovementCount : 0)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi h-100">
+            <div class="card-body">
+                <div class="text-muted small">Active departments</div>
+                <div class="h4 mb-0">@(Model != null ? Model.DepartmentCount : 0)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi h-100">
+            <div class="card-body">
+                <div class="text-muted small">Pending approvals</div>
+                <div class="h4 mb-0">@(Model != null ? Model.PendingApprovalCount : 0)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        @foreach (var reportSection in sections)
+        {
+            <h6 class="am-report-section-title">@reportSection.Key</h6>
+            <div class="list-group mb-4 am-report-list">
+                @foreach (var report in reportSection)
+                {
+                    <div class="list-group-item am-report-item" data-report-key="@report.Key">
+                        <div class="d-flex w-100 justify-content-between align-items-start gap-3">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1" style="border-left: 4px solid @report.ThemeColor; padding-left: 0.65rem;">@report.Title</h6>
+                                <p class="small text-muted mb-2">@report.Description</p>
+                                <button type="button" class="btn btn-link btn-sm p-0 am-report-configure" data-report-key="@report.Key">
+                                    Customize &amp; run
+                                </button>
+                            </div>
+                            <div class="btn-group flex-shrink-0">
+                                <button type="button" class="btn btn-outline-primary btn-sm am-report-preview-quick" data-report-key="@report.Key">
+                                    Preview
+                                </button>
+                            </div>
+                        </div>
+                        <div class="am-report-filters mt-3 d-none" id="filters-@report.Key">
+                            @Html.Partial("_ReportFilters", report, new ViewDataDictionary { { "Hub", Model } })
+                            <div class="d-flex flex-wrap gap-2 mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm am-report-preview" data-report-key="@report.Key">
+                                    Preview report
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm am-report-download-csv" data-report-key="@report.Key">
+                                    Download CSV
+                                </button>
+                                <button type="button" class="btn btn-dark btn-sm am-report-download-pdf" data-report-key="@report.Key">
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Saved templates</span>
+                <small class="text-muted">Per browser</small>
+            </div>
+            <div class="card-body small">
+                <div id="amSavedTemplates">
+                    <p class="text-muted mb-0">Save filter combinations from any report to re-run them in one click.</p>
+                </div>
+            </div>
+        </div>
+        <div class="card h-100">
+            <div class="card-header">Report tips</div>
+            <div class="card-body small">
+                <ul class="mb-3 ps-3">
+                    <li>Use <strong>This week</strong> on Custody Movement for weekly department reviews.</li>
+                    <li><strong>Warranty Expiry</strong> and <strong>Insurance Coverage</strong> use forward-looking windows (next 30/90 days).</li>
+                    <li>Save templates for reports you run regularly — they appear in Saved templates above.</li>
+                    <li>Preview before download — PDF uses the same styled layout as on screen.</li>
+                </ul>
+                <div id="amRecentReports" class="am-recent-reports">
+                    <p class="text-muted mb-0">Generated reports will appear here during this session.</p>
+                </div>
+            </div>
+        </div>
+
+        @if (dash != null)
+        {
+            <h6 class="am-report-section-title mt-4">Portfolio snapshot</h6>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card card-kpi">
+                        <div class="card-body">
+                            <div class="text-muted small">Total acquisition value</div>
+                            <div class="h5 mb-0">@Html.FormatCurrency(dash.TotalAcquisitionValue)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card card-kpi">
+                        <div class="card-body">
+                            <div class="text-muted small">Warranties (@(dash.WarrantyThresholdDays)d)</div>
+                            <div class="h5 mb-0">@dash.ExpiringWarrantyCount</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card card-kpi">
+                        <div class="card-body">
+                            <div class="text-muted small">Insurance (@(dash.InsuranceThresholdDays)d)</div>
+                            <div class="h5 mb-0">@dash.ExpiringInsuranceCount</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="modal fade" id="amReportLoadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <h5>Preparing report</h5>
+                <p class="text-muted mb-0">Applying your filters and building the document…</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="amReportPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white border-0" style="background:#1a5278;">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i> <span id="amReportPreviewTitle">Report preview</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 bg-light">
+                <div id="amReportPreviewContent" class="app-report-preview bg-white mx-auto shadow-sm my-4"></div>
+            </div>
+            <div class="modal-footer bg-light border-0 justify-content-between">
+                <div class="small text-muted" id="amReportPreviewMeta"></div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="amReportPreviewDownloadPdf">
+                        Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        window.amReportsConfig = {
+            previewUrl: '@previewUrl',
+            exportUrl: '@exportUrl',
+            userKey: '@(User != null && User.Identity != null && User.Identity.IsAuthenticated ? User.Identity.Name.Replace("\\", "_").Replace("@", "_") : "anon")',
+            definitions: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(definitions))
+        };
+    </script>
+    <script src="@Url.Content("~/Scripts/app/reports.js")"></script>
+}

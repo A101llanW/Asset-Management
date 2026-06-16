@@ -1,0 +1,236 @@
+@model IList<AssetManagement.Application.ViewModels.ApprovalProcessSettingsVm>
+
+@using System.Collections.Generic
+
+@using System.Linq
+
+@using System.Web.Mvc
+
+@{
+
+    var processes = Model ?? new List<AssetManagement.Application.ViewModels.ApprovalProcessSettingsVm>();
+
+    var roleOptions = ViewBag.RoleOptions as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+
+    var fieldPrefix = ViewData.TemplateInfo.HtmlFieldPrefix;
+
+    if (string.IsNullOrWhiteSpace(fieldPrefix))
+
+    {
+
+        fieldPrefix = "ApprovalProcesses";
+
+    }
+
+
+
+    var maxStages = AssetManagement.Application.ViewModels.ApprovalWorkflowSettingsHelper.MaxApprovalStages;
+
+    var useApproverUserPicker = ViewBag.UseApproverUserPicker as bool? == true;
+
+    var approverRoleUsersJson = ViewBag.ApproverRoleUsersJson as string ?? "[]";
+
+}
+
+
+
+<div class="am-approval-matrix"
+
+     data-field-prefix="@fieldPrefix"
+
+     data-max-stages="@maxStages"
+
+     data-use-approver-user-picker="@(useApproverUserPicker ? "true" : "false")"
+
+     data-approver-options="@approverRoleUsersJson">
+
+    @for (var i = 0; i < processes.Count; i++)
+
+    {
+
+        var process = processes[i];
+
+        var stages = process.Stages ?? new List<AssetManagement.Application.ViewModels.ApprovalStageSettingsVm>();
+
+        if (stages.Count == 0 && process.RequiresApproval)
+
+        {
+
+            stages = new List<AssetManagement.Application.ViewModels.ApprovalStageSettingsVm>
+
+            {
+
+                new AssetManagement.Application.ViewModels.ApprovalStageSettingsVm()
+
+            };
+
+        }
+
+
+
+        <div class="am-approval-process border rounded p-3 mb-3" data-process-index="@i" data-max-stages="@maxStages">
+
+            <div class="row g-3 align-items-start">
+
+                <div class="col-md-4">
+
+                    <input type="hidden" name="@(fieldPrefix)[@i].ProcessCode" value="@process.ProcessCode" />
+
+                    <input type="hidden" name="@(fieldPrefix)[@i].DisplayName" value="@process.DisplayName" />
+
+                    <strong>@process.DisplayName</strong>
+
+                    <div class="small text-muted mt-1">@process.StageSummary</div>
+
+                </div>
+
+                <div class="col-md-2">
+
+                    <div class="form-check mt-1">
+
+                        <input class="form-check-input am-approval-requires-approval" type="checkbox" name="@(fieldPrefix)[@i].RequiresApproval" value="true" @(process.RequiresApproval ? "checked=\"checked\"" : null) />
+
+                        <input type="hidden" name="@(fieldPrefix)[@i].RequiresApproval" value="false" />
+
+                        <label class="form-check-label">Requires approval</label>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-6 am-approval-stages-panel@(process.RequiresApproval ? null : " d-none")">
+
+                    <div class="am-approval-stages-list">
+
+                        @for (var j = 0; j < stages.Count; j++)
+
+                        {
+
+                            <div class="am-approval-stage row g-2 align-items-center mb-2">
+
+                                <div class="col-md-2">
+
+                                    <span class="am-approval-stage-label fw-semibold">Stage @(j + 1)</span>
+
+                                </div>
+
+                                <div class="col-md-8">
+
+                                    @if (useApproverUserPicker)
+
+                                    {
+
+                                        <div class="am-approver-picker dropdown w-100"
+
+                                             data-role-id="@(stages[j].RoleId.HasValue ? stages[j].RoleId.Value.ToString() : "")"
+
+                                             data-user-id="@(stages[j].UserId ?? "")">
+
+                                            <button type="button"
+
+                                                    class="form-select text-start am-approver-picker-toggle dropdown-toggle"
+
+                                                    data-bs-toggle="dropdown"
+
+                                                    data-bs-auto-close="outside"
+
+                                                    aria-expanded="false">
+
+                                                <span class="am-approver-picker-label">-- Select approver --</span>
+
+                                            </button>
+
+                                            <input type="hidden"
+
+                                                   class="am-approver-role-input"
+
+                                                   name="@(fieldPrefix)[@i].Stages[@j].RoleId"
+
+                                                   value="@(stages[j].RoleId.HasValue ? stages[j].RoleId.Value.ToString() : "")" />
+
+                                            <input type="hidden"
+
+                                                   class="am-approver-user-input"
+
+                                                   name="@(fieldPrefix)[@i].Stages[@j].UserId"
+
+                                                   value="@(stages[j].UserId)" />
+
+                                            <div class="dropdown-menu am-approver-picker-menu w-100 p-0 shadow">
+
+                                                <div class="am-approver-picker-step-roles">
+
+                                                    <div class="dropdown-header">Select title</div>
+
+                                                </div>
+
+                                                <div class="am-approver-picker-step-users d-none">
+
+                                                    <button type="button" class="dropdown-item am-approver-picker-back">Back to titles</button>
+
+                                                    <div class="dropdown-header am-approver-picker-role-title"></div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    }
+
+                                    else
+
+                                    {
+
+                                        @Html.DropDownList(fieldPrefix + "[" + i + "].Stages[" + j + "].RoleId", new SelectList(roleOptions, "Value", "Text", stages[j].RoleId), "-- Select approver role --", new { @class = "form-select" })
+
+                                    }
+
+                                </div>
+
+                                <div class="col-md-2">
+
+                                    <button type="button" class="btn btn-outline-secondary btn-sm am-approval-remove-stage" @(stages.Count <= 1 ? "disabled=\"disabled\"" : null)>Remove</button>
+
+                                </div>
+
+                            </div>
+
+                        }
+
+                    </div>
+
+                    <button type="button" class="btn btn-outline-primary btn-sm am-approval-add-stage mt-1" @(stages.Count >= maxStages ? "disabled=\"disabled\"" : null)>Add stage</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    }
+
+
+
+    <select class="am-approval-role-template d-none" aria-hidden="true" tabindex="-1">
+
+        <option value="">-- Select approver role --</option>
+
+        @foreach (var roleOption in roleOptions)
+
+        {
+
+            <option value="@roleOption.Value">@roleOption.Text</option>
+
+        }
+
+    </select>
+
+</div>
+
+
+
+<script src="@Url.Content("~/Scripts/app/approval-approver-picker.js")"></script>
+
+<script src="@Url.Content("~/Scripts/app/approval-process-matrix.js")"></script>
+

@@ -1,8 +1,17 @@
 @model AssetManagement.Application.ViewModels.SettingsVm
+@using System.Linq
+@using System.Web.Mvc
 @{
     ViewBag.Title = "Settings";
 }
-<h3>Settings</h3>
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "System Settings",
+    Subtitle = "Manage operational defaults and configure which business processes require staged approval.",
+    BackUrl = Url.Action("Index", "Dashboard"),
+    BackLabel = "Back to Dashboard"
+})
 
 @using (Html.BeginForm("Index", "Settings", FormMethod.Post))
 {
@@ -47,30 +56,23 @@
                     @Html.LabelFor(m => m.DefaultCurrency, new { @class = "form-label" })
                     @Html.TextBoxFor(m => m.DefaultCurrency, new { @class = "form-control text-uppercase", maxlength = "10" })
                 </div>
-                <div class="col-md-4">
-                    @Html.LabelFor(m => m.DefaultUsefulLifeMonths, new { @class = "form-label" })
-                    @Html.TextBoxFor(m => m.DefaultUsefulLifeMonths, new { @class = "form-control", type = "number", min = "1" })
-                </div>
             </div>
+            <p class="text-muted small mb-0 mt-3">Useful life defaults are configured per asset category and asset type by company administrators.</p>
         </div>
     </div>
 
     <div class="card card-kpi mb-3">
-        <div class="card-header">Approvals</div>
+        <div class="card-header">Approval Matrix</div>
         <div class="card-body">
-            <div class="form-check mb-2">
-                @Html.CheckBoxFor(m => m.RequireTransferApproval, new { @class = "form-check-input" })
-                @Html.LabelFor(m => m.RequireTransferApproval, new { @class = "form-check-label" })
-            </div>
-            <div class="form-check">
-                @Html.CheckBoxFor(m => m.RequireDisposalApproval, new { @class = "form-check-input" })
-                @Html.LabelFor(m => m.RequireDisposalApproval, new { @class = "form-check-label" })
-            </div>
+            <p class="text-muted mb-3">Choose which business processes require approval and define as many stages as you need (up to @AssetManagement.Application.ViewModels.ApprovalWorkflowSettingsHelper.MaxApprovalStages). Pick the approver role for each stage in order. Stage roles are the same roles you maintain under Roles &amp; Permissions. Changes apply to new requests only.</p>
+            @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
         </div>
     </div>
 
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Save Settings</button>
-        <a class="btn btn-outline-secondary" href="@Url.Action("Index", "Dashboard")">Back to Dashboard</a>
-    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Save Settings",
+        BackUrl = Url.Action("Index", "Dashboard"),
+        BackLabel = "Back to Dashboard"
+    })
 }

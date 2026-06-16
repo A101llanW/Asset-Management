@@ -7,5 +7,7 @@ namespace AssetManagement.Application.Contracts
         string Save(Stream stream, string fileName, string contentType, string folder);
 
         void Delete(string relativePath);
+
+        string GetFullPath(string relativePath);
     }
 }

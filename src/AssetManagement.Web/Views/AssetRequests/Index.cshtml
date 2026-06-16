@@ -1,0 +1,86 @@
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetRequestListVm>
+@using AssetManagement.Domain.Enums
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Asset Requests";
+    var canCreate = Html.HasPermission("Assets.Request");
+    var departments = ViewBag.Departments as SelectList;
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Asset Requests",
+    Subtitle = "Employees request specific assets; approvers review and fulfill with assignment.",
+    PrimaryActionUrl = canCreate ? Url.Action("Create") : null,
+    PrimaryActionLabel = canCreate ? "New request" : null
+})
+
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input type="text" class="form-control" name="Search" placeholder="Search justification or asset name" value="@Model.Search" />
+        </div>
+        <div class="col-md-3">
+            @Html.DropDownList("Status", new SelectList(Enum.GetValues(typeof(AssetRequestStatus)).Cast<AssetRequestStatus>().Select(x => new { Value = (int)x, Text = x.ToString() }), "Value", "Text", Request["Status"]), "All statuses", new { @class = "form-select" })
+        </div>
+        <div class="col-md-3">
+            @Html.DropDownList("DepartmentId", departments, "All departments", new { @class = "form-select" })
+        </div>
+        <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+
+<div class="card card-kpi am-fade-in">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0 am-filterable-table" data-am-filterable>
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Requester</th>
+                        <th>Department</th>
+                        <th>Asset / category</th>
+                        <th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th>
+                        <th>@Html.SortLink("Submitted", "created", currentSort, currentDirection)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Items.Any())
+                {
+                    foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td>@item.Id</td>
+                            <td>@item.RequestedByName</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? DisplayText.Empty : item.DepartmentName)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.RequestedAssetName) ? (item.CategoryName ?? DisplayText.Empty) : item.RequestedAssetName)</td>
+                            <td><span class="badge bg-secondary">@item.Status</span></td>
+                            <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = item.Id })">Details</a></td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="7" class="text-muted p-4">No asset requests match these filters.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@if (Model.Items.Any())
+{
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel
+    {
+        Page = Model.Page,
+        TotalPages = Model.TotalPages,
+        TotalCount = Model.TotalCount,
+        StartItem = Model.StartItem,
+        EndItem = Model.EndItem
+    })
+}
