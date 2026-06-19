@@ -18,9 +18,8 @@ test.describe('Asset assignment business rules', () => {
   });
 
   test('permanent assignment updates asset status and custodian', async ({ page }) => {
-    // Use 009; 010 is reserved for full-lifecycle.spec.ts
-    const assetTag = inStoreAssetTags[2];
-    await openAssetByTag(page, assetTag);
+    await login(page, users.superAdmin);
+    await openAssetByTag(page, inStoreAssetTags[2]);
     await page.getByRole('link', { name: 'Assign', exact: true }).click();
 
     await page.locator('#ToUserId').selectOption(seededUserIds.assetManager);
@@ -33,7 +32,7 @@ test.describe('Asset assignment business rules', () => {
 
   test('assignment is blocked for user outside target department', async ({ page }) => {
     await login(page, users.superAdmin);
-    await openAssetByTag(page, inStoreAssetTags[2]);
+    await openAssetByTag(page, inStoreAssetTags[3]);
     await page.getByRole('link', { name: 'Assign', exact: true }).click();
 
     await page.locator('#ToDepartmentId').selectOption({ label: 'Information Technology' });
@@ -61,7 +60,7 @@ test.describe('Asset return business rules', () => {
     await login(page, users.assetManager);
     await openAssetByTag(page, assignedAssetTags[0]);
 
-    await page.getByRole('link', { name: 'Return', exact: true }).click();
+    await page.getByRole('link', { name: 'Return', exact: true }).first().click();
     await page.locator('#ReceivedById').selectOption(seededUserIds.assetManager);
     await page.locator('#ReturnCondition').fill('Good');
     await page.getByRole('button', { name: 'Submit Return' }).click();

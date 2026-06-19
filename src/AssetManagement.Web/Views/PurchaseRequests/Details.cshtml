@@ -85,14 +85,12 @@
 
                 @if (Model.IsPending)
                 {
-                    @{
-                        ViewData["CanApprove"] = canApprove;
-                        ViewData["ApproveAction"] = "Approve";
-                        ViewData["RejectAction"] = "Reject";
-                        ViewData["ApprovalController"] = "PurchaseRequests";
-                        ViewData["ApprovalEntityId"] = Model.Id;
-                        ViewData["ReturnUrl"] = Request.RawUrl;
-                    }
+                    ViewData["CanApprove"] = canApprove;
+                    ViewData["ApproveAction"] = "Approve";
+                    ViewData["RejectAction"] = "Reject";
+                    ViewData["ApprovalController"] = "PurchaseRequests";
+                    ViewData["ApprovalEntityId"] = Model.Id;
+                    ViewData["ReturnUrl"] = Request.RawUrl;
                     @Html.Partial("_ApprovalActions")
                     if (!canApprove)
                     {

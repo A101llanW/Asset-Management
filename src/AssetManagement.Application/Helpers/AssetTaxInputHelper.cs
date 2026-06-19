@@ -16,7 +16,18 @@ namespace AssetManagement.Application.Helpers
                 return;
             }
 
-            if (!model.TaxInputValue.HasValue || model.TaxInputValue.Value <= 0)
+            if (!model.TaxInputValue.HasValue)
+            {
+                if (model.TaxAmount > 0)
+                {
+                    return;
+                }
+
+                model.TaxAmount = 0;
+                return;
+            }
+
+            if (model.TaxInputValue.Value <= 0)
             {
                 model.TaxAmount = 0;
                 return;

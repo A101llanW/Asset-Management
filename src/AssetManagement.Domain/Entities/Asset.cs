@@ -43,9 +43,9 @@ namespace AssetManagement.Domain.Entities
 
         public string Currency { get; set; }
 
-        public int SupplierId { get; set; }
+        public int? SupplierId { get; set; }
 
-        public int DepartmentId { get; set; }
+        public int? DepartmentId { get; set; }
 
         public string CurrentCustodianId { get; set; }
 

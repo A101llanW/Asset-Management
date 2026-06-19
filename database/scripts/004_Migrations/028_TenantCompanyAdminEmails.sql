@@ -1,8 +1,5 @@
 -- Reserve superadmin@asset.local for platform admin; tenant company admins use {slug}@asset.local (demo-b -> demo@).
 
-DECLARE @passwordHash NVARCHAR(MAX) = N'ALJwzw5r970vW+fpNg4Ivw5nutwiP9Omge0gCdgtDVM2h6NFmycZ2GwSH5fyBqDTaw==';
-DECLARE @securityStamp NVARCHAR(64) = N'00000000000000000000000000000002';
-
 UPDATE u
 SET [Email] = e.[TargetEmail],
     [UserName] = e.[TargetEmail]
@@ -56,6 +53,9 @@ WHERE u.[OrganizationId] IS NOT NULL
   );
 GO
 
+DECLARE @passwordHash NVARCHAR(MAX) = N'ALJwzw5r970vW+fpNg4Ivw5nutwiP9Omge0gCdgtDVM2h6NFmycZ2GwSH5fyBqDTaw==';
+DECLARE @securityStamp NVARCHAR(64) = N'00000000000000000000000000000002';
+
 IF NOT EXISTS (SELECT 1 FROM [Users] WHERE [Email] = N'superadmin@asset.local' AND [OrganizationId] IS NULL)
 BEGIN
     DECLARE @platformRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Platform Admin' AND [OrganizationId] IS NULL ORDER BY [Id]);
@@ -71,6 +71,9 @@ BEGIN
     END
 END
 GO
+
+DECLARE @passwordHash NVARCHAR(MAX) = N'ALJwzw5r970vW+fpNg4Ivw5nutwiP9Omge0gCdgtDVM2h6NFmycZ2GwSH5fyBqDTaw==';
+DECLARE @securityStamp NVARCHAR(64) = N'00000000000000000000000000000002';
 
 -- Ensure each tenant has a company admin at its slug-based login email.
 DECLARE @orgId INT;

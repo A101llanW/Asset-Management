@@ -13,7 +13,7 @@ namespace AssetManagement.Web.App_Start
             routes.MapRoute(
                 name: "Tenant",
                 url: "{tenant}/{controller}/{action}/{id}",
-                defaults: new { controller = "Dashboard", action = "Index", id = UrlParameter.Optional },
+                defaults: new { controller = "Account", action = "Landing", id = UrlParameter.Optional },
                 constraints: new { tenant = new TenantRouteConstraint() },
                 namespaces: new[] { "AssetManagement.Web.Controllers" }
             );

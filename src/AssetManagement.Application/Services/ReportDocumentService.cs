@@ -539,7 +539,9 @@ namespace AssetManagement.Application.Services
                 .Where(x => x.PurchaseDate.Date >= period.From && x.PurchaseDate.Date <= period.To)
                 .OrderBy(x => x.AssetTag))
             {
-                var dept = departments.ContainsKey(asset.DepartmentId) ? departments[asset.DepartmentId] : string.Empty;
+                var dept = asset.DepartmentId.HasValue && departments.ContainsKey(asset.DepartmentId.Value)
+                    ? departments[asset.DepartmentId.Value]
+                    : string.Empty;
                 totalDebit += asset.AcquisitionCost;
                 var row = new[]
                 {
@@ -606,7 +608,9 @@ namespace AssetManagement.Application.Services
                     criticalCount++;
                 }
 
-                var dept = departments.ContainsKey(asset.DepartmentId) ? departments[asset.DepartmentId] : string.Empty;
+                var dept = asset.DepartmentId.HasValue && departments.ContainsKey(asset.DepartmentId.Value)
+                    ? departments[asset.DepartmentId.Value]
+                    : string.Empty;
                 var row = new[]
                 {
                     asset.AssetTag,
@@ -674,8 +678,8 @@ namespace AssetManagement.Application.Services
                 }
 
                 totalInsured += policy.InsuredValue;
-                var dept = asset != null && departments.ContainsKey(asset.DepartmentId)
-                    ? departments[asset.DepartmentId]
+                var dept = asset != null && asset.DepartmentId.HasValue && departments.ContainsKey(asset.DepartmentId.Value)
+                    ? departments[asset.DepartmentId.Value]
                     : string.Empty;
                 var row = new[]
                 {

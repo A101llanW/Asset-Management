@@ -63,6 +63,8 @@ namespace AssetManagement.Application.ViewModels
 
         public string Name { get; set; }
 
+        public int AssetCategoryId { get; set; }
+
         public bool IsActive { get; set; }
     }
 }

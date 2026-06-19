@@ -17,9 +17,28 @@ namespace AssetManagement.Web.Helpers
             Expression<Func<TModel, TValue>> expression,
             object htmlAttributes)
         {
-            var fieldName = ExpressionHelper.GetExpressionText(expression);
             var metadata = ModelMetadata.FromLambdaExpression(expression, html.ViewData);
+            var fieldName = ExpressionHelper.GetExpressionText(expression);
             var labelText = metadata.DisplayName ?? metadata.PropertyName ?? fieldName;
+            return BuildLabel(html, expression, labelText, htmlAttributes);
+        }
+
+        public static MvcHtmlString LabelFor<TModel, TValue>(
+            this HtmlHelper<TModel> html,
+            Expression<Func<TModel, TValue>> expression,
+            string labelText,
+            object htmlAttributes)
+        {
+            return BuildLabel(html, expression, labelText, htmlAttributes);
+        }
+
+        private static MvcHtmlString BuildLabel<TModel, TValue>(
+            HtmlHelper<TModel> html,
+            Expression<Func<TModel, TValue>> expression,
+            string labelText,
+            object htmlAttributes)
+        {
+            var fieldName = ExpressionHelper.GetExpressionText(expression);
             var tag = new TagBuilder("label");
             tag.Attributes["for"] = html.ViewContext.ViewData.TemplateInfo.GetFullHtmlFieldId(fieldName);
             tag.MergeAttributes(HtmlHelper.AnonymousObjectToHtmlAttributes(htmlAttributes));

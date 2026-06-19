@@ -164,6 +164,47 @@ namespace AssetManagement.Tests
         }
 
         [Test]
+        public void AssetService_CreateAllowsOptionalDepartmentAndSupplier()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new AssetCategory
+            {
+                Id = 1,
+                Name = "IT Equipment",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+            unitOfWork.Seed(new AssetType
+            {
+                Id = 1,
+                Name = "Laptop",
+                AssetCategoryId = 1,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+
+            var service = TestServiceFactory.CreateAssetService(unitOfWork);
+            var assetId = service.Create(new AssetCreateVm
+            {
+                AssetName = "Organization Custody Asset",
+                AssetTag = "ORG-001",
+                CategoryId = 1,
+                AssetTypeId = 1,
+                Brand = "Generic",
+                Model = "Model",
+                PurchaseDate = DateTime.UtcNow,
+                AcquisitionCost = 500,
+                Currency = "USD",
+                DepreciationMethod = DepreciationMethod.StraightLine,
+                DepreciationStartDate = DateTime.UtcNow
+            });
+
+            var created = unitOfWork.Repository<Asset>().GetById(assetId);
+            Assert.IsNull(created.DepartmentId);
+            Assert.IsNull(created.SupplierId);
+        }
+
+        [Test]
         public void AssetService_CreateRejectsDuplicateAssetTag()
         {
             var unitOfWork = new FakeUnitOfWork();
@@ -467,6 +508,7 @@ namespace AssetManagement.Tests
             {
                 AssetId = 50,
                 IncidentType = IncidentType.Lost.ToString(),
+                Severity = IncidentSeverity.High.ToString(),
                 IncidentDate = DateTime.UtcNow.AddHours(-1),
                 Description = "Lost while in transit"
             });
@@ -508,6 +550,7 @@ namespace AssetManagement.Tests
             {
                 AssetId = 50,
                 IncidentType = IncidentType.Damaged.ToString(),
+                Severity = IncidentSeverity.Medium.ToString(),
                 IncidentDate = DateTime.UtcNow.AddHours(-1),
                 Description = "Cracked screen"
             }));

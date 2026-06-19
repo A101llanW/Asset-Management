@@ -24,23 +24,27 @@
                         }
 
                         <div class="mb-3">
-                            <label class="form-label" for="Name">Organization name</label>
-                            <input type="text" name="Name" id="Name" class="form-control" placeholder="Enter full organization name" value="@Model?.Name" required />
+                            @Html.LabelFor(m => m.Name, "Organization name", new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", required = "required" })
+                            @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger small" })
                             <div class="form-text">A unique portal URL slug is generated automatically (same pattern as Recruitment).</div>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label" for="AdminEmail">Admin email (optional)</label>
-                                <input type="email" name="AdminEmail" id="AdminEmail" class="form-control" value="@Model?.AdminEmail" />
+                                @Html.LabelFor(m => m.AdminEmail, "Admin email (optional)", new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.AdminEmail, new { @class = "form-control", type = "email" })
+                                @Html.ValidationMessageFor(m => m.AdminEmail, "", new { @class = "text-danger small" })
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label" for="AdminFirstName">Admin first name</label>
-                                <input type="text" name="AdminFirstName" id="AdminFirstName" class="form-control" value="@Model?.AdminFirstName" />
+                                @Html.LabelFor(m => m.AdminFirstName, "Admin first name", new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.AdminFirstName, new { @class = "form-control" })
+                                @Html.ValidationMessageFor(m => m.AdminFirstName, "", new { @class = "text-danger small" })
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label" for="AdminLastName">Admin last name</label>
-                                <input type="text" name="AdminLastName" id="AdminLastName" class="form-control" value="@Model?.AdminLastName" />
+                                @Html.LabelFor(m => m.AdminLastName, "Admin last name", new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.AdminLastName, new { @class = "form-control" })
+                                @Html.ValidationMessageFor(m => m.AdminLastName, "", new { @class = "text-danger small" })
                             </div>
                         </div>
 

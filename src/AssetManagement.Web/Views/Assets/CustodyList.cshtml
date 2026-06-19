@@ -68,7 +68,7 @@ else
                         <tr>
                             <td><span class="am-tag-pill">@item.AssetTag</span></td>
                             <td>@item.AssetName</td>
-                            <td>@item.DepartmentName</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Organization custody" : item.DepartmentName)</td>
                             <td>@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? DisplayText.Empty : item.CurrentCustodianName)</td>
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.CurrentStatus) badge-status">@item.CurrentStatus</span></td>
                             <td class="text-end">

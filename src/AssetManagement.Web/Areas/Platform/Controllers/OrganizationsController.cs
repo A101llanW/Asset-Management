@@ -62,8 +62,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                     AssetCount = assetCount,
                     LicenseExpiryDate = license != null ? (DateTime?)license.ExpiryDate : null,
                     DaysUntilExpiry = license != null ? (int?)license.DaysRemaining : null,
-                    LicenseEffectiveStatus = license != null ? license.EffectiveStatus : LicenseStatus.Expired,
-                    LicensePlanName = license != null ? license.PlanName : null
+                    LicenseEffectiveStatus = license != null ? license.EffectiveStatus : LicenseStatus.Expired
                 };
             }).ToList();
 
@@ -137,7 +136,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                     ImpersonationHistory = LoadImpersonationHistory(id),
                     LicenseEffectiveStatus = licenseDetail != null ? licenseDetail.EffectiveStatus : LicenseStatus.Expired,
                     LicenseExpiryDate = licenseDetail != null ? (DateTime?)licenseDetail.ExpiryDate : null,
-                    LicensePlanName = licenseDetail != null ? licenseDetail.PlanName : null,
                     DaysUntilExpiry = licenseDetail != null ? (int?)licenseDetail.DaysRemaining : null,
                     LicenseHistory = licenseDetail != null && licenseDetail.History != null
                         ? licenseDetail.History.ToList()
@@ -290,8 +288,10 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             var actorName = GetActorName();
             if (ImpersonationSessionHelper.IsSessionImpersonating(Session))
             {
-                ImpersonationSessionHelper.TryEndActiveImpersonation(Session, _unitOfWork, _auditWriter, actorName)
-                    || ImpersonationSessionHelper.TryClearStaleImpersonationSession(Session, _unitOfWork, _auditWriter, actorName);
+                if (!ImpersonationSessionHelper.TryEndActiveImpersonation(Session, _unitOfWork, _auditWriter, actorName))
+                {
+                    ImpersonationSessionHelper.TryClearStaleImpersonationSession(Session, _unitOfWork, _auditWriter, actorName);
+                }
                 TempData["Message"] = "Impersonation session closed.";
             }
 
@@ -531,8 +531,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         public int? DaysUntilExpiry { get; set; }
 
         public LicenseStatus LicenseEffectiveStatus { get; set; }
-
-        public string LicensePlanName { get; set; }
     }
 
     public class OrganizationDetailsViewModel
@@ -562,8 +560,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         public DateTime? LicenseExpiryDate { get; set; }
 
         public int? DaysUntilExpiry { get; set; }
-
-        public string LicensePlanName { get; set; }
 
         public List<LicenseHistoryItemVm> LicenseHistory { get; set; }
     }

@@ -146,10 +146,6 @@
                                     {
                                         var days = Model.DaysUntilExpiry ?? 0;
                                         <div class="fw-semibold">@Model.LicenseExpiryDate.Value.ToString("dd MMM yyyy")</div>
-                                        if (!string.IsNullOrWhiteSpace(Model.LicensePlanName))
-                                        {
-                                            <div class="small text-muted">@Model.LicensePlanName</div>
-                                        }
                                         <div class="small @(days < 0 ? "text-danger" : (days <= 30 ? "text-warning" : "text-success"))">
                                             @(days < 0 ? "Expired " + Math.Abs(days) + " days ago" : days + " days remaining")
                                         </div>

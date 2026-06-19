@@ -2386,6 +2386,19 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     color: hsl(355, 75%, 45%);
 }
 
+.am-form-validation-summary .validation-summary-errors {
+    color: inherit;
+}
+
+.am-form-validation-summary .validation-summary-errors ul {
+    margin-bottom: 0;
+    padding-left: 1.25rem;
+}
+
+.validation-summary-valid {
+    display: none !important;
+}
+
 .alert-success {
     background-color: hsla(145, 65%, 39%, 0.08);
     border-color: hsla(145, 65%, 39%, 0.25);

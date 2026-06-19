@@ -509,7 +509,9 @@ namespace AssetManagement.Application.Services
             foreach (var asset in _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query())
                 .Where(x => x.IsActive).OrderBy(x => x.AssetTag))
             {
-                var dept = departments.ContainsKey(asset.DepartmentId) ? departments[asset.DepartmentId] : string.Empty;
+                var dept = asset.DepartmentId.HasValue && departments.ContainsKey(asset.DepartmentId.Value)
+                    ? departments[asset.DepartmentId.Value]
+                    : string.Empty;
                 rows.Add(new[]
                 {
                     asset.PurchaseDate.ToString("yyyy-MM-dd"),

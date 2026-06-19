@@ -198,6 +198,35 @@ body.am-login-page.am-auth-theme-light .am-auth-legal a {
     color: rgba(15, 23, 42, 0.72);
 }
 
+body.am-login-page.am-auth-theme-light .am-portal-panel .am-portal-alert.alert-danger {
+    background: #fde8ea;
+    border: 1px solid rgba(176, 0, 32, 0.35);
+    color: #b00020;
+}
+
+body.am-login-page.am-auth-theme-light .am-portal-panel .am-portal-alert.alert-success {
+    background: #e3f5ea;
+    border: 1px solid rgba(15, 105, 56, 0.35);
+    color: #0f6938;
+}
+
+body.am-login-page.am-auth-theme-light .am-portal-panel .am-portal-alert.alert-warning {
+    background: #fdf3e2;
+    border: 1px solid rgba(146, 92, 0, 0.35);
+    color: #925c00;
+}
+
+body.am-login-page.am-auth-theme-light .am-portal-panel .am-portal-alert.alert-info {
+    background: #e4f4fb;
+    border: 1px solid rgba(7, 89, 133, 0.3);
+    color: #075985;
+}
+
+body.am-login-page.am-auth-theme-light .am-portal-panel .am-portal-alert code {
+    color: #b00020;
+    background: rgba(176, 0, 32, 0.08);
+}
+
 @media (max-width: 575.98px) {
     .am-auth-header-copy {
         display: none;

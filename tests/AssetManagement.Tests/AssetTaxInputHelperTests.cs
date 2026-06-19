@@ -43,7 +43,7 @@ namespace AssetManagement.Tests
             var model = new AssetCreateVm
             {
                 AcquisitionCost = 1000m,
-                TaxAmount = 99m,
+                TaxAmount = 0m,
                 TaxInputMode = AssetTaxInputHelper.AmountMode,
                 TaxInputValue = null
             };
@@ -51,6 +51,22 @@ namespace AssetManagement.Tests
             AssetTaxInputHelper.ApplyTaxInput(model);
 
             Assert.AreEqual(0m, model.TaxAmount);
+        }
+
+        [Test]
+        public void ApplyTaxInput_PreservesPostedTaxAmountWhenInputValueMissing()
+        {
+            var model = new AssetCreateVm
+            {
+                AcquisitionCost = 1000m,
+                TaxAmount = 160m,
+                TaxInputMode = AssetTaxInputHelper.PercentageMode,
+                TaxInputValue = null
+            };
+
+            AssetTaxInputHelper.ApplyTaxInput(model);
+
+            Assert.AreEqual(160m, model.TaxAmount);
         }
 
         [Test]

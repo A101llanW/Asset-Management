@@ -68,7 +68,7 @@ namespace AssetManagement.Application.Services
                 {
                     "Dell Latitude 7420", "IT-LAP-001", "IT Equipment", "", "Laptop", "",
                     "Dell", "Latitude 7420", "SN123456", "Finance team laptop", "2024-01-15", "1200.00",
-                    "0", FinanceDefaults.DefaultCurrencyCode, "Tech Supplies Ltd", "", "Finance", "",
+                    "0", FinanceDefaults.DefaultCurrencyCode, "", "", "", "",
                     "New", "36", "0", "StraightLine", "2024-01-15", "1200.00", "false", "",
                     "", "", "InStore", "IT-LAP-001", "", "New", "", "", "", "false"
                 }
@@ -265,8 +265,9 @@ namespace AssetManagement.Application.Services
                 AcquisitionCost = model.AcquisitionCost,
                 TaxAmount = model.TaxAmount,
                 Currency = model.Currency,
-                SupplierId = model.SupplierId,
-                DepartmentId = model.DepartmentId,
+                SupplierId = NormalizeOptionalId(model.SupplierId),
+                DepartmentId = NormalizeOptionalId(model.DepartmentId),
+                CurrentCustodianId = null,
                 ConditionOnReceipt = model.ConditionOnReceipt,
                 UsefulLifeMonths = UsefulLifeResolver.Resolve(_unitOfWork, model.AssetTypeId, model.CategoryId),
                 SalvageValue = 0,
@@ -395,8 +396,8 @@ namespace AssetManagement.Application.Services
                 AcquisitionCost = acquisitionCost,
                 TaxAmount = ParseOptionalDecimal(row, "TaxAmount") ?? 0m,
                 Currency = currency.Trim().ToUpperInvariant(),
-                SupplierId = supplier.Id,
-                DepartmentId = department.Id,
+                SupplierId = supplier == null ? (int?)null : supplier.Id,
+                DepartmentId = department == null ? (int?)null : department.Id,
                 ConditionOnReceipt = GetValue(row, "ConditionOnReceipt"),
                 SalvageValue = ParseOptionalDecimal(row, "SalvageValue") ?? 0m,
                 DepreciationMethod = depreciationMethod,
@@ -511,7 +512,7 @@ namespace AssetManagement.Application.Services
                     }
                 }
 
-                throw new BusinessException("Department or DepartmentId is required.");
+                return null;
             }
 
             Department byName;
@@ -541,7 +542,7 @@ namespace AssetManagement.Application.Services
             var supplierName = GetValue(row, "Supplier");
             if (string.IsNullOrWhiteSpace(supplierName))
             {
-                throw new BusinessException("Supplier or SupplierId is required.");
+                return null;
             }
 
             Supplier byName;
@@ -577,6 +578,7 @@ namespace AssetManagement.Application.Services
                 {
                     Id = x.Id,
                     Name = x.Name,
+                    AssetCategoryId = x.AssetCategoryId,
                     IsActive = x.IsActive,
                     OrganizationId = organizationId.Value
                 })
@@ -801,6 +803,11 @@ namespace AssetManagement.Application.Services
             public Dictionary<int, Supplier> SuppliersById { get; set; }
 
             public Dictionary<string, Supplier> SuppliersByName { get; set; }
+        }
+
+        private static int? NormalizeOptionalId(int? value)
+        {
+            return value.HasValue && value.Value > 0 ? value : null;
         }
     }
 }

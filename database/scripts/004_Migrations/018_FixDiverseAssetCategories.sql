@@ -1,5 +1,5 @@
 -- Correct demo asset categories for visible variety (printers/projectors -> Office Equipment, lab centrifuge type).
-DECLARE @orgId INT = (SELECT TOP 1 [Id] FROM [Organization] WHERE [Slug] = N'default' ORDER BY [Id]);
+DECLARE @orgId INT = (SELECT TOP 1 [Id] FROM [Organization] WHERE [Slug] IN (N'nanosoft', N'default') ORDER BY CASE WHEN [Slug] = N'nanosoft' THEN 0 ELSE 1 END, [Id]);
 IF @orgId IS NULL
     SET @orgId = (SELECT TOP 1 [Id] FROM [Organization] ORDER BY [Id]);
 

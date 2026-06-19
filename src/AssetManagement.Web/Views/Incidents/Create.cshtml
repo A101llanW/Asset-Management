@@ -25,6 +25,11 @@
         @Html.ValidationMessageFor(m => m.IncidentType, "", new { @class = "text-danger" })
     </div>
     <div class="mb-3">
+        <label class="form-label">Severity</label>
+        @Html.DropDownListFor(m => m.Severity, (SelectList)ViewBag.Severities, "-- Select Severity --", new { @class = "form-select" })
+        @Html.ValidationMessageFor(m => m.Severity, "", new { @class = "text-danger" })
+    </div>
+    <div class="mb-3">
         <label class="form-label">Incident Date</label>
         @Html.TextBoxFor(m => m.IncidentDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
         @Html.ValidationMessageFor(m => m.IncidentDate, "", new { @class = "text-danger" })

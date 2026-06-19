@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Web.Mvc;
@@ -41,7 +42,7 @@ namespace AssetManagement.Web.Controllers
 
         public ActionResult Login(string returnUrl)
         {
-            ViewBag.ReturnUrl = returnUrl;
+            ViewBag.ReturnUrl = ParseReturnPathOrNull(returnUrl);
             ConfigureLoginViewBag();
             return View();
         }
@@ -80,7 +81,7 @@ namespace AssetManagement.Web.Controllers
 
             var ticketUser = new ApplicationUser { Id = result.UserId };
             CurrentUserExtensions.SetAuthCookie(Response, ticketUser, false);
-            return RedirectToLocal(returnUrl, result.UserId, TenantUrlHelper.GetTenantToken(RouteData));
+            return RedirectToLocal(ParseReturnPathOrNull(returnUrl), result.UserId, TenantUrlHelper.GetTenantToken(RouteData));
         }
 
         [HttpPost]
@@ -145,7 +146,7 @@ namespace AssetManagement.Web.Controllers
             _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, true, organizationId, null);
             _accountSecurityService.ClearFailedLoginAttempts(model.Email, organizationId);
 
-            return CompleteLoginAfterCredentials(model, returnUrl, userId, tenantSlug);
+            return CompleteLoginAfterCredentials(model, ParseReturnPathOrNull(returnUrl), userId, tenantSlug);
         }
 
         [Authorize]
@@ -264,6 +265,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult ConfirmLegalConsent(bool acceptLegalTerms, string returnUrl)
         {
             ConfigureLoginViewBag();
+            var safeReturnUrl = ParseReturnPathOrNull(returnUrl);
             var userId = LegalConsentSession.TryReadUserId(Session);
             if (string.IsNullOrWhiteSpace(userId) || !LegalConsentSession.IsFresh(Session))
             {
@@ -276,7 +278,7 @@ namespace AssetManagement.Web.Controllers
             {
                 ModelState.AddModelError("", "Please accept the Terms and Conditions and Privacy Policy to continue.");
                 ViewBag.ShowLegalConsentModal = true;
-                ConfigureLegalConsentViewBag(returnUrl);
+                ConfigureLegalConsentViewBag(safeReturnUrl);
                 return View("Login", new LoginViewModel { Email = Session[LegalConsentSession.PendingEmailSession] as string });
             }
 
@@ -284,11 +286,11 @@ namespace AssetManagement.Web.Controllers
 
             var rememberMe = Session[LegalConsentSession.PendingRememberMeSession] as bool? ?? false;
             var email = Session[LegalConsentSession.PendingEmailSession] as string;
-            var pendingReturnUrl = Session[LegalConsentSession.PendingReturnUrlSession] as string;
+            var pendingReturnUrl = ParseReturnPathOrNull(Session[LegalConsentSession.PendingReturnUrlSession] as string);
             LegalConsentSession.Clear(Session);
 
             var tenantSlug = TenantUrlHelper.GetTenantToken(RouteData);
-            return CompleteLoginAfterLegalConsent(email, rememberMe, pendingReturnUrl ?? returnUrl, userId, tenantSlug);
+            return CompleteLoginAfterLegalConsent(email, rememberMe, pendingReturnUrl ?? safeReturnUrl, userId, tenantSlug);
         }
 
         [HttpGet]
@@ -337,7 +339,7 @@ namespace AssetManagement.Web.Controllers
                 userId,
                 Session["PendingMfaEmail"] as string,
                 Session["PendingMfaRememberMe"] as bool? ?? false,
-                Session["PendingMfaReturnUrl"] as string,
+                ParseReturnPathOrNull(Session["PendingMfaReturnUrl"] as string),
                 TenantUrlHelper.GetTenantToken(RouteData));
         }
 
@@ -410,7 +412,7 @@ namespace AssetManagement.Web.Controllers
                 userId,
                 Session["PendingMfaEmail"] as string,
                 Session["PendingMfaRememberMe"] as bool? ?? false,
-                Session["PendingMfaReturnUrl"] as string,
+                ParseReturnPathOrNull(Session["PendingMfaReturnUrl"] as string),
                 TenantUrlHelper.GetTenantToken(RouteData));
         }
 
@@ -669,6 +671,8 @@ namespace AssetManagement.Web.Controllers
 
         private ActionResult ContinueLoginAfterLegalChecks(string email, bool rememberMe, string returnUrl, string userId, string tenantSlug)
         {
+            var safeReturnUrl = ParseReturnPathOrNull(returnUrl);
+
             if (_accountSecurityService != null && _accountSecurityService.RequiresPrivilegedMfa(userId))
             {
                 var user = FindUserById(userId);
@@ -677,18 +681,18 @@ namespace AssetManagement.Web.Controllers
                     Session["ForcedMfaSetupUserId"] = userId;
                     Session["PendingMfaEmail"] = email;
                     Session["PendingMfaRememberMe"] = rememberMe;
-                    Session["PendingMfaReturnUrl"] = returnUrl;
+                    Session["PendingMfaReturnUrl"] = safeReturnUrl;
                     return RedirectToAction("SetupMfa", new { tenant = tenantSlug });
                 }
 
                 Session["PendingMfaUserId"] = userId;
                 Session["PendingMfaEmail"] = email;
                 Session["PendingMfaRememberMe"] = rememberMe;
-                Session["PendingMfaReturnUrl"] = returnUrl;
+                Session["PendingMfaReturnUrl"] = safeReturnUrl;
                 return RedirectToAction("VerifyMfa", new { tenant = tenantSlug });
             }
 
-            return IssueAuthCookieAndRedirect(userId, email, rememberMe, returnUrl, tenantSlug);
+            return IssueAuthCookieAndRedirect(userId, email, rememberMe, safeReturnUrl, tenantSlug);
         }
 
         private ActionResult IssueAuthCookieAndRedirect(string userId, string email, bool rememberMe, string returnUrl, string tenantSlug)
@@ -713,9 +717,10 @@ namespace AssetManagement.Web.Controllers
             Session[LegalConsentSession.PendingStartedTicksSession] = System.DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
             Session[LegalConsentSession.PendingEmailSession] = model.Email;
             Session[LegalConsentSession.PendingRememberMeSession] = model.RememberMe;
-            if (!string.IsNullOrWhiteSpace(returnUrl))
+            var safeReturnUrl = ParseReturnPathOrNull(returnUrl);
+            if (!string.IsNullOrWhiteSpace(safeReturnUrl))
             {
-                Session[LegalConsentSession.PendingReturnUrlSession] = returnUrl;
+                Session[LegalConsentSession.PendingReturnUrlSession] = safeReturnUrl;
             }
             else
             {
@@ -732,7 +737,24 @@ namespace AssetManagement.Web.Controllers
             ViewBag.LegalPrivacyUrl = string.IsNullOrWhiteSpace(tenantSlug)
                 ? Url.Action("Privacy", "Home")
                 : Url.RouteUrl("Tenant", new { tenant = tenantSlug, controller = "Home", action = "Privacy" });
-            ViewBag.ReturnUrl = returnUrl;
+            ViewBag.ReturnUrl = ParseReturnPathOrNull(returnUrl);
+        }
+
+        private string ParseReturnPathOrNull(string returnUrl)
+        {
+            Uri parsedUri;
+            if (!LocalReturnUrlHelper.TryParseLocalReturnUri(returnUrl, Url, out parsedUri))
+            {
+                return null;
+            }
+
+            var path = LocalReturnUrlHelper.FormatReturnPathAndQuery(parsedUri);
+            if (LocalReturnUrlHelper.IsDefaultTenantLandingPath(path))
+            {
+                return null;
+            }
+
+            return path;
         }
 
         private ApplicationUser FindUserById(string userId)
@@ -775,15 +797,20 @@ namespace AssetManagement.Web.Controllers
                 return PlatformAdminHelper.CreateOrganizationsRedirect();
             }
 
-            if (Url.IsLocalUrl(returnUrl))
+            var safeReturnUrl = ParseReturnPathOrNull(returnUrl);
+            if (!string.IsNullOrWhiteSpace(safeReturnUrl) &&
+                PostLoginRedirectHelper.CanAccessReturnPath(_authorizationService, userId, safeReturnUrl))
             {
-                return Redirect(returnUrl);
+                return Redirect(safeReturnUrl);
             }
 
-            var destination = ResolveDefaultDestination(userId);
+            var destination = PostLoginRedirectHelper.ResolveDefaultDestination(
+                _authorizationService,
+                userId,
+                IsPlatformAdminUser(userId));
             if (!string.IsNullOrWhiteSpace(destination.Area))
             {
-                return RedirectToDestination(destination);
+                return RedirectToAction(destination.Action, destination.Controller, new { area = destination.Area });
             }
 
             var organizationSlug = tenantSlug ?? TenantUrlHelper.ResolveOrganizationSlug(_unitOfWork, userId);
@@ -946,58 +973,6 @@ namespace AssetManagement.Web.Controllers
             return PlatformAdminHelper.IsPlatformAdmin(userId);
         }
 
-        private ActionResult RedirectToDestination(RouteTarget destination)
-        {
-            if (!string.IsNullOrWhiteSpace(destination.Area))
-            {
-                if (string.Equals(destination.Area, "Platform", System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return PlatformAdminHelper.CreateOrganizationsRedirect();
-                }
-
-                return RedirectToAction(destination.Action, destination.Controller, new { area = destination.Area });
-            }
-
-            return RedirectToAction(destination.Action, destination.Controller);
-        }
-
-        private RouteTarget ResolveDefaultDestination(string userId)
-        {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                return new RouteTarget("Dashboard", "Index");
-            }
-
-            if (IsPlatformAdminUser(userId))
-            {
-                return new RouteTarget("Organizations", "Index", "Platform");
-            }
-
-            var candidates = new[]
-            {
-                new { Permission = "Reports.View", Controller = "Dashboard", Action = "Index" },
-                new { Permission = "Assets.View", Controller = "Assets", Action = "Index" },
-                new { Permission = "Incidents.View", Controller = "Incidents", Action = "Index" },
-                new { Permission = "Claims.View", Controller = "Claims", Action = "Index" },
-                new { Permission = "Departments.View", Controller = "Departments", Action = "Index" },
-                new { Permission = "Suppliers.View", Controller = "Suppliers", Action = "Index" },
-                new { Permission = "Users.View", Controller = "Users", Action = "Index" },
-                new { Permission = "Roles.View", Controller = "Roles", Action = "Index" },
-                new { Permission = "AuditLogs.View", Controller = "AuditLogs", Action = "Index" },
-                new { Permission = "Settings.Manage", Controller = "Settings", Action = "Index" }
-            };
-
-            foreach (var candidate in candidates)
-            {
-                if (_authorizationService.HasPermission(userId, candidate.Permission))
-                {
-                    return new RouteTarget(candidate.Controller, candidate.Action);
-                }
-            }
-
-            return new RouteTarget("Dashboard", "Index");
-        }
-
         private static string BuildInvalidLoginMessage(int remainingAttempts)
         {
             if (remainingAttempts > 1)
@@ -1093,22 +1068,6 @@ namespace AssetManagement.Web.Controllers
             {
                 model.OrganizationName = "Platform";
             }
-        }
-
-        private sealed class RouteTarget
-        {
-            public RouteTarget(string controller, string action, string area = null)
-            {
-                Controller = controller;
-                Action = action;
-                Area = area;
-            }
-
-            public string Controller { get; private set; }
-
-            public string Action { get; private set; }
-
-            public string Area { get; private set; }
         }
     }
 }

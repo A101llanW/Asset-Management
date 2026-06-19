@@ -15,7 +15,7 @@ namespace AssetManagement.Application.Contracts.Security
         bool ValidateMfaCode(string userId, string code);
 
         /// <summary>
-        /// True when MfaAllowAnyCode is enabled (development convenience; disable for production).
+        /// True when MfaAllowAnyCode is explicitly enabled in app settings (E2E/dev only; off by default).
         /// </summary>
         bool IsMfaCodeValidationRelaxed();
 

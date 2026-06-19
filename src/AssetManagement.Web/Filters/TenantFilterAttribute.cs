@@ -271,6 +271,8 @@ namespace AssetManagement.Web.Filters
             if (string.Equals(controllerName, "Account", StringComparison.OrdinalIgnoreCase))
             {
                 return string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "Landing", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "Profile", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "LogOff", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "Register", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ForgotPassword", StringComparison.OrdinalIgnoreCase)

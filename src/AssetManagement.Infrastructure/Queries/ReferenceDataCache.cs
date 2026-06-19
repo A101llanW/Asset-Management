@@ -38,7 +38,7 @@ WHERE [OrganizationId] = @OrganizationId
 ORDER BY [Name]";
 
         private const string AssetTypesSql = @"
-SELECT [Id], [Name], [IsActive]
+SELECT [Id], [Name], [AssetCategoryId], [IsActive]
 FROM [AssetType]
 WHERE [OrganizationId] = @OrganizationId
   AND (@ActiveOnly = 0 OR [IsActive] = 1)
@@ -431,6 +431,7 @@ WHERE u.[OrganizationId] = @OrganizationId
                             {
                                 Id = Convert.ToInt32(reader["Id"]),
                                 Name = SqlQueryHelper.GetString(reader, "Name"),
+                                AssetCategoryId = Convert.ToInt32(reader["AssetCategoryId"]),
                                 IsActive = Convert.ToBoolean(reader["IsActive"])
                             });
                         }

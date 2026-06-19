@@ -1,3 +1,4 @@
+@using System.Globalization
 @using System.Linq
 @model AssetManagement.Application.ViewModels.AssetCreateVm
 @using AssetManagement.Domain.Entities
@@ -7,6 +8,8 @@
     var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetType> ?? Enumerable.Empty<AssetType>();
     var departments = ViewBag.Departments as SelectList;
     var suppliers = ViewBag.Suppliers as SelectList;
+    var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
+    var acquisitionCostDisplay = Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"));
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -20,7 +23,8 @@
 @using (Html.BeginForm("Create", "Assets", FormMethod.Post))
 {
     @Html.AntiForgeryToken()
-    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger rounded-3 mb-4" })
+    @Html.HiddenFor(m => m.Currency)
+    @Html.ValidationSummary(false, "Please correct the following:", new { @class = "alert alert-danger rounded-3 mb-4 am-form-validation-summary" })
 
     @* Section 1: Core Details *@
     <div class="card card-kpi border-0 shadow-sm mb-4">
@@ -30,14 +34,10 @@
                 Core Details
             </h6>
             <div class="row g-3">
-                <div class="col-md-6">
+                <div class="col-md-12">
                     @Html.LabelFor(m => m.AssetName, new { @class = "form-label" })
                     @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control" })
                     @Html.ValidationMessageFor(m => m.AssetName, "", new { @class = "text-danger small" })
-                </div>
-                <div class="col-md-6">
-                    <p class="form-label mb-1">Asset Tag</p>
-                    <p class="text-muted small mb-0 mt-1">Assigned automatically on save using the department and asset type (e.g. IT-LTP-004).</p>
                 </div>
                 <div class="col-md-4">
                     @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
@@ -85,12 +85,12 @@
                     @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger small" })
                 </div>
                 <div class="col-md-3">
-                    @Html.LabelFor(m => m.DepartmentId, new { @class = "form-label" })
-                    @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select department --", new { @class = "form-select" })
-                    @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger small" })
+                    <label class="form-label" for="DepartmentId">Department <span class="text-muted fw-normal">(optional)</span></label>
+                    @Html.DropDownListFor(m => m.DepartmentId, departments, "-- No department (organization custody) --", new { @class = "form-select" })
+                    <p class="form-text mb-0">Leave blank to register the asset under organization custody until a department is assigned.</p>
                 </div>
                 <div class="col-md-3">
-                    @Html.LabelFor(m => m.SupplierId, new { @class = "form-label" })
+                    <label class="form-label" for="SupplierId">Supplier <span class="text-muted fw-normal">(optional)</span></label>
                     @Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select" })
                 </div>
             </div>
@@ -110,14 +110,17 @@
                     @Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
                 </div>
                 <div class="col-md-3">
-                    @Html.LabelFor(m => m.AcquisitionCost, new { @class = "form-label" })
-                    @Html.TextBoxFor(m => m.AcquisitionCost, new { @class = "form-control", type = "number", step = "0.01" })
+                    <label class="form-label" for="AcquisitionCost">Acquisition cost (@organizationCurrency)</label>
+                    <input type="text"
+                           class="form-control"
+                           id="AcquisitionCost"
+                           name="AcquisitionCost"
+                           value="@acquisitionCostDisplay"
+                           data-monetary-input="true"
+                           inputmode="decimal" />
+                    @Html.ValidationMessageFor(m => m.AcquisitionCost, "", new { @class = "text-danger small" })
                 </div>
                 @Html.Partial("_AssetTaxAmountFields", Model)
-                <div class="col-md-2">
-                    @Html.LabelFor(m => m.Currency, new { @class = "form-label" })
-                    @Html.TextBoxFor(m => m.Currency, new { @class = "form-control", @readonly = "readonly" })
-                </div>
             </div>
             <p class="text-muted small mb-0 mt-3">Expected useful life is applied from asset type or category rules when your company administrator has configured them. Otherwise it remains not set.</p>
         </div>
@@ -143,42 +146,6 @@
     })
 }
 
-<script>
-    (function () {
-        var category = document.getElementById('CategoryId');
-        var assetType = document.getElementById('AssetTypeId');
-
-        if (!category || !assetType) { return; }
-
-        var options = Array.prototype.slice.call(assetType.options);
-
-        function syncAssetTypes() {
-            var selectedCategoryId = category.value;
-            options.forEach(function (option, index) {
-                if (index === 0) { option.disabled = false; return; }
-                var matchesCategory = !selectedCategoryId || option.getAttribute('data-category-id') === selectedCategoryId;
-                option.disabled = !matchesCategory;
-                option.hidden = false;
-            });
-            var selectedOption = assetType.options[assetType.selectedIndex];
-            if (selectedOption && selectedOption.disabled) { assetType.value = ''; }
-        }
-
-        function syncCategoryFromAssetType() {
-            var selectedOption = assetType.options[assetType.selectedIndex];
-            if (!selectedOption || !selectedOption.value) { return; }
-
-            var categoryId = selectedOption.getAttribute('data-category-id');
-            if (categoryId && category.value !== categoryId) {
-                category.value = categoryId;
-                syncAssetTypes();
-            }
-        }
-
-        category.addEventListener('change', syncAssetTypes);
-        assetType.addEventListener('change', syncCategoryFromAssetType);
-        syncCategoryFromAssetType();
-        syncAssetTypes();
-    })();
-</script>
+<script src="@Url.Content("~/Scripts/app/asset-monetary-input.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-category-type.js")"></script>
 <script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>

@@ -67,6 +67,16 @@ $outboxSetting = $config.configuration.appSettings.add | Where-Object { $_.key -
 if ($outboxSetting) {
     $outboxSetting.value = '300'
 }
+$mfaSetting = $config.configuration.appSettings.add | Where-Object { $_.key -eq 'MfaAllowAnyCode' }
+if ($mfaSetting) {
+    $mfaSetting.value = 'true'
+} else {
+    $appSettings = $config.configuration.appSettings
+    $mfaNode = $config.CreateElement('add')
+    $mfaNode.SetAttribute('key', 'MfaAllowAnyCode')
+    $mfaNode.SetAttribute('value', 'true')
+    $appSettings.AppendChild($mfaNode) | Out-Null
+}
 $config.Save($webConfig)
 
 Write-Host "Web.config pointed at E2E database [$Database]."

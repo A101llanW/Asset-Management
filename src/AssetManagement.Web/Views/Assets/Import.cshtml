@@ -36,15 +36,13 @@
             <div class="card-body">
                 <h6 class="mb-2">Column guide</h6>
                 <p class="small text-muted">The first row must contain column headers. Required fields per row:</p>
-                <ul class="small mb-3">
+                <ul class="small mb-2">
                     <li><strong>AssetName, AssetTag, Brand, Model</strong></li>
-                    <li><strong>PurchaseDate, AcquisitionCost, Currency</strong></li>
+                    <li><strong>PurchaseDate, AcquisitionCost</strong></li>
                     <li><strong>Category</strong> or <strong>CategoryId</strong></li>
                     <li><strong>AssetType</strong> or <strong>AssetTypeId</strong></li>
-                    <li><strong>Supplier</strong> or <strong>SupplierId</strong></li>
-                    <li><strong>Department</strong> or <strong>DepartmentId</strong></li>
                 </ul>
-                <p class="small text-muted mb-2">Optional columns include serial number, description, tax, depreciation, warranty, insurance, status, barcode, specifications, custodian, and more. Use the template for the full column list and a sample row.</p>
+                <p class="small text-muted mb-2">Optional per row: <strong>Supplier</strong>/<strong>SupplierId</strong>, <strong>Department</strong>/<strong>DepartmentId</strong> (leave blank for organization custody or unknown supplier), <strong>Currency</strong> (defaults to your organization currency), serial number, description, tax, depreciation, warranty, insurance, status, barcode, specifications, custodian, and more. Use the template for the full column list and a sample row.</p>
                 <p class="small text-muted mb-0">Lookup values (category, type, supplier, department) can use names exactly as they appear in the system, or numeric IDs. Dates should use <code>yyyy-MM-dd</code>. Status and depreciation method values match the create-asset form (for example <code>InStore</code>, <code>StraightLine</code>).</p>
             </div>
         </div>

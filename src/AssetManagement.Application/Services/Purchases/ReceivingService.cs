@@ -298,7 +298,7 @@ namespace AssetManagement.Application.Services
 
 
 
-                if (purchase.SupplierId > 0 && asset.SupplierId <= 0)
+                if (purchase.SupplierId > 0 && (!asset.SupplierId.HasValue || asset.SupplierId.Value <= 0))
 
                 {
 

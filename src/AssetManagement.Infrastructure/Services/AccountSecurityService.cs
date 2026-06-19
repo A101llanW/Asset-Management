@@ -28,7 +28,7 @@ namespace AssetManagement.Infrastructure.Services
 
     {
 
-        private const string ForgotPasswordEventType = "FORGOT_PASSWORD_REQUEST";
+        private const string AuthForgotRequestEventType = "AUTH_FORGOT_REQUEST";
 
         private const int MaxForgotPasswordRequests = 5;
 
@@ -394,7 +394,7 @@ namespace AssetManagement.Infrastructure.Services
 
             var sinceUtc = DateTime.UtcNow.AddMinutes(-ForgotPasswordWindowMinutes);
 
-            var count = _securityEvents.CountRecent(ForgotPasswordEventType, ipAddress, sinceUtc);
+            var count = _securityEvents.CountRecent(AuthForgotRequestEventType, ipAddress, sinceUtc);
 
             return count >= MaxForgotPasswordRequests;
 
@@ -406,7 +406,7 @@ namespace AssetManagement.Infrastructure.Services
 
         {
 
-            _securityEvents.Record(ForgotPasswordEventType, email, ipAddress, organizationId);
+            _securityEvents.Record(AuthForgotRequestEventType, email, ipAddress, organizationId);
 
         }
 
@@ -614,9 +614,17 @@ namespace AssetManagement.Infrastructure.Services
 
             var setting = ConfigurationManager.AppSettings["MfaAllowAnyCode"];
 
-            return string.IsNullOrWhiteSpace(setting)
+            if (string.IsNullOrWhiteSpace(setting))
 
-                || string.Equals(setting.Trim(), "true", StringComparison.OrdinalIgnoreCase)
+            {
+
+                return false;
+
+            }
+
+
+
+            return string.Equals(setting.Trim(), "true", StringComparison.OrdinalIgnoreCase)
 
                 || string.Equals(setting.Trim(), "1", StringComparison.OrdinalIgnoreCase);
 

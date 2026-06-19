@@ -13,6 +13,8 @@ namespace AssetManagement.Application.Services.Organizations
     public class OrganizationLicenseService : IOrganizationLicenseService
     {
         private const int PendingRenewalWindowDays = 30;
+        private const string DefaultPlanCode = "Organization";
+        private const string DefaultPlanName = "Organization license";
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOrganizationLicenseQueryRepository _queryRepository;
@@ -328,8 +330,8 @@ namespace AssetManagement.Application.Services.Organizations
             return new OrganizationLicense
             {
                 OrganizationId = organizationId,
-                PlanCode = "Standard",
-                PlanName = "Standard",
+                PlanCode = DefaultPlanCode,
+                PlanName = DefaultPlanName,
                 Status = LicenseStatus.Active.ToString(),
                 StartDate = start,
                 ExpiryDate = start.AddMonths(12),

@@ -14,6 +14,10 @@ namespace AssetManagement.Web.Filters
 
             var tenant = TenantUrlHelper.GetTenantToken(filterContext.RouteData);
             var returnUrl = filterContext.HttpContext.Request.RawUrl;
+            if (LocalReturnUrlHelper.IsDefaultTenantLandingPath(returnUrl))
+            {
+                returnUrl = null;
+            }
 
             filterContext.Result = TenantUrlHelper.CreateTenantLoginRedirect(tenant, returnUrl);
         }

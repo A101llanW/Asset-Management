@@ -304,9 +304,10 @@ namespace AssetManagement.Web.Controllers
 
         protected string ResolveReturnUrl(string returnUrl, string fallbackAction, string fallbackController = null, object routeValues = null)
         {
-            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            var safeReturnUrl = FormatSafeReturnPath(returnUrl);
+            if (!string.IsNullOrWhiteSpace(safeReturnUrl))
             {
-                return returnUrl;
+                return safeReturnUrl;
             }
 
             return string.IsNullOrWhiteSpace(fallbackController)
@@ -316,14 +317,32 @@ namespace AssetManagement.Web.Controllers
 
         protected ActionResult RedirectToReturnUrl(string returnUrl, string fallbackAction, string fallbackController = null, object routeValues = null)
         {
-            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            var safeReturnUrl = FormatSafeReturnPath(returnUrl);
+            if (!string.IsNullOrWhiteSpace(safeReturnUrl))
             {
-                return Redirect(returnUrl);
+                return Redirect(safeReturnUrl);
             }
 
             return string.IsNullOrWhiteSpace(fallbackController)
                 ? RedirectToAction(fallbackAction, routeValues)
                 : RedirectToAction(fallbackAction, fallbackController, routeValues);
+        }
+
+        protected string FormatSafeReturnPath(string returnUrl)
+        {
+            Uri parsedUri;
+            if (!LocalReturnUrlHelper.TryParseLocalReturnUri(returnUrl, Url, out parsedUri))
+            {
+                return null;
+            }
+
+            var path = LocalReturnUrlHelper.FormatReturnPathAndQuery(parsedUri);
+            if (LocalReturnUrlHelper.IsDefaultTenantLandingPath(path))
+            {
+                return null;
+            }
+
+            return path;
         }
 
         protected ListPageViewModel<T> BuildListPage<T>(IEnumerable<T> source, string search, string sort, string direction, int page, int pageSize)

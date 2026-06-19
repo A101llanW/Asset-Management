@@ -175,6 +175,10 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(40)]
         public string IncidentType { get; set; }
 
+        [Required(ErrorMessage = "Severity is required.")]
+        [StringLength(40)]
+        public string Severity { get; set; }
+
         [Required]
         public DateTime IncidentDate { get; set; }
 

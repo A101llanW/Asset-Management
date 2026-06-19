@@ -70,9 +70,9 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Returned by user does not match current custodian.");
             }
 
-            if (asset.DepartmentId > 0)
+            if (asset.DepartmentId.HasValue && asset.DepartmentId.Value > 0)
             {
-                EnsureUserBelongsToDepartment(receivedById, asset.DepartmentId);
+                EnsureUserBelongsToDepartment(receivedById, asset.DepartmentId.Value);
             }
 
             var returnDate = model.ReturnDate == default(DateTime) ? DateTime.UtcNow : model.ReturnDate;

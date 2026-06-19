@@ -188,11 +188,13 @@ namespace AssetManagement.Web.Controllers
         {
             var model = new AssetCreateVm
             {
-                Currency = GetDefaultCurrencyCode(),
                 CurrentStatus = AssetManagement.Domain.Enums.AssetStatus.InStore,
+                PurchaseDate = System.DateTime.Today,
+                DepreciationStartDate = System.DateTime.Today,
                 ApprovalProcesses = AssetApprovalSettingsHelper.BuildDefaultProcesses(UnitOfWork, GetRolesForOrganization(), ResolveCurrentOrganizationId()).ToList()
             };
 
+            ApplyAssetFormDefaults(model);
             PopulateLookups(model);
             PopulateAssetApprovalFormOptions();
             return View(model);
@@ -207,7 +209,6 @@ namespace AssetManagement.Web.Controllers
             {
                 viewModel = new AssetCreateVm
                 {
-                    Currency = GetDefaultCurrencyCode(),
                     CurrentStatus = AssetManagement.Domain.Enums.AssetStatus.InStore
                 };
             }
@@ -217,10 +218,9 @@ namespace AssetManagement.Web.Controllers
                 viewModel.CurrentStatus = AssetManagement.Domain.Enums.AssetStatus.InStore;
             }
 
-            ModelState.Remove("CurrentStatus");
-            ModelState.Remove("AssetTag");
-
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
+            ApplyAssetFormDefaults(viewModel);
+            ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
             PopulateAssetApprovalFormOptions();
             AssetApprovalSettingsHelper.ValidateApprovalProcesses(viewModel.ApprovalProcesses, (key, message) => ModelState.AddModelError(key, message));
@@ -339,6 +339,7 @@ namespace AssetManagement.Web.Controllers
             };
 
             AssetTaxInputHelper.SeedTaxInputFromStoredAmount(model);
+            ApplyAssetFormDefaults(model);
             PopulateLookups(model);
             PopulateAssetApprovalFormOptions(entity.OrganizationId);
             return View(model);
@@ -350,6 +351,8 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Edit([Bind(Prefix = "")] AssetEditVm viewModel)
         {
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
+            ApplyAssetFormDefaults(viewModel);
+            ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
             var assetEntity = UnitOfWork.Repository<Asset>().GetById(viewModel.Id);
             PopulateAssetApprovalFormOptions(assetEntity == null ? null : assetEntity.OrganizationId);
@@ -525,6 +528,54 @@ namespace AssetManagement.Web.Controllers
 
             ViewBag.Departments = BuildDepartmentSelectList(model?.DepartmentId, activeOnly: false);
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId, activeOnly: false);
+            ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
+        }
+
+        private void ApplyAssetFormDefaults(AssetCreateVm model)
+        {
+            if (model == null)
+            {
+                return;
+            }
+
+            model.Currency = GetDefaultCurrencyCode();
+            if (model.DepartmentId.HasValue && model.DepartmentId.Value <= 0)
+            {
+                model.DepartmentId = null;
+            }
+
+            if (model.SupplierId.HasValue && model.SupplierId.Value <= 0)
+            {
+                model.SupplierId = null;
+            }
+        }
+
+        private void ClearOptionalAssetFieldErrors(AssetCreateVm model)
+        {
+            ModelState.Remove("CurrentStatus");
+            ModelState.Remove("AssetTag");
+            ModelState.Remove("Currency");
+            ModelState.Remove("DepartmentId");
+            ModelState.Remove("SupplierId");
+
+            if (model == null)
+            {
+                return;
+            }
+
+            ModelState.SetModelValue("Currency", new ValueProviderResult(model.Currency, model.Currency, System.Globalization.CultureInfo.InvariantCulture));
+            ModelState.SetModelValue(
+                "DepartmentId",
+                new ValueProviderResult(
+                    model.DepartmentId?.ToString() ?? string.Empty,
+                    model.DepartmentId?.ToString() ?? string.Empty,
+                    System.Globalization.CultureInfo.InvariantCulture));
+            ModelState.SetModelValue(
+                "SupplierId",
+                new ValueProviderResult(
+                    model.SupplierId?.ToString() ?? string.Empty,
+                    model.SupplierId?.ToString() ?? string.Empty,
+                    System.Globalization.CultureInfo.InvariantCulture));
         }
 
         private void PopulateRoleOptions()

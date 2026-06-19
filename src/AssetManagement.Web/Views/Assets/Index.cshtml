@@ -104,7 +104,7 @@ else
                             <td class="@(canBulkEdit ? "" : "ps-3")"><span class="am-tag-pill">@item.AssetTag</span></td>
                             <td class="fw-bold text-dark">@item.AssetName</td>
                             <td>@item.CategoryName</td>
-                            <td><span class="text-secondary small fw-medium">@item.DepartmentName</span></td>
+                            <td><span class="text-secondary small fw-medium">@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Organization custody" : item.DepartmentName)</span></td>
                             <td class="text-muted" style="font-size: 0.85rem;">@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? DisplayText.Empty : item.CurrentCustodianName)</td>
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.CurrentStatus) badge-status px-2 py-1.5 rounded-pill text-capitalize">@item.CurrentStatus.ToString().Replace("AwaitingApproval", "Pending Approval").Replace("InStore", "In Store")</span></td>
                             <td class="fw-bold text-primary">@Html.FormatCurrency(item.AcquisitionCost)</td>

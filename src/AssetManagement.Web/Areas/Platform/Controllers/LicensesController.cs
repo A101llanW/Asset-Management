@@ -23,7 +23,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             _licenseService = DependencyResolver.Current.GetService<IOrganizationLicenseService>();
         }
 
-        public ActionResult Index(string search, string status, string planCode, int? expiringWithinDays, string sort, string direction, int page = 1, int pageSize = 20)
+        public ActionResult Index(string search, string status, int? expiringWithinDays, string sort, string direction, int page = 1, int pageSize = 20)
         {
             EnsurePlatformAccess();
             var pageModel = _licenseService.GetLicenseListPage(
@@ -31,7 +31,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 {
                     Search = search,
                     Status = status,
-                    PlanCode = planCode,
                     ExpiringWithinDays = expiringWithinDays
                 },
                 sort,
@@ -45,7 +44,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 Items = pageModel.Items,
                 Search = search,
                 Status = status,
-                PlanCode = planCode,
                 ExpiringWithinDays = expiringWithinDays,
                 Sort = sort ?? "expiry",
                 Direction = direction ?? "asc",
@@ -109,22 +107,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             }, GetActorName()), model.OrganizationId);
         }
 
-        [PermissionAuthorize("Platform.Licenses.Manage")]
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public ActionResult UpdatePlan(UpdatePlanFormModel model)
-        {
-            EnsurePlatformAccess();
-            return ExecuteLicenseAction(() => _licenseService.UpdatePlan(new UpdatePlanRequest
-            {
-                OrganizationId = model.OrganizationId,
-                PlanCode = model.PlanCode,
-                PlanName = model.PlanName,
-                MaxUsers = model.MaxUsers,
-                Notes = model.Notes
-            }, GetActorName()), model.OrganizationId);
-        }
-
         private ActionResult ExecuteLicenseAction(Func<LicenseOperationResult> action, int organizationId)
         {
             try
@@ -165,8 +147,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
 
         public string Status { get; set; }
 
-        public string PlanCode { get; set; }
-
         public int? ExpiringWithinDays { get; set; }
     }
 
@@ -189,19 +169,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
     public class ResumeLicenseFormModel
     {
         public int OrganizationId { get; set; }
-
-        public string Notes { get; set; }
-    }
-
-    public class UpdatePlanFormModel
-    {
-        public int OrganizationId { get; set; }
-
-        public string PlanCode { get; set; }
-
-        public string PlanName { get; set; }
-
-        public int? MaxUsers { get; set; }
 
         public string Notes { get; set; }
     }

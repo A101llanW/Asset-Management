@@ -40,8 +40,6 @@
             <div class="card-header">License summary</div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-sm-4">Plan</dt>
-                    <dd class="col-sm-8">@Model.PlanName <span class="text-muted">(@Model.PlanCode)</span></dd>
                     <dt class="col-sm-4">Stored status</dt>
                     <dd class="col-sm-8">@Model.Status</dd>
                     <dt class="col-sm-4">Start</dt>
@@ -81,7 +79,6 @@
                                 <button type="submit" class="btn btn-sm btn-success">Resume</button>
                             }
                         }
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#planModal">Update plan</button>
                     </div>
                 }
             </div>
@@ -196,45 +193,6 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-warning">Pause license</button>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="planModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                @using (Html.BeginForm("UpdatePlan", "Licenses", new { area = "Platform" }, FormMethod.Post))
-                {
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="OrganizationId" value="@Model.OrganizationId" />
-                    <div class="modal-header"><h5 class="modal-title">Update plan</h5></div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Plan code</label>
-                            <select name="PlanCode" class="form-select" required>
-                                <option value="Standard" @(Model.PlanCode == "Standard" ? "selected" : null)>Standard</option>
-                                <option value="Professional" @(Model.PlanCode == "Professional" ? "selected" : null)>Professional</option>
-                                <option value="Enterprise" @(Model.PlanCode == "Enterprise" ? "selected" : null)>Enterprise</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Plan name</label>
-                            <input type="text" name="PlanName" class="form-control" value="@Model.PlanName" required />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Max users (optional)</label>
-                            <input type="number" name="MaxUsers" class="form-control" min="1" value="@Model.MaxUsers" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Notes</label>
-                            <textarea name="Notes" class="form-control" rows="2">@Model.Notes</textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save plan</button>
                     </div>
                 }
             </div>

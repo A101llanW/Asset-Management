@@ -86,15 +86,12 @@ namespace AssetManagement.Application.ViewModels
         [Range(0, 999999999)]
         public decimal? TaxInputValue { get; set; }
 
-        [Required]
         [StringLength(10)]
         public string Currency { get; set; }
 
-        [Required]
-        public int SupplierId { get; set; }
+        public int? SupplierId { get; set; }
 
-        [Required]
-        public int DepartmentId { get; set; }
+        public int? DepartmentId { get; set; }
 
         public string ConditionOnReceipt { get; set; }
 

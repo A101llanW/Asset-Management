@@ -1,10 +1,15 @@
 (function () {
     function parseNumber(value) {
+        if (window.AssetMonetaryInput && typeof window.AssetMonetaryInput.parseNumber === 'function') {
+            return window.AssetMonetaryInput.parseNumber(value);
+        }
+
         if (value === null || value === undefined || value === '') {
             return 0;
         }
 
-        var parsed = parseFloat(value);
+        var normalized = String(value).replace(/,/g, '').trim();
+        var parsed = parseFloat(normalized);
         return isNaN(parsed) ? 0 : parsed;
     }
 
@@ -48,8 +53,20 @@
 
             taxAmount.value = tax.toFixed(2);
             if (display) {
-                display.textContent = tax.toFixed(2);
+                display.textContent = window.AssetMonetaryInput
+                    ? window.AssetMonetaryInput.formatAmount(tax)
+                    : tax.toFixed(2);
             }
+        }
+
+        function bindFormSubmit() {
+            var form = container.closest('form');
+            if (!form || form.getAttribute('data-tax-form-bound') === 'true') {
+                return;
+            }
+
+            form.setAttribute('data-tax-form-bound', 'true');
+            form.addEventListener('submit', syncTax);
         }
 
         mode.addEventListener('change', function () {
@@ -63,6 +80,7 @@
 
         updatePlaceholder();
         syncTax();
+        bindFormSubmit();
     }
 
     if (document.readyState === 'loading') {

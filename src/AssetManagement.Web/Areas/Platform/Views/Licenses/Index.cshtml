@@ -76,15 +76,6 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Plan</label>
-                <select name="planCode" class="form-select">
-                    <option value="">All</option>
-                    <option value="Standard" @(Model.PlanCode == "Standard" ? "selected" : null)>Standard</option>
-                    <option value="Professional" @(Model.PlanCode == "Professional" ? "selected" : null)>Professional</option>
-                    <option value="Enterprise" @(Model.PlanCode == "Enterprise" ? "selected" : null)>Enterprise</option>
-                </select>
-            </div>
-            <div class="col-md-2">
                 <label class="form-label">Expiring within</label>
                 <select name="expiringWithinDays" class="form-select">
                     <option value="">Any</option>
@@ -99,7 +90,6 @@
                     <option value="expiry" @(Model.Sort == "expiry" ? "selected" : null)>Expiry</option>
                     <option value="organization" @(Model.Sort == "organization" ? "selected" : null)>Organization</option>
                     <option value="status" @(Model.Sort == "status" ? "selected" : null)>Status</option>
-                    <option value="plan" @(Model.Sort == "plan" ? "selected" : null)>Plan</option>
                 </select>
             </div>
             <div class="col-md-1 d-flex align-items-end">
@@ -148,10 +138,6 @@ else
                     </div>
 
                     <dl class="am-license-flashcard__meta">
-                        <div>
-                            <dt>Plan</dt>
-                            <dd>@item.PlanName</dd>
-                        </div>
                         <div>
                             <dt>Days left</dt>
                             <dd>@item.DaysRemaining</dd>

@@ -52,7 +52,7 @@ async function submitLoginForm(page: Page, credentials: Credentials): Promise<vo
 
   await page.getByLabel('Email').fill(credentials.email);
 
-  await page.getByLabel('Password').fill(credentials.password);
+  await page.locator('#Password').fill(credentials.password);
 
 
 
@@ -98,6 +98,25 @@ export async function loginTenant(page: Page, tenant: string, credentials: Crede
 
 }
 
+export function tenantPrefixFromUrl(url: string): string {
+  const match = url.match(/\/(nanosoft|demo-b)(?=\/)/i);
+  return match ? `/${match[1]}` : '';
+}
+
+export async function gotoAppPath(page: Page, path: string): Promise<void> {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  if (normalized.startsWith('/Platform')) {
+    await page.goto(normalized);
+    return;
+  }
+
+  let tenant = tenantPrefixFromUrl(page.url());
+  if (!tenant) {
+    tenant = '/nanosoft';
+  }
+  await page.goto(`${tenant}${normalized}`);
+}
+
 
 
 export async function logout(page: Page): Promise<void> {
@@ -117,29 +136,22 @@ export async function logout(page: Page): Promise<void> {
 
 
 export async function openAssetByTag(page: Page, assetTag: string): Promise<void> {
-
-  await page.goto('/Assets/Index');
+  await gotoAppPath(page, '/Assets/Index');
+  await expect(page.getByRole('heading', { name: /Asset Register/i })).toBeVisible();
 
   await page.locator('input[name="Search"]').fill(assetTag);
-
   await page.locator('.am-list-toolbar button[type="submit"]').click();
 
-  const row = page.locator('tr', { has: page.locator('.am-tag-pill', { hasText: assetTag }) });
-
+  const row = page.locator('tr', { has: page.getByRole('cell', { name: assetTag, exact: true }) });
+  await expect(row).toBeVisible({ timeout: 15_000 });
   await row.getByRole('link', { name: 'Details' }).click();
 
   await expect(page.getByText(`Asset tag: ${assetTag}`)).toBeVisible();
-
 }
 
-
-
 export async function openDisposalWorkflow(page: Page): Promise<void> {
-
-  await page.getByRole('tab', { name: 'Audit Trail' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Disposal Workflow' })).toBeVisible();
-
+  await page.getByRole('tab', { name: 'Disposal' }).click();
+  await expect(page.getByText('Disposal workflow').first()).toBeVisible();
 }
 
 
@@ -185,7 +197,34 @@ export async function selectDropdownOptionContaining(
   }
 
   await select.selectOption(value);
+}
 
+export async function fillAndSubmitAssetRequest(
+  page: Page,
+  options: {
+    department: string;
+    category: string;
+    assetName: string;
+    justification: string;
+  },
+): Promise<void> {
+  const departmentSelect = page.locator('select[name="DepartmentId"]');
+  if (await departmentSelect.isVisible()) {
+    await selectDropdownOptionContaining(page, 'DepartmentId', options.department);
+  }
+
+  await selectDropdownOptionContaining(page, 'CategoryId', options.category);
+  await page.waitForFunction(
+    () => {
+      const select = document.querySelector('[data-am-asset-select]') as HTMLSelectElement | null;
+      return !!select && !select.disabled && select.options.length > 1;
+    },
+    undefined,
+    { timeout: 15_000 },
+  );
+  await selectDropdownOptionContaining(page, 'RequestedAssetId', options.assetName);
+  await page.locator('#Justification').fill(options.justification);
+  await page.getByRole('button', { name: 'Submit request' }).click();
 }
 
 

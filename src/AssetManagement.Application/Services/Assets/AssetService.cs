@@ -258,9 +258,13 @@ namespace AssetManagement.Application.Services
                 SerialNumber = asset.SerialNumber,
                 Brand = asset.Brand,
                 Model = asset.Model,
-                DepartmentName = departmentLookup.ContainsKey(asset.DepartmentId) ? departmentLookup[asset.DepartmentId] : null,
+                DepartmentName = asset.DepartmentId.HasValue && departmentLookup.ContainsKey(asset.DepartmentId.Value)
+                    ? departmentLookup[asset.DepartmentId.Value]
+                    : null,
                 CategoryName = categoryLookup.ContainsKey(asset.CategoryId) ? categoryLookup[asset.CategoryId] : null,
-                SupplierName = supplierLookup.ContainsKey(asset.SupplierId) ? supplierLookup[asset.SupplierId] : null,
+                SupplierName = asset.SupplierId.HasValue && supplierLookup.ContainsKey(asset.SupplierId.Value)
+                    ? supplierLookup[asset.SupplierId.Value]
+                    : null,
                 CurrentCustodianId = asset.CurrentCustodianId,
                 CurrentStatus = asset.CurrentStatus,
                 AcquisitionCost = asset.AcquisitionCost,
@@ -370,8 +374,9 @@ namespace AssetManagement.Application.Services
                 Currency = string.IsNullOrWhiteSpace(model.Currency)
                     ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())
                     : model.Currency.Trim().ToUpperInvariant(),
-                SupplierId = model.SupplierId,
-                DepartmentId = model.DepartmentId,
+                SupplierId = NormalizeOptionalId(model.SupplierId),
+                DepartmentId = NormalizeOptionalId(model.DepartmentId),
+                CurrentCustodianId = null,
                 ConditionOnReceipt = model.ConditionOnReceipt,
                 UsefulLifeMonths = UsefulLifeResolver.Resolve(_unitOfWork, model.AssetTypeId, model.CategoryId),
                 SalvageValue = 0,
@@ -457,8 +462,8 @@ namespace AssetManagement.Application.Services
             entity.Currency = string.IsNullOrWhiteSpace(model.Currency)
                 ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())
                 : model.Currency.Trim().ToUpperInvariant();
-            entity.SupplierId = model.SupplierId;
-            entity.DepartmentId = model.DepartmentId;
+            entity.SupplierId = NormalizeOptionalId(model.SupplierId);
+            entity.DepartmentId = NormalizeOptionalId(model.DepartmentId);
             entity.ConditionOnReceipt = model.ConditionOnReceipt;
             entity.UsefulLifeMonths = UsefulLifeResolver.Resolve(_unitOfWork, model.AssetTypeId, model.CategoryId);
             entity.IsInsured = model.IsInsured;
@@ -871,7 +876,7 @@ namespace AssetManagement.Application.Services
             pendingRequest.Notes = string.IsNullOrWhiteSpace(notes) ? pendingRequest.Notes : notes.Trim();
         }
 
-        private void AddDisposalCustodyEvent(Asset asset, DisposalRecord pendingRequest, string approvedByUserId, string fromUserId, int fromDepartmentId)
+        private void AddDisposalCustodyEvent(Asset asset, DisposalRecord pendingRequest, string approvedByUserId, string fromUserId, int? fromDepartmentId)
         {
             _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
             {
@@ -961,10 +966,14 @@ namespace AssetManagement.Application.Services
                 return model.AssetTag;
             }
 
-            var department = _unitOfWork.Repository<Department>().GetById(model.DepartmentId);
-            if (department == null)
+            Department department = null;
+            if (model.DepartmentId.HasValue && model.DepartmentId.Value > 0)
             {
-                throw new BusinessException("Department was not found.");
+                department = _unitOfWork.Repository<Department>().GetById(model.DepartmentId.Value);
+                if (department == null)
+                {
+                    throw new BusinessException("Department was not found.");
+                }
             }
 
             var assetType = _unitOfWork.Repository<AssetType>().GetById(model.AssetTypeId);
@@ -1075,6 +1084,11 @@ namespace AssetManagement.Application.Services
         private static string NormalizeId(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static int? NormalizeOptionalId(int? value)
+        {
+            return value.HasValue && value.Value > 0 ? value : null;
         }
 
         private bool CanViewAssetForPendingTransferApproval(Asset asset)

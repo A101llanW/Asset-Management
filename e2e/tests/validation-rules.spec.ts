@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { login, openAssetByTag } from '../fixtures/auth';
+import { login, gotoAppPath, openAssetByTag } from '../fixtures/auth';
 import { assignedAssetTags, users } from '../fixtures/users';
 
 test.describe('Department scope enforcement', () => {
   test('staff user cannot open assets outside their department', async ({ page }) => {
     await login(page, users.staff);
-    const response = await page.goto('/Assets/Index');
-    expect(response?.status()).toBe(200);
+    await gotoAppPath(page, '/Assets/Index');
+    await expect(page.getByRole('heading', { name: /Asset Register/i })).toBeVisible();
 
     const assignedTag = assignedAssetTags[0];
     await page.locator('input[name="Search"]').fill(assignedTag);
@@ -24,9 +24,25 @@ test.describe('Department scope enforcement', () => {
 });
 
 test.describe('Asset tag rules', () => {
+  test('create succeeds without department or supplier', async ({ page }) => {
+    await login(page, users.assetManager);
+    await gotoAppPath(page, '/Assets/Create');
+
+    await page.locator('#AssetName').fill('Optional Custody Asset');
+    await page.locator('#CategoryId').selectOption({ label: 'IT Equipment' });
+    await page.locator('#AssetTypeId').selectOption({ label: 'Laptop' });
+    await page.locator('#Brand').fill('Test');
+    await page.locator('#Model').fill('Model');
+    await page.locator('#PurchaseDate').fill('2026-01-01');
+    await page.locator('#AcquisitionCost').fill('1000');
+    await page.getByRole('button', { name: 'Create Asset' }).click();
+
+    await expect(page.getByText(/Asset created successfully|created successfully/i)).toBeVisible();
+  });
+
   test('create assigns a system-generated asset tag', async ({ page }) => {
     await login(page, users.assetManager);
-    await page.goto('/Assets/Create');
+    await gotoAppPath(page, '/Assets/Create');
 
     await page.locator('#AssetName').fill('Auto Tag Test Asset');
     await page.locator('#CategoryId').selectOption({ label: 'IT Equipment' });

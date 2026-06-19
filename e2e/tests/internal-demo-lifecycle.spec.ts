@@ -63,7 +63,7 @@ test.describe('Internal demo lifecycle', () => {
     await page.locator('#HandoverNotes').fill('Internal demo handover to staff.');
     await page.getByRole('button', { name: 'Assign Asset' }).click();
 
-    await expect(page.getByText(/assigned successfully|Asset assigned/i)).toBeVisible();
+    await expect(page.getByText('Asset assigned successfully.')).toBeVisible();
     await expect(page.getByRole('status').getByText('Assigned', { exact: true })).toBeVisible();
   });
 
@@ -74,6 +74,7 @@ test.describe('Internal demo lifecycle', () => {
 
     await page.getByRole('link', { name: 'Incident', exact: true }).click();
     await page.locator('#IncidentType').selectOption('Damaged');
+    await page.locator('#Severity').selectOption('Medium');
     await page.locator('#IncidentDate').fill('2026-06-09');
     await page.locator('#Description').fill('Internal demo incident: minor chassis scratch.');
     await page.getByRole('button', { name: 'Submit Incident' }).click();
@@ -131,12 +132,12 @@ test.describe('Internal demo lifecycle', () => {
     const auditTable = auditPanel.locator('table tbody');
     await expect(auditTable.locator('tr').first()).toBeVisible({ timeout: 15_000 });
 
-    const actions = await auditTable.locator('td code').allTextContents();
-    expect(actions).toEqual(expect.arrayContaining(['Assets.Create']));
-    expect(actions).toEqual(expect.arrayContaining(['Assets.Assign']));
-    expect(actions).toEqual(expect.arrayContaining(['Assets.Transfer']));
-    expect(actions).toEqual(expect.arrayContaining(['Incidents.Create']));
-    expect(actions).toEqual(expect.arrayContaining(['Maintenance.Create']));
+    const actions = await auditTable.locator('td:nth-child(2)').allTextContents();
+    expect(actions).toEqual(expect.arrayContaining(['Asset registered']));
+    expect(actions).toEqual(expect.arrayContaining(['Asset assigned']));
+    expect(actions).toEqual(expect.arrayContaining(['Asset transfer recorded']));
+    expect(actions).toEqual(expect.arrayContaining(['Incident reported']));
+    expect(actions).toEqual(expect.arrayContaining(['Maintenance ticket opened']));
   });
 
   test.afterAll(async () => {

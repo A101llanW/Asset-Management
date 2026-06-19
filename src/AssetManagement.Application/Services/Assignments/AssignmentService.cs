@@ -183,7 +183,7 @@ namespace AssetManagement.Application.Services
                 ToUserId = toUserId,
                 AssignmentType = type,
                 AssignedDate = assignedDate,
-                ExpectedReturnDate = model.ExpectedReturnDate,
+                ExpectedReturnDate = type == AssignmentType.Temporary ? model.ExpectedReturnDate : null,
                 ConditionBeforeHandover = NormalizeText(model.ConditionBeforeHandover),
                 AccessoriesHandedOver = NormalizeText(model.AccessoriesHandedOver),
                 HandoverNotes = NormalizeText(model.HandoverNotes),

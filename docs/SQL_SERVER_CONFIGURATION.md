@@ -19,21 +19,24 @@ Default (`src/AssetManagement.Web/Web.config`):
 
 ## Creating/Updating Database
 
-Using Visual Studio Package Manager Console:
+The ASP.NET web app applies SQL scripts from `database/scripts/` on startup (or via `initialize-database.ps1`). Schema and seed scripts are idempotent (`IF NOT EXISTS` / `IF OBJECT_ID IS NULL`).
 
-1. Set startup project: `AssetManagement.Web`
-2. Set default project: `AssetManagement.Infrastructure`
-3. Run:
+### Automatic (recommended for local dev)
+
+On startup, the web app runs all scripts when `AutoInitializeDatabase` is `true` in `Web.config` (default). Restart IIS Express / the app pool after pulling schema changes.
+
+### Manual
+
+From the repository root:
 
 ```powershell
-Update-Database
+.\initialize-database.ps1
 ```
 
-If no migration exists in your environment, scaffold one:
+Optional parameters:
 
 ```powershell
-Add-Migration InitialCreate
-Update-Database
+.\initialize-database.ps1 -ServerInstance ".\SQLEXPRESS" -Database "AssetManagementModuleDb"
 ```
 
 ## Recommended SQL Indexes

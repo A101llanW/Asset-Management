@@ -67,6 +67,12 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Invalid incident type.");
             }
 
+            IncidentSeverity severity;
+            if (!TryParseSeverity(model.Severity, out severity))
+            {
+                throw new BusinessException("Invalid incident severity.");
+            }
+
             var incidentDate = model.IncidentDate == default(DateTime) ? DateTime.UtcNow : model.IncidentDate;
             if (incidentDate > DateTime.UtcNow.AddMinutes(5))
             {
@@ -95,7 +101,7 @@ namespace AssetManagement.Application.Services
                 IncidentType = type,
                 IncidentDate = incidentDate,
                 Description = normalizedDescription,
-                Severity = DetermineSeverity(type),
+                Severity = severity,
                 ResolutionStatus = IncidentResolutionStatusHelper.Open,
                 CreatedAt = now
             };
@@ -239,23 +245,20 @@ namespace AssetManagement.Application.Services
             return Enum.IsDefined(typeof(IncidentType), incidentType);
         }
 
-        private static IncidentSeverity DetermineSeverity(IncidentType type)
+        private static bool TryParseSeverity(string value, out IncidentSeverity severity)
         {
-            switch (type)
+            severity = default(IncidentSeverity);
+            if (string.IsNullOrWhiteSpace(value))
             {
-                case IncidentType.Stolen:
-                    return IncidentSeverity.Critical;
-                case IncidentType.Lost:
-                case IncidentType.FireDamage:
-                case IncidentType.WaterDamage:
-                    return IncidentSeverity.High;
-                case IncidentType.Accident:
-                case IncidentType.Negligence:
-                case IncidentType.Misuse:
-                    return IncidentSeverity.Medium;
-                default:
-                    return IncidentSeverity.Medium;
+                return false;
             }
+
+            if (!Enum.TryParse(value, true, out severity))
+            {
+                return false;
+            }
+
+            return Enum.IsDefined(typeof(IncidentSeverity), severity);
         }
 
         private static AssetStatus? DetermineAssetStatus(IncidentType type)

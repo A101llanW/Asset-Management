@@ -126,6 +126,12 @@ namespace AssetManagement.Web.Controllers
                 .Select(x => new { Value = x, Text = x })
                 .ToList();
             ViewBag.IncidentTypes = new SelectList(incidentTypes, "Value", "Text", selectedType);
+
+            var selectedSeverity = model?.Severity;
+            var severities = Enum.GetNames(typeof(IncidentSeverity))
+                .Select(x => new { Value = x, Text = x })
+                .ToList();
+            ViewBag.Severities = new SelectList(severities, "Value", "Text", selectedSeverity);
         }
 
         private bool HasPermission(string permissionCode)
