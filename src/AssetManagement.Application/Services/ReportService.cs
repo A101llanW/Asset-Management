@@ -390,7 +390,7 @@ namespace AssetManagement.Application.Services
                 var ageDays = Math.Max(0, (int)(now - purchaseRequest.CreatedAt).TotalDays);
                 rows.Add(new[]
                 {
-                    "Purchase Request",
+                    ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
                     purchaseRequest.Id.ToString(),
                     purchaseRequest.RequestNumber ?? string.Empty,
                     deptLabel,

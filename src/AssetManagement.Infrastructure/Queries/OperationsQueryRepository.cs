@@ -21,7 +21,8 @@ SELECT
     p.[CreatedAt],
     p.[EstimatedUnitCost],
     p.[Quantity],
-    p.[Currency]
+    p.[Currency],
+    p.[ItemDescription]
 FROM [PurchaseRequest] p
 LEFT JOIN [Department] d ON d.[Id] = p.[DepartmentId]
 WHERE p.[OrganizationId] = @OrganizationId
@@ -85,7 +86,8 @@ ORDER BY pr.[PurchaseDate] DESC, pr.[Id] DESC";
                                 CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
                                 EstimatedUnitCost = Convert.ToDecimal(reader["EstimatedUnitCost"]),
                                 Quantity = Convert.ToInt32(reader["Quantity"]),
-                                Currency = SqlQueryHelper.GetString(reader, "Currency")
+                                Currency = SqlQueryHelper.GetString(reader, "Currency"),
+                                ItemDescription = SqlQueryHelper.GetString(reader, "ItemDescription")
                             });
                         }
                     }

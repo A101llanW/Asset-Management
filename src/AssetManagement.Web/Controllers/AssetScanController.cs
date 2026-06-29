@@ -4,6 +4,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
@@ -11,8 +12,11 @@ using AssetManagement.Web.ViewModels;
 
 namespace AssetManagement.Web.Controllers
 {
+    [RequireTenantRoute]
     public class AssetScanController : Controller
     {
+        private const string ScanRateLimitMessage = "Too many scan requests. Please wait and try again.";
+
         private readonly IAssetService _assetService;
         private readonly IAuthorizationService _authorizationService;
 
@@ -24,24 +28,32 @@ namespace AssetManagement.Web.Controllers
 
         public ActionResult Lookup(string code)
         {
-            var pageModel = BuildPageModel(code);
-            return View(pageModel);
+            if (!TryAcquireScanLookup())
+            {
+                return View(CreateRateLimitedPageModel(code));
+            }
+
+            return View(BuildPageModel(code));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult LookupPost(string code)
         {
-            return RedirectToAction("Lookup", new { code });
+            if (!TryAcquireScanLookup())
+            {
+                return View("Lookup", CreateRateLimitedPageModel(code));
+            }
+
+            return View("Lookup", BuildPageModel(code));
         }
 
         [HttpGet]
         public JsonResult LookupJson(string code)
         {
-            if (!ScanLookupRateLimiter.TryAcquire(HttpContext))
+            if (!TryAcquireScanLookup())
             {
-                Response.StatusCode = 429;
-                return Json(new { Found = false, Message = "Too many scan requests. Please wait and try again." }, JsonRequestBehavior.AllowGet);
+                return Json(new { Found = false, Message = ScanRateLimitMessage }, JsonRequestBehavior.AllowGet);
             }
 
             var pageModel = BuildPageModel(code);
@@ -60,6 +72,22 @@ namespace AssetManagement.Web.Controllers
             }
 
             var userId = User.GetUserId();
+            var canAssign = _authorizationService.HasPermission(userId, "Assets.Assign")
+                && AssetCustodyRules.CanAssign(asset.CurrentStatus);
+            var canTransfer = _authorizationService.HasPermission(userId, "Assets.Transfer")
+                && AssetCustodyRules.CanTransfer(asset.CurrentStatus);
+            var canReturn = _authorizationService.HasPermission(userId, "Assets.Return");
+            var canReportIncident = _authorizationService.HasPermission(userId, "Incidents.Create");
+            if (!AssetCustodyRules.HasAnyQuickAction(
+                asset.CurrentStatus,
+                _authorizationService.HasPermission(userId, "Assets.Assign"),
+                _authorizationService.HasPermission(userId, "Assets.Transfer"),
+                canReturn,
+                canReportIncident))
+            {
+                return new HttpStatusCodeResult(403, "You do not have permission to perform quick actions on this asset.");
+            }
+
             var model = new AssetQuickActionsVm
             {
                 AssetId = asset.Id,
@@ -67,38 +95,64 @@ namespace AssetManagement.Web.Controllers
                 AssetName = asset.AssetName,
                 CurrentStatus = asset.CurrentStatus,
                 DepartmentName = asset.DepartmentName,
-                CanAssign = _authorizationService.HasPermission(userId, "Assets.Assign")
-                    && AssetCustodyRules.CanAssign(asset.CurrentStatus),
-                CanTransfer = _authorizationService.HasPermission(userId, "Assets.Transfer"),
-                CanReturn = _authorizationService.HasPermission(userId, "Assets.Return"),
-                CanReportIncident = _authorizationService.HasPermission(userId, "Incidents.Create")
+                CanAssign = canAssign,
+                CanTransfer = canTransfer,
+                CanReturn = canReturn,
+                CanReportIncident = canReportIncident,
+                CanViewAssetDetails = _authorizationService.HasPermission(userId, "Assets.View")
             };
 
             return View(model);
         }
 
-        private AssetScanLookupPageVm BuildPageModel(string code)
+        private bool TryAcquireScanLookup()
         {
-            if (!ScanLookupRateLimiter.TryAcquire(HttpContext))
+            if (ScanLookupRateLimiter.TryAcquire(HttpContext))
             {
-                return new AssetScanLookupPageVm
-                {
-                    Lookup = new AssetScanLookupVm
-                    {
-                        Found = false,
-                        Message = "Too many scan requests. Please wait and try again."
-                    },
-                    IsPublicScan = !User.Identity.IsAuthenticated,
-                    CanManageAsset = false,
-                    InitialCode = code,
-                    LookupJsonUrl = Url.Action("LookupJson", "AssetScan")
-                };
+                return true;
             }
 
+            Response.StatusCode = 429;
+            Response.TrySkipIisCustomErrors = true;
+            return false;
+        }
+
+        private AssetScanLookupPageVm CreateRateLimitedPageModel(string code)
+        {
+            return new AssetScanLookupPageVm
+            {
+                Lookup = new AssetScanLookupVm
+                {
+                    Found = false,
+                    Message = ScanRateLimitMessage
+                },
+                IsPublicScan = User == null || User.Identity == null || !User.Identity.IsAuthenticated,
+                CanViewAssetDetails = false,
+                CanOpenQuickActions = false,
+                InitialCode = code,
+                LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan")
+            };
+        }
+
+        private AssetScanLookupPageVm BuildPageModel(string code)
+        {
             var isAuthenticated = User.Identity.IsAuthenticated;
+            var userId = User.GetUserId();
             var canViewDetails = isAuthenticated
                 && _authorizationService != null
-                && _authorizationService.HasPermission(User.GetUserId(), "Assets.View");
+                && _authorizationService.HasPermission(userId, "Assets.View");
+            var canAssign = isAuthenticated
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Assets.Assign");
+            var canTransfer = isAuthenticated
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Assets.Transfer");
+            var canReturn = isAuthenticated
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Assets.Return");
+            var canReportIncident = isAuthenticated
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Incidents.Create");
 
             AssetScanLookupVm lookup;
             if (string.IsNullOrWhiteSpace(code))
@@ -128,17 +182,28 @@ namespace AssetManagement.Web.Controllers
             {
                 Lookup = lookup,
                 IsPublicScan = !canViewDetails,
-                CanManageAsset = canViewDetails,
+                CanViewAssetDetails = lookup.Found && canViewDetails,
+                CanOpenQuickActions = lookup.Found
+                    && AssetCustodyRules.HasAnyQuickAction(
+                        lookup.CurrentStatus,
+                        canAssign,
+                        canTransfer,
+                        canReturn,
+                        canReportIncident),
                 InitialCode = code,
-                LookupJsonUrl = Url.Action("LookupJson", "AssetScan")
+                LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan")
             };
 
-            if (lookup.Found && canViewDetails)
+            if (pageModel.CanViewAssetDetails)
             {
                 pageModel.StatusBadgeClass = StatusHtmlHelpers.ToBadgeClass(lookup.CurrentStatus);
                 pageModel.BrandModelDisplay = BuildBrandModelDisplay(lookup);
-                pageModel.DetailsUrl = Url.RouteUrl("Default", new { controller = "Assets", action = "Details", id = lookup.AssetId });
-                pageModel.QuickActionsUrl = Url.Action("QuickActions", "AssetScan", new { id = lookup.AssetId });
+                pageModel.DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = lookup.AssetId });
+            }
+
+            if (pageModel.CanOpenQuickActions)
+            {
+                pageModel.QuickActionsUrl = TenantUrlHelper.TenantRouteUrl(Url, "QuickActions", "AssetScan", new { id = lookup.AssetId });
             }
 
             return pageModel;
@@ -172,7 +237,8 @@ namespace AssetManagement.Web.Controllers
                 BrandModelDisplay = page.BrandModelDisplay,
                 CategoryName = lookup.CategoryName,
                 CustodianName = lookup.CustodianName,
-                CanManageAsset = page.CanManageAsset,
+                CanViewAssetDetails = page.CanViewAssetDetails,
+                CanOpenQuickActions = page.CanOpenQuickActions,
                 DetailsUrl = page.DetailsUrl,
                 QuickActionsUrl = page.QuickActionsUrl,
                 EmptyDisplay = DisplayText.Empty

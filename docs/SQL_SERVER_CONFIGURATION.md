@@ -30,13 +30,19 @@ On startup, the web app runs all scripts when `AutoInitializeDatabase` is `true`
 From the repository root:
 
 ```powershell
-.\initialize-database.ps1
+.\run-migrations.ps1
 ```
 
-Optional parameters:
+This applies `database/scripts/004_Migrations` via the ASP.NET `SqlDatabaseInitializer` (same path as app startup), not raw ADO.NET in PowerShell. Optional targets:
 
 ```powershell
-.\initialize-database.ps1 -ServerInstance ".\SQLEXPRESS" -Database "AssetManagementModuleDb"
+.\run-migrations.ps1 -Targets @("localhost\SQLEXPRESS|AssetManagementModuleDb")
+```
+
+Full schema + seed (new database or full refresh):
+
+```powershell
+.\initialize-database.ps1
 ```
 
 ## Recommended SQL Indexes

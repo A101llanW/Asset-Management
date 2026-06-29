@@ -60,6 +60,19 @@ namespace AssetManagement.Application.Services
 
             var quantityReceived = receivings.Sum(x => x.QuantityReceived);
 
+            var itemDescription = purchase.PurchaseRequestId.HasValue
+                ? _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value)?.ItemDescription
+                : null;
+
+            int? preferredAssetId = null;
+            if (purchase.PurchaseRequestId.HasValue)
+            {
+                var purchaseRequest = _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value);
+                preferredAssetId = purchaseRequest?.TargetAssetId;
+            }
+
+            var lookup = GetReceiveAssetLookup(purchaseRecordId, preferredAssetId);
+
 
 
             return new PurchaseReceiveDetailVm
@@ -72,13 +85,121 @@ namespace AssetManagement.Application.Services
 
                 SupplierName = supplierName,
 
+                ItemDescription = itemDescription,
+
                 PurchaseQuantity = purchase.Quantity,
 
                 QuantityReceived = quantityReceived,
 
                 RemainingQuantity = Math.Max(0, purchase.Quantity - quantityReceived),
 
+                SuggestedAssetId = lookup.SelectedAssetId,
+
                 Receivings = receivings
+
+            };
+
+        }
+
+
+
+        public ReceiveAssetLookupVm GetReceiveAssetLookup(int purchaseRecordId, int? preferredAssetId)
+
+        {
+
+            var purchase = _unitOfWork.Repository<PurchaseRecord>().GetById(purchaseRecordId);
+
+            if (purchase == null)
+
+            {
+
+                return new ReceiveAssetLookupVm();
+
+            }
+
+
+
+            var receivedAssetIds = new HashSet<int>(
+
+                _unitOfWork.Repository<AssetReceiving>()
+
+                    .Find(x => x.PurchaseRecordId == purchaseRecordId && x.IsActive)
+
+                    .Select(x => x.AssetId));
+
+
+
+            var eligibleAssets = _unitOfWork.Repository<Asset>().GetAll()
+
+                .Where(x => x.IsActive
+
+                    && (x.CurrentStatus == AssetStatus.InStore || x.CurrentStatus == AssetStatus.Returned)
+
+                    && !receivedAssetIds.Contains(x.Id))
+
+                .ToList();
+
+
+
+            var itemDescription = purchase.PurchaseRequestId.HasValue
+
+                ? _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value)?.ItemDescription
+
+                : null;
+
+
+
+            var dropdownAssets = FilterReceiveAssetCandidates(eligibleAssets, purchase.SupplierId, itemDescription);
+
+            if (!dropdownAssets.Any())
+
+            {
+
+                dropdownAssets = eligibleAssets;
+
+            }
+
+
+
+            var selectedAssetId = ResolveReceiveAssetId(eligibleAssets, purchase.SupplierId, itemDescription, preferredAssetId);
+
+
+
+            if (selectedAssetId.HasValue
+
+                && dropdownAssets.All(x => x.Id != selectedAssetId.Value)
+
+                && eligibleAssets.Any(x => x.Id == selectedAssetId.Value))
+
+            {
+
+                dropdownAssets.Add(eligibleAssets.First(x => x.Id == selectedAssetId.Value));
+
+            }
+
+
+
+            return new ReceiveAssetLookupVm
+
+            {
+
+                Assets = dropdownAssets
+
+                    .OrderBy(x => x.AssetTag)
+
+                    .Select(x => new ReceiveAssetOptionVm
+
+                    {
+
+                        Id = x.Id,
+
+                        Label = x.AssetTag + " - " + x.AssetName
+
+                    })
+
+                    .ToList(),
+
+                SelectedAssetId = selectedAssetId
 
             };
 
@@ -323,6 +444,122 @@ namespace AssetManagement.Application.Services
 
 
             return receivingId;
+
+        }
+
+
+
+        private static List<Asset> FilterReceiveAssetCandidates(
+
+            IList<Asset> eligibleAssets,
+
+            int supplierId,
+
+            string itemDescription)
+
+        {
+
+            var supplierMatches = eligibleAssets
+
+                .Where(x => !x.SupplierId.HasValue || x.SupplierId.Value <= 0 || x.SupplierId.Value == supplierId)
+
+                .ToList();
+
+
+
+            var candidates = supplierMatches.Any() ? supplierMatches : eligibleAssets.ToList();
+
+            if (string.IsNullOrWhiteSpace(itemDescription))
+
+            {
+
+                return candidates;
+
+            }
+
+
+
+            var descriptionMatches = candidates
+
+                .Where(x => MatchesItemDescription(x, itemDescription))
+
+                .ToList();
+
+            return descriptionMatches.Any() ? descriptionMatches : candidates;
+
+        }
+
+
+
+        private static int? ResolveReceiveAssetId(
+
+            IList<Asset> eligibleAssets,
+
+            int supplierId,
+
+            string itemDescription,
+
+            int? preferredAssetId)
+
+        {
+
+            if (preferredAssetId.HasValue && preferredAssetId.Value > 0
+
+                && eligibleAssets.Any(x => x.Id == preferredAssetId.Value))
+
+            {
+
+                return preferredAssetId;
+
+            }
+
+
+
+            var candidates = FilterReceiveAssetCandidates(eligibleAssets, supplierId, itemDescription);
+
+            return candidates.Count == 1 ? (int?)candidates[0].Id : null;
+
+        }
+
+
+
+        private static bool MatchesItemDescription(Asset asset, string itemDescription)
+
+        {
+
+            if (asset == null || string.IsNullOrWhiteSpace(itemDescription))
+
+            {
+
+                return false;
+
+            }
+
+
+
+            var needle = itemDescription.Trim();
+
+            return ContainsIgnoreCase(asset.AssetName, needle)
+
+                || ContainsIgnoreCase(asset.Description, needle)
+
+                || ContainsIgnoreCase(needle, asset.AssetName)
+
+                || ContainsIgnoreCase(needle, asset.AssetTag);
+
+        }
+
+
+
+        private static bool ContainsIgnoreCase(string haystack, string needle)
+
+        {
+
+            return !string.IsNullOrWhiteSpace(haystack)
+
+                && !string.IsNullOrWhiteSpace(needle)
+
+                && haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
 
         }
 

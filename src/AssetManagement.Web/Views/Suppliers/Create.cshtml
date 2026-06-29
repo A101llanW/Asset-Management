@@ -1,12 +1,17 @@
-@model AssetManagement.Application.ViewModels.SupplierVm
+@model AssetManagement.Application.ViewModels.SupplierCreateVm
 @{
     ViewBag.Title = "Create Supplier";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var categories = ViewBag.Categories as SelectList;
+    var assetTypes = ViewBag.AssetTypes as IList<AssetManagement.Domain.Entities.AssetType> ?? new List<AssetManagement.Domain.Entities.AssetType>();
+    var defaultCurrency = ViewBag.DefaultCurrency as string ?? "KES";
+    var assetTypesUrl = ViewBag.AssetTypesUrl as string ?? Url.Action("AvailableAssetTypes");
+    var taggedAssetsUrl = ViewBag.TaggedAssetsUrl as string ?? Url.Action("AvailableTaggedAssets");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Create Supplier",
-    Subtitle = "Register a supplier before linking them to purchases or asset records.",
+    Subtitle = "Register the supplier and the items they supply with unit prices for purchase-order comparison.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -15,22 +20,162 @@
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Supplier" }
     }
 })
-@using (Html.BeginForm())
+@using (Html.BeginForm(null, null, FormMethod.Post, new
+{
+    id = "supplier-create-form",
+    data_am_supplier_create = "true",
+    data_am_default_currency = defaultCurrency,
+    data_am_asset_types_url = assetTypesUrl,
+    data_am_tagged_assets_url = taggedAssetsUrl
+}))
 {
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-    <div class="row g-3">
-        <div class="col-md-6">@Html.LabelFor(m => m.SupplierName, new { @class = "form-label" }) @Html.TextBoxFor(m => m.SupplierName, new { @class = "form-control" })</div>
-        <div class="col-md-6">@Html.LabelFor(m => m.ContactPerson, new { @class = "form-label" }) @Html.TextBoxFor(m => m.ContactPerson, new { @class = "form-control" })</div>
-        <div class="col-md-6">@Html.LabelFor(m => m.Email, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Email, new { @class = "form-control" })</div>
-        <div class="col-md-6">@Html.LabelFor(m => m.Phone, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>
-        <div class="col-md-12">@Html.LabelFor(m => m.Address, new { @class = "form-label" }) @Html.TextAreaFor(m => m.Address, new { @class = "form-control", rows = "2" })</div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Supplier details</div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">Minimum: supplier name and a contact phone or email. Payment terms help when comparing lead times on POs.</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.SupplierName, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.SupplierName, new { @class = "form-control", required = "required" })
+                    @Html.ValidationMessageFor(m => m.SupplierName, "", new { @class = "text-danger" })
+                </div>
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.ContactPerson, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.ContactPerson, new { @class = "form-control" })
+                </div>
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.Phone, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })
+                </div>
+                <div class="col-md-6">
+                    @Html.LabelFor(m => m.Email, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Email, new { @class = "form-control" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.PaymentTerms, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.PaymentTerms, new { @class = "form-control", placeholder = "e.g. Net 30" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.DefaultLeadTimeDays, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.DefaultLeadTimeDays, new { @class = "form-control", type = "number", placeholder = "Days" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.TaxId, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.TaxId, new { @class = "form-control", placeholder = "VAT / tax ID (optional)" })
+                </div>
+                <div class="col-md-12 form-check">
+                    @Html.CheckBoxFor(m => m.IsPreferred, new { @class = "form-check-input" })
+                    @Html.LabelFor(m => m.IsPreferred, new { @class = "form-check-label" })
+                </div>
+            </div>
+            <details class="mt-3">
+                <summary class="text-muted small">Optional address, registration, and notes</summary>
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">@Html.LabelFor(m => m.RegistrationNumber, new { @class = "form-label" }) @Html.TextBoxFor(m => m.RegistrationNumber, new { @class = "form-control" })</div>
+                    <div class="col-md-6">@Html.LabelFor(m => m.Country, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Country, new { @class = "form-control" })</div>
+                    <div class="col-md-6">@Html.LabelFor(m => m.Website, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Website, new { @class = "form-control" })</div>
+                    <div class="col-md-12">@Html.LabelFor(m => m.Address, new { @class = "form-label" }) @Html.TextAreaFor(m => m.Address, new { @class = "form-control", rows = "2" })</div>
+                    <div class="col-md-12">@Html.LabelFor(m => m.PaymentInstructions, new { @class = "form-label" }) @Html.TextAreaFor(m => m.PaymentInstructions, new { @class = "form-control", rows = "2" })</div>
+                    <div class="col-md-12">@Html.LabelFor(m => m.Notes, new { @class = "form-label" }) @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "2" })</div>
+                </div>
+            </details>
+        </div>
     </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Supply catalog &amp; prices</span>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="add-catalog-row">Add line</button>
+        </div>
+        <div class="card-body p-0">
+            <p class="text-muted small px-3 pt-3 mb-0">Add at least one item with a unit price. Pick a category to narrow asset type and optionally tag an existing asset for requisition matching.</p>
+            <table class="table mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Item name</th>
+                        <th>Category</th>
+                        <th>Asset type</th>
+                        <th>Tagged asset</th>
+                        <th>SKU</th>
+                        <th>Unit price</th>
+                        <th>Currency</th>
+                        <th>Min qty</th>
+                        <th>Lead (days)</th>
+                        <th>Match text</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="catalog-items-body">
+                @for (var i = 0; i < Model.CatalogItems.Count; i++)
+                {
+                    <tr class="catalog-item-row">
+                        <td>
+                            <input class="form-control form-control-sm" name="CatalogItems[@i].ItemName" value="@Model.CatalogItems[i].ItemName" placeholder="e.g. Dell Latitude laptop" />
+                        </td>
+                        <td>
+                            @Html.DropDownList("CatalogItems[" + i + "].AssetCategoryId", categories, string.Empty, new { @class = "form-select form-select-sm catalog-category" })
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm catalog-asset-type" name="CatalogItems[@i].AssetTypeId">
+                                <option value=""></option>
+                                @foreach (var assetType in assetTypes)
+                                {
+                                    <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId" @(Model.CatalogItems[i].AssetTypeId == assetType.Id ? "selected" : null)>@assetType.Name</option>
+                                }
+                            </select>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm catalog-tagged-asset" name="CatalogItems[@i].TaggedAssetId">
+                                <option value="">—</option>
+                                @if (Model.CatalogItems[i].TaggedAssetId.HasValue)
+                                {
+                                    var taggedLabel = string.IsNullOrWhiteSpace(Model.CatalogItems[i].TaggedAssetTag)
+                                        ? Model.CatalogItems[i].TaggedAssetName
+                                        : Model.CatalogItems[i].TaggedAssetTag + (string.IsNullOrWhiteSpace(Model.CatalogItems[i].TaggedAssetName) ? "" : " - " + Model.CatalogItems[i].TaggedAssetName);
+                                    <option value="@Model.CatalogItems[i].TaggedAssetId" selected>@taggedLabel</option>
+                                }
+                            </select>
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" name="CatalogItems[@i].Sku" value="@Model.CatalogItems[i].Sku" placeholder="SKU" />
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm catalog-unit-price" name="CatalogItems[@i].UnitPrice" type="number" step="0.01" min="0.01" value="@(Model.CatalogItems[i].UnitPrice > 0 ? Model.CatalogItems[i].UnitPrice.ToString("0.##") : "")" placeholder="0.00" />
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm catalog-currency" name="CatalogItems[@i].Currency" value="@(string.IsNullOrWhiteSpace(Model.CatalogItems[i].Currency) ? defaultCurrency : Model.CatalogItems[i].Currency)" maxlength="10" />
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" name="CatalogItems[@i].MinimumOrderQuantity" type="number" min="1" value="@(Model.CatalogItems[i].MinimumOrderQuantity.HasValue ? Model.CatalogItems[i].MinimumOrderQuantity.Value.ToString() : "")" />
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" name="CatalogItems[@i].LeadTimeDays" type="number" min="0" value="@(Model.CatalogItems[i].LeadTimeDays.HasValue ? Model.CatalogItems[i].LeadTimeDays.Value.ToString() : "")" />
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" name="CatalogItems[@i].ItemDescription" value="@Model.CatalogItems[i].ItemDescription" placeholder="Keywords for requisition match" />
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-catalog-row" title="Remove line">&times;</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
         SubmitLabel = "Create Supplier",
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/supplier-create.js")"></script>
 }

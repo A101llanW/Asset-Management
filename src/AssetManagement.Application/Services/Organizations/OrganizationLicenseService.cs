@@ -13,8 +13,6 @@ namespace AssetManagement.Application.Services.Organizations
     public class OrganizationLicenseService : IOrganizationLicenseService
     {
         private const int PendingRenewalWindowDays = 30;
-        private const string DefaultPlanCode = "Organization";
-        private const string DefaultPlanName = "Organization license";
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOrganizationLicenseQueryRepository _queryRepository;
@@ -74,8 +72,6 @@ namespace AssetManagement.Application.Services.Organizations
                 OrganizationId = organizationId,
                 OrganizationName = organization.Name,
                 OrganizationSlug = organization.Slug,
-                PlanCode = license.PlanCode,
-                PlanName = license.PlanName,
                 Status = license.Status,
                 EffectiveStatus = effectiveStatus,
                 StartDate = license.StartDate,
@@ -213,7 +209,7 @@ namespace AssetManagement.Application.Services.Organizations
             return Success("License resumed. Tenant portal access restored.");
         }
 
-        public LicenseOperationResult UpdatePlan(UpdatePlanRequest request, string performedBy)
+        public LicenseOperationResult UpdateLimits(UpdateLicenseLimitsRequest request, string performedBy)
         {
             EnsureManageAccess();
             if (request == null || request.OrganizationId <= 0)
@@ -221,15 +217,13 @@ namespace AssetManagement.Application.Services.Organizations
                 return Failure("Organization is required.");
             }
 
-            if (string.IsNullOrWhiteSpace(request.PlanCode) || string.IsNullOrWhiteSpace(request.PlanName))
+            var license = RequireLicense(request.OrganizationId);
+            if (request.MaxUsers.HasValue && request.MaxUsers.Value < 1)
             {
-                return Failure("Plan code and name are required.");
+                return Failure("Max users must be at least 1, or leave blank for unlimited.");
             }
 
-            var license = RequireLicense(request.OrganizationId);
-            var previousPlan = license.PlanCode + "/" + license.PlanName;
-            license.PlanCode = request.PlanCode.Trim();
-            license.PlanName = request.PlanName.Trim();
+            var previousMaxUsers = license.MaxUsers;
             license.MaxUsers = request.MaxUsers;
             if (!string.IsNullOrWhiteSpace(request.Notes))
             {
@@ -238,16 +232,16 @@ namespace AssetManagement.Application.Services.Organizations
 
             license.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<OrganizationLicense>().Update(license);
-            AppendHistory(license, "PlanChanged", license.Status, license.Status, license.ExpiryDate, license.ExpiryDate, performedBy, request.Notes);
+            AppendHistory(license, "LimitsChanged", license.Status, license.Status, license.ExpiryDate, license.ExpiryDate, performedBy, request.Notes);
             _auditWriter.Write(
-                "LICENSE_PLAN_CHANGED",
+                "LICENSE_LIMITS_CHANGED",
                 "OrganizationLicense",
                 license.Id.ToString(),
-                "{\"Plan\":\"" + EscapeJson(previousPlan) + "\"}",
-                "{\"Plan\":\"" + EscapeJson(license.PlanCode + "/" + license.PlanName) + "\"}");
+                "{\"MaxUsers\":" + (previousMaxUsers.HasValue ? previousMaxUsers.Value.ToString() : "null") + "}",
+                "{\"MaxUsers\":" + (license.MaxUsers.HasValue ? license.MaxUsers.Value.ToString() : "null") + "}");
             _unitOfWork.SaveChanges();
 
-            return Success("License plan updated.");
+            return Success("License limits updated.");
         }
 
         public LicenseStatus GetEffectiveStatus(OrganizationLicense license)
@@ -330,8 +324,6 @@ namespace AssetManagement.Application.Services.Organizations
             return new OrganizationLicense
             {
                 OrganizationId = organizationId,
-                PlanCode = DefaultPlanCode,
-                PlanName = DefaultPlanName,
                 Status = LicenseStatus.Active.ToString(),
                 StartDate = start,
                 ExpiryDate = start.AddMonths(12),

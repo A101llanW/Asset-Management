@@ -24,10 +24,33 @@ namespace AssetManagement.Application.ViewModels
                 case Disposal:
                     return "Asset Disposal";
                 case Purchase:
-                    return "Purchase Request";
+                    return "Requisition";
+                case AssetRequest:
+                    return "Asset Request";
                 default:
                     return processCode;
             }
+        }
+
+        public static string GetProcessGuide(string processCode)
+        {
+            switch (processCode)
+            {
+                case Transfer:
+                    return "Asset transfers must be approved by the configured role(s) before the move is completed.";
+                case Disposal:
+                    return "Disposal requests must be approved before assets are written off.";
+                case Purchase:
+                    return "Department heads submit requisitions; the configured role(s) approve before procurement records a purchase order. Typical setup: one stage — Procurement Officer (not Finance).";
+                default:
+                    return null;
+            }
+        }
+
+        public static bool IsRequisitionProcessName(string processName)
+        {
+            return string.Equals(processName, GetDisplayName(Purchase), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(processName, "Purchase Request", StringComparison.OrdinalIgnoreCase);
         }
 
         public static string GetEnabledSettingKey(string processCode)
@@ -38,6 +61,11 @@ namespace AssetManagement.Application.ViewModels
         public static string GetStageRoleIdsSettingKey(string processCode)
         {
             return "Approval.Process." + processCode + ".StageRoleIds";
+        }
+
+        public static string GetStageUserIdsSettingKey(string processCode)
+        {
+            return "Approval.Process." + processCode + ".StageUserIds";
         }
 
         public static string GetLegacyRequireSettingKey(string processCode)
@@ -382,6 +410,50 @@ namespace AssetManagement.Application.ViewModels
             return ResolveRoleName(roleLookup, (int?)roleId);
         }
 
+        public static IList<string> GetProcessesUsingRole(int roleId, IDictionary<string, SystemSetting> settings)
+        {
+            var processes = new List<string>();
+            foreach (var processCode in ApprovalProcessCodes.Ordered)
+            {
+                var stageRoleIds = ParseStageRoleIds(
+                    GetString(settings, ApprovalProcessCodes.GetStageRoleIdsSettingKey(processCode)));
+                if (stageRoleIds.Contains(roleId))
+                {
+                    processes.Add(ApprovalProcessCodes.GetDisplayName(processCode));
+                }
+            }
+
+            return processes;
+        }
+
+        public static string GetTypicalRoleWorkflowNote(string roleName)
+        {
+            if (string.IsNullOrWhiteSpace(roleName))
+            {
+                return null;
+            }
+
+            switch (roleName.Trim())
+            {
+                case "Company Admin":
+                    return "Configures approval matrix, roles, and org defaults.";
+                case "Department Head":
+                    return "Submits requisitions and in-store asset requests for their department.";
+                case "Procurement Officer":
+                    return "Typical requisition approver; manages suppliers, catalog, and purchase orders.";
+                case "Asset Manager":
+                    return "Receives goods and approves in-store asset requests; may approve transfers/disposals when configured.";
+                case "Finance Officer":
+                    return "Financial reporting and depreciation; not the default requisition approver.";
+                case "Staff":
+                    return "Assignee-only profile — register employees without this login role.";
+                case "Auditor":
+                    return "Read-only access to reports and audit data.";
+                default:
+                    return null;
+            }
+        }
+
         public const int MaxApprovalStages = 10;
 
         public static IList<ApprovalStageSettingsVm> CreateStageSettings(IEnumerable<int> roleIds, bool ensureBlankRowWhenEmpty)
@@ -422,15 +494,41 @@ namespace AssetManagement.Application.ViewModels
             IDictionary<int, string> roleLookup,
             bool ensureBlankRowWhenEmpty)
         {
+            return CreateProcessSettingsVm(
+                processCode,
+                requiresApproval,
+                roleIds,
+                null,
+                roleLookup,
+                null,
+                ensureBlankRowWhenEmpty);
+        }
+
+        public static ApprovalProcessSettingsVm CreateProcessSettingsVm(
+            string processCode,
+            bool requiresApproval,
+            IEnumerable<int> roleIds,
+            IEnumerable<string> userIds,
+            IDictionary<int, string> roleLookup,
+            IDictionary<string, string> userLookup,
+            bool ensureBlankRowWhenEmpty)
+        {
             var configuredStages = (roleIds ?? Enumerable.Empty<int>()).Where(x => x > 0).ToList();
-            return new ApprovalProcessSettingsVm
+            var configuredUsers = (userIds ?? Enumerable.Empty<string>()).ToList();
+            var vm = new ApprovalProcessSettingsVm
             {
                 ProcessCode = processCode,
                 DisplayName = ApprovalProcessCodes.GetDisplayName(processCode),
                 RequiresApproval = requiresApproval,
-                Stages = CreateStageSettings(configuredStages, ensureBlankRowWhenEmpty && configuredStages.Count == 0),
-                StageSummary = BuildStageSummary(configuredStages, roleLookup)
+                Stages = CreateStageSettings(
+                    configuredStages,
+                    configuredUsers,
+                    ensureBlankRowWhenEmpty && configuredStages.Count == 0)
             };
+            vm.StageSummary = userLookup != null && configuredUsers.Any(x => !string.IsNullOrWhiteSpace(x))
+                ? BuildAssetStageSummary(configuredStages.Select(x => (int?)x), configuredUsers, roleLookup, userLookup)
+                : BuildStageSummary(configuredStages, roleLookup);
+            return vm;
         }
 
         public static void ValidateApprovalProcessSettings(IList<ApprovalProcessSettingsVm> processes, Action<string, string> addModelError)

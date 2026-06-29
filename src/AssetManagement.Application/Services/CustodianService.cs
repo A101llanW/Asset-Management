@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
@@ -25,51 +24,6 @@ namespace AssetManagement.Application.Services
             _auditWriter = auditWriter;
             _outboxWriter = outboxWriter;
             _organizationScope = organizationScope;
-        }
-
-        public void AcknowledgeReceipt(int assetId, string custodianUserId)
-        {
-            if (string.IsNullOrWhiteSpace(custodianUserId))
-            {
-                throw new BusinessException("Custodian identity is required.");
-            }
-
-            var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
-            if (asset == null || !asset.IsActive)
-            {
-                throw new BusinessException("Asset not found.");
-            }
-
-            if (!string.Equals(asset.CurrentCustodianId, custodianUserId, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new BusinessException("Only the current custodian can acknowledge receipt.");
-            }
-
-            if (asset.CurrentStatus != AssetStatus.Assigned)
-            {
-                throw new BusinessException("Only assigned assets can be acknowledged.");
-            }
-
-            var assignment = _unitOfWork.Repository<AssetAssignment>().Find(x => x.AssetId == assetId)
-                .OrderByDescending(x => x.AssignedDate)
-                .FirstOrDefault();
-
-            if (assignment == null)
-            {
-                throw new BusinessException("No assignment record found for this asset.");
-            }
-
-            if (assignment.RecipientAcknowledged)
-            {
-                throw new BusinessException("Receipt was already acknowledged.");
-            }
-
-            assignment.RecipientAcknowledged = true;
-            assignment.AcknowledgedAt = DateTime.UtcNow;
-            assignment.UpdatedAt = DateTime.UtcNow;
-            _unitOfWork.Repository<AssetAssignment>().Update(assignment);
-            _unitOfWork.SaveChanges();
-            _auditWriter.Write("Assets.AcknowledgeReceipt", nameof(AssetAssignment), assignment.Id.ToString(), null, assetId.ToString());
         }
 
         public void RequestReturn(int assetId, string custodianUserId, string notes)

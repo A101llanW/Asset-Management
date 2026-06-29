@@ -50,8 +50,9 @@ namespace AssetManagement.Web.Controllers
             var model = new AssetReturnVm
             {
                 AssetId = assetId,
-                ReturnedById = asset.CurrentCustodianId,
-                ReturnDate = DateTime.UtcNow
+                ReturnedById = ResolveReturningUserId(asset, null),
+                ReturnDate = DateTime.UtcNow,
+                ReturnCondition = asset.Condition.ToString()
             };
 
             PopulateLookups(model, asset);
@@ -74,7 +75,12 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
-            viewModel.ReturnedById = asset.CurrentCustodianId;
+            viewModel.ReturnedById = ResolveReturningUserId(asset, viewModel);
+            if (string.IsNullOrWhiteSpace(viewModel.ReturnedById))
+            {
+                ModelState.AddModelError("ReturnedById", "Select the user returning this asset.");
+            }
+
             string scopeError;
             if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
             {
@@ -112,7 +118,9 @@ namespace AssetManagement.Web.Controllers
             var activeUsers = GetActiveUsers().ToList();
             var receiveDepartmentId = asset != null && asset.DepartmentId > 0 ? (int?)asset.DepartmentId : null;
             ViewBag.Users = BuildActiveUserSelectList(model?.ReceivedById, receiveDepartmentId);
+            ViewBag.ConditionOptions = BuildAssetConditionSelectList(model?.ReturnCondition);
             ViewBag.LockReturnedBy = !string.IsNullOrWhiteSpace(asset?.CurrentCustodianId);
+            ViewBag.RequireReturnedBy = !ViewBag.LockReturnedBy;
             ViewBag.ReturnedByName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.ReturnedById, activeUsers);
             ViewBag.ReceiveDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 receiveDepartmentId,
@@ -124,6 +132,32 @@ namespace AssetManagement.Web.Controllers
                 ViewBag.LockReturnedBy == true
                     ? new[] { new WorkflowLockedFieldVm { FieldId = "ReturnedById" } }
                     : new WorkflowLockedFieldVm[0]));
+        }
+
+        private string ResolveReturningUserId(Asset asset, AssetReturnVm model)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+            {
+                return asset.CurrentCustodianId.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(model?.ReturnedById))
+            {
+                return model.ReturnedById.Trim();
+            }
+
+            var lastAssignee = UnitOfWork.Repository<AssetAssignment>().Query()
+                .Where(x => x.AssetId == asset.Id && x.IsActive && x.ToUserId != null && x.ToUserId != string.Empty)
+                .OrderByDescending(x => x.AssignedDate)
+                .Select(x => x.ToUserId)
+                .FirstOrDefault();
+
+            return string.IsNullOrWhiteSpace(lastAssignee) ? null : lastAssignee.Trim();
         }
     }
 }

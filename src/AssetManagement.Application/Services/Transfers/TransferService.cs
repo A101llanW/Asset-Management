@@ -420,17 +420,12 @@ namespace AssetManagement.Application.Services
 
         private void EnsureTransferIsAllowed(Asset asset, AssetTransferVm model)
         {
-            if (asset.CurrentStatus == AssetStatus.Disposed || asset.CurrentStatus == AssetStatus.Retired)
+            if (AssetCustodyRules.BlocksCustodyChange(asset.CurrentStatus))
             {
-                throw new BusinessException("Disposed or retired assets cannot be transferred.");
+                throw new BusinessException("This asset cannot be transferred in its current status.");
             }
 
-            if (asset.CurrentStatus == AssetStatus.Lost || asset.CurrentStatus == AssetStatus.Stolen)
-            {
-                throw new BusinessException("Lost/stolen assets cannot be transferred unless recovered.");
-            }
-
-            if (asset.CurrentStatus != AssetStatus.Assigned)
+            if (!AssetCustodyRules.CanTransfer(asset.CurrentStatus))
             {
                 throw new BusinessException("Only assigned assets can be transferred.");
             }

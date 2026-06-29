@@ -56,7 +56,7 @@
                 </button>
             </div>
             <ul class="am-nav-module-items nav flex-column" id="am-nav-assets">
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetScan)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetScan, action = actLookup }))">Scan</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetScan)" href="@TenantUrlHelper.TenantRouteUrl(Url, actLookup, ctrlAssetScan)">Scan</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actIndex)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actIndex }))">Assets</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actMyAssets)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actMyAssets }))">My Assets</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actDepartmentAssets)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actDepartmentAssets }))">Department Assets</a></li>
@@ -102,7 +102,7 @@
                 @if (Html.HasPermission("Purchases.View"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchases)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchases, action = actIndex }))">Purchases</a></li>
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchaseRequests)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchaseRequests, action = actIndex }))">Purchase Requests</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchaseRequests)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchaseRequests, action = actIndex }))">Requisitions</a></li>
                 }
                 @if (Html.HasPermission("Suppliers.View"))
                 {
@@ -150,7 +150,7 @@
     }
 
     @if (Html.HasPermission("Departments.View") || Html.HasPermission("Assets.Edit")
-        || Html.HasPermission("Users.View") || Html.HasPermission("Roles.View"))
+        || Html.HasPermission("Users.View") || Html.HasPermission("Users.ViewDepartment") || Html.HasPermission("Roles.View"))
     {
         <li class="am-nav-module" data-am-module="organization">
             <div class="am-nav-module-header">
@@ -168,7 +168,7 @@
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlAssetCategories, ctrlAssetTypes)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetCategories, action = actIndex }))">Asset Categories</a></li>
                 }
-                @if (Html.HasPermission("Users.View"))
+                @if (Html.HasPermission("Users.View") || Html.HasPermission("Users.ViewDepartment"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@(Url.RouteUrl("Default", new { controller = ctrlUsers, action = actIndex }))">Users</a></li>
                 }

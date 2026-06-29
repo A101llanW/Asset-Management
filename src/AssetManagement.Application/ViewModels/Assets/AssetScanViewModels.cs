@@ -52,6 +52,8 @@ namespace AssetManagement.Application.ViewModels
 
         public bool CanReportIncident { get; set; }
 
+        public bool CanViewAssetDetails { get; set; }
+
         public IList<string> ActionUrls { get; set; }
     }
 

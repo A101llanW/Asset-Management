@@ -8,7 +8,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "System Settings",
-    Subtitle = "Manage operational defaults and configure which business processes require staged approval.",
+    Subtitle = "Operational defaults, finance currency, and the approval matrix for requisitions, transfers, and disposals.",
     BackUrl = Url.Action("Index", "Dashboard"),
     BackLabel = "Back to Dashboard"
 })
@@ -64,7 +64,8 @@
     <div class="card card-kpi mb-3">
         <div class="card-header">Approval Matrix</div>
         <div class="card-body">
-            <p class="text-muted mb-3">Choose which business processes require approval and define as many stages as you need (up to @AssetManagement.Application.ViewModels.ApprovalWorkflowSettingsHelper.MaxApprovalStages). Pick the approver role for each stage in order. Stage roles are the same roles you maintain under Roles &amp; Permissions. Changes apply to new requests only.</p>
+            @Html.Partial("_RequisitionWorkflowGuide")
+            <p class="text-muted mb-3">Enable approval per process and assign an approver <strong>role and individual</strong> for each stage (up to @AssetManagement.Application.ViewModels.ApprovalWorkflowSettingsHelper.MaxApprovalStages). Roles are defined under <a href="@Url.Action("Index", "Roles")">Roles &amp; Permissions</a>. For requisitions, assign users with <code>Purchases.Approve</code> to the stage role (typically Procurement Officer). Changes apply to <strong>new</strong> requests only.</p>
             @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
         </div>
     </div>

@@ -3,6 +3,7 @@ using System.Web;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Security;
 
@@ -32,10 +33,17 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToAction("Index", "Assets");
             }
 
+            documentType = AssetDocumentTypeCatalog.NormalizeType(documentType);
+            if (string.IsNullOrWhiteSpace(documentType))
+            {
+                TempData["Error"] = "Select or enter a document type before uploading.";
+                return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
+            }
+
             if (attachment == null || attachment.ContentLength == 0)
             {
                 TempData["Error"] = "Select a file to upload.";
-                return RedirectToAction("Details", "Assets", new { id = assetId });
+                return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
             }
 
             try
@@ -58,7 +66,7 @@ namespace AssetManagement.Web.Controllers
                 TempData["Error"] = ex.Message;
             }
 
-            return RedirectToAction("Details", "Assets", new { id = assetId });
+            return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
         }
 
         public ActionResult Download(int id)
@@ -101,7 +109,7 @@ namespace AssetManagement.Web.Controllers
             if (document == null || document.AssetId != assetId)
             {
                 TempData["Error"] = "Document not found.";
-                return RedirectToAction("Details", "Assets", new { id = assetId });
+                return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
             }
 
             if (_assetService.GetById(assetId) == null)
@@ -120,7 +128,7 @@ namespace AssetManagement.Web.Controllers
                 TempData["Error"] = ex.Message;
             }
 
-            return RedirectToAction("Details", "Assets", new { id = assetId });
+            return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
         }
     }
 }

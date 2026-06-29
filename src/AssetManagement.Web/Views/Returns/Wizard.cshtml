@@ -5,6 +5,7 @@
     var users = ViewBag.Users as System.Collections.Generic.IEnumerable<SelectListItem> ?? System.Linq.Enumerable.Empty<SelectListItem>();
     var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
     var lockReturnedBy = ViewBag.LockReturnedBy == true;
+    var requireReturnedBy = ViewBag.RequireReturnedBy == true;
     var returnedByName = ViewBag.ReturnedByName as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -31,21 +32,41 @@
                     @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
                     @Html.DropDownListFor(m => m.ReceivedById, users, "-- Receiving user --", new { @class = "form-select" })
                 </div>
+                @if (lockReturnedBy)
+                {
+                    @Html.HiddenFor(m => m.ReturnedById)
+                    <div class="col-12">
+                        <label class="form-label">Returned by</label>
+                        <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(returnedByName) ? "Current custodian" : returnedByName)" />
+                    </div>
+                }
+                else
+                {
+                    <div class="col-12">
+                        @Html.LabelFor(m => m.ReturnedById, new { @class = "form-label" })
+                        @Html.DropDownListFor(
+                            m => m.ReturnedById,
+                            users,
+                            "-- Select returning user --",
+                            new { @class = "form-select", required = requireReturnedBy ? "required" : null })
+                    </div>
+                }
                 <div class="col-12">
                     @Html.LabelFor(m => m.ReturnDate, new { @class = "form-label" })
                     @Html.TextBoxFor(m => m.ReturnDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
                 </div>
-                @if (lockReturnedBy)
-                {
-                    @Html.HiddenFor(m => m.ReturnedById)
-                }
             </div>
         </div>
         <div class="am-wizard-panel d-none" data-am-wizard-panel="1">
             <div class="row g-3">
                 <div class="col-12">
                     @Html.LabelFor(m => m.ReturnCondition, new { @class = "form-label" })
-                    @Html.TextBoxFor(m => m.ReturnCondition, new { @class = "form-control" })
+                    @Html.DropDownListFor(
+                        m => m.ReturnCondition,
+                        ViewBag.ConditionOptions as IEnumerable<SelectListItem>,
+                        "-- Select condition --",
+                        new { @class = "form-select" })
+                    @Html.ValidationMessageFor(m => m.ReturnCondition, "", new { @class = "text-danger" })
                 </div>
                 <div class="col-12">
                     @Html.LabelFor(m => m.Notes, new { @class = "form-label" })

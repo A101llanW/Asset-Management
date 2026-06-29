@@ -4,6 +4,7 @@ using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
@@ -45,6 +46,12 @@ namespace AssetManagement.Web.Controllers
             if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
             {
                 TempData["Error"] = scopeError;
+                return RedirectToAssetDetails(assetId);
+            }
+
+            if (!AssetCustodyRules.CanTransfer(asset.CurrentStatus))
+            {
+                TempData["Error"] = "Only assigned assets can be transferred.";
                 return RedirectToAssetDetails(assetId);
             }
 

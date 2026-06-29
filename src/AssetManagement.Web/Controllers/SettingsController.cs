@@ -7,6 +7,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
+using AssetManagement.Web.Helpers;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -22,7 +23,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Index()
         {
             var model = BuildViewModel();
-            PopulateRoleOptions();
+            PopulateApprovalMatrixOptions();
             return View(model);
         }
 
@@ -30,7 +31,7 @@ namespace AssetManagement.Web.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult Index(SettingsVm model)
         {
-            PopulateRoleOptions();
+            PopulateApprovalMatrixOptions();
             ValidateApprovalProcesses(model);
             if (!ModelState.IsValid)
             {
@@ -49,8 +50,10 @@ namespace AssetManagement.Web.Controllers
             foreach (var process in model.ApprovalProcesses ?? new List<ApprovalProcessSettingsVm>())
             {
                 var stageIds = process.GetStageRoleIds();
+                var stageUserIds = process.GetStageUserIds();
                 UpsertSetting(repository, settings, ApprovalProcessCodes.GetEnabledSettingKey(process.ProcessCode), process.RequiresApproval.ToString(), "Whether " + process.DisplayName + " requires staged approval.");
                 UpsertSetting(repository, settings, ApprovalProcessCodes.GetStageRoleIdsSettingKey(process.ProcessCode), ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(stageIds), "Ordered role ids for " + process.DisplayName + " approval stages.");
+                UpsertSetting(repository, settings, ApprovalProcessCodes.GetStageUserIdsSettingKey(process.ProcessCode), ApprovalWorkflowSettingsHelper.SerializeStageUserIds(stageUserIds), "Ordered approver user ids for " + process.DisplayName + " approval stages.");
 
                 var legacyKey = ApprovalProcessCodes.GetLegacyRequireSettingKey(process.ProcessCode);
                 if (!string.IsNullOrWhiteSpace(legacyKey))
@@ -61,7 +64,7 @@ namespace AssetManagement.Web.Controllers
 
             UnitOfWork.SaveChanges();
             TempData["Message"] = "Settings saved successfully.";
-            TempData["Guidance"] = "Approval stage changes apply to new requests going forward. Existing pending requests keep the approval path they were submitted with.";
+            TempData["Guidance"] = "Approval stage changes apply to new requisitions and other requests going forward. Existing pending items keep the approval path they were submitted with.";
             return RedirectToAction("Index");
         }
 
@@ -71,6 +74,11 @@ namespace AssetManagement.Web.Controllers
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
             var roles = BuildRoleService().GetRoles().ToList();
             var roleLookup = roles.ToDictionary(x => x.Id, x => x.Name);
+            var orgId = ResolveCurrentOrganizationId();
+            var users = orgId.HasValue
+                ? BuildReferenceDataCache().GetUsersForDropdown(orgId.Value)
+                : GetActiveUsers();
+            var userLookup = ApproverPickerHelper.BuildUserNameLookup(users);
 
             return new SettingsVm
             {
@@ -81,7 +89,7 @@ namespace AssetManagement.Web.Controllers
                 DefaultCurrency = ApprovalWorkflowSettingsHelper.GetString(settings, DefaultCurrencyKey, FinanceDefaults.DefaultCurrencyCode),
                 RequireTransferApproval = ApprovalWorkflowSettingsHelper.GetBool(settings, ApprovalProcessCodes.GetLegacyRequireSettingKey(ApprovalProcessCodes.Transfer), false),
                 RequireDisposalApproval = ApprovalWorkflowSettingsHelper.GetBool(settings, ApprovalProcessCodes.GetLegacyRequireSettingKey(ApprovalProcessCodes.Disposal), false),
-                ApprovalProcesses = ApprovalProcessCodes.Ordered.Select(code => BuildApprovalProcessVm(code, settings, roleLookup, GetDefaultApproverRoleIdForProcess(code, roles))).ToList()
+                ApprovalProcesses = ApprovalProcessCodes.Ordered.Select(code => BuildApprovalProcessVm(code, settings, roleLookup, userLookup, GetDefaultApproverRoleIdForProcess(code, roles))).ToList()
             };
         }
 
@@ -105,7 +113,12 @@ namespace AssetManagement.Web.Controllers
             return roles?.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase))?.Id;
         }
 
-        private ApprovalProcessSettingsVm BuildApprovalProcessVm(string processCode, IDictionary<string, SystemSetting> settings, IDictionary<int, string> roleLookup, int? defaultRoleId)
+        private ApprovalProcessSettingsVm BuildApprovalProcessVm(
+            string processCode,
+            IDictionary<string, SystemSetting> settings,
+            IDictionary<int, string> roleLookup,
+            IDictionary<string, string> userLookup,
+            int? defaultRoleId)
         {
             var requiresApproval = ApprovalWorkflowSettingsHelper.GetBool(
                 settings,
@@ -113,6 +126,8 @@ namespace AssetManagement.Web.Controllers
                 ApprovalWorkflowSettingsHelper.GetBool(settings, ApprovalProcessCodes.GetLegacyRequireSettingKey(processCode), false));
             var configuredStages = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(
                 ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageRoleIdsSettingKey(processCode)));
+            var configuredUsers = ApprovalWorkflowSettingsHelper.ParseStageUserIds(
+                ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageUserIdsSettingKey(processCode)));
 
             if (configuredStages.Count == 0 && defaultRoleId.HasValue && requiresApproval)
             {
@@ -123,8 +138,16 @@ namespace AssetManagement.Web.Controllers
                 processCode,
                 requiresApproval,
                 configuredStages,
+                configuredUsers,
                 roleLookup,
+                userLookup,
                 requiresApproval);
+        }
+
+        private void PopulateApprovalMatrixOptions()
+        {
+            PopulateRoleOptions();
+            PopulateAssetApproverPickerOptions();
         }
 
         private void PopulateRoleOptions()
@@ -134,7 +157,7 @@ namespace AssetManagement.Web.Controllers
 
         private void ValidateApprovalProcesses(SettingsVm model)
         {
-            ApprovalWorkflowSettingsHelper.ValidateApprovalProcessSettings(
+            ApprovalWorkflowSettingsHelper.ValidateAssetApprovalProcessSettings(
                 model?.ApprovalProcesses,
                 (key, message) => ModelState.AddModelError(key, message));
         }

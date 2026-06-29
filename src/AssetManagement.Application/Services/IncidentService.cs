@@ -231,13 +231,13 @@ namespace AssetManagement.Application.Services
 
         private static bool TryParseIncidentType(string value, out IncidentType incidentType)
         {
-            incidentType = IncidentType.Damaged;
+            incidentType = default(IncidentType);
             if (string.IsNullOrWhiteSpace(value))
             {
                 return false;
             }
 
-            if (!Enum.TryParse(value, true, out incidentType))
+            if (!Enum.TryParse(value.Trim(), true, out incidentType))
             {
                 return false;
             }

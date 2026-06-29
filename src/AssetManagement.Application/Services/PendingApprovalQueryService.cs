@@ -16,19 +16,25 @@ namespace AssetManagement.Application.Services
         private readonly IDepartmentScopeService _departmentScope;
         private readonly IReferenceDataCache _referenceDataCache;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IAuthorizationService _authorizationService;
+        private readonly ICurrentUserContext _currentUser;
 
         public PendingApprovalQueryService(
             IPendingApprovalQueryRepository queryRepository,
             IOrganizationScopeService organizationScope,
             IDepartmentScopeService departmentScope,
             IReferenceDataCache referenceDataCache,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IAuthorizationService authorizationService = null,
+            ICurrentUserContext currentUser = null)
         {
             _queryRepository = queryRepository;
             _organizationScope = organizationScope;
             _departmentScope = departmentScope;
             _referenceDataCache = referenceDataCache;
             _unitOfWork = unitOfWork;
+            _authorizationService = authorizationService;
+            _currentUser = currentUser;
         }
 
         public int CountGlobalPending()
@@ -38,7 +44,9 @@ namespace AssetManagement.Application.Services
                 scope.OrganizationId,
                 scope.DepartmentId,
                 scope.BypassesDepartmentScope,
-                scope.DenyDepartmentScope);
+                scope.DenyDepartmentScope,
+                scope.BypassPurchaseDepartmentScope,
+                scope.BypassAssetRequestDepartmentScope);
         }
 
         public PendingApprovalInboxResultVm BuildInbox(PendingApprovalUserContextVm context)
@@ -50,7 +58,9 @@ namespace AssetManagement.Application.Services
                 scope.OrganizationId,
                 scope.DepartmentId,
                 scope.BypassesDepartmentScope,
-                scope.DenyDepartmentScope);
+                scope.DenyDepartmentScope,
+                scope.BypassPurchaseDepartmentScope,
+                scope.BypassAssetRequestDepartmentScope);
             var items = new List<PendingApprovalQueryItemVm>();
 
             foreach (var source in sources)
@@ -101,8 +111,26 @@ namespace AssetManagement.Application.Services
                 OrganizationId = organizationId.Value,
                 DepartmentId = departmentId,
                 BypassesDepartmentScope = bypassesDepartmentScope,
-                DenyDepartmentScope = denyDepartmentScope
+                DenyDepartmentScope = denyDepartmentScope,
+                BypassPurchaseDepartmentScope = CanApprovePurchases(),
+                BypassAssetRequestDepartmentScope = CanApproveAssetRequests()
             };
+        }
+
+        private bool CanApprovePurchases()
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return !string.IsNullOrWhiteSpace(userId)
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Purchases.Approve");
+        }
+
+        private bool CanApproveAssetRequests()
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return !string.IsNullOrWhiteSpace(userId)
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Assets.Request.Approve");
         }
 
         private void TryAddWorkflowItem(
@@ -213,6 +241,10 @@ namespace AssetManagement.Application.Services
             public bool BypassesDepartmentScope { get; set; }
 
             public bool DenyDepartmentScope { get; set; }
+
+            public bool BypassPurchaseDepartmentScope { get; set; }
+
+            public bool BypassAssetRequestDepartmentScope { get; set; }
         }
     }
 }

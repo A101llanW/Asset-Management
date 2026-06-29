@@ -238,6 +238,15 @@
         }
     }
 
+    function renderPdfFromHtml(html, fileName) {
+        if (!window.amDocumentPdf) {
+            window.alert('PDF engine not available.');
+            return Promise.reject(new Error('PDF engine not available.'));
+        }
+
+        return window.amDocumentPdf.renderPdfFromHtml(html, fileName);
+    }
+
     function showPreview(html, title, rowCount) {
         document.getElementById('amReportPreviewTitle').textContent = title || 'Report preview';
         document.getElementById('amReportPreviewMeta').textContent = (rowCount || 0) + ' data rows';
@@ -356,24 +365,8 @@
                     return;
                 }
 
-                document.getElementById('amReportPreviewContent').innerHTML = data.html;
-                var content = document.getElementById('amReportPreviewContent');
-                if (!content || !window.html2pdf) {
-                    hideLoading();
-                    window.alert('PDF engine not available.');
-                    return;
-                }
-
                 var fileName = (reportKey || 'report') + '_' + new Date().getTime() + '.pdf';
-                var opt = {
-                    margin: 0.5,
-                    filename: fileName,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-                };
-
-                return window.html2pdf().set(opt).from(content).save()
+                return renderPdfFromHtml(data.html, fileName)
                     .then(function () {
                         hideLoading();
                         addRecentReport(fileName, reportKey);
@@ -386,8 +379,8 @@
     }
     function downloadPdfFromPreview() {
         var content = document.getElementById('amReportPreviewContent');
-        if (!content || !window.html2pdf) {
-            window.alert('PDF engine not available.');
+        if (!content) {
+            window.alert('Open a report preview first.');
             return;
         }
 
@@ -397,15 +390,7 @@
         }
 
         var fileName = (currentReportKey || 'report') + '_' + new Date().getTime() + '.pdf';
-        var opt = {
-            margin: 0.5,
-            filename: fileName,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-
-        window.html2pdf().set(opt).from(content).save()
+        renderPdfFromHtml(content.innerHTML, fileName)
             .then(function () {
                 hideLoading();
                 addRecentReport(fileName, currentReportKey);

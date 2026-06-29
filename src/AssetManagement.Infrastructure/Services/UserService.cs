@@ -4,6 +4,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Infrastructure.Identity;
@@ -18,6 +19,7 @@ namespace AssetManagement.Infrastructure.Services
         private readonly ICurrentUserContext _currentUser;
         private readonly IAuditWriter _auditWriter;
         private readonly IUserAccountQueryRepository _userAccountQueryRepository;
+        private readonly IReferenceDataCache _referenceDataCache;
 
         public UserService(
             IUnitOfWork unitOfWork,
@@ -25,7 +27,8 @@ namespace AssetManagement.Infrastructure.Services
             IOrganizationScopeService organizationScope,
             ICurrentUserContext currentUser,
             IAuditWriter auditWriter,
-            IUserAccountQueryRepository userAccountQueryRepository)
+            IUserAccountQueryRepository userAccountQueryRepository,
+            IReferenceDataCache referenceDataCache)
         {
             _unitOfWork = unitOfWork;
             _authorizationService = authorizationService;
@@ -33,6 +36,7 @@ namespace AssetManagement.Infrastructure.Services
             _currentUser = currentUser;
             _auditWriter = auditWriter;
             _userAccountQueryRepository = userAccountQueryRepository;
+            _referenceDataCache = referenceDataCache;
         }
 
         public IEnumerable<UserVm> GetAll()
@@ -43,10 +47,12 @@ namespace AssetManagement.Infrastructure.Services
                 return new List<UserVm>();
             }
 
-            return _userAccountQueryRepository.GetUsersForOrganization(
+            var users = _userAccountQueryRepository.GetUsersForOrganization(
                 organizationId.Value,
                 null,
                 true);
+            ApplyOrganizationRoleNames(users, organizationId.Value);
+            return users;
         }
 
         public UserVm GetById(string id)
@@ -57,7 +63,24 @@ namespace AssetManagement.Infrastructure.Services
                 return null;
             }
 
-            return _userAccountQueryRepository.GetUserById(id, organizationId.Value);
+            var user = _userAccountQueryRepository.GetUserById(id, organizationId.Value);
+            if (user == null)
+            {
+                return null;
+            }
+
+            ApplyOrganizationRoleNames(new[] { user }, organizationId.Value);
+            return user;
+        }
+
+        private void ApplyOrganizationRoleNames(IEnumerable<UserVm> users, int organizationId)
+        {
+            if (_referenceDataCache == null || users == null)
+            {
+                return;
+            }
+
+            UserRoleNameResolver.ApplyOrganizationRoleNames(users, _referenceDataCache.GetRoles(organizationId));
         }
 
         public void AssignRole(string userId, int roleId)
@@ -72,6 +95,13 @@ namespace AssetManagement.Infrastructure.Services
             if (role == null || !role.IsActive)
             {
                 throw new BusinessException("Role not found.");
+            }
+
+            if (user.OrganizationId.HasValue
+                && role.OrganizationId.HasValue
+                && role.OrganizationId.Value != user.OrganizationId.Value)
+            {
+                throw new BusinessException("That role does not belong to this organization.");
             }
 
             if (role.IsSystemRole

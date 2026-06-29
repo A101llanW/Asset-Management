@@ -3,8 +3,7 @@ using System;
 using System.Collections.Generic;
 
 using System.Web;
-
-
+using AssetManagement.Web.Helpers;
 
 namespace AssetManagement.Web.Security
 
@@ -38,7 +37,9 @@ namespace AssetManagement.Web.Security
 
 
 
-            var key = context.Request.UserHostAddress ?? "unknown";
+            var tenant = TenantUrlHelper.GetTenantToken(context);
+            var address = context.Request.UserHostAddress ?? "unknown";
+            var key = string.IsNullOrWhiteSpace(tenant) ? address : tenant + "|" + address;
 
             var now = DateTime.UtcNow;
 

@@ -10,8 +10,6 @@ namespace AssetManagement.Application.ViewModels.Organizations
 
         public string Status { get; set; }
 
-        public string PlanCode { get; set; }
-
         public int? ExpiringWithinDays { get; set; }
     }
 
@@ -24,10 +22,6 @@ namespace AssetManagement.Application.ViewModels.Organizations
         public string OrganizationName { get; set; }
 
         public string OrganizationSlug { get; set; }
-
-        public string PlanCode { get; set; }
-
-        public string PlanName { get; set; }
 
         public string Status { get; set; }
 
@@ -90,10 +84,6 @@ namespace AssetManagement.Application.ViewModels.Organizations
 
         public string OrganizationSlug { get; set; }
 
-        public string PlanCode { get; set; }
-
-        public string PlanName { get; set; }
-
         public string Status { get; set; }
 
         public LicenseStatus EffectiveStatus { get; set; }
@@ -140,13 +130,9 @@ namespace AssetManagement.Application.ViewModels.Organizations
         public string Notes { get; set; }
     }
 
-    public class UpdatePlanRequest
+    public class UpdateLicenseLimitsRequest
     {
         public int OrganizationId { get; set; }
-
-        public string PlanCode { get; set; }
-
-        public string PlanName { get; set; }
 
         public int? MaxUsers { get; set; }
 

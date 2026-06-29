@@ -18,8 +18,10 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(Role), "Roles");
             Register(typeof(Permission));
             Register(typeof(RolePermission));
+            Register(typeof(RoleTemplate));
             Register(typeof(Department));
             Register(typeof(Supplier));
+            Register(typeof(SupplierCatalogItem));
             Register(typeof(AssetCategory));
             Register(typeof(AssetType));
             Register(typeof(Asset));

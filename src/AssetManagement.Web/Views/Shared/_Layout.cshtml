@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
-    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")" />
-    <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
     @if (ViewBag.ShowLoginBackground == true)
     {
         <link rel="stylesheet" href="@Url.Content("~/Content/css/auth-portal.css")" />
@@ -219,11 +219,11 @@
     <script src="@Url.Content("~/Scripts/app/password-toggle.js")"></script>
     @if (ViewBag.ShowLoginBackground == true || Request.IsAuthenticated)
     {
-        <script src="@Url.Content("~/Scripts/app/anti-gravity-bubbles.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/anti-gravity-bubbles.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/anti-gravity-bubbles.js")).Ticks"></script>
     }
     @if (ViewBag.ShowLoginBackground == true)
     {
-        <script src="@Url.Content("~/Scripts/app/auth-theme.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/auth-theme.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/auth-theme.js")).Ticks"></script>
     }
     @if (Request.IsAuthenticated)
     {

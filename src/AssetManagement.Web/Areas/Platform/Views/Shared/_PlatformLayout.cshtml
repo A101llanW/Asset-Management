@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title - Platform Administration</title>
     <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
-    <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")" />
-    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
     <style>
         .app-impersonation-bar { background: #f39c12; color: #1a1a1a; }
     </style>

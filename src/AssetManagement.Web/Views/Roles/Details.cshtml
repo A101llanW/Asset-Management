@@ -1,11 +1,18 @@
 @model AssetManagement.Application.ViewModels.RoleVm
+@using System.Collections.Generic
 @using System.Linq
+@using AssetManagement.Application.ViewModels
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Role Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditRole = Html.HasPermission("Roles.Edit");
+    var canManageSettings = Html.HasPermission("Settings.Manage");
     var permissionGroups = ViewBag.PermissionGroups as IEnumerable<IGrouping<string, AssetManagement.Application.ViewModels.PermissionVm>> ?? Enumerable.Empty<IGrouping<string, AssetManagement.Application.ViewModels.PermissionVm>>();
+    var workflowNote = ViewBag.WorkflowNote as string;
+    var approvalStageProcesses = ViewBag.ApprovalStageProcesses as IList<string> ?? new List<string>();
+    var offerRoleTemplateSave = ViewBag.OfferRoleTemplateSave as bool? == true;
+    var roleTemplateSaveError = ViewBag.RoleTemplateSaveError as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -36,11 +43,42 @@
                     <dd class="col-sm-7">@ViewBag.UserCount</dd>
                     <dt class="col-sm-5">Description</dt>
                     <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Description) ? "No description" : Model.Description)</dd>
+                    @if (!string.IsNullOrWhiteSpace(workflowNote))
+                    {
+                        <dt class="col-sm-5">Workflow</dt>
+                        <dd class="col-sm-7">@workflowNote</dd>
+                    }
                 </dl>
             </div>
         </div>
     </div>
     <div class="col-lg-8">
+        @if (approvalStageProcesses.Any() || canManageSettings)
+        {
+            <div class="card card-kpi mb-3">
+                <div class="card-header">Approval matrix</div>
+                <div class="card-body">
+                    @if (approvalStageProcesses.Any())
+                    {
+                        <p class="mb-2">This role is configured as an approver for:</p>
+                        <ul class="mb-0">
+                            @foreach (var processName in approvalStageProcesses)
+                            {
+                                <li>@processName</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">This role is not currently assigned to any approval stage.</p>
+                    }
+                    @if (canManageSettings)
+                    {
+                        <p class="text-muted small mt-3 mb-0">Change approval stages under <a href="@Url.Action("Index", "Settings")">Settings &rarr; Approval Matrix</a>.</p>
+                    }
+                </div>
+            </div>
+        }
         <div class="card card-kpi h-100">
             <div class="card-header">Permissions</div>
             <div class="card-body">
@@ -67,3 +105,16 @@
         </div>
     </div>
 </div>
+
+@if (offerRoleTemplateSave)
+{
+    ViewBag.RoleTemplateSaveError = roleTemplateSaveError;
+    @Html.Partial("_RoleTemplateSaveModal", Model)
+}
+
+@section Scripts {
+    @if (offerRoleTemplateSave)
+    {
+        <script src="@Url.Content("~/Scripts/app/role-template-save-modal.js")"></script>
+    }
+}

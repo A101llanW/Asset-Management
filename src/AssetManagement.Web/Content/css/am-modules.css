@@ -16,7 +16,7 @@
 }
 
 .am-main-content .am-module-body,
-.am-main-content .card > .card-body {
+.am-main-content .card:not(.am-kpi-card) > .card-body {
     background: var(--am-submodule-bg-light);
     border-left: 2px solid var(--am-submodule-border-light);
     border-radius: 0 0 0.65rem 0.65rem;
@@ -173,6 +173,38 @@
     background: var(--am-surface);
 }
 
+/* Keep action-column buttons on one row (table auto-layout can squeeze the last column). */
+.am-main-content .table th.text-end,
+.am-main-content .table td.text-end {
+    white-space: nowrap;
+    width: 1%;
+}
+
+.am-users-table .am-users-email {
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.am-users-table .am-users-assign-col {
+    min-width: 11rem;
+    white-space: nowrap;
+}
+
+.am-users-table .am-inline-assign-form {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.am-users-table .am-inline-assign-form .form-select {
+    flex: 1 1 auto;
+    min-width: 7rem;
+    max-width: 10rem;
+}
+
 .am-main-content .am-page-header {
     padding: 0.85rem 1rem 1rem;
     background: var(--am-module-bg);
@@ -230,8 +262,28 @@
 
 .am-main-content .app-report-preview {
     max-width: 920px;
-    min-height: 400px;
+    min-height: 0;
     padding: 1.25rem;
+}
+
+.am-report-pdf-source {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 794px;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff;
+    overflow: visible;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.am-report-pdf-source .report-frame {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .am-main-content .am-report-filters {

@@ -43,9 +43,33 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(100)]
         public string RegistrationNumber { get; set; }
 
+        [StringLength(50)]
+        public string TaxId { get; set; }
+
+        [StringLength(100)]
+        public string PaymentTerms { get; set; }
+
+        public int? DefaultLeadTimeDays { get; set; }
+
+        [StringLength(300)]
+        public string Website { get; set; }
+
+        public bool IsPreferred { get; set; }
+
+        [StringLength(100)]
+        public string Country { get; set; }
+
+        public string PaymentInstructions { get; set; }
+
         public string Notes { get; set; }
 
         public bool IsActive { get; set; }
+
+        public int CatalogItemCount { get; set; }
+
+        public decimal? CatalogMinPrice { get; set; }
+
+        public decimal? CatalogMaxPrice { get; set; }
     }
 
     public class CategoryLookupVm

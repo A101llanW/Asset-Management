@@ -6,6 +6,7 @@ export const users = {
   superAdmin: { email: 'nanosoft@asset.local', password: DEMO_PASSWORD },
   assetManager: { email: 'assetmanager@asset.local', password: DEMO_PASSWORD },
   departmentHead: { email: 'departmenthead@asset.local', password: DEMO_PASSWORD },
+  procurement: { email: 'procurement@asset.local', password: DEMO_PASSWORD },
   staff: { email: 'staff@asset.local', password: DEMO_PASSWORD },
   auditor: { email: 'auditor@asset.local', password: DEMO_PASSWORD },
   demoBAdmin: { email: 'demo@asset.local', password: DEMO_PASSWORD },

@@ -10,8 +10,11 @@ namespace AssetManagement.Infrastructure.Queries
 {
     public class PendingApprovalQueryRepository : IPendingApprovalQueryRepository
     {
+        private static readonly string PurchaseRequestDepartmentScopeSql =
+            "(@BypassDepartmentScope = 1 OR @BypassPurchaseDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND p.[DepartmentId] = @DepartmentId))";
+
         private static readonly string AssetRequestDepartmentScopeSql =
-            "(@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND r.[DepartmentId] = @DepartmentId))";
+            "(@BypassDepartmentScope = 1 OR @BypassAssetRequestDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND r.[DepartmentId] = @DepartmentId))";
 
         private static readonly string CountSql = @"
 SELECT COUNT(*)
@@ -43,7 +46,7 @@ FROM (
     WHERE p.[OrganizationId] = @OrganizationId
       AND p.[IsActive] = 1
       AND p.[ApprovalStatus] = @PendingStatus
-      AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("p") + @"
+      AND " + PurchaseRequestDepartmentScopeSql + @"
 
     UNION ALL
 
@@ -112,7 +115,7 @@ WHERE d.[OrganizationId] = @OrganizationId
 UNION ALL
 
 SELECT
-    N'Purchase Request' AS ProcessName,
+    N'Requisition' AS ProcessName,
     p.[Id] AS RequestId,
     0 AS AssetId,
     p.[RequestNumber] AS AssetTag,
@@ -121,8 +124,10 @@ SELECT
     p.[CreatedAt] AS RequestedDateUtc,
     p.[CurrentApprovalStage],
     p.[ApprovalStageRoleIds],
-    NULL AS ApprovalStageUserIds,
+    p.[ApprovalStageUserIds],
     CASE
+        WHEN NULLIF(LTRIM(RTRIM(p.[ItemDescription])), '') IS NOT NULL THEN
+            CASE WHEN LEN(p.[ItemDescription]) > 120 THEN LEFT(p.[ItemDescription], 120) + N'...' ELSE p.[ItemDescription] END
         WHEN NULLIF(LTRIM(RTRIM(p.[Justification])), '') IS NULL THEN N'Purchase request pending approval.'
         WHEN LEN(p.[Justification]) > 120 THEN LEFT(p.[Justification], 120) + N'...'
         ELSE p.[Justification]
@@ -136,7 +141,7 @@ LEFT JOIN [Department] dept ON dept.[Id] = p.[DepartmentId]
 WHERE p.[OrganizationId] = @OrganizationId
   AND p.[IsActive] = 1
   AND p.[ApprovalStatus] = @PendingStatus
-  AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("p") + @"
+  AND " + PurchaseRequestDepartmentScopeSql + @"
 
 UNION ALL
 
@@ -176,7 +181,13 @@ ORDER BY RequestedDateUtc DESC";
             _connectionFactory = connectionFactory;
         }
 
-        public int CountGlobalPending(int organizationId, int? departmentId, bool bypassDepartmentScope, bool denyDepartmentScope)
+        public int CountGlobalPending(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool bypassPurchaseDepartmentScope,
+            bool bypassAssetRequestDepartmentScope)
         {
             if (denyDepartmentScope)
             {
@@ -189,7 +200,14 @@ ORDER BY RequestedDateUtc DESC";
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText = CountSql;
-                    AddScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
+                    AddScopeParameters(
+                        command,
+                        organizationId,
+                        departmentId,
+                        bypassDepartmentScope,
+                        denyDepartmentScope,
+                        bypassPurchaseDepartmentScope,
+                        bypassAssetRequestDepartmentScope);
                     return Convert.ToInt32(command.ExecuteScalar());
                 }
             }
@@ -199,7 +217,9 @@ ORDER BY RequestedDateUtc DESC";
             int organizationId,
             int? departmentId,
             bool bypassDepartmentScope,
-            bool denyDepartmentScope)
+            bool denyDepartmentScope,
+            bool bypassPurchaseDepartmentScope,
+            bool bypassAssetRequestDepartmentScope)
         {
             if (denyDepartmentScope)
             {
@@ -213,7 +233,14 @@ ORDER BY RequestedDateUtc DESC";
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText = SourcesSql;
-                    AddScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
+                    AddScopeParameters(
+                        command,
+                        organizationId,
+                        departmentId,
+                        bypassDepartmentScope,
+                        denyDepartmentScope,
+                        bypassPurchaseDepartmentScope,
+                        bypassAssetRequestDepartmentScope);
 
                     using (var reader = command.ExecuteReader())
                     {
@@ -250,10 +277,14 @@ ORDER BY RequestedDateUtc DESC";
             int organizationId,
             int? departmentId,
             bool bypassDepartmentScope,
-            bool denyDepartmentScope)
+            bool denyDepartmentScope,
+            bool bypassPurchaseDepartmentScope,
+            bool bypassAssetRequestDepartmentScope)
         {
             SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
             SqlQueryHelper.AddDepartmentScopeParameters(command, bypassDepartmentScope, denyDepartmentScope, departmentId);
+            SqlQueryHelper.AddParameter(command, "@BypassPurchaseDepartmentScope", bypassPurchaseDepartmentScope ? 1 : 0);
+            SqlQueryHelper.AddParameter(command, "@BypassAssetRequestDepartmentScope", bypassAssetRequestDepartmentScope ? 1 : 0);
             SqlQueryHelper.AddParameter(command, "@PendingStatus", (int)ApprovalStatus.Pending);
             SqlQueryHelper.AddParameter(command, "@AssetRequestPendingStatus", (int)AssetRequestStatus.Pending);
         }

@@ -1,9 +1,11 @@
 @model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.RoleVm>
+@using AssetManagement.Application.ViewModels
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Roles";
     var canCreateRole = Html.HasPermission("Roles.Create");
     var canEditRole = Html.HasPermission("Roles.Edit");
+    var canManageSettings = Html.HasPermission("Settings.Manage");
     var statusFilter = ViewBag.StatusFilter as SelectList;
     var currentSort = ViewBag.Sort as string;
     var currentDirection = ViewBag.Direction as string;
@@ -11,10 +13,14 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Roles",
-    Subtitle = "Define access profiles for admins, custodians, and operational teams.",
+    Subtitle = "Access profiles for approvers and submitters. Roles selected here appear as approval stages under Settings.",
     PrimaryActionUrl = canCreateRole ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateRole ? "Create Role" : null
 })
+@if (canManageSettings)
+{
+    @Html.Partial("_RequisitionWorkflowGuide")
+}
 <form class="am-list-toolbar" method="get">
     <div class="row g-2">
         <div class="col-md-7">
@@ -53,12 +59,14 @@ else
 {
     <div class="card card-kpi"><div class="card-body p-0">
     <table class="table mb-0">
-        <thead class="table-light"><tr><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>Description</th><th>@Html.SortLink("System", "system", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
+        <thead class="table-light"><tr><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>Workflow</th><th>Description</th><th>@Html.SortLink("System", "system", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
         <tbody>
         @foreach (var item in Model.Items)
         {
+            var workflowNote = ApprovalWorkflowSettingsHelper.GetTypicalRoleWorkflowNote(item.Name);
             <tr>
                 <td>@item.Name</td>
+                <td class="small text-muted" style="max-width:220px;white-space:normal">@(workflowNote ?? "—")</td>
                 <td>@item.Description</td>
                 <td>@(item.IsSystemRole ? "Yes" : "No")</td>
                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>

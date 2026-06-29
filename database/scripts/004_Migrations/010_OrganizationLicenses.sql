@@ -4,8 +4,6 @@ BEGIN
     CREATE TABLE [OrganizationLicense] (
         [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         [OrganizationId] INT NOT NULL,
-        [PlanCode] NVARCHAR(50) NOT NULL,
-        [PlanName] NVARCHAR(100) NOT NULL,
         [Status] NVARCHAR(20) NOT NULL,
         [StartDate] DATETIME NOT NULL,
         [ExpiryDate] DATETIME NOT NULL,
@@ -64,8 +62,8 @@ GO
 -- Backfill default Active 12-month license for existing organizations
 DECLARE @now DATETIME = GETUTCDATE();
 INSERT INTO [OrganizationLicense]
-    ([OrganizationId],[PlanCode],[PlanName],[Status],[StartDate],[ExpiryDate],[MaxUsers],[CreatedAt],[IsActive])
-SELECT o.[Id], N'Standard', N'Standard', N'Active', @now, DATEADD(MONTH, 12, @now), NULL, @now, 1
+    ([OrganizationId],[Status],[StartDate],[ExpiryDate],[MaxUsers],[CreatedAt],[IsActive])
+SELECT o.[Id], N'Active', @now, DATEADD(MONTH, 12, @now), NULL, @now, 1
 FROM [Organization] o
 WHERE o.[IsActive] = 1
   AND NOT EXISTS (SELECT 1 FROM [OrganizationLicense] ol WHERE ol.[OrganizationId] = o.[Id]);

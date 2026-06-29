@@ -10,13 +10,14 @@ using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
 {
-    [PermissionAuthorize("Users.View")]
+    [AnyPermissionAuthorize("Users.View", "Users.ViewDepartment")]
     public class UsersController : BaseController
     {
         private readonly IUserService _userService;
         private readonly IRoleService _roleService;
         private readonly IUserAccountService _userAccountService;
         private readonly IOrganizationScopeService _organizationScope;
+        private readonly IDepartmentScopeService _departmentScope;
 
         public UsersController()
         {
@@ -24,13 +25,32 @@ namespace AssetManagement.Web.Controllers
             _roleService = BuildRoleService();
             _userAccountService = DependencyResolver.Current.GetService<IUserAccountService>();
             _organizationScope = DependencyResolver.Current.GetService<IOrganizationScopeService>();
+            _departmentScope = DependencyResolver.Current.GetService<IDepartmentScopeService>();
         }
 
         public ActionResult Index(string search = null, int? roleId = null, int? departmentId = null, bool? isActive = null, string sort = "name", string direction = "asc", int page = 1, int pageSize = 10)
         {
+            var isDepartmentScoped = IsDepartmentScopedUserAccess();
+            var scopedDepartmentId = isDepartmentScoped ? GetScopedDepartmentIdOrDeny() : null;
+            if (isDepartmentScoped && !scopedDepartmentId.HasValue)
+            {
+                return new HttpStatusCodeResult(403, "Your account is not assigned to a department.");
+            }
+
             var roles = _roleService.GetRoles().ToList();
             var departments = BuildDepartmentService().GetAll().ToList();
+            if (isDepartmentScoped)
+            {
+                departments = departments.Where(x => x.Id == scopedDepartmentId.Value).ToList();
+                departmentId = scopedDepartmentId;
+            }
+
             ViewBag.DepartmentOptions = departments;
+            ViewBag.IsDepartmentScoped = isDepartmentScoped;
+            ViewBag.ScopedDepartmentName = isDepartmentScoped && departments.Count > 0
+                ? departments[0].Name
+                : null;
+
             var items = _userService.GetAll();
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -96,12 +116,18 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
+            if (!CanAccessUser(model))
+            {
+                return new HttpStatusCodeResult(403);
+            }
+
             var role = model.RoleId.HasValue ? _roleService.GetById(model.RoleId.Value) : null;
             ViewBag.RoleName = role?.Name ?? model.RoleName;
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.AssignedAssetCount = BuildAssetService().CountAssets(new AssetFilterVm { CustodianUserId = model.Id });
             ViewBag.Roles = _roleService.GetRoles();
             ViewBag.Departments = BuildDepartmentService().GetAll();
+            ViewBag.IsDepartmentScoped = IsDepartmentScopedUserAccess();
             return View(model);
         }
 
@@ -213,6 +239,47 @@ namespace AssetManagement.Web.Controllers
             }
 
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = userId });
+        }
+
+        private bool IsDepartmentScopedUserAccess()
+        {
+            return !HasUsersViewPermission() && HasUsersViewDepartmentPermission();
+        }
+
+        private bool HasUsersViewPermission()
+        {
+            return BuildAuthorizationService().HasPermission(User.GetUserId(), "Users.View");
+        }
+
+        private bool HasUsersViewDepartmentPermission()
+        {
+            return BuildAuthorizationService().HasPermission(User.GetUserId(), "Users.ViewDepartment");
+        }
+
+        private int? GetScopedDepartmentIdOrDeny()
+        {
+            if (_departmentScope != null && _departmentScope.ScopedDepartmentId.HasValue)
+            {
+                return _departmentScope.ScopedDepartmentId;
+            }
+
+            return GetCurrentUserDepartmentId();
+        }
+
+        private bool CanAccessUser(UserVm user)
+        {
+            if (user == null || HasUsersViewPermission())
+            {
+                return user != null;
+            }
+
+            if (!HasUsersViewDepartmentPermission())
+            {
+                return false;
+            }
+
+            var departmentId = GetScopedDepartmentIdOrDeny();
+            return departmentId.HasValue && user.DepartmentId == departmentId.Value;
         }
 
         private bool IsAdministratorRole(int roleId)

@@ -1,14 +1,22 @@
 @model AssetManagement.Application.ViewModels.SupplierVm
+@using AssetManagement.Application.ViewModels
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Supplier Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditSupplier = Html.HasPermission("Suppliers.Edit");
+    var catalogItems = ViewBag.CatalogItems as IList<SupplierCatalogItemVm> ?? new List<SupplierCatalogItemVm>();
+    var canEditCatalog = ViewBag.CanEditCatalog == true;
+    var categories = ViewBag.Categories as SelectList;
+    var assetTypes = ViewBag.AssetTypes as IList<AssetManagement.Domain.Entities.AssetType> ?? new List<AssetManagement.Domain.Entities.AssetType>();
+    var defaultCurrency = ViewBag.DefaultCurrency as string ?? "KES";
+    var assetTypesUrl = ViewBag.AssetTypesUrl as string ?? Url.Action("AvailableAssetTypes");
+    var taggedAssetsUrl = ViewBag.TaggedAssetsUrl as string ?? Url.Action("AvailableTaggedAssets");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = Model.SupplierName,
-    Subtitle = "Supplier profile and procurement context.",
+    Subtitle = "Supplier profile, procurement terms, and price catalog.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     PrimaryActionUrl = canEditSupplier ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
@@ -32,8 +40,20 @@
                     <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Email) ? "Not set" : Model.Email)</dd>
                     <dt class="col-sm-5">Phone</dt>
                     <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Phone) ? "Not set" : Model.Phone)</dd>
+                    <dt class="col-sm-5">Tax / VAT</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.TaxId) ? "Not set" : Model.TaxId)</dd>
+                    <dt class="col-sm-5">Payment terms</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.PaymentTerms) ? "Not set" : Model.PaymentTerms)</dd>
+                    <dt class="col-sm-5">Lead time</dt>
+                    <dd class="col-sm-7">@(Model.DefaultLeadTimeDays.HasValue ? Model.DefaultLeadTimeDays + " days" : "Not set")</dd>
+                    <dt class="col-sm-5">Country</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Country) ? "Not set" : Model.Country)</dd>
+                    <dt class="col-sm-5">Preferred</dt>
+                    <dd class="col-sm-7">@(Model.IsPreferred ? "Yes" : "No")</dd>
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">Catalog items</dt>
+                    <dd class="col-sm-7">@Model.CatalogItemCount@if (Model.CatalogMinPrice.HasValue && Model.CatalogMaxPrice.HasValue) {<text> (@Html.FormatCurrency(Model.CatalogMinPrice) – @Html.FormatCurrency(Model.CatalogMaxPrice))</text>}</dd>
                     <dt class="col-sm-5">Purchases</dt>
                     <dd class="col-sm-7">@ViewBag.PurchaseCount</dd>
                     <dt class="col-sm-5">Assets</dt>
@@ -44,16 +64,181 @@
     </div>
     <div class="col-lg-8">
         <div class="card card-kpi mb-3">
-            <div class="card-header">Address</div>
+            <div class="card-header">Address &amp; web</div>
             <div class="card-body">
-                <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.Address) ? "No address recorded." : Model.Address)</p>
+                <p class="mb-2">@(string.IsNullOrWhiteSpace(Model.Address) ? "No address recorded." : Model.Address)</p>
+                @if (!string.IsNullOrWhiteSpace(Model.Website))
+                {
+                    <p class="mb-0"><a href="@Model.Website" target="_blank" rel="noopener">@Model.Website</a></p>
+                }
             </div>
         </div>
-        <div class="card card-kpi">
+        @if (!string.IsNullOrWhiteSpace(Model.PaymentInstructions))
+        {
+            <div class="card card-kpi mb-3">
+                <div class="card-header">Payment instructions</div>
+                <div class="card-body"><p class="mb-0">@Model.PaymentInstructions</p></div>
+            </div>
+        }
+        <div class="card card-kpi mb-3">
             <div class="card-header">Notes</div>
             <div class="card-body">
                 <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.Notes) ? "No supplier notes recorded." : Model.Notes)</p>
             </div>
         </div>
+
+        <div class="card card-kpi">
+            <div class="card-header">Price catalog</div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Item</th>
+                            <th>Category</th>
+                            <th>Asset type</th>
+                            <th>Tagged asset</th>
+                            <th>SKU</th>
+                            <th>Unit price</th>
+                            <th>Lead time</th>
+                            <th>Status</th>
+                            @if (canEditCatalog) { <th></th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (catalogItems.Any())
+                    {
+                        foreach (var item in catalogItems)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.ItemName</strong>
+                                    @if (!string.IsNullOrWhiteSpace(item.ItemDescription))
+                                    {
+                                        <div class="small text-muted">@item.ItemDescription</div>
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(item.AssetCategoryName) ? "—" : item.AssetCategoryName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.AssetTypeName) ? "—" : item.AssetTypeName)</td>
+                                <td>
+                                    @if (item.TaggedAssetId.HasValue)
+                                    {
+                                        var taggedLabel = string.IsNullOrWhiteSpace(item.TaggedAssetTag)
+                                            ? item.TaggedAssetName
+                                            : item.TaggedAssetTag + (string.IsNullOrWhiteSpace(item.TaggedAssetName) ? "" : " - " + item.TaggedAssetName);
+                                        <a href="@Url.Action("Details", "Assets", new { id = item.TaggedAssetId })">@taggedLabel</a>
+                                    }
+                                    else
+                                    {
+                                        <text>—</text>
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
+                                <td>@Html.FormatCurrency(item.UnitPrice) @(item.Currency)</td>
+                                <td>@(item.LeadTimeDays.HasValue ? item.LeadTimeDays + " d" : "—")</td>
+                                <td>@(item.IsActive ? "Active" : "Inactive")</td>
+                                @if (canEditCatalog && item.IsActive)
+                                {
+                                    <td>
+                                        @using (Html.BeginForm("DeactivateCatalogItem", "Suppliers", FormMethod.Post, new { @class = "d-inline" }))
+                                        {
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="supplierId" value="@Model.Id" />
+                                            <input type="hidden" name="catalogItemId" value="@item.Id" />
+                                            <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                                        }
+                                    </td>
+                                }
+                                else if (canEditCatalog)
+                                {
+                                    <td></td>
+                                }
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="@(canEditCatalog ? 9 : 8)" class="text-muted p-3">No catalog items yet.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            @if (canEditCatalog)
+            {
+                <div class="card-body border-top">
+                    <h6 class="mb-3">Add catalog item</h6>
+                    @using (Html.BeginForm("SaveCatalogItem", "Suppliers", FormMethod.Post, new
+                    {
+                        id = "supplier-catalog-add-form",
+                        data_am_supplier_catalog_add = "true",
+                        data_am_asset_types_url = assetTypesUrl,
+                        data_am_tagged_assets_url = taggedAssetsUrl
+                    }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                        <input type="hidden" name="SupplierId" value="@Model.Id" />
+                        <input type="hidden" name="IsActive" value="true" />
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label small">Item name</label>
+                                <input class="form-control" name="ItemName" placeholder="Required" required />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Category</label>
+                                @Html.DropDownList("AssetCategoryId", categories, string.Empty, new { @class = "form-select catalog-category" })
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Asset type</label>
+                                <select class="form-select catalog-asset-type" name="AssetTypeId">
+                                    <option value=""></option>
+                                    @foreach (var assetType in assetTypes)
+                                    {
+                                        <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId">@assetType.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Tagged asset</label>
+                                <select class="form-select catalog-tagged-asset" name="TaggedAssetId">
+                                    <option value="">—</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">SKU</label>
+                                <input class="form-control" name="Sku" placeholder="Optional" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Unit price</label>
+                                <input class="form-control" name="UnitPrice" type="number" step="0.01" min="0.01" placeholder="0.00" required />
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label small">Currency</label>
+                                <input class="form-control" name="Currency" value="@defaultCurrency" maxlength="10" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Min qty</label>
+                                <input class="form-control" name="MinimumOrderQuantity" type="number" min="1" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Lead days</label>
+                                <input class="form-control" name="LeadTimeDays" type="number" min="0" />
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small">Match text</label>
+                                <input class="form-control" name="ItemDescription" placeholder="Extra keywords to match requisitions (optional)" />
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Add item</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     </div>
 </div>
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/supplier-create.js")"></script>
+}

@@ -9,9 +9,9 @@
     var canEditAsset = Html.HasPermission("Assets.Edit");
     var canAssignAsset = Html.HasPermission("Assets.Assign") && AssetCustodyRules.CanAssign(Model.CurrentStatus);
     var assignBlockedMessage = Html.HasPermission("Assets.Assign") && !AssetCustodyRules.CanAssign(Model.CurrentStatus)
-        ? AssetCustodyRules.AlreadyAssignedMessage
+        ? AssetCustodyRules.GetAssignBlockedMessage(Model.CurrentStatus)
         : null;
-    var canTransferAsset = Html.HasPermission("Assets.Transfer");
+    var canTransferAsset = Html.HasPermission("Assets.Transfer") && AssetCustodyRules.CanTransfer(Model.CurrentStatus);
     var canReturnAsset = Html.HasPermission("Assets.Return");
     var canCreateIncident = Html.HasPermission("Incidents.Create");
     var canCreateClaim = Html.HasPermission("Claims.Create");
@@ -125,7 +125,7 @@
                 {
                     <a class="ms-1" href="@Url.Action("Create", "Transfers", new { assetId = Model.Id })">Transfer</a>
                 }
-                @if (canReturnAsset)
+                @if (canReturnAsset && (Model.CurrentStatus == AssetStatus.Assigned || Model.CurrentStatus == AssetStatus.UnderMaintenance))
                 {
                     <span class="mx-1">or</span>
                     <a href="@Url.Action("Create", "Returns", new { assetId = Model.Id })">Return</a>
@@ -320,4 +320,5 @@
     <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-details-tabs.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-documents-tab.js")"></script>
 }

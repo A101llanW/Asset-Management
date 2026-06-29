@@ -7,6 +7,7 @@
     var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
     var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
     var lockReturnedBy = ViewBag.LockReturnedBy == true;
+    var requireReturnedBy = ViewBag.RequireReturnedBy == true;
     var returnedByName = ViewBag.ReturnedByName as string;
     var receiveDepartmentName = ViewBag.ReceiveDepartmentName as string;
     var workflowConfig = ViewBag.WorkflowFormConfig as AssetManagement.Web.ViewModels.WorkflowFormConfigVm;
@@ -46,7 +47,12 @@
             }
             else
             {
-                @Html.DropDownListFor(m => m.ReturnedById, users, "-- Use current custodian --", new { @class = "form-select" })
+                @Html.DropDownListFor(
+                    m => m.ReturnedById,
+                    users,
+                    "-- Select returning user --",
+                    new { @class = "form-select", required = "required" })
+                <div class="form-text">This asset has no custodian on record (for example, a department pool assignment). Select who is returning it.</div>
             }
             @Html.ValidationMessageFor(m => m.ReturnedById, "", new { @class = "text-danger" })
         </div>
@@ -72,7 +78,11 @@
         </div>
         <div class="col-md-6">
             @Html.LabelFor(m => m.ReturnCondition, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.ReturnCondition, new { @class = "form-control" })
+            @Html.DropDownListFor(
+                m => m.ReturnCondition,
+                ViewBag.ConditionOptions as IEnumerable<SelectListItem>,
+                "-- Select condition --",
+                new { @class = "form-select" })
             @Html.ValidationMessageFor(m => m.ReturnCondition, "", new { @class = "text-danger" })
         </div>
         <div class="col-md-6">

@@ -33,13 +33,31 @@ namespace AssetManagement.Application.ViewModels
 
         public string SupplierName { get; set; }
 
+        public string ItemDescription { get; set; }
+
         public int PurchaseQuantity { get; set; }
 
         public int QuantityReceived { get; set; }
 
         public int RemainingQuantity { get; set; }
 
+        public int? SuggestedAssetId { get; set; }
+
         public IList<AssetReceivingListVm> Receivings { get; set; } = new List<AssetReceivingListVm>();
+    }
+
+    public class ReceiveAssetOptionVm
+    {
+        public int Id { get; set; }
+
+        public string Label { get; set; }
+    }
+
+    public class ReceiveAssetLookupVm
+    {
+        public IList<ReceiveAssetOptionVm> Assets { get; set; } = new List<ReceiveAssetOptionVm>();
+
+        public int? SelectedAssetId { get; set; }
     }
 
     public class AssetReceiveVm

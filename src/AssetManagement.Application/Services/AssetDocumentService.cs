@@ -5,6 +5,7 @@ using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 
@@ -104,7 +105,7 @@ namespace AssetManagement.Application.Services
             var fileSizeBytes = content.Length;
             ValidateFileSignature(content, extension);
 
-            var safeType = string.IsNullOrWhiteSpace(documentType) ? "General" : documentType.Trim();
+            var safeType = AssetDocumentTypeCatalog.NormalizeType(documentType) ?? "General";
             var folder = "assets/" + assetId;
             var storedFileName = Guid.NewGuid().ToString("N") + extension.ToLowerInvariant();
             var relativePath = _storage.Save(content, storedFileName, contentType, folder);

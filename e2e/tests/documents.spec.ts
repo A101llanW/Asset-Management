@@ -8,8 +8,9 @@ test.describe('Document upload scope', () => {
     await openAssetByTag(page, inStoreAssetTags[0]);
 
     await page.getByRole('tab', { name: 'Documents' }).click();
-    await page.locator('input[name="documentType"]').fill('E2E note');
-    await page.locator('input[name="attachment"]').setInputFiles({
+    await page.getByRole('button', { name: 'Upload documents' }).click();
+    await page.locator('#DocumentTypeSelect').selectOption('General');
+    await page.locator('#DocumentAttachment').setInputFiles({
       name: 'e2e-note.txt',
       mimeType: 'text/plain',
       buffer: Buffer.from('E2E document upload test'),

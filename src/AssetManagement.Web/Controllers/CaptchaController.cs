@@ -1,6 +1,7 @@
 using System;
 using System.Web.Mvc;
 using AssetManagement.Web.Helpers;
+using AssetManagement.Web.Security;
 using AssetManagement.Web.Services;
 
 namespace AssetManagement.Web.Controllers
@@ -12,12 +13,22 @@ namespace AssetManagement.Web.Controllers
         [HttpGet]
         public JsonResult Generate()
         {
+            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "generate"))
+            {
+                return RateLimitedJson();
+            }
+
             return Json(CreateCaptchaPayload(), JsonRequestBehavior.AllowGet);
         }
 
         [HttpGet]
         public JsonResult Refresh()
         {
+            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "refresh"))
+            {
+                return RateLimitedJson();
+            }
+
             CaptchaSessionHelper.Clear(Session);
             return Json(CreateCaptchaPayload(), JsonRequestBehavior.AllowGet);
         }
@@ -26,6 +37,11 @@ namespace AssetManagement.Web.Controllers
         [ValidateAntiForgeryToken]
         public JsonResult Validate(string captchaId, string userInput)
         {
+            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "validate"))
+            {
+                return RateLimitedJson();
+            }
+
             var sessionId = Session[CaptchaSessionHelper.CaptchaIdKey] as string;
             if (!string.Equals(sessionId, captchaId, StringComparison.Ordinal))
             {
@@ -39,6 +55,13 @@ namespace AssetManagement.Web.Controllers
             }
 
             return Json(new { success = true });
+        }
+
+        private JsonResult RateLimitedJson()
+        {
+            Response.StatusCode = 429;
+            Response.TrySkipIisCustomErrors = true;
+            return Json(new { success = false, message = "Too many CAPTCHA requests. Please wait and try again." }, JsonRequestBehavior.AllowGet);
         }
 
         private object CreateCaptchaPayload()

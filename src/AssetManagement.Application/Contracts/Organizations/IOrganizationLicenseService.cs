@@ -16,7 +16,7 @@ namespace AssetManagement.Application.Contracts.Organizations
 
         LicenseOperationResult Resume(ResumeLicenseRequest request, string performedBy);
 
-        LicenseOperationResult UpdatePlan(UpdatePlanRequest request, string performedBy);
+        LicenseOperationResult UpdateLimits(UpdateLicenseLimitsRequest request, string performedBy);
 
         LicenseStatus GetEffectiveStatus(OrganizationLicense license);
 

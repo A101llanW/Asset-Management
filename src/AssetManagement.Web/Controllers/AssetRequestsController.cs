@@ -10,7 +10,6 @@ using AssetManagement.Web.Helpers;
 using AssetManagement.Web.ViewModels;
 using AssetManagement.Web.Security;
 using System.Collections.Generic;
-using System.Web.Script.Serialization;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -70,15 +69,10 @@ namespace AssetManagement.Web.Controllers
                 viewModel = new AssetRequestCreateVm();
             }
 
+            viewModel.RequestForSelf = true;
             var user = GetCurrentUserProfile();
             ApplyLockedUserDepartment(user?.DepartmentId, deptId => viewModel.DepartmentId = deptId);
-            string requesterError;
-            var requesterId = ResolveAssetRequesterId(viewModel, out requesterError);
-            if (!string.IsNullOrWhiteSpace(requesterError))
-            {
-                ModelState.AddModelError("", requesterError);
-            }
-
+            var requesterId = User.GetUserId();
             PopulateLookups(viewModel);
             if (!ModelState.IsValid)
             {
@@ -115,9 +109,30 @@ namespace AssetManagement.Web.Controllers
             EnrichRequestNames(model);
             ViewBag.CanApprove = HasPermission("Assets.Request.Approve") && model.Status == AssetRequestStatus.Pending;
             ViewBag.CanFulfill = HasPermission("Assets.Request.Approve") && model.Status == AssetRequestStatus.Approved;
+            ViewBag.CanCreateRequisition = HasPermission("Purchases.Create");
+
+            int inStoreCount = 0;
+            if (model.DepartmentId.HasValue && model.CategoryId.HasValue)
+            {
+                var stockFilter = new AssetFilterVm
+                {
+                    Status = AssetStatus.InStore,
+                    DepartmentId = model.DepartmentId,
+                    CategoryId = model.CategoryId,
+                    OrganizationWide = true
+                };
+                inStoreCount = _assetService.GetAssetListPage(stockFilter, "name", "asc", 1, 1).TotalCount;
+            }
+
+            ViewBag.InStoreAssetCount = inStoreCount;
+
             if (ViewBag.CanFulfill == true)
             {
-                var fulfillFilter = new AssetFilterVm { Status = AssetStatus.InStore };
+                var fulfillFilter = new AssetFilterVm
+                {
+                    Status = AssetStatus.InStore,
+                    OrganizationWide = true
+                };
                 if (model.DepartmentId.HasValue)
                 {
                     fulfillFilter.DepartmentId = model.DepartmentId;
@@ -140,6 +155,7 @@ namespace AssetManagement.Web.Controllers
                 ViewBag.AssigneeUsers = BuildActiveUserSelectList(
                     model.RequestedById,
                     model.DepartmentId);
+                ViewBag.DefaultAssigneeUserId = model.RequestedById;
             }
 
             return View(model);
@@ -236,95 +252,32 @@ namespace AssetManagement.Web.Controllers
                 return Json(new object[0], JsonRequestBehavior.AllowGet);
             }
 
-            var page = _assetService.GetAssetListPage(
-                new AssetFilterVm
-                {
-                    DepartmentId = departmentId,
-                    CategoryId = categoryId,
-                    Status = AssetStatus.InStore
-                },
-                "name",
-                "asc",
-                1,
-                500);
+            var filter = new AssetFilterVm
+            {
+                DepartmentId = departmentId,
+                CategoryId = categoryId,
+                Status = AssetStatus.InStore,
+                OrganizationWide = true
+            };
+
+            var page = _assetService.GetAssetListPage(filter, "name", "asc", 1, 500);
 
             var items = page.Items
                 .OrderBy(x => x.AssetName)
-                .Select(x => new { id = x.Id, name = x.AssetName })
+                .Select(x => new { id = x.Id, name = x.AssetTag + " - " + x.AssetName })
                 .ToList();
             return Json(items, JsonRequestBehavior.AllowGet);
         }
 
         private void PopulateLookups(AssetRequestCreateVm model)
         {
-            var canRequestForOthers = IsCurrentUserSuperAdmin();
-            var lockDepartment = !canRequestForOthers && GetCurrentUserDepartmentId().HasValue;
-            ViewBag.CanRequestForOthers = canRequestForOthers;
+            var lockDepartment = GetCurrentUserDepartmentId().HasValue && !IsCurrentUserSuperAdmin();
             ViewBag.LockDepartment = lockDepartment;
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 model == null ? GetCurrentUserDepartmentId() : model.DepartmentId,
                 BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
             ViewBag.Departments = BuildDepartmentSelectList(model == null ? null : model.DepartmentId);
-            var categories = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetCategory>().GetAll()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.Name)
-                .ToList();
-            ViewBag.Categories = new SelectList(categories, "Id", "Name", model == null ? null : model.CategoryId);
-            if (canRequestForOthers)
-            {
-                var currentUserId = User.GetUserId();
-                var tenantUserList = GetActiveUsers()
-                    .Where(x => x != null
-                        && x.IsActive
-                        && !string.Equals(x.Id, currentUserId, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(x => x.LastName)
-                    .ThenBy(x => x.FirstName)
-                    .ToList();
-                ViewBag.TenantUsers = new SelectList(
-                    tenantUserList.Select(x => new { x.Id, Name = BuildUserLabel(x) }),
-                    "Id",
-                    "Name",
-                    model == null ? null : model.RequestedForUserId);
-                ViewBag.TenantUserDepartmentsJson = new JavaScriptSerializer().Serialize(
-                    tenantUserList.ToDictionary(
-                        x => x.Id,
-                        x => x.DepartmentId.HasValue ? x.DepartmentId.Value.ToString() : string.Empty));
-            }
-        }
-
-        private string ResolveAssetRequesterId(AssetRequestCreateVm viewModel, out string errorMessage)
-        {
-            errorMessage = null;
-            var currentUserId = User.GetUserId();
-            if (!IsCurrentUserSuperAdmin() || viewModel == null || viewModel.RequestForSelf)
-            {
-                return currentUserId;
-            }
-
-            if (string.IsNullOrWhiteSpace(viewModel.RequestedForUserId))
-            {
-                errorMessage = "Select the employee you are requesting the asset for.";
-                return currentUserId;
-            }
-
-            if (string.Equals(viewModel.RequestedForUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
-            {
-                return currentUserId;
-            }
-
-            var targetUser = BuildUserService().GetById(viewModel.RequestedForUserId);
-            if (targetUser == null || !targetUser.IsActive)
-            {
-                errorMessage = "Selected employee was not found or is inactive.";
-                return currentUserId;
-            }
-
-            if (viewModel.DepartmentId.HasValue && targetUser.DepartmentId != viewModel.DepartmentId)
-            {
-                errorMessage = "Selected employee must belong to the request department.";
-            }
-
-            return viewModel.RequestedForUserId;
+            ViewBag.Categories = BuildCategorySelectList(model == null ? null : model.CategoryId);
         }
 
         private void EnrichRequestNames(AssetRequestDetailsVm model)

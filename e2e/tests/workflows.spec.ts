@@ -55,7 +55,7 @@ test.describe('Asset scan lookup', () => {
 
     await expect(page.locator('#am-scan-camera-toggle')).toBeVisible();
     await expect(page.locator('#am-scan-camera-toggle')).toBeEnabled();
-    await expect(page.getByText(/Zebra TC22/i).first()).toBeVisible();
+    await expect(page.getByText(/Scan a label or enter the asset tag below/i)).toBeVisible();
   });
 
   test('finds asset when tag is typed without case, spaces, or hyphen', async ({ page }) => {

@@ -60,9 +60,11 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<CustodianService>().As<ICustodianService>().InstancePerHttpRequest();
             builder.RegisterType<AssetRequestService>().As<IAssetRequestService>().InstancePerHttpRequest();
             builder.RegisterType<RoleService>().As<IRoleService>().InstancePerHttpRequest();
+            builder.RegisterType<RoleTemplateService>().As<IRoleTemplateService>().InstancePerHttpRequest();
             builder.RegisterType<PermissionService>().As<IPermissionService>().InstancePerHttpRequest();
             builder.RegisterType<DepartmentService>().As<IDepartmentService>().InstancePerHttpRequest();
             builder.RegisterType<SupplierService>().As<ISupplierService>().InstancePerHttpRequest();
+            builder.RegisterType<SupplierCatalogService>().As<ISupplierCatalogService>().InstancePerHttpRequest();
             builder.RegisterType<AssignmentService>().As<IAssignmentService>().InstancePerHttpRequest();
             builder.RegisterType<TransferService>().As<ITransferService>().InstancePerHttpRequest();
             builder.RegisterType<ReturnService>().As<IReturnService>().InstancePerHttpRequest();

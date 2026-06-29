@@ -125,19 +125,9 @@ namespace AssetManagement.Application.Services
 
             _departmentScope.EnsureCanAccessAsset(asset);
 
-            if (asset.CurrentStatus == AssetStatus.Disposed)
-            {
-                throw new BusinessException("Disposed assets cannot be assigned.");
-            }
-
-            if (asset.CurrentStatus == AssetStatus.Lost || asset.CurrentStatus == AssetStatus.Stolen)
-            {
-                throw new BusinessException("Lost or stolen assets cannot be assigned.");
-            }
-
             if (!AssetCustodyRules.CanAssign(asset.CurrentStatus))
             {
-                throw new BusinessException(AssetCustodyRules.AlreadyAssignedMessage);
+                throw new BusinessException(AssetCustodyRules.GetAssignBlockedMessage(asset.CurrentStatus));
             }
 
             ValidateConditionBeforeHandover(model.ConditionBeforeHandover);
@@ -189,7 +179,8 @@ namespace AssetManagement.Application.Services
                 HandoverNotes = NormalizeText(model.HandoverNotes),
                 HandedOverById = handedOverById,
                 ReceivedById = receivedById,
-                RecipientAcknowledged = false,
+                RecipientAcknowledged = true,
+                AcknowledgedAt = assignedDate,
                 CreatedAt = DateTime.UtcNow
             };
 

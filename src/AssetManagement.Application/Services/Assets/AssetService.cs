@@ -470,12 +470,15 @@ namespace AssetManagement.Application.Services
             entity.InsuredValue = model.InsuredValue;
             entity.WarrantyStartDate = model.WarrantyStartDate;
             entity.WarrantyEndDate = model.WarrantyEndDate;
-            if (entity.CurrentStatus != model.CurrentStatus)
+            if (entity.CurrentStatus != model.CurrentStatus && model.CurrentStatus != 0)
             {
                 _workflowGuard.EnsureNoBlockingWorkflow(entity.Id);
             }
 
-            entity.CurrentStatus = model.CurrentStatus;
+            if (model.CurrentStatus != 0)
+            {
+                entity.CurrentStatus = model.CurrentStatus;
+            }
             entity.UpdatedAt = DateTime.UtcNow;
 
             AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
@@ -1048,7 +1051,7 @@ namespace AssetManagement.Application.Services
                 case AssetStatus.Assigned:
                     return "This asset is assigned. Use transfer to move custody; return before disposal.";
                 case AssetStatus.InStore:
-                    return "Asset is in store and available for assignment or transfer.";
+                    return "Asset is in store and available for assignment.";
                 case AssetStatus.AwaitingApproval:
                     return "A workflow is awaiting approval. Resolve pending transfer or disposal before other actions.";
                 case AssetStatus.Disposed:
@@ -1056,6 +1059,13 @@ namespace AssetManagement.Application.Services
                     return "This asset is closed. No assignment, transfer, or disposal actions are allowed.";
                 case AssetStatus.UnderMaintenance:
                     return "Asset is under maintenance. Complete maintenance before reassignment when possible.";
+                case AssetStatus.Lost:
+                case AssetStatus.Stolen:
+                    return "This asset is reported lost or stolen. Custody changes are blocked until it is recovered or written off.";
+                case AssetStatus.Damaged:
+                    return "This asset is marked damaged. Resolve the incident before assigning or transferring custody.";
+                case AssetStatus.Returned:
+                    return "Asset has been returned to store and is available for assignment.";
                 default:
                     return "Review custody history before initiating assignment or transfer.";
             }

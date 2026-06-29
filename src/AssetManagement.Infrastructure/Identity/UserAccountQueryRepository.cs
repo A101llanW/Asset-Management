@@ -28,6 +28,7 @@ SELECT
 FROM [Users] u
 LEFT JOIN [Department] d ON d.[Id] = u.[DepartmentId]
 LEFT JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
 WHERE u.[OrganizationId] = @OrganizationId
   AND (@DepartmentId IS NULL OR u.[DepartmentId] = @DepartmentId)
 ORDER BY u.[FirstName], u.[LastName], u.[Id]";
@@ -49,6 +50,7 @@ SELECT
 FROM [Users] u
 LEFT JOIN [Department] d ON d.[Id] = u.[DepartmentId]
 LEFT JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
 WHERE u.[Id] = @Id
   AND u.[OrganizationId] = @OrganizationId";
 
@@ -82,6 +84,7 @@ SELECT
 FROM [Users] u
 LEFT JOIN [Department] d ON d.[Id] = u.[DepartmentId]
 LEFT JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
 LEFT JOIN [Organization] o ON o.[Id] = u.[OrganizationId]
 ORDER BY o.[Name], u.[FirstName], u.[LastName], u.[Id]";
 
@@ -104,6 +107,7 @@ SELECT
 FROM [Users] u
 LEFT JOIN [Department] d ON d.[Id] = u.[DepartmentId]
 LEFT JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
 LEFT JOIN [Organization] o ON o.[Id] = u.[OrganizationId]
 WHERE u.[Id] = @Id";
 

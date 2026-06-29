@@ -17,10 +17,6 @@
         return departmentInput ? departmentInput.value : "";
     }
 
-    function getDepartmentSelect(form) {
-        return form.querySelector('select[name="DepartmentId"]');
-    }
-
     function setSelectOptions(select, items, placeholder, selectedValue) {
         if (!select) {
             return;
@@ -35,17 +31,6 @@
 
         select.innerHTML = html;
         select.disabled = items.length === 0;
-    }
-
-    function toggleRequestedForUser(form) {
-        var requestForSelf = form.querySelector('input[name="RequestForSelf"]:checked');
-        var group = byId("requested-for-user-group");
-        if (!group) {
-            return;
-        }
-
-        var isSelf = !requestForSelf || requestForSelf.value === "True" || requestForSelf.value === "true";
-        group.style.display = isSelf ? "none" : "";
     }
 
     function loadAssets(form) {
@@ -76,62 +61,28 @@
             .then(function (items) {
                 var placeholder = items.length ? "-- Select asset --" : "No in-store assets available";
                 setSelectOptions(assetSelect, items || [], placeholder, currentAssetId);
+                var hint = byId("in-store-stock-hint");
+                if (hint) {
+                    if (!departmentId || !categoryId) {
+                        hint.textContent = "Select department and category to see in-store availability.";
+                    } else if (!items || items.length === 0) {
+                        hint.textContent = "No in-store assets in this department and category. Submit an asset request for review, or create a purchase requisition if procurement is needed.";
+                    } else {
+                        hint.textContent = items.length + " in-store asset(s) available in this department and category.";
+                    }
+                }
             })
             .catch(function () {
                 setSelectOptions(assetSelect, [], "Unable to load assets", null);
+                var hint = byId("in-store-stock-hint");
+                if (hint) {
+                    hint.textContent = "Unable to load in-store availability.";
+                }
             });
-    }
-
-    function parseUserDepartments(form) {
-        var raw = form.getAttribute("data-am-user-departments");
-        if (!raw) {
-            return {};
-        }
-
-        try {
-            return JSON.parse(raw);
-        } catch (e) {
-            return {};
-        }
-    }
-
-    function syncDepartmentForSelectedUser(form, userDepartments) {
-        var requestForSelf = form.querySelector('input[name="RequestForSelf"]:checked');
-        var isSelf = !requestForSelf || requestForSelf.value === "True" || requestForSelf.value === "true";
-        if (isSelf) {
-            return;
-        }
-
-        var userSelect = form.querySelector('select[name="RequestedForUserId"]');
-        var departmentSelect = getDepartmentSelect(form);
-        if (!userSelect || !departmentSelect || departmentSelect.disabled) {
-            return;
-        }
-
-        var departmentId = userDepartments[userSelect.value];
-        if (departmentId) {
-            departmentSelect.value = departmentId;
-        }
     }
 
     function initForm(form) {
-        var userDepartments = parseUserDepartments(form);
-
-        form.querySelectorAll('input[name="RequestForSelf"]').forEach(function (radio) {
-            radio.addEventListener("change", function () {
-                toggleRequestedForUser(form);
-            });
-        });
-
-        var userSelect = form.querySelector('select[name="RequestedForUserId"]');
-        if (userSelect) {
-            userSelect.addEventListener("change", function () {
-                syncDepartmentForSelectedUser(form, userDepartments);
-                loadAssets(form);
-            });
-        }
-
-        var departmentSelect = getDepartmentSelect(form);
+        var departmentSelect = form.querySelector('select[name="DepartmentId"]');
         var categorySelect = form.querySelector('select[name="CategoryId"]');
         if (departmentSelect) {
             departmentSelect.addEventListener("change", function () {
@@ -145,7 +96,6 @@
             });
         }
 
-        toggleRequestedForUser(form);
         loadAssets(form);
     }
 

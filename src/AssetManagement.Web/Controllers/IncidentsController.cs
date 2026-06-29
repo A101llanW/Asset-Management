@@ -72,8 +72,7 @@ namespace AssetManagement.Web.Controllers
             var model = new AssetIncidentVm
             {
                 AssetId = assetId,
-                IncidentDate = DateTime.UtcNow,
-                IncidentType = IncidentType.Damaged.ToString()
+                IncidentDate = DateTime.UtcNow
             };
 
             PopulateLookups(model);
@@ -119,9 +118,7 @@ namespace AssetManagement.Web.Controllers
 
         private void PopulateLookups(AssetIncidentVm model)
         {
-            var selectedType = string.IsNullOrWhiteSpace(model?.IncidentType)
-                ? IncidentType.Damaged.ToString()
-                : model.IncidentType;
+            var selectedType = model?.IncidentType;
             var incidentTypes = Enum.GetNames(typeof(IncidentType))
                 .Select(x => new { Value = x, Text = x })
                 .ToList();

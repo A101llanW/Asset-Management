@@ -1,4 +1,5 @@
 @model AssetManagement.Web.ViewModels.PendingApprovalsIndexViewModel
+@using AssetManagement.Application.ViewModels
 @{
     ViewBag.Title = "Pending Approvals";
 }
@@ -146,7 +147,14 @@
                                 }
                             </td>
                             <td class="text-end pe-3">
-                                <a class="btn btn-sm btn-outline-primary" href="@item.DetailsUrl">Open Asset</a>
+                                @{
+                                    var openLabel = ApprovalProcessCodes.IsRequisitionProcessName(item.ProcessName)
+                                        ? "Open requisition"
+                                        : string.Equals(item.ProcessName, "Asset Request", StringComparison.OrdinalIgnoreCase)
+                                            ? "Open request"
+                                            : (item.AssetId > 0 ? "Open asset" : "Open details");
+                                }
+                                <a class="btn btn-sm btn-outline-primary" href="@item.DetailsUrl">@openLabel</a>
                             </td>
                         </tr>
                     }

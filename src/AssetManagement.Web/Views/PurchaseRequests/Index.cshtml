@@ -1,21 +1,21 @@
 @model IEnumerable<AssetManagement.Application.ViewModels.PurchaseRequestListItemVm>
 @using AssetManagement.Web.Helpers
 @{
-    ViewBag.Title = "Purchase Requests";
+    ViewBag.Title = "Requisitions";
     var canCreate = Html.HasPermission("Purchases.Create");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Purchase Requests",
+    Title = "Requisitions",
     Subtitle = "Submit requisitions for approval, then record the purchase order against an approved request.",
     BackUrl = Url.Action("Index", "Purchases"),
     BackLabel = "Back to Purchases",
     PrimaryActionUrl = canCreate ? Url.Action("Create") : null,
-    PrimaryActionLabel = canCreate ? "New request" : null,
+    PrimaryActionLabel = canCreate ? "New requisition" : null,
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index", "Purchases") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchase Requests" }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Requisitions" }
     }
 })
 
@@ -25,6 +25,7 @@
             <thead class="table-light">
                 <tr>
                     <th>Request #</th>
+                    <th>Item</th>
                     <th>Department</th>
                     <th>Requested by</th>
                     <th>Status</th>
@@ -41,6 +42,7 @@
                     var total = r.EstimatedUnitCost * r.Quantity;
                     <tr>
                         <td><strong>@r.RequestNumber</strong></td>
+                        <td>@(string.IsNullOrWhiteSpace(r.ItemDescription) ? DisplayText.Empty : r.ItemDescription)</td>
                         <td>@(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : r.DepartmentName)</td>
                         <td>@r.RequestedById</td>
                         <td><span class="badge bg-secondary">@r.ApprovalStatus</span></td>
@@ -52,7 +54,7 @@
             }
             else
             {
-                <tr><td colspan="7" class="text-muted p-4">No purchase requests yet.</td></tr>
+                <tr><td colspan="8" class="text-muted p-4">No requisitions yet.</td></tr>
             }
             </tbody>
         </table>

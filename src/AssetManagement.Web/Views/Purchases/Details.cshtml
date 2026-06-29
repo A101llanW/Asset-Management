@@ -68,7 +68,7 @@
             <span>Receiving</span>
             @if (Html.HasPermission("Assets.Receive") && receiveDetail.RemainingQuantity > 0)
             {
-                <a class="btn btn-sm btn-primary" href="@Url.Action("Receive", new { id = Model.Id, returnUrl = Request.RawUrl })">Receive Asset</a>
+                <a class="btn btn-sm btn-primary" href="@Url.Action("Receive", new { id = Model.Id, assetId = receiveDetail.SuggestedAssetId, returnUrl = Request.RawUrl })">Receive Asset</a>
             }
         </div>
         <div class="card-body">

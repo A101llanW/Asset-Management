@@ -79,7 +79,13 @@
                     <input type="hidden" name="@(fieldPrefix)[@i].DisplayName" value="@process.DisplayName" />
 
                     <strong>@process.DisplayName</strong>
-
+                    @{
+                        var processGuide = AssetManagement.Application.ViewModels.ApprovalProcessCodes.GetProcessGuide(process.ProcessCode);
+                    }
+                    @if (!string.IsNullOrWhiteSpace(processGuide))
+                    {
+                        <div class="small text-muted mt-1">@processGuide</div>
+                    }
                     <div class="small text-muted mt-1">@process.StageSummary</div>
 
                 </div>

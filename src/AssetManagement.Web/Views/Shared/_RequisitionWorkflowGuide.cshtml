@@ -1,0 +1,44 @@
+@using System.Web.Mvc
+
+<h6 class="am-submodule-title">Requisition workflow</h6>
+<div class="mb-3">
+    <p class="mb-3">
+        Requisition approval is configured under <strong>Settings &rarr; Approval Matrix</strong> (process: <strong>Requisition</strong>).
+        Stage roles are the same roles you maintain on the <a href="@Url.Action("Index", "Roles")">Roles</a> page.
+        Users need matching permissions (for example <code>Purchases.Approve</code> on Procurement Officer) to act on pending items.
+    </p>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Role</th>
+                    <th>Typical responsibility</th>
+                    <th>Key permissions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="fw-semibold">Department Head</td>
+                    <td>Submit requisitions and in-store asset requests; view department employees</td>
+                    <td class="small text-muted"><code>Purchases.Create</code>, <code>Assets.Request</code>, <code>Users.ViewDepartment</code></td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold">Procurement Officer</td>
+                    <td>Approve requisitions (org-wide), manage suppliers/catalog, record POs</td>
+                    <td class="small text-muted"><code>Purchases.Approve</code>, <code>Purchases.Create</code>, <code>Suppliers.*</code></td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold">Asset Manager</td>
+                    <td>Approve and fulfill in-store asset requests; receive goods against POs</td>
+                    <td class="small text-muted"><code>Assets.Request.Approve</code>, <code>Assets.Receive</code></td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold">Staff</td>
+                    <td>Assignee only — register employees without assigning this login role</td>
+                    <td class="small text-muted">No requisition submit by default</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small mt-3 mb-0">In-store items use asset requests (permission-based approval). New procurement uses requisitions. Changes to the approval matrix apply to <strong>new</strong> requests only.</p>
+</div>

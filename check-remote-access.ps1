@@ -1,5 +1,5 @@
 param(
-    [int]$Port = 51980
+    [int]$Port = 51901
 )
 
 $ErrorActionPreference = 'Continue'
@@ -33,9 +33,10 @@ $ztIp = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
 
 Write-Host ""
 Write-Host "HTTP checks:"
-$urls = @("http://127.0.0.1:$Port/default/Account/Login")
+$urls = @("http://127.0.0.1:$Port/Account/Login")
 if ($ztIp) {
-    $urls += "http://${ztIp}:$Port/default/Account/Login"
+    $urls += "http://${ztIp}:$Port/Account/Login"
+    $urls += "http://${ztIp}:$Port/nanosoft/Account/Login"
 }
 foreach ($url in $urls) {
     try {
@@ -63,5 +64,6 @@ else {
 if ($ztIp) {
     Write-Host ""
     Write-Host "Use on remote device (same ZeroTier network):"
-    Write-Host "  http://${ztIp}:$Port/default/Account/Login"
+    Write-Host "  http://${ztIp}:$Port/nanosoft/Account/Login"
+    Write-Host "  http://${ztIp}:$Port/Account/Login"
 }

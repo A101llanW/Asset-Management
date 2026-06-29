@@ -36,7 +36,8 @@ namespace AssetManagement.Tests.Security
                 orgScope.Object,
                 Mock.Of<ICurrentUserContext>(),
                 Mock.Of<IAuditWriter>(),
-                queryRepo.Object);
+                queryRepo.Object,
+                Mock.Of<IReferenceDataCache>());
 
             var users = new List<UserVm>(service.GetAll());
 
@@ -57,7 +58,8 @@ namespace AssetManagement.Tests.Security
                 orgScope.Object,
                 Mock.Of<ICurrentUserContext>(),
                 Mock.Of<IAuditWriter>(),
-                Mock.Of<IUserAccountQueryRepository>());
+                Mock.Of<IUserAccountQueryRepository>(),
+                Mock.Of<IReferenceDataCache>());
 
             Assert.AreEqual(0, new List<UserVm>(service.GetAll()).Count);
         }

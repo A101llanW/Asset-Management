@@ -518,6 +518,41 @@ namespace AssetManagement.Tests
         }
 
         [Test]
+        public void AssetCustodyRules_AssignAndTransferVisibility()
+        {
+            Assert.IsTrue(AssetCustodyRules.CanAssign(AssetStatus.InStore));
+            Assert.IsTrue(AssetCustodyRules.CanAssign(AssetStatus.Returned));
+            Assert.IsFalse(AssetCustodyRules.CanAssign(AssetStatus.Assigned));
+            Assert.IsFalse(AssetCustodyRules.CanAssign(AssetStatus.Lost));
+            Assert.IsFalse(AssetCustodyRules.CanAssign(AssetStatus.Damaged));
+            Assert.IsFalse(AssetCustodyRules.CanAssign(AssetStatus.UnderMaintenance));
+
+            Assert.IsTrue(AssetCustodyRules.CanTransfer(AssetStatus.Assigned));
+            Assert.IsFalse(AssetCustodyRules.CanTransfer(AssetStatus.InStore));
+            Assert.IsFalse(AssetCustodyRules.CanTransfer(AssetStatus.Lost));
+        }
+
+        [Test]
+        public void AssignmentService_RejectsLostAssetAssignment()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(BuildAsset(id: 90, assetTag: "AST-090", status: AssetStatus.Lost));
+
+            var service = TestServiceFactory.CreateAssignmentService(unitOfWork);
+            var ex = Assert.Throws<BusinessException>(() => service.Assign(new AssetAssignmentVm
+            {
+                AssetId = 90,
+                ToUserId = "user-1",
+                ToDepartmentId = 1,
+                AssignmentType = AssignmentType.Permanent.ToString(),
+                AssignedDate = DateTime.UtcNow,
+                ConditionBeforeHandover = AssetCondition.Good.ToString()
+            }));
+
+            StringAssert.Contains("cannot be assigned", ex.Message);
+        }
+
+        [Test]
         public void AuditDisplayLabelHelper_FormatsCommonAuditActionsForUsers()
         {
             Assert.AreEqual("Incident reported", AuditDisplayLabelHelper.FormatAction("Incidents.Create"));
@@ -877,7 +912,8 @@ namespace AssetManagement.Tests
         public void SupplierService_CreateReturnsCreatedId()
         {
             var unitOfWork = new FakeUnitOfWork();
-            var service = new SupplierService(unitOfWork);
+            var catalogService = new SupplierCatalogService(unitOfWork, new FakeOrganizationScopeService());
+            var service = new SupplierService(unitOfWork, catalogService);
 
             var id = service.Create(new SupplierVm
             {
@@ -984,6 +1020,136 @@ namespace AssetManagement.Tests
                 ReceivedDate = DateTime.UtcNow,
                 QuantityReceived = 2
             }, "receiver-1"));
+        }
+
+        [Test]
+        public void ReceivingService_GetReceiveAssetLookup_SelectsPreferredAssetId()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Acme", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new Asset
+            {
+                Id = 41,
+                AssetTag = "AST-041",
+                AssetName = "Chair",
+                CategoryId = 1,
+                AssetTypeId = 1,
+                SupplierId = 1,
+                DepartmentId = 1,
+                Currency = "USD",
+                AcquisitionCost = 100,
+                CurrentStatus = AssetStatus.InStore,
+                PurchaseDate = DateTime.UtcNow,
+                DepreciationMethod = DepreciationMethod.StraightLine,
+                DepreciationStartDate = DateTime.UtcNow,
+                UsefulLifeMonths = 36,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            unitOfWork.Seed(new Asset
+            {
+                Id = 42,
+                AssetTag = "AST-042",
+                AssetName = "Desk",
+                CategoryId = 1,
+                AssetTypeId = 1,
+                SupplierId = 2,
+                DepartmentId = 1,
+                Currency = "USD",
+                AcquisitionCost = 200,
+                CurrentStatus = AssetStatus.InStore,
+                PurchaseDate = DateTime.UtcNow,
+                DepreciationMethod = DepreciationMethod.StraightLine,
+                DepreciationStartDate = DateTime.UtcNow,
+                UsefulLifeMonths = 36,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            unitOfWork.Seed(new PurchaseRecord
+            {
+                Id = 11,
+                PurchaseOrderNumber = "PO-11",
+                SupplierId = 1,
+                Quantity = 1,
+                UnitCost = 100,
+                TotalCost = 100,
+                PurchaseDate = DateTime.UtcNow,
+                Currency = "USD",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+
+            var service = new ReceivingService(unitOfWork);
+            var lookup = service.GetReceiveAssetLookup(11, 42);
+
+            Assert.AreEqual(42, lookup.SelectedAssetId);
+            Assert.IsTrue(lookup.Assets.Any(x => x.Id == 41));
+            Assert.IsTrue(lookup.Assets.Any(x => x.Id == 42));
+        }
+
+        [Test]
+        public void ReceivingService_GetReceiveAssetLookup_AutoSelectsSingleSupplierMatch()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Acme", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new Asset
+            {
+                Id = 43,
+                AssetTag = "AST-043",
+                AssetName = "Monitor",
+                CategoryId = 1,
+                AssetTypeId = 1,
+                SupplierId = 1,
+                DepartmentId = 1,
+                Currency = "USD",
+                AcquisitionCost = 400,
+                CurrentStatus = AssetStatus.InStore,
+                PurchaseDate = DateTime.UtcNow,
+                DepreciationMethod = DepreciationMethod.StraightLine,
+                DepreciationStartDate = DateTime.UtcNow,
+                UsefulLifeMonths = 36,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            unitOfWork.Seed(new Asset
+            {
+                Id = 44,
+                AssetTag = "AST-044",
+                AssetName = "Printer",
+                CategoryId = 1,
+                AssetTypeId = 1,
+                SupplierId = 2,
+                DepartmentId = 1,
+                Currency = "USD",
+                AcquisitionCost = 500,
+                CurrentStatus = AssetStatus.InStore,
+                PurchaseDate = DateTime.UtcNow,
+                DepreciationMethod = DepreciationMethod.StraightLine,
+                DepreciationStartDate = DateTime.UtcNow,
+                UsefulLifeMonths = 36,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            unitOfWork.Seed(new PurchaseRecord
+            {
+                Id = 12,
+                PurchaseOrderNumber = "PO-12",
+                SupplierId = 1,
+                Quantity = 1,
+                UnitCost = 400,
+                TotalCost = 400,
+                PurchaseDate = DateTime.UtcNow,
+                Currency = "USD",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+
+            var service = new ReceivingService(unitOfWork);
+            var lookup = service.GetReceiveAssetLookup(12, null);
+
+            Assert.AreEqual(43, lookup.SelectedAssetId);
+            Assert.AreEqual(1, lookup.Assets.Count);
+            Assert.AreEqual("AST-043 - Monitor", lookup.Assets[0].Label);
         }
 
         [Test]

@@ -36,10 +36,6 @@ namespace AssetManagement.Domain.Entities
 
         public decimal TaxAmount { get; set; }
 
-        public string FundingSource { get; set; }
-
-        public string BudgetCode { get; set; }
-
         public int UsefulLifeMonths { get; set; }
 
         public DateTime? WarrantyStartDate { get; set; }

@@ -65,8 +65,6 @@ namespace AssetManagement.Tests.Licenses
             {
                 Id = 10,
                 OrganizationId = 2,
-                PlanCode = "Standard",
-                PlanName = "Standard",
                 Status = LicenseStatus.Active.ToString(),
                 StartDate = DateTime.UtcNow.AddMonths(-6),
                 ExpiryDate = DateTime.UtcNow.AddDays(10),
@@ -87,6 +85,45 @@ namespace AssetManagement.Tests.Licenses
             var license = unitOfWork.Repository<OrganizationLicense>().GetById(10);
             Assert.AreEqual(newExpiry, license.ExpiryDate.Date);
             Assert.AreEqual(LicenseStatus.Active.ToString(), license.Status);
+        }
+
+        [Test]
+        public void UpdateLimits_SetsMaxUsersAndClearsForUnlimited()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Organization { Id = 3, Name = "Acme", Slug = "acme", IsActive = true, CreatedAt = DateTime.UtcNow });
+            unitOfWork.Seed(new OrganizationLicense
+            {
+                Id = 11,
+                OrganizationId = 3,
+                Status = LicenseStatus.Active.ToString(),
+                StartDate = DateTime.UtcNow.AddMonths(-1),
+                ExpiryDate = DateTime.UtcNow.AddMonths(11),
+                MaxUsers = 5,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            var service = TestServiceFactory.CreateOrganizationLicenseService(unitOfWork);
+            var capped = service.UpdateLimits(new UpdateLicenseLimitsRequest
+            {
+                OrganizationId = 3,
+                MaxUsers = 25,
+                Notes = "Expanded seats"
+            }, "platform-admin");
+
+            Assert.IsTrue(capped.Succeeded);
+            var license = unitOfWork.Repository<OrganizationLicense>().GetById(11);
+            Assert.AreEqual(25, license.MaxUsers);
+
+            var unlimited = service.UpdateLimits(new UpdateLicenseLimitsRequest
+            {
+                OrganizationId = 3,
+                MaxUsers = null
+            }, "platform-admin");
+
+            Assert.IsTrue(unlimited.Succeeded);
+            Assert.IsFalse(license.MaxUsers.HasValue);
         }
     }
 }

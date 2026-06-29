@@ -11,6 +11,8 @@ namespace AssetManagement.Application.Contracts
 
         int Create(SupplierVm model);
 
+        int CreateWithCatalog(SupplierVm model, IEnumerable<SupplierCatalogItemVm> catalogItems);
+
         void Update(SupplierVm model);
     }
 }

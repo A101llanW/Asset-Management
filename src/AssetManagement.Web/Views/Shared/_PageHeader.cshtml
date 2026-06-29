@@ -30,7 +30,7 @@
         <h3 class="am-page-title">@Model.Title</h3>
         @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
         {
-            <div class="am-page-subtitle">@Model.Subtitle</div>
+            <div class="am-page-subtitle">@Html.Raw(Model.Subtitle)</div>
         }
     </div>
     @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionLabel) || !string.IsNullOrWhiteSpace(Model.SecondaryActionLabel))

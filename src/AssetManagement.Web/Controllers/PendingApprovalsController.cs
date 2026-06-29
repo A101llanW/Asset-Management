@@ -103,7 +103,7 @@ namespace AssetManagement.Web.Controllers
                 return Url.Action("Details", "AssetRequests", new { id = item.RequestId });
             }
 
-            if (string.Equals(item.ProcessName, "Purchase Request", StringComparison.OrdinalIgnoreCase))
+            if (ApprovalProcessCodes.IsRequisitionProcessName(item.ProcessName))
             {
                 return Url.Action("Details", "PurchaseRequests", new { id = item.RequestId });
             }

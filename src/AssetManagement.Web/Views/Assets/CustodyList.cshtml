@@ -79,13 +79,6 @@ else
                                     {
                                         <a class="btn btn-sm btn-outline-warning" href="@Url.Action("Create", "Incidents", new { assetId = item.Id })">Report issue</a>
                                     }
-                                    using (Html.BeginForm("AcknowledgeReceipt", "Custodian", FormMethod.Post, new { @class = "d-inline" }))
-                                    {
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="assetId" value="@item.Id" />
-                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                        <button type="submit" class="btn btn-sm btn-outline-success">Acknowledge</button>
-                                    }
                                     using (Html.BeginForm("RequestReturn", "Custodian", FormMethod.Post, new { @class = "d-inline" }))
                                     {
                                         @Html.AntiForgeryToken()

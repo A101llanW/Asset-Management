@@ -27,7 +27,9 @@ namespace AssetManagement.Application.Services
                 DisplayName = ApprovalProcessCodes.GetDisplayName(processCode),
                 RequiresApproval = requiresApproval,
                 StageRoleIds = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(
-                    ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageRoleIdsSettingKey(processCode)))
+                    ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageRoleIdsSettingKey(processCode))),
+                StageUserIds = ApprovalWorkflowSettingsHelper.ParseStageUserIds(
+                    ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageUserIdsSettingKey(processCode)))
             };
         }
 
@@ -298,7 +300,7 @@ namespace AssetManagement.Application.Services
                 case ApprovalProcessCodes.Disposal:
                     return "The requester cannot approve their own disposal request.";
                 case ApprovalProcessCodes.Purchase:
-                    return "The requester cannot approve their own purchase request.";
+                    return "The requester cannot approve their own requisition.";
                 default:
                     return "The requester cannot approve their own request.";
             }
@@ -313,7 +315,7 @@ namespace AssetManagement.Application.Services
                 case ApprovalProcessCodes.Disposal:
                     return "The approval workflow is not configured correctly for this disposal request.";
                 case ApprovalProcessCodes.Purchase:
-                    return "The approval workflow is not configured correctly for this purchase request.";
+                    return "The approval workflow is not configured correctly for this requisition.";
                 default:
                     return "The approval workflow is not configured correctly for this request.";
             }
@@ -362,6 +364,18 @@ namespace AssetManagement.Application.Services
             }
 
             return false;
+        }
+
+        public static bool CanAccessAssetForReceiving(IUnitOfWork unitOfWork, string userId, Asset asset)
+        {
+            if (unitOfWork == null || asset == null || string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            return unitOfWork.Repository<AssetReceiving>()
+                .Find(x => x.AssetId == asset.Id && x.IsActive && x.ReceivedById == userId)
+                .Any();
         }
 
         private static bool CanUserActOnPendingTransfer(

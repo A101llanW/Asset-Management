@@ -34,6 +34,30 @@ namespace AssetManagement.Application.ViewModels
         public List<int> SelectedPermissionIds { get; set; } = new List<int>();
 
         public IEnumerable<PermissionGroupVm> PermissionGroups { get; set; } = new List<PermissionGroupVm>();
+
+        public IEnumerable<RoleTemplateVm> RoleTemplates { get; set; } = new List<RoleTemplateVm>();
+    }
+
+    public class RoleTemplateVm
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public string Description { get; set; }
+
+        public int PermissionCount { get; set; }
+
+        public int? SourceRoleId { get; set; }
+    }
+
+    public class RoleTemplateSaveVm
+    {
+        public int RoleId { get; set; }
+
+        [Required]
+        [StringLength(120)]
+        public string TemplateName { get; set; }
     }
 
     public class PermissionVm

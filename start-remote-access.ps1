@@ -1,5 +1,5 @@
 param(
-    [int]$Port = 51980,
+    [int]$Port = 51901,
     [switch]$SkipBuild,
     [switch]$SkipFirewall,
     [switch]$NoElevate
@@ -104,7 +104,7 @@ while ((Get-Date) -lt $deadline) {
         throw "IIS Express exited early (code $($iisProcess.ExitCode)). Wildcard binding requires Administrator."
     }
     try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/default/Account/Login" -UseBasicParsing -TimeoutSec 5
+        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/Account/Login" -UseBasicParsing -TimeoutSec 5
         if ($response.StatusCode -eq 200) {
             $ready = $true
             break
@@ -117,7 +117,7 @@ while ((Get-Date) -lt $deadline) {
 
 if (-not $ready) {
     Stop-RemoteWebServer
-    throw "Timed out waiting for http://127.0.0.1:$Port/default/Account/Login"
+    throw "Timed out waiting for http://127.0.0.1:$Port/Account/Login"
 }
 
 $zeroTierIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -130,18 +130,21 @@ $zeroTierNetwork = (Get-NetAdapter -ErrorAction SilentlyContinue |
 
 Write-Host ""
 Write-Host "App is running."
-Write-Host "  Local:    http://localhost:$Port/default/Account/Login"
+Write-Host "  Local:    http://localhost:$Port/Account/Login"
+Write-Host "  Tenant:   http://localhost:$Port/nanosoft/Account/Login"
 if ($zeroTierIp) {
-    Write-Host "  ZeroTier: http://${zeroTierIp}:$Port/default/Account/Login"
+    Write-Host "  ZeroTier: http://${zeroTierIp}:$Port/Account/Login"
+    Write-Host "  Tenant:   http://${zeroTierIp}:$Port/nanosoft/Account/Login"
     if ($zeroTierNetwork) {
         Write-Host "  Network:  $zeroTierNetwork"
     }
     Write-Host "  Note: ZeroTier IPs change per network. Do not use old IPs like 10.203.99.38."
 }
 else {
-    Write-Host "  ZeroTier: (not connected — join your ZeroTier network on this PC)"
+    Write-Host "  ZeroTier: (not connected - join your ZeroTier network on this PC)"
 }
 Write-Host ""
-Write-Host "Login: assetmanager@asset.local / P@ssw0rd!"
+Write-Host "Login: nanosoft@asset.local / P@ssw0rd!  (tenant URL above)"
+Write-Host "       superadmin@asset.local / P@ssw0rd!  (platform login at /Account/Login)"
 Write-Host "Stop:  .\stop-remote-access.ps1 -Port $Port"
 Write-Host ""

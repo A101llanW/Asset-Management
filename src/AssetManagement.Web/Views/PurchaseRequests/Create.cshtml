@@ -1,23 +1,25 @@
 @model AssetManagement.Application.ViewModels.PurchaseRequestCreateVm
 @{
-    ViewBag.Title = "New purchase request";
+    ViewBag.Title = "New requisition";
     var departments = ViewBag.Departments as SelectList;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
     var lockDepartment = ViewBag.LockDepartment == true;
     var departmentName = ViewBag.DepartmentName as string;
+    var targetAssetsUrl = Url.Action("AvailableTargetAssets", "PurchaseRequests");
+    var targetAssets = ViewBag.TargetAssets as SelectList;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "New purchase request",
-    Subtitle = "Describe the need and estimated cost. Approvers are configured under Settings for the Purchase Request process.",
+    Title = "New requisition",
+    Subtitle = "Describe the item needed, stock on hand, and when it is required. Optionally tag an existing asset in the system for easier assignment after purchase. Requisition approvers are configured under Settings &rarr; Approval Matrix (typically Procurement Officer).",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index", "Purchases") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchase Requests", Url = Url.Action("Index") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "New request" }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Requisitions", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "New requisition" }
     }
 })
 
@@ -26,10 +28,17 @@
     <div class="alert alert-light border mb-3"><strong>Approval path:</strong> @approvalSummary</div>
 }
 
-@using (Html.BeginForm())
+@using (Html.BeginForm("Create", "PurchaseRequests", FormMethod.Post, new
+{
+    enctype = "multipart/form-data",
+    id = "purchase-request-form",
+    data_am_purchase_request_form = "true",
+    data_am_target_assets_url = targetAssetsUrl
+}))
 {
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.HiddenFor(m => m.RequestForSelf)
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3">
         <div class="col-md-4">
@@ -44,9 +53,31 @@
                 @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select department --", new { @class = "form-select" })
             }
         </div>
+        <div class="col-md-8">
+            <label class="form-label">Description of item</label>
+            @Html.TextBoxFor(m => m.ItemDescription, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ItemDescription, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-8">
+            <label class="form-label">Tag existing asset (optional)</label>
+            @Html.DropDownListFor(
+                m => m.TargetAssetId,
+                targetAssets,
+                "-- None --",
+                new { @class = "form-select", data_am_target_asset_select = "true" })
+            <div id="target-asset-hint" class="form-text">Optional: tag any asset already registered in the organization to speed up assignment after purchase.</div>
+        </div>
         <div class="col-md-2">
-            <label class="form-label">Quantity</label>
+            <label class="form-label">Qty in stock</label>
+            @Html.TextBoxFor(m => m.QuantityInStock, new { @class = "form-control", type = "number", min = "0" })
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Qty to order</label>
             @Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number", min = "1" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Date required</label>
+            @Html.TextBoxFor(m => m.RequiredDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
         </div>
         <div class="col-md-3">
             <label class="form-label">Est. unit cost</label>
@@ -57,18 +88,27 @@
             @Html.TextBoxFor(m => m.Currency, new { @class = "form-control text-uppercase", maxlength = "10", @readonly = "readonly" })
         </div>
         <div class="col-md-12">
-            <label class="form-label">Justification</label>
-            @Html.TextAreaFor(m => m.Justification, new { @class = "form-control", rows = 4 })
+            <label class="form-label">Justification / remarks</label>
+            @Html.TextAreaFor(m => m.Justification, new { @class = "form-control", rows = 3 })
         </div>
         <div class="col-md-12">
-            <label class="form-label">Notes (optional)</label>
+            <label class="form-label">Additional notes (optional)</label>
             @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = 2 })
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Attachment (optional)</label>
+            <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png" />
+            <div class="form-text">Upload a file when listing more than a few line items (max 10 MB).</div>
         </div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
-        SubmitLabel = "Submit request",
+        SubmitLabel = "Submit requisition",
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/purchase-request-create.js")"></script>
 }

@@ -8,7 +8,9 @@ namespace AssetManagement.Web.ViewModels
 
         public bool IsPublicScan { get; set; }
 
-        public bool CanManageAsset { get; set; }
+        public bool CanViewAssetDetails { get; set; }
+
+        public bool CanOpenQuickActions { get; set; }
 
         public string StatusBadgeClass { get; set; }
 

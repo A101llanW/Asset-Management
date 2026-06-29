@@ -163,8 +163,8 @@ BEGIN
     DECLARE @orgBId INT = (SELECT TOP 1 [Id] FROM [Organization] WHERE [Slug] = N'demo-b' ORDER BY [Id]);
     DECLARE @now DATETIME = GETUTCDATE();
     INSERT INTO [OrganizationLicense]
-        ([OrganizationId],[PlanCode],[PlanName],[Status],[StartDate],[ExpiryDate],[CreatedAt],[IsActive])
+        ([OrganizationId],[Status],[StartDate],[ExpiryDate],[CreatedAt],[IsActive])
     VALUES
-        (@orgBId, N'Standard', N'Standard Plan', N'Active', @now, DATEADD(MONTH, 12, @now), @now, 1);
+        (@orgBId, N'Active', @now, DATEADD(MONTH, 12, @now), @now, 1);
 END
 GO

@@ -953,9 +953,10 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.am-main-content .am-dashboard-kpi > .card-body {
+.am-main-content .am-dashboard-kpi > .card-body,
+.am-main-content .am-kpi-card > .card-body {
     background: var(--am-surface);
-    border-left: 0;
+    border-left: 0 !important;
     border-radius: 0 0 1rem 1rem;
 }
 
@@ -985,12 +986,16 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     color: #1e7a4a;
 }
 
+.am-dashboard-kpi--instore .am-kpi-value {
+    color: #5b4dab;
+}
+
 .am-dashboard-kpi--backlog .am-kpi-value {
     color: #c67600;
 }
 
-.am-dashboard-kpi--risk .am-kpi-value {
-    color: #c0392b;
+.am-dashboard-kpi--maintenance .am-kpi-value {
+    color: #2a7a9b;
 }
 
 @media (max-width: 991.98px) {
@@ -1339,14 +1344,6 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     flex: 1;
     height: 1px;
     background: var(--am-border-soft);
-}
-
-.am-scan-device-hint {
-    margin: 1.25rem 0 0;
-    font-size: 0.78rem;
-    line-height: 1.45;
-    color: var(--am-muted);
-    text-align: left;
 }
 
 /* Barcode field */

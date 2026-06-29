@@ -75,6 +75,8 @@ namespace AssetManagement.Application.Services
                 EnsureUserBelongsToDepartment(receivedById, asset.DepartmentId.Value);
             }
 
+            ValidateReturnCondition(model.ReturnCondition);
+
             var returnDate = model.ReturnDate == default(DateTime) ? DateTime.UtcNow : model.ReturnDate;
             var returnRecord = new AssetReturn
             {
@@ -110,6 +112,20 @@ namespace AssetManagement.Application.Services
 
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Assets.Return", nameof(AssetReturn), returnRecord.Id.ToString(), null, returnRecord.AssetId.ToString());
+        }
+
+        private static void ValidateReturnCondition(string condition)
+        {
+            if (string.IsNullOrWhiteSpace(condition))
+            {
+                throw new BusinessException("Return condition is required.");
+            }
+
+            AssetCondition parsed;
+            if (!Enum.TryParse(condition, true, out parsed) || !Enum.IsDefined(typeof(AssetCondition), parsed))
+            {
+                throw new BusinessException("Select a valid return condition.");
+            }
         }
 
         private void EnsureUserBelongsToDepartment(string userId, int departmentId)

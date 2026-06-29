@@ -100,7 +100,7 @@
                                 {
                                     foreach (var role in roles)
                                     {
-                                        <option value="@role.Id" selected="@(Model.RoleId == role.Id)">@role.Name</option>
+                                        <option value="@role.Id" @(Model.RoleId == role.Id ? "selected" : null)>@role.Name</option>
                                     }
                                 }
                             </select>

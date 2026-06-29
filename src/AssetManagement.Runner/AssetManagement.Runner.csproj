@@ -5,4 +5,10 @@
     <LangVersion>6</LangVersion>
     <RootNamespace>AssetManagement.Runner</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AssetManagement.Infrastructure\AssetManagement.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Configuration" />
+  </ItemGroup>
 </Project>

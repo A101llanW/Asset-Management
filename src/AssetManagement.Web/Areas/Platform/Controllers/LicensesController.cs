@@ -107,6 +107,20 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             }, GetActorName()), model.OrganizationId);
         }
 
+        [PermissionAuthorize("Platform.Licenses.Manage")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult UpdateLimits(UpdateLicenseLimitsFormModel model)
+        {
+            EnsurePlatformAccess();
+            return ExecuteLicenseAction(() => _licenseService.UpdateLimits(new UpdateLicenseLimitsRequest
+            {
+                OrganizationId = model.OrganizationId,
+                MaxUsers = model.UnlimitedUsers ? null : model.MaxUsers,
+                Notes = model.Notes
+            }, GetActorName()), model.OrganizationId);
+        }
+
         private ActionResult ExecuteLicenseAction(Func<LicenseOperationResult> action, int organizationId)
         {
             try
@@ -169,6 +183,17 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
     public class ResumeLicenseFormModel
     {
         public int OrganizationId { get; set; }
+
+        public string Notes { get; set; }
+    }
+
+    public class UpdateLicenseLimitsFormModel
+    {
+        public int OrganizationId { get; set; }
+
+        public int? MaxUsers { get; set; }
+
+        public bool UnlimitedUsers { get; set; }
 
         public string Notes { get; set; }
     }

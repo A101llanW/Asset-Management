@@ -65,6 +65,7 @@
                 @if (canManage)
                 {
                     <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#limitsModal">Edit limits</button>
                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#renewModal">Renew</button>
                         @if (Model.EffectiveStatus != LicenseStatus.Paused)
                         {
@@ -198,6 +199,69 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="limitsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                @using (Html.BeginForm("UpdateLimits", "Licenses", new { area = "Platform" }, FormMethod.Post))
+                {
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="OrganizationId" value="@Model.OrganizationId" />
+                    <div class="modal-header"><h5 class="modal-title">Edit license limits</h5></div>
+                    <div class="modal-body">
+                        <div class="form-check mb-3">
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   id="unlimitedUsers"
+                                   name="UnlimitedUsers"
+                                   value="true"
+                                   @(Model.MaxUsers.HasValue ? null : "checked") />
+                            <label class="form-check-label" for="unlimitedUsers">Unlimited users</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="maxUsers">Max users</label>
+                            <input type="number"
+                                   id="maxUsers"
+                                   name="MaxUsers"
+                                   class="form-control"
+                                   min="1"
+                                   value="@(Model.MaxUsers.HasValue ? Model.MaxUsers.Value.ToString() : string.Empty)"
+                                   @(Model.MaxUsers.HasValue ? null : "disabled") />
+                            <div class="form-text">When unlimited is checked, the seat cap is removed.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea name="Notes" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save limits</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var unlimitedCheckbox = document.getElementById('unlimitedUsers');
+            var maxUsersInput = document.getElementById('maxUsers');
+            if (!unlimitedCheckbox || !maxUsersInput) {
+                return;
+            }
+
+            function syncMaxUsersInput() {
+                maxUsersInput.disabled = unlimitedCheckbox.checked;
+                if (unlimitedCheckbox.checked) {
+                    maxUsersInput.value = '';
+                }
+            }
+
+            unlimitedCheckbox.addEventListener('change', syncMaxUsersInput);
+            syncMaxUsersInput();
+        })();
+    </script>
 
     <script>
         function setRenewExpiryDate(date) {

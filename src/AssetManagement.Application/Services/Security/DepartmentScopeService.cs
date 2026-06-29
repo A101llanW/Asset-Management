@@ -124,12 +124,13 @@ namespace AssetManagement.Application.Services
             {
                 var userId = _currentUser == null ? null : _currentUser.UserId;
                 if (!string.IsNullOrWhiteSpace(userId)
-                    && ApprovalWorkflowHelper.CanAccessAssetForPendingApproval(
-                        _unitOfWork,
-                        _userService,
-                        userId,
-                        asset,
-                        BypassesDepartmentScope))
+                    && (ApprovalWorkflowHelper.CanAccessAssetForPendingApproval(
+                            _unitOfWork,
+                            _userService,
+                            userId,
+                            asset,
+                            BypassesDepartmentScope)
+                        || ApprovalWorkflowHelper.CanAccessAssetForReceiving(_unitOfWork, userId, asset)))
                 {
                     return;
                 }

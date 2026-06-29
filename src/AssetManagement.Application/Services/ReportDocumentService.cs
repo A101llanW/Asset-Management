@@ -53,7 +53,7 @@ namespace AssetManagement.Application.Services
                     throw new InvalidOperationException("Unknown report type: " + reportType);
             }
 
-            var html = ReportHtmlBuilder.BuildReport(
+            var html = ReportHtmlBuilder.BuildReportFragment(
                 context.Title,
                 context.Subtitle,
                 context.ThemeColor,
@@ -438,7 +438,7 @@ namespace AssetManagement.Application.Services
                 var ageDays = Math.Max(0, (int)(now - purchaseRequest.CreatedAt).TotalDays);
                 var row = new[]
                 {
-                    "Purchase Request",
+                    ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
                     purchaseRequest.Id.ToString(),
                     purchaseRequest.RequestNumber ?? string.Empty,
                     deptLabel,

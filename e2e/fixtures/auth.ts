@@ -245,14 +245,26 @@ export async function configureAssetApprovalStage(
 
   await process.locator('.am-approval-requires-approval').check();
 
-  const picker = process.locator('.am-approver-picker').first();
+  const pickerToggle = process.locator('.am-approver-picker-toggle').first();
+  if (await pickerToggle.isVisible({ timeout: 1000 }).catch(() => false)) {
+    const picker = process.locator('.am-approver-picker').first();
+    await pickerToggle.click();
+    await picker.locator('.am-approver-picker-role', { hasText: roleName }).click();
+    await picker.locator('.am-approver-picker-user', { hasText: userLabel }).click();
+    return;
+  }
 
-  await picker.locator('.am-approver-picker-toggle').click();
+  await process.locator('.am-approval-stage select').first().selectOption({ label: roleName });
+}
 
-  await picker.locator('.am-approver-picker-role', { hasText: roleName }).click();
-
-  await picker.locator('.am-approver-picker-user', { hasText: userLabel }).click();
-
+export async function configureApprovalStageByRole(
+  page: Page,
+  processLabel: string,
+  roleName: string,
+): Promise<void> {
+  const process = page.locator('.am-approval-process').filter({ hasText: processLabel });
+  await process.locator('.am-approval-requires-approval').check();
+  await process.locator('.am-approval-stage select').first().selectOption({ label: roleName });
 }
 
 

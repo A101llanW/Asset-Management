@@ -18,23 +18,6 @@ namespace AssetManagement.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult AcknowledgeReceipt(int assetId, string returnUrl)
-        {
-            try
-            {
-                _custodianService.AcknowledgeReceipt(assetId, User.GetUserId());
-                TempData["Message"] = "Receipt acknowledged. Thank you.";
-            }
-            catch (BusinessException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-
-            return RedirectToReturnUrl(returnUrl, "MyAssets", "Assets");
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
         public ActionResult RequestReturn(int assetId, string notes, string returnUrl)
         {
             try

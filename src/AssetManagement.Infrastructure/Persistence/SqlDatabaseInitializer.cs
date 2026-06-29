@@ -29,8 +29,25 @@ namespace AssetManagement.Infrastructure.Persistence
 
                 var connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
                 EnsureDatabaseExists(connectionString);
-                ApplyScripts(connectionString, ResolveScriptsRoot());
+                ApplyScripts(connectionString, ResolveScriptsRoot(), null);
                 _initialized = true;
+            }
+        }
+
+        /// <summary>Applies only database/scripts/004_Migrations (idempotent ALTER scripts).</summary>
+        public static void ApplyMigrations(string connectionStringName, bool continueOnError = true)
+        {
+            lock (SyncRoot)
+            {
+                var connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
+                EnsureDatabaseExists(connectionString);
+                var migrationsRoot = Path.Combine(ResolveScriptsRoot(), "004_Migrations");
+                if (!Directory.Exists(migrationsRoot))
+                {
+                    throw new InvalidOperationException("Migrations folder not found: " + migrationsRoot);
+                }
+
+                ApplyScripts(connectionString, migrationsRoot, continueOnError);
             }
         }
 
@@ -66,15 +83,25 @@ namespace AssetManagement.Infrastructure.Persistence
             }
         }
 
-        private static void ApplyScripts(string connectionString, string scriptsRoot)
+        private static void ApplyScripts(string connectionString, string scriptsRoot, bool? continueOnError)
         {
             var largeDatasetSuffix = Path.DirectorySeparatorChar + "002_Seed" + Path.DirectorySeparatorChar + "003_LargeDataset.sql";
-            var scriptFiles = Directory.GetFiles(scriptsRoot, "*.sql", SearchOption.AllDirectories)
-                .Where(path => !path.EndsWith(largeDatasetSuffix, StringComparison.OrdinalIgnoreCase)
-                    && !path.Replace('/', '\\').EndsWith(largeDatasetSuffix, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(path => GetScriptSortKey(path))
-                .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            List<string> scriptFiles;
+            if (continueOnError.HasValue)
+            {
+                scriptFiles = Directory.GetFiles(scriptsRoot, "*.sql", SearchOption.TopDirectoryOnly)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            else
+            {
+                scriptFiles = Directory.GetFiles(scriptsRoot, "*.sql", SearchOption.AllDirectories)
+                    .Where(path => !path.EndsWith(largeDatasetSuffix, StringComparison.OrdinalIgnoreCase)
+                        && !path.Replace('/', '\\').EndsWith(largeDatasetSuffix, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(path => GetScriptSortKey(path))
+                    .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
 
             if (scriptFiles.Count == 0)
             {
@@ -88,7 +115,18 @@ namespace AssetManagement.Infrastructure.Persistence
             {
                 foreach (var scriptFile in scriptFiles)
                 {
-                    ExecuteScriptFile(connection, scriptFile);
+                    try
+                    {
+                        ExecuteScriptFile(connection, scriptFile);
+                        if (continueOnError.HasValue)
+                        {
+                            Console.WriteLine("  OK  " + Path.GetFileName(scriptFile));
+                        }
+                    }
+                    catch (SqlException ex) when (continueOnError == true)
+                    {
+                        Console.WriteLine("  SKIP " + Path.GetFileName(scriptFile) + ": " + ex.Message);
+                    }
                 }
             }
         }

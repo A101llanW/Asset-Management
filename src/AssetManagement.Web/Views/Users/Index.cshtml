@@ -9,13 +9,17 @@
     var statusFilter = ViewBag.StatusFilter as SelectList;
     var canCreateUser = Html.HasPermission("Users.Create");
     var canEditUser = Html.HasPermission("Users.Edit");
+    var isDepartmentScoped = ViewBag.IsDepartmentScoped == true;
+    var scopedDepartmentName = ViewBag.ScopedDepartmentName as string;
     var currentSort = ViewBag.Sort as string;
     var currentDirection = ViewBag.Direction as string;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Users",
-    Subtitle = "Manage people, their access, and the roles they can use in the system.",
+    Title = isDepartmentScoped && !string.IsNullOrWhiteSpace(scopedDepartmentName) ? scopedDepartmentName + " — Users" : "Users",
+    Subtitle = isDepartmentScoped
+        ? "Employees registered in your department (including assignees without login access)."
+        : "Manage people, their access, and security roles. Job title (e.g. HOD) is separate from the login role.",
     PrimaryActionUrl = canCreateUser ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateUser ? "Create User" : null
 })
@@ -27,9 +31,12 @@
         <div class="col-md-2">
             @Html.DropDownList("roleId", roleFilter, "All roles", new { @class = "form-select" })
         </div>
-        <div class="col-md-2">
+        @if (!isDepartmentScoped)
+        {
+        <div class="col-md-2 col-lg-2">
             @Html.DropDownList("departmentId", departments, "All departments", new { @class = "form-select" })
         </div>
+        }
         <div class="col-md-2">
             @Html.DropDownList("isActive", statusFilter, new { @class = "form-select" })
         </div>
@@ -51,7 +58,7 @@
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
             <h5>No users yet</h5>
-            <p class="text-muted mb-3">Add your first user so assets can be assigned and permissions can be managed in one place.</p>
+            <p class="text-muted mb-3">@(isDepartmentScoped ? "No employees are registered in your department yet." : "Add your first user so assets can be assigned and permissions can be managed in one place.")</p>
             @if (canCreateUser)
             {
                 <a class="btn btn-primary" href="@Url.Action("Create")">Create User</a>
@@ -61,71 +68,93 @@
 }
 else
 {
-    <div class="card card-kpi"><div class="card-body p-0">
-    <table class="table mb-0">
-        <thead class="table-light"><tr><th>Employee #</th><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>@Html.SortLink("Email", "email", currentSort, currentDirection)</th><th>Department</th><th>@Html.SortLink("Role", "role", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th>Assign Dept</th><th>Assign Role</th></tr></thead>
-        <tbody>
-        @foreach (var user in Model.Items)
-        {
-            <tr>
-                <td>@user.EmployeeNumber</td>
-                <td>@user.FirstName @user.LastName</td>
-                <td>@user.Email</td>
-                <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : user.DepartmentName)</td>
-                <td>@user.RoleName</td>
-                <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive) badge-status">@(user.IsActive ? "Active" : "Inactive")</span></td>
-                <td>
-                    @if (canEditUser)
+    <div class="card card-kpi">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 am-users-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee #</th>
+                            <th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Email", "email", currentSort, currentDirection)</th>
+                            @if (!isDepartmentScoped)
+                            {
+                                <th>Department</th>
+                            }
+                            <th>Job title</th>
+                            <th>@Html.SortLink("Role", "role", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th>
+                            @if (canEditUser)
+                            {
+                                <th class="am-users-assign-col">Assign dept</th>
+                                <th class="am-users-assign-col">Assign role</th>
+                            }
+                            <th class="text-end pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var user in Model.Items)
                     {
-                        using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "d-flex gap-2 flex-wrap" }))
-                        {
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="userId" value="@user.Id" />
-                            <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
-                            <select name="departmentId" class="form-select form-select-sm" style="min-width: 8rem;">
-                                <option value="">None</option>
-                                @if (departmentOptions != null)
-                                {
-                                    foreach (var d in departmentOptions)
+                        <tr>
+                            <td class="text-nowrap">@user.EmployeeNumber</td>
+                            <td class="text-nowrap">@user.FirstName @user.LastName</td>
+                            <td class="am-users-email">@user.Email</td>
+                            @if (!isDepartmentScoped)
+                            {
+                                <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : user.DepartmentName)</td>
+                            }
+                            <td>@(string.IsNullOrWhiteSpace(user.PositionTitle) ? DisplayText.Empty : user.PositionTitle)</td>
+                            <td class="text-nowrap">@(string.IsNullOrWhiteSpace(user.RoleName) ? DisplayText.Empty : user.RoleName)</td>
+                            <td class="text-nowrap"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive) badge-status">@(user.IsActive ? "Active" : "Inactive")</span></td>
+                            @if (canEditUser)
+                            {
+                                <td class="am-users-assign-col">
+                                    @using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "am-inline-assign-form" }))
                                     {
-                                        <option value="@d.Id" @(user.DepartmentId == d.Id ? "selected" : null)>@d.Name</option>
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="userId" value="@user.Id" />
+                                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                                        <select name="departmentId" class="form-select form-select-sm">
+                                            <option value="">None</option>
+                                            @if (departmentOptions != null)
+                                            {
+                                                foreach (var d in departmentOptions)
+                                                {
+                                                    <option value="@d.Id" @(user.DepartmentId == d.Id ? "selected" : null)>@d.Name</option>
+                                                }
+                                            }
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
                                     }
-                                }
-                            </select>
-                            <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
-                        }
-                    }
-                    else
-                    {
-                        <span class="text-muted small"></span>
-                    }
-                </td>
-                <td>
-                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id, returnUrl = Request.RawUrl })">Details</a>
-                    @if (canEditUser)
-                    {
-                        using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "d-flex gap-2" }))
-                        {
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="userId" value="@user.Id" />
-                            <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
-                            <select name="roleId" class="form-select form-select-sm">
-                                @if (roles != null)
-                                {
-                                    foreach (var role in roles)
+                                </td>
+                                <td class="am-users-assign-col">
+                                    @using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "am-inline-assign-form" }))
                                     {
-                                        <option value="@role.Id" selected="@(user.RoleId == role.Id)">@role.Name</option>
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="userId" value="@user.Id" />
+                                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                                        <select name="roleId" class="form-select form-select-sm">
+                                            @if (roles != null)
+                                            {
+                                                foreach (var role in roles)
+                                                {
+                                                    <option value="@role.Id" @(user.RoleId == role.Id ? "selected" : null)>@role.Name</option>
+                                                }
+                                            }
+                                        </select>
+                                        <button class="btn btn-sm btn-primary" type="submit">Save</button>
                                     }
-                                }
-                            </select>
-                            <button class="btn btn-sm btn-primary" type="submit">Save</button>
-                        }
+                                </td>
+                            }
+                            <td class="text-end pe-3 text-nowrap">
+                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id, returnUrl = Request.RawUrl })">Details</a>
+                            </td>
+                        </tr>
                     }
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-    </div></div>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
     @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }

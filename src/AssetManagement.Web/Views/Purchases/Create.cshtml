@@ -4,11 +4,13 @@
     var suppliers = ViewBag.Suppliers as SelectList;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var linkedRequestId = ViewBag.PurchaseRequestId as int?;
+    var itemDescription = ViewBag.ItemDescription as string;
+    var comparisonUrl = Url.Action("SupplierPriceComparison", "Purchases");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Create Purchase Record",
-    Subtitle = "Capture procurement details and then review the purchase summary before moving on.",
+    Subtitle = "Compare supplier catalog prices, select a supplier, then capture PO details.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -19,8 +21,34 @@
 })
 @if (linkedRequestId.HasValue)
 {
-    <div class="alert alert-info mb-3">This purchase record will be linked to <strong>approved</strong> requisition #@linkedRequestId. Supplier and PO details still need to be entered below.</div>
+    <div class="alert alert-info mb-3">This purchase record will be linked to <strong>approved</strong> requisition #@linkedRequestId.</div>
 }
+
+<div id="supplier-comparison-panel" class="card card-kpi mb-3" style="display:none;"
+     data-am-comparison-url="@comparisonUrl"
+     data-am-purchase-request-id="@(linkedRequestId.HasValue ? linkedRequestId.Value.ToString() : "")"
+     data-am-item-description="@(itemDescription ?? "")">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Supplier price comparison</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-comparison">Refresh</button>
+    </div>
+    <div class="card-body p-0">
+        <div id="comparison-empty" class="p-3 text-muted">Loading supplier offers…</div>
+        <table class="table mb-0" id="comparison-table" style="display:none;">
+            <thead class="table-light">
+                <tr>
+                    <th>Supplier</th>
+                    <th>Item</th>
+                    <th>Unit price</th>
+                    <th>Lead time</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
@@ -28,13 +56,20 @@
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     <div class="row g-3">
         <div class="col-md-4"><label class="form-label">PO Number</label>@Html.TextBoxFor(m => m.PurchaseOrderNumber, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Supplier</label>@Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select" })</div>
+        <div class="col-md-3"><label class="form-label">Supplier</label>@Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select", id = "SupplierId" })</div>
         <div class="col-md-3"><label class="form-label">Invoice #</label>@Html.TextBoxFor(m => m.InvoiceNumber, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Date</label>@Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })</div>
-        <div class="col-md-2"><label class="form-label">Quantity</label>@Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number" })</div>
-        <div class="col-md-2"><label class="form-label">Unit Cost</label>@Html.TextBoxFor(m => m.UnitCost, new { @class = "form-control", type = "number", step = "0.01" })</div>
-        <div class="col-md-2"><label class="form-label">Total Cost</label>@Html.TextBoxFor(m => m.TotalCost, new { @class = "form-control", type = "number", step = "0.01" })</div>
+        <div class="col-md-2"><label class="form-label">Quantity</label>@Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number", id = "Quantity" })</div>
+        <div class="col-md-2"><label class="form-label">Unit Cost</label>@Html.TextBoxFor(m => m.UnitCost, new { @class = "form-control", type = "number", step = "0.01", id = "UnitCost" })</div>
+        <div class="col-md-2"><label class="form-label">Total Cost</label>@Html.TextBoxFor(m => m.TotalCost, new { @class = "form-control", type = "number", step = "0.01", id = "TotalCost" })</div>
         <div class="col-md-2"><label class="form-label">Currency</label>@Html.TextBoxFor(m => m.Currency, new { @class = "form-control", @readonly = "readonly" })</div>
+        @if (!linkedRequestId.HasValue)
+        {
+            <div class="col-md-12">
+                <label class="form-label">Item description (for supplier lookup)</label>
+                <input type="text" class="form-control" id="manual-item-description" value="@itemDescription" />
+            </div>
+        }
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
@@ -42,4 +77,8 @@
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/purchase-create.js")"></script>
 }

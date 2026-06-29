@@ -46,6 +46,28 @@ namespace AssetManagement.Infrastructure.Queries
             };
         }
 
+        public static TenantQueryScope ForOrganizationOnly(IOrganizationScopeService organizationScope)
+        {
+            if (organizationScope == null)
+            {
+                throw new InvalidOperationException("Organization scope is required for SQL queries.");
+            }
+
+            var organizationId = organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                throw new InvalidOperationException("Organization context is required for SQL queries.");
+            }
+
+            return new TenantQueryScope
+            {
+                OrganizationId = organizationId.Value,
+                BypassesDepartmentScope = true,
+                DenyDepartmentScope = false,
+                DepartmentId = null
+            };
+        }
+
         public void AddScopeParameters(IDbCommand command)
         {
             SqlQueryHelper.AddParameter(command, "@OrganizationId", OrganizationId);

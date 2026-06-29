@@ -62,16 +62,24 @@
     function renderResult(data) {
         if (data.Found) {
             var actions = "";
-            if (data.CanManageAsset) {
-                actions =
-                    '<div class="am-scan-result-actions mt-4">' +
-                    '<a class="btn btn-primary btn-lg w-100" href="' + escapeHtml(data.QuickActionsUrl) + '">' +
-                    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
-                    "Quick actions</a>" +
-                    '<a class="btn btn-outline-secondary w-100 mt-2" href="' + escapeHtml(data.DetailsUrl) + '">' +
-                    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
-                    "Full details</a>" +
-                    "</div>";
+            if (data.CanOpenQuickActions || data.CanViewAssetDetails) {
+                actions = '<div class="am-scan-result-actions mt-4">';
+                if (data.CanOpenQuickActions && data.QuickActionsUrl) {
+                    actions +=
+                        '<a class="btn btn-primary btn-lg w-100" href="' + escapeHtml(data.QuickActionsUrl) + '">' +
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
+                        "Quick actions</a>";
+                }
+                if (data.CanViewAssetDetails && data.DetailsUrl) {
+                    var detailsClass = data.CanOpenQuickActions
+                        ? "btn btn-outline-secondary w-100 mt-2"
+                        : "btn btn-primary btn-lg w-100";
+                    actions +=
+                        '<a class="' + detailsClass + '" href="' + escapeHtml(data.DetailsUrl) + '">' +
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+                        "Full details</a>";
+                }
+                actions += "</div>";
             }
 
             return (

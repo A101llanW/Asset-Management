@@ -7,6 +7,7 @@ INSERT INTO [Permission] ([Name],[Code],[Module],[Description],[CreatedAt],[IsAc
 SELECT v.[Name], v.[Code], v.[Module], v.[Description], @now, 1
 FROM (VALUES
     (N'View Users', N'Users.View', N'Users', N'Can view users'),
+    (N'View Department Users', N'Users.ViewDepartment', N'Users', N'Can view users registered in the signed-in user''s department'),
     (N'Create Users', N'Users.Create', N'Users', N'Can create users'),
     (N'Edit Users', N'Users.Edit', N'Users', N'Can edit users'),
     (N'Delete Users', N'Users.Delete', N'Users', N'Can delete users'),
@@ -75,49 +76,49 @@ BEGIN
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Company Admin' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Company Admin', N'Company Admin seeded demo role', 1, @seedOrgId, @now, 1);
+            VALUES (N'Company Admin', N'Full organization configuration including approval matrix and roles.', 1, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Asset Manager' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Asset Manager', N'Asset Manager seeded demo role', 0, @seedOrgId, @now, 1);
+            VALUES (N'Asset Manager', N'Manages assets; approves in-store requests and receives goods against POs.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Procurement Officer' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Procurement Officer', N'Procurement Officer seeded demo role', 0, @seedOrgId, @now, 1);
+            VALUES (N'Procurement Officer', N'Approves requisitions org-wide; manages suppliers, catalog, and purchase orders.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Finance Officer' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Finance Officer', N'Finance Officer seeded demo role', 0, @seedOrgId, @now, 1);
+            VALUES (N'Finance Officer', N'Financial reporting and depreciation; not the default requisition approver.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Department Head' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Department Head', N'Department Head seeded demo role', 0, @seedOrgId, @now, 1);
+            VALUES (N'Department Head', N'Submits requisitions and in-store asset requests for their department.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Staff' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Staff', N'Staff seeded demo role', 0, @seedOrgId, @now, 1);
+            VALUES (N'Staff', N'Assignee-only profile — register employees without assigning this login role.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Auditor' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Auditor', N'Auditor seeded demo role', 0, @seedOrgId, @now, 1);
+            VALUES (N'Auditor', N'Read-only access to reports and audit data.', 0, @seedOrgId, @now, 1);
     END
     ELSE
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Company Admin')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Company Admin', N'Company Admin seeded demo role', 1, @now, 1);
+            VALUES (N'Company Admin', N'Full organization configuration including approval matrix and roles.', 1, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Asset Manager')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Asset Manager', N'Asset Manager seeded demo role', 0, @now, 1);
+            VALUES (N'Asset Manager', N'Manages assets; approves in-store requests and receives goods against POs.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Procurement Officer')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Procurement Officer', N'Procurement Officer seeded demo role', 0, @now, 1);
+            VALUES (N'Procurement Officer', N'Approves requisitions org-wide; manages suppliers, catalog, and purchase orders.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Finance Officer')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Finance Officer', N'Finance Officer seeded demo role', 0, @now, 1);
+            VALUES (N'Finance Officer', N'Financial reporting and depreciation; not the default requisition approver.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Department Head')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Department Head', N'Department Head seeded demo role', 0, @now, 1);
+            VALUES (N'Department Head', N'Submits requisitions and in-store asset requests for their department.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Staff')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Staff', N'Staff seeded demo role', 0, @now, 1);
+            VALUES (N'Staff', N'Assignee-only profile — register employees without assigning this login role.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Auditor')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Auditor', N'Auditor seeded demo role', 0, @now, 1);
+            VALUES (N'Auditor', N'Read-only access to reports and audit data.', 0, @now, 1);
     END
 
     DECLARE @companyAdminRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Company Admin' AND (@hasRoleOrgId = 0 OR [OrganizationId] = @seedOrgId) ORDER BY [Id]);
@@ -161,7 +162,7 @@ BEGIN
     FROM [Roles] r CROSS JOIN [Permission] p
     WHERE (@hasRoleOrgId = 0 OR r.[OrganizationId] = @seedOrgId)
       AND r.[Name] = N'Department Head'
-      AND p.[Code] IN (N'Reports.View',N'Departments.View',N'Departments.Edit',N'Assets.View',N'Assets.Assign',N'Assets.Return',N'Assets.Request',N'Assets.Request.Approve',N'Purchases.View',N'Purchases.Approve',N'Incidents.View',N'Incidents.Create',N'Claims.View',N'Assets.Transfer')
+      AND p.[Code] IN (N'Reports.View',N'Departments.View',N'Departments.Edit',N'Users.ViewDepartment',N'Assets.View',N'Assets.Assign',N'Assets.Return',N'Assets.Request',N'Assets.Request.Approve',N'Purchases.View',N'Purchases.Create',N'Purchases.Approve',N'Incidents.View',N'Incidents.Create',N'Claims.View',N'Assets.Transfer')
       AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = p.[Id]);
 
     INSERT INTO [RolePermission] ([RoleId],[PermissionId],[OrganizationId])
@@ -169,7 +170,7 @@ BEGIN
     FROM [Roles] r CROSS JOIN [Permission] p
     WHERE (@hasRoleOrgId = 0 OR r.[OrganizationId] = @seedOrgId)
       AND r.[Name] = N'Staff'
-      AND p.[Code] IN (N'Assets.View',N'Assets.Return',N'Assets.Request',N'Purchases.View',N'Purchases.Create',N'Incidents.Create',N'Incidents.View',N'Documents.View',N'Documents.Upload')
+      AND p.[Code] IN (N'Assets.View',N'Assets.Return',N'Assets.Request',N'Purchases.View',N'Incidents.Create',N'Incidents.View',N'Documents.View',N'Documents.Upload')
       AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = p.[Id]);
 
     INSERT INTO [RolePermission] ([RoleId],[PermissionId],[OrganizationId])
@@ -386,6 +387,9 @@ BEGIN
         SET @seedOrgId = (SELECT TOP 1 [Id] FROM [Organization] ORDER BY [Id]);
     DECLARE @companyAdminRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Company Admin' ORDER BY [Id]);
     DECLARE @assetManagerRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Asset Manager' ORDER BY [Id]);
+    DECLARE @procurementRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Procurement Officer' ORDER BY [Id]);
+    IF @procurementRoleId IS NULL
+        SET @procurementRoleId = @companyAdminRoleId;
 
     IF COL_LENGTH(N'[SystemSetting]', N'OrganizationId') IS NULL
     BEGIN
@@ -394,8 +398,8 @@ BEGIN
         (N'Approval.Process.Disposal.StageRoleIds', CAST(@companyAdminRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for disposal.', @now, 1),
         (N'Approval.RequireTransferApproval', N'false', N'Require approval before asset transfer.', @now, 1),
         (N'Approval.Process.Transfer.StageRoleIds', CAST(@assetManagerRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for transfer.', @now, 1),
-        (N'Approval.RequirePurchaseApproval', N'false', N'Require approval before purchase request fulfillment.', @now, 1),
-        (N'Approval.Process.Purchase.StageRoleIds', CAST(@companyAdminRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for purchase.', @now, 1);
+        (N'Approval.RequirePurchaseApproval', N'false', N'Require approval before requisition fulfillment.', @now, 1),
+        (N'Approval.Process.Purchase.StageRoleIds', CAST(@procurementRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for requisitions.', @now, 1);
     END
     ELSE IF @seedOrgId IS NOT NULL
     BEGIN
@@ -404,8 +408,8 @@ BEGIN
         (N'Approval.Process.Disposal.StageRoleIds', CAST(@companyAdminRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for disposal.', @seedOrgId, @now, 1),
         (N'Approval.RequireTransferApproval', N'false', N'Require approval before asset transfer.', @seedOrgId, @now, 1),
         (N'Approval.Process.Transfer.StageRoleIds', CAST(@assetManagerRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for transfer.', @seedOrgId, @now, 1),
-        (N'Approval.RequirePurchaseApproval', N'false', N'Require approval before purchase request fulfillment.', @seedOrgId, @now, 1),
-        (N'Approval.Process.Purchase.StageRoleIds', CAST(@companyAdminRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for purchase.', @seedOrgId, @now, 1);
+        (N'Approval.RequirePurchaseApproval', N'false', N'Require approval before requisition fulfillment.', @seedOrgId, @now, 1),
+        (N'Approval.Process.Purchase.StageRoleIds', CAST(@procurementRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for requisitions.', @seedOrgId, @now, 1);
     END
 END
 GO

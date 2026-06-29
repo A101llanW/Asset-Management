@@ -59,7 +59,7 @@ LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
 
         public AssetListPageVm GetListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
         {
-            var scope = TenantQueryScope.Resolve(_organizationScope, _departmentScope);
+            var scope = ResolveScope(filter);
             var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
             var totalCount = CountInternal(scope, filter);
             var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
@@ -309,6 +309,16 @@ LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
                 default:
                     return desc ? "a.[AssetTag] DESC, a.[Id] DESC" : "a.[AssetTag] ASC, a.[Id] ASC";
             }
+        }
+
+        private TenantQueryScope ResolveScope(AssetFilterVm filter)
+        {
+            if (filter != null && filter.OrganizationWide)
+            {
+                return TenantQueryScope.ForOrganizationOnly(_organizationScope);
+            }
+
+            return TenantQueryScope.Resolve(_organizationScope, _departmentScope);
         }
 
         private static AssetListVm MapAssetListItem(IDataRecord record)

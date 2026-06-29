@@ -19,7 +19,6 @@ WHERE ol.[IsActive] = 1
   AND o.[IsActive] = 1
   AND (@Search IS NULL OR o.[Name] LIKE @Search OR o.[Slug] LIKE @Search)
   AND (@Status IS NULL OR ol.[Status] = @Status)
-  AND (@PlanCode IS NULL OR ol.[PlanCode] = @PlanCode)
   AND (@ExpiringWithinDays IS NULL OR (
         ol.[ExpiryDate] >= GETUTCDATE()
         AND ol.[ExpiryDate] <= DATEADD(DAY, @ExpiringWithinDays, GETUTCDATE())
@@ -32,8 +31,6 @@ SELECT
     ol.[OrganizationId],
     o.[Name] AS OrganizationName,
     o.[Slug] AS OrganizationSlug,
-    ol.[PlanCode],
-    ol.[PlanName],
     ol.[Status],
     ol.[StartDate],
     ol.[ExpiryDate],
@@ -44,7 +41,6 @@ WHERE ol.[IsActive] = 1
   AND o.[IsActive] = 1
   AND (@Search IS NULL OR o.[Name] LIKE @Search OR o.[Slug] LIKE @Search)
   AND (@Status IS NULL OR ol.[Status] = @Status)
-  AND (@PlanCode IS NULL OR ol.[PlanCode] = @PlanCode)
   AND (@ExpiringWithinDays IS NULL OR (
         ol.[ExpiryDate] >= GETUTCDATE()
         AND ol.[ExpiryDate] <= DATEADD(DAY, @ExpiringWithinDays, GETUTCDATE())
@@ -128,8 +124,6 @@ ORDER BY h.[CreatedAt] DESC, h.[Id] DESC";
                                 OrganizationId = Convert.ToInt32(reader["OrganizationId"]),
                                 OrganizationName = GetString(reader, "OrganizationName"),
                                 OrganizationSlug = GetString(reader, "OrganizationSlug"),
-                                PlanCode = GetString(reader, "PlanCode"),
-                                PlanName = GetString(reader, "PlanName"),
                                 Status = status,
                                 EffectiveStatus = ComputeEffectiveStatus(status, expiryDate),
                                 StartDate = Convert.ToDateTime(reader["StartDate"]),
@@ -221,8 +215,6 @@ ORDER BY h.[CreatedAt] DESC, h.[Id] DESC";
             {
                 case "organization":
                     return desc ? "o.[Name] DESC, ol.[Id] DESC" : "o.[Name] ASC, ol.[Id] ASC";
-                case "plan":
-                    return desc ? "ol.[PlanName] DESC, ol.[Id] DESC" : "ol.[PlanName] ASC, ol.[Id] ASC";
                 case "status":
                     return desc ? "ol.[Status] DESC, ol.[Id] DESC" : "ol.[Status] ASC, ol.[Id] ASC";
                 case "start":
@@ -244,10 +236,6 @@ ORDER BY h.[CreatedAt] DESC, h.[Id] DESC";
                 string.IsNullOrWhiteSpace(filter == null ? null : filter.Status)
                     ? (object)DBNull.Value
                     : filter.Status.Trim());
-            AddParameter(command, "@PlanCode",
-                string.IsNullOrWhiteSpace(filter == null ? null : filter.PlanCode)
-                    ? (object)DBNull.Value
-                    : filter.PlanCode.Trim());
             AddIntParameter(command, "@ExpiringWithinDays",
                 filter != null ? filter.ExpiringWithinDays : null);
         }

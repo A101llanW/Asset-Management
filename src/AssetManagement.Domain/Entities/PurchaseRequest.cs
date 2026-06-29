@@ -25,9 +25,20 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Comma-separated role ids snapshot at submission (same format as transfer/disposal).</summary>
         public string ApprovalStageRoleIds { get; set; }
 
+        /// <summary>Comma-separated user ids snapshot at submission (same format as transfer/disposal).</summary>
+        public string ApprovalStageUserIds { get; set; }
+
         public int DepartmentId { get; set; }
 
+        public string ItemDescription { get; set; }
+
         public string Justification { get; set; }
+
+        public int? QuantityInStock { get; set; }
+
+        public DateTime? RequiredDate { get; set; }
+
+        public string OrderByUserId { get; set; }
 
         public decimal EstimatedUnitCost { get; set; }
 
@@ -36,6 +47,17 @@ namespace AssetManagement.Domain.Entities
         public string Currency { get; set; }
 
         public string Notes { get; set; }
+
+        public string AttachmentFileName { get; set; }
+
+        public string AttachmentFilePath { get; set; }
+
+        public string AttachmentContentType { get; set; }
+
+        public long? AttachmentFileSizeBytes { get; set; }
+
+        /// <summary>Optional link to an existing asset record for post-purchase assignment.</summary>
+        public int? TargetAssetId { get; set; }
 
         public DateTime? ApprovedAt { get; set; }
 
@@ -46,4 +68,3 @@ namespace AssetManagement.Domain.Entities
         public virtual ICollection<PurchaseApprovalAction> ApprovalActions { get; set; } = new HashSet<PurchaseApprovalAction>();
     }
 }
-

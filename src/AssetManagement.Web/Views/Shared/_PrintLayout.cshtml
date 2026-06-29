@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title</title>
-    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
     @RenderSection("head", required: false)
 </head>
 <body class="am-print-body">

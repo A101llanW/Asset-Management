@@ -20,6 +20,20 @@ namespace AssetManagement.Domain.Entities
 
         public string RegistrationNumber { get; set; }
 
+        public string TaxId { get; set; }
+
+        public string PaymentTerms { get; set; }
+
+        public int? DefaultLeadTimeDays { get; set; }
+
+        public string Website { get; set; }
+
+        public bool IsPreferred { get; set; }
+
+        public string Country { get; set; }
+
+        public string PaymentInstructions { get; set; }
+
         public string Notes { get; set; }
     }
 }

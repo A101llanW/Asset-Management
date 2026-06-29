@@ -58,6 +58,8 @@ namespace AssetManagement.Web.Controllers
 
         protected IRoleService BuildRoleService() => DependencyResolver.Current.GetService<IRoleService>();
 
+        protected IRoleTemplateService BuildRoleTemplateService() => DependencyResolver.Current.GetService<IRoleTemplateService>();
+
         protected IPermissionService BuildPermissionService() => DependencyResolver.Current.GetService<IPermissionService>();
 
         protected IDepartmentService BuildDepartmentService() => DependencyResolver.Current.GetService<IDepartmentService>();
@@ -81,6 +83,8 @@ namespace AssetManagement.Web.Controllers
         protected IReceivingService BuildReceivingService() => DependencyResolver.Current.GetService<IReceivingService>();
 
         protected IPurchaseRequestService BuildPurchaseRequestService() => DependencyResolver.Current.GetService<IPurchaseRequestService>();
+
+        protected ISupplierCatalogService BuildSupplierCatalogService() => DependencyResolver.Current.GetService<ISupplierCatalogService>();
 
         protected IAuditLogService BuildAuditLogService() => DependencyResolver.Current.GetService<IAuditLogService>();
 
@@ -184,6 +188,21 @@ namespace AssetManagement.Web.Controllers
             return DepartmentUserWorkflowHelper.UserBelongsToDepartment(userId, departmentId, GetActiveUsers());
         }
 
+        protected bool CanRequestForOthers(string permissionCode)
+        {
+            if (IsCurrentUserSuperAdmin())
+            {
+                return true;
+            }
+
+            if (!BuildAuthorizationService().HasPermission(User.GetUserId(), permissionCode))
+            {
+                return false;
+            }
+
+            return GetCurrentUserDepartmentId().HasValue;
+        }
+
         protected void ApplyLockedUserDepartment(int? lockedDepartmentId, Action<int?> applyDepartment)
         {
             if (!lockedDepartmentId.HasValue || applyDepartment == null || IsCurrentUserSuperAdmin())
@@ -233,6 +252,24 @@ namespace AssetManagement.Web.Controllers
 
             var cachedDepartments = BuildReferenceDataCache().GetDepartments(orgId.Value, activeOnly);
             return new SelectList(cachedDepartments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
+        }
+
+        protected SelectList BuildCategorySelectList(int? selectedCategoryId = null, bool activeOnly = true)
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (!orgId.HasValue)
+            {
+                var categories = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetCategory>().GetAll();
+                if (activeOnly)
+                {
+                    categories = categories.Where(x => x.IsActive);
+                }
+
+                return new SelectList(categories.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedCategoryId);
+            }
+
+            var cachedCategories = BuildReferenceDataCache().GetCategories(orgId.Value, activeOnly);
+            return new SelectList(cachedCategories.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedCategoryId);
         }
 
         protected SelectList BuildRoleSelectList(int? selectedRoleId = null)
@@ -511,9 +548,26 @@ namespace AssetManagement.Web.Controllers
         {
             var config = GetApprovalProcessConfiguration(processCode);
             var roleLookup = BuildRoleNameLookup();
-            return !config.UsesApproval
-                ? "This process completes immediately without a separate approval step."
-                : ApprovalWorkflowSettingsHelper.BuildStageSummary(config.StageRoleIds, roleLookup);
+            if (!config.UsesApproval)
+            {
+                return "This process completes immediately without a separate approval step.";
+            }
+
+            if (config.StageUserIds != null && config.StageUserIds.Any(x => !string.IsNullOrWhiteSpace(x)))
+            {
+                var orgId = ResolveCurrentOrganizationId();
+                var users = orgId.HasValue
+                    ? BuildReferenceDataCache().GetUsersForDropdown(orgId.Value)
+                    : GetActiveUsers();
+                var userLookup = ApproverPickerHelper.BuildUserNameLookup(users);
+                return ApprovalWorkflowSettingsHelper.BuildAssetStageSummary(
+                    config.StageRoleIds.Select(x => (int?)x),
+                    config.StageUserIds,
+                    roleLookup,
+                    userLookup);
+            }
+
+            return ApprovalWorkflowSettingsHelper.BuildStageSummary(config.StageRoleIds, roleLookup);
         }
 
         protected string BuildAssetApprovalProcessSummary(Asset asset, string processCode)

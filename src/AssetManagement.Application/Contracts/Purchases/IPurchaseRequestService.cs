@@ -11,6 +11,10 @@ namespace AssetManagement.Application.Contracts
 
         int Submit(PurchaseRequestCreateVm model, string requestedByUserId);
 
+        void SaveAttachment(int purchaseRequestId, PurchaseRequestAttachmentInfo attachment);
+
+        string GetAttachmentRelativePath(int purchaseRequestId);
+
         void Approve(PurchaseRequestApprovalVm model, string approvedByUserId, int? approverRoleId, bool isSuperAdmin);
 
         void Reject(PurchaseRequestApprovalVm model, string rejectedByUserId, int? approverRoleId, bool isSuperAdmin);

@@ -16,12 +16,16 @@ namespace AssetManagement.Web.Controllers
         private readonly IPurchaseService _purchaseService;
         private readonly IReceivingService _receivingService;
         private readonly ISupplierService _supplierService;
+        private readonly ISupplierCatalogService _supplierCatalogService;
+        private readonly IPurchaseRequestService _purchaseRequestService;
 
         public PurchasesController()
         {
             _purchaseService = BuildPurchaseService();
             _receivingService = BuildReceivingService();
             _supplierService = BuildSupplierService();
+            _supplierCatalogService = BuildSupplierCatalogService();
+            _purchaseRequestService = BuildPurchaseRequestService();
         }
 
         public ActionResult Index(string search = null, int? supplierId = null, string sort = "date", string direction = "desc", int page = 1, int pageSize = 10)
@@ -75,7 +79,7 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.Receive")]
-        public ActionResult Receive(int id, string returnUrl = null)
+        public ActionResult Receive(int id, int? assetId = null, string returnUrl = null)
         {
             var detail = _receivingService.GetReceiveDetail(id);
             if (detail == null)
@@ -89,14 +93,16 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToAction("Details", new { id, returnUrl });
             }
 
+            var lookup = _receivingService.GetReceiveAssetLookup(id, assetId);
             var model = new AssetReceiveVm
             {
                 PurchaseRecordId = id,
+                AssetId = lookup.SelectedAssetId ?? 0,
                 ReceivedDate = System.DateTime.UtcNow,
                 QuantityReceived = 1
             };
 
-            PopulateReceiveLookups(model, detail);
+            PopulateReceiveLookups(model, lookup);
             ViewBag.ReceiveDetail = detail;
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id });
             return View(model);
@@ -113,7 +119,7 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
-            PopulateReceiveLookups(model, detail);
+            PopulateReceiveLookups(model, _receivingService.GetReceiveAssetLookup(model.PurchaseRecordId, model.AssetId > 0 ? model.AssetId : (int?)null));
             ViewBag.ReceiveDetail = detail;
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id = model.PurchaseRecordId });
 
@@ -160,7 +166,16 @@ namespace AssetManagement.Web.Controllers
             PopulateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.PurchaseRequestId = purchaseRequestId;
+            ViewBag.ItemDescription = purchaseRequestId.HasValue
+                ? UnitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId.Value)?.ItemDescription
+                : null;
             return View(model);
+        }
+
+        public JsonResult SupplierPriceComparison(int? purchaseRequestId, string itemDescription)
+        {
+            var comparison = _supplierCatalogService.GetPriceComparison(purchaseRequestId, itemDescription);
+            return Json(comparison, JsonRequestBehavior.AllowGet);
         }
 
         [HttpPost]
@@ -171,6 +186,9 @@ namespace AssetManagement.Web.Controllers
             PopulateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.PurchaseRequestId = model.PurchaseRequestId;
+            ViewBag.ItemDescription = model.PurchaseRequestId.HasValue
+                ? UnitOfWork.Repository<PurchaseRequest>().GetById(model.PurchaseRequestId.Value)?.ItemDescription
+                : null;
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -195,17 +213,14 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId);
         }
 
-        private void PopulateReceiveLookups(AssetReceiveVm model, PurchaseReceiveDetailVm detail)
+        private void PopulateReceiveLookups(AssetReceiveVm model, ReceiveAssetLookupVm lookup)
         {
-            var receivedAssetIds = new System.Collections.Generic.HashSet<int>(detail.Receivings.Select(x => x.AssetId));
-            var assets = UnitOfWork.Repository<Asset>().GetAll()
-                .Where(x => x.IsActive
-                    && (x.CurrentStatus == AssetStatus.InStore || x.CurrentStatus == AssetStatus.Returned)
-                    && !receivedAssetIds.Contains(x.Id))
-                .OrderBy(x => x.AssetTag)
-                .Select(x => new { x.Id, Label = x.AssetTag + " - " + x.AssetName })
-                .ToList();
-            ViewBag.Assets = new SelectList(assets, "Id", "Label", model.AssetId);
+            var selectedAssetId = model.AssetId > 0 ? model.AssetId : lookup?.SelectedAssetId;
+            ViewBag.Assets = new SelectList(lookup?.Assets ?? new System.Collections.Generic.List<ReceiveAssetOptionVm>(), "Id", "Label", selectedAssetId);
+            if (selectedAssetId.HasValue && selectedAssetId.Value > 0)
+            {
+                model.AssetId = selectedAssetId.Value;
+            }
         }
     }
 }

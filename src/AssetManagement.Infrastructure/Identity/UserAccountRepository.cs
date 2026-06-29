@@ -180,6 +180,7 @@ WHERE [Id]=@Id";
 SELECT r.[Name]
 FROM [Users] u
 INNER JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
 WHERE u.[Id]=@Id";
                     AddParameter(command, "@Id", userId);
                     var result = command.ExecuteScalar();

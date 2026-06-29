@@ -10,6 +10,25 @@ namespace AssetManagement.Web.Helpers
     {
         public static string ToFriendlyPermissionLabel(string permissionCode, string fallbackName = null)
         {
+            if (!string.IsNullOrWhiteSpace(permissionCode))
+            {
+                switch (permissionCode.Trim())
+                {
+                    case "Assets.Request":
+                        return "Submit asset requests";
+                    case "Assets.Request.Approve":
+                        return "Approve and fulfill asset requests";
+                    case "Purchases.View":
+                        return "View requisitions";
+                    case "Purchases.Create":
+                        return "Submit requisitions";
+                    case "Purchases.Edit":
+                        return "Edit requisitions and purchase orders";
+                    case "Purchases.Approve":
+                        return "Approve requisitions";
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(fallbackName))
             {
                 return fallbackName.Trim();
@@ -145,7 +164,7 @@ namespace AssetManagement.Web.Helpers
                 case "Suppliers":
                     return "supplier";
                 case "Purchases":
-                    return "purchase record";
+                    return "requisition";
                 case "Incidents":
                     return "incident";
                 case "Claims":

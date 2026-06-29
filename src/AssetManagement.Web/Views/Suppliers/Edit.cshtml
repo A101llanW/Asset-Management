@@ -6,7 +6,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Edit Supplier",
-    Subtitle = "Keep supplier contact and registration details accurate for purchasing workflows.",
+    Subtitle = "Keep supplier contact, procurement terms, and registration details accurate.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -27,9 +27,16 @@
         <div class="col-md-6">@Html.LabelFor(m => m.ContactPerson, new { @class = "form-label" }) @Html.TextBoxFor(m => m.ContactPerson, new { @class = "form-control" })</div>
         <div class="col-md-6">@Html.LabelFor(m => m.Email, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Email, new { @class = "form-control" })</div>
         <div class="col-md-6">@Html.LabelFor(m => m.Phone, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>
+        <div class="col-md-4">@Html.LabelFor(m => m.TaxId, new { @class = "form-label" }) @Html.TextBoxFor(m => m.TaxId, new { @class = "form-control" })</div>
+        <div class="col-md-4">@Html.LabelFor(m => m.PaymentTerms, new { @class = "form-label" }) @Html.TextBoxFor(m => m.PaymentTerms, new { @class = "form-control" })</div>
+        <div class="col-md-4">@Html.LabelFor(m => m.DefaultLeadTimeDays, new { @class = "form-label" }) @Html.TextBoxFor(m => m.DefaultLeadTimeDays, new { @class = "form-control", type = "number" })</div>
+        <div class="col-md-6">@Html.LabelFor(m => m.Website, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Website, new { @class = "form-control" })</div>
+        <div class="col-md-6">@Html.LabelFor(m => m.Country, new { @class = "form-label" }) @Html.TextBoxFor(m => m.Country, new { @class = "form-control" })</div>
         <div class="col-md-12">@Html.LabelFor(m => m.Address, new { @class = "form-label" }) @Html.TextAreaFor(m => m.Address, new { @class = "form-control", rows = "2" })</div>
+        <div class="col-md-12">@Html.LabelFor(m => m.PaymentInstructions, new { @class = "form-label" }) @Html.TextAreaFor(m => m.PaymentInstructions, new { @class = "form-control", rows = "2" })</div>
         <div class="col-md-12">@Html.LabelFor(m => m.Notes, new { @class = "form-label" }) @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "2" })</div>
-        <div class="col-md-12 form-check">@Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" }) @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })</div>
+        <div class="col-md-6 form-check">@Html.CheckBoxFor(m => m.IsPreferred, new { @class = "form-check-input" }) @Html.LabelFor(m => m.IsPreferred, new { @class = "form-check-label" })</div>
+        <div class="col-md-6 form-check">@Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" }) @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {

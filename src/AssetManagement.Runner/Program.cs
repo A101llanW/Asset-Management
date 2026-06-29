@@ -1,12 +1,58 @@
 using System;
+using System.Configuration;
 using System.Diagnostics;
 using System.IO;
+using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Runner
 {
     internal static class Program
     {
         private static void Main(string[] args)
+        {
+            if (args.Length > 0 && string.Equals(args[0], "migrate", StringComparison.OrdinalIgnoreCase))
+            {
+                RunMigrations(args);
+                return;
+            }
+
+            RunWebHost(args);
+        }
+
+        private static void RunMigrations(string[] args)
+        {
+            var scriptsPath = ResolveScriptsPath(args);
+            if (!string.IsNullOrWhiteSpace(scriptsPath))
+            {
+                ConfigurationManager.AppSettings["DatabaseScriptsPath"] = scriptsPath;
+            }
+
+            var connectionString = ConfigurationManager.ConnectionStrings["AssetManagementConnection"].ConnectionString;
+            var builder = new System.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+            Console.WriteLine("Applying migrations via ASP.NET SqlDatabaseInitializer...");
+            Console.WriteLine("  Server:   " + builder.DataSource);
+            Console.WriteLine("  Database: " + builder.InitialCatalog);
+            Console.WriteLine("  Scripts:  " + (string.IsNullOrWhiteSpace(scriptsPath) ? "auto" : scriptsPath));
+
+            SqlDatabaseInitializer.ApplyMigrations("AssetManagementConnection");
+            Console.WriteLine("Migrations complete.");
+        }
+
+        private static string ResolveScriptsPath(string[] args)
+        {
+            for (var i = 1; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], "--scripts", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                {
+                    return Path.GetFullPath(args[i + 1]);
+                }
+            }
+
+            var repoScripts = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "database", "scripts"));
+            return Directory.Exists(repoScripts) ? repoScripts : null;
+        }
+
+        private static void RunWebHost(string[] args)
         {
             var port = args.Length > 0 ? args[0] : "51901";
             var webPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "AssetManagement.Web"));

@@ -23,6 +23,7 @@
 {
     @Html.AntiForgeryToken()
     @Html.HiddenFor(m => m.Id)
+    @Html.HiddenFor(m => m.CurrentStatus)
     @Html.HiddenFor(m => m.Currency)
     @Html.ValidationSummary(false, "Please correct the following:", new { @class = "alert alert-danger rounded-3 mb-4 am-form-validation-summary" })
 

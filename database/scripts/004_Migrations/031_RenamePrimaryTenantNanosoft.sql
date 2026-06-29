@@ -81,13 +81,13 @@ BEGIN
       );
 
     INSERT INTO [OrganizationLicense]
-        ([OrganizationId],[PlanCode],[PlanName],[Status],[StartDate],[ExpiryDate],[MaxUsers],[CreatedAt],[IsActive])
-    SELECT @nanosoftOrgId, N'Standard', N'Standard', N'Active', @now, DATEADD(MONTH, 12, @now), NULL, @now, 1
+        ([OrganizationId],[Status],[StartDate],[ExpiryDate],[MaxUsers],[CreatedAt],[IsActive])
+    SELECT @nanosoftOrgId, N'Active', @now, DATEADD(MONTH, 12, @now), NULL, @now, 1
     WHERE NOT EXISTS (SELECT 1 FROM [OrganizationLicense] ol WHERE ol.[OrganizationId] = @nanosoftOrgId);
 
     INSERT INTO [OrganizationLicense]
-        ([OrganizationId],[PlanCode],[PlanName],[Status],[StartDate],[ExpiryDate],[MaxUsers],[CreatedAt],[IsActive])
-    SELECT o.[Id], N'Standard', N'Standard', N'Active', @now, DATEADD(MONTH, 12, @now), NULL, @now, 1
+        ([OrganizationId],[Status],[StartDate],[ExpiryDate],[MaxUsers],[CreatedAt],[IsActive])
+    SELECT o.[Id], N'Active', @now, DATEADD(MONTH, 12, @now), NULL, @now, 1
     FROM [Organization] o
     WHERE o.[IsActive] = 1
       AND NOT EXISTS (SELECT 1 FROM [OrganizationLicense] ol WHERE ol.[OrganizationId] = o.[Id]);

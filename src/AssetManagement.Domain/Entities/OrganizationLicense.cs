@@ -11,10 +11,6 @@ namespace AssetManagement.Domain.Entities
 
         public virtual Organization Organization { get; set; }
 
-        public string PlanCode { get; set; }
-
-        public string PlanName { get; set; }
-
         public string Status { get; set; }
 
         public DateTime StartDate { get; set; }

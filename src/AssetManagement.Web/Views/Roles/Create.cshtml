@@ -1,13 +1,15 @@
 @using AssetManagement.Web.Helpers
+@using System.Linq
 @model AssetManagement.Application.ViewModels.RoleCreateEditVm
 @{
     ViewBag.Title = "Create Role";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var roleTemplates = (Model.RoleTemplates ?? Enumerable.Empty<AssetManagement.Application.ViewModels.RoleTemplateVm>()).ToList();
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Create Role",
-    Subtitle = "Combine permissions into a reusable role, then confirm the access profile on the role details page. Roles you create here appear as choices in Settings for approval stages (transfer, disposal, and purchase requests).",
+    Subtitle = "Combine permissions into a reusable role. Roles appear as approval stage choices under Settings &rarr; Approval Matrix (e.g. Procurement Officer for requisitions).",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -21,6 +23,22 @@
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    if (roleTemplates.Any())
+    {
+        <div class="card card-kpi mb-3">
+            <div class="card-body">
+                <label class="form-label" for="roleTemplatePicker">Start from template</label>
+                <select id="roleTemplatePicker" class="form-select" data-template-url="@Url.Action("TemplatePermissions", "Roles")">
+                    <option value="">— Select a saved template (optional) —</option>
+                    @foreach (var template in roleTemplates)
+                    {
+                        <option value="@template.Id">@template.Name (@template.PermissionCount permissions)</option>
+                    }
+                </select>
+                <div class="form-text">Applying a template fills the permission matrix below. You can still adjust individual permissions before saving.</div>
+            </div>
+        </div>
+    }
     <div class="row g-3 mb-3">
         <div class="col-md-4">
             @Html.LabelFor(m => m.Name, new { @class = "form-label" })
@@ -40,7 +58,11 @@
 
     <div class="card card-kpi mb-3">
         <div class="card-body">
-            <h5>Permission Matrix</h5>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h5 class="mb-0">Permission Matrix</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm js-select-all-permissions">Select all</button>
+            </div>
+            <p class="text-muted small mb-3">For requisitions: <strong>Department Head</strong> needs <code>Purchases.Create</code>; the approval stage role (typically <strong>Procurement Officer</strong>) needs <code>Purchases.Approve</code>. In-store requests use <code>Assets.Request</code> and <code>Assets.Request.Approve</code> instead of the approval matrix.</p>
             @foreach (var group in Model.PermissionGroups)
             {
                 <div class="border rounded p-3 mb-2">
@@ -56,7 +78,7 @@
                             var isChecked = Model.SelectedPermissionIds.Contains(permission.Id);
                             <div class="col-md-4">
                                 <label class="form-check-label" title="@permission.Code">
-                                    <input type="checkbox" name="SelectedPermissionIds" value="@permission.Id" data-module-item="@group.Module" class="form-check-input" checked="@isChecked" />
+                                    <input type="checkbox" name="SelectedPermissionIds" value="@permission.Id" data-module-item="@group.Module" class="form-check-input js-permission-checkbox" @(isChecked ? "checked=\"checked\"" : null) />
                                     @PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)
                                 </label>
                             </div>
@@ -73,4 +95,8 @@
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+
+@section Scripts {
+    <script src="@Url.Content("~/Scripts/app/role-templates.js")"></script>
 }

@@ -80,7 +80,7 @@ namespace AssetManagement.Web.Controllers
 
             if (!AssetCustodyRules.CanAssign(asset.CurrentStatus))
             {
-                TempData["Error"] = AssetCustodyRules.AlreadyAssignedMessage;
+                TempData["Error"] = AssetCustodyRules.GetAssignBlockedMessage(asset.CurrentStatus);
                 return RedirectToAssetDetails(assetId);
             }
 

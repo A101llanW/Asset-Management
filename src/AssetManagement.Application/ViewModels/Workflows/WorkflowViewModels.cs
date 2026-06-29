@@ -109,6 +109,7 @@ namespace AssetManagement.Application.ViewModels
         [Display(Name = "Return Date")]
         public DateTime ReturnDate { get; set; }
 
+        [Required(ErrorMessage = "Return condition is required.")]
         [Display(Name = "Return Condition")]
         [StringLength(200)]
         public string ReturnCondition { get; set; }

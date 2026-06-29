@@ -20,6 +20,9 @@ namespace AssetManagement.Application.ViewModels
         public AssetStatus? Status { get; set; }
 
         public string CustodianUserId { get; set; }
+
+        /// <summary>When true, returns all organization assets regardless of the user's department scope.</summary>
+        public bool OrganizationWide { get; set; }
     }
 
     public class AssetListVm

@@ -324,8 +324,19 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
             }
 
+            int minutesRemaining;
+            if (!AuthFlowRateLimiter.IsMfaVerifyAllowed(userId, out minutesRemaining))
+            {
+                ModelState.AddModelError("", string.Format(AuthFlowRateLimiter.MfaVerifyLockoutMessage, minutesRemaining));
+                ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
+                ViewBag.Email = FindUserById(userId) != null ? FindUserById(userId).Email : null;
+                ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
+                return View("SetupMfa");
+            }
+
             if (!_accountSecurityService.ValidateMfaCode(userId, code))
             {
+                AuthFlowRateLimiter.RecordMfaVerifyFailure(userId);
                 ModelState.AddModelError("", "Invalid verification code. Please try again.");
                 ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
                 ViewBag.Email = FindUserById(userId) != null ? FindUserById(userId).Email : null;
@@ -333,6 +344,7 @@ namespace AssetManagement.Web.Controllers
                 return View("SetupMfa");
             }
 
+            AuthFlowRateLimiter.ClearMfaVerifyFailures(userId);
             _accountSecurityService.EnableMfa(userId, method);
             Session.Remove("ForcedMfaSetupUserId");
             return IssueAuthCookieAndRedirect(
@@ -351,6 +363,13 @@ namespace AssetManagement.Web.Controllers
             if (string.IsNullOrWhiteSpace(userId))
             {
                 return Json(new { success = false, message = "Session expired." });
+            }
+
+            if (!AuthFlowRateLimiter.TryAcquireMfaSend(userId))
+            {
+                Response.StatusCode = 429;
+                Response.TrySkipIisCustomErrors = true;
+                return Json(new { success = false, message = AuthFlowRateLimiter.MfaSendLimitMessage });
             }
 
             if (!_accountSecurityService.SendMfaCode(userId))
@@ -378,7 +397,11 @@ namespace AssetManagement.Web.Controllers
 
             ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
             ViewBag.EmailHint = _accountSecurityService.MaskEmail(user.Email);
-            if (!_accountSecurityService.SendMfaCode(userId))
+            if (!AuthFlowRateLimiter.TryAcquireMfaSend(userId))
+            {
+                ViewBag.MfaSendError = AuthFlowRateLimiter.MfaSendLimitMessage;
+            }
+            else if (!_accountSecurityService.SendMfaCode(userId))
             {
                 ViewBag.MfaSendError = "Could not send a verification code. Use Resend below or check SMTP configuration.";
             }
@@ -397,8 +420,19 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
             }
 
+            int minutesRemaining;
+            if (!AuthFlowRateLimiter.IsMfaVerifyAllowed(userId, out minutesRemaining))
+            {
+                ModelState.AddModelError("", string.Format(AuthFlowRateLimiter.MfaVerifyLockoutMessage, minutesRemaining));
+                ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
+                ViewBag.EmailHint = _accountSecurityService.MaskEmail(FindUserById(userId) != null ? FindUserById(userId).Email : null);
+                ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
+                return View("VerifyMfa");
+            }
+
             if (!_accountSecurityService.ValidateMfaCode(userId, code))
             {
+                AuthFlowRateLimiter.RecordMfaVerifyFailure(userId);
                 ModelState.AddModelError("", "Invalid or expired verification code.");
                 ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
                 ViewBag.EmailHint = _accountSecurityService.MaskEmail(FindUserById(userId) != null ? FindUserById(userId).Email : null);
@@ -406,6 +440,7 @@ namespace AssetManagement.Web.Controllers
                 return View("VerifyMfa");
             }
 
+            AuthFlowRateLimiter.ClearMfaVerifyFailures(userId);
             _accountSecurityService.ClearMfaCode(userId);
             Session.Remove("PendingMfaUserId");
             return IssueAuthCookieAndRedirect(
@@ -424,6 +459,13 @@ namespace AssetManagement.Web.Controllers
             if (string.IsNullOrWhiteSpace(userId))
             {
                 return Json(new { success = false, message = "Session expired." });
+            }
+
+            if (!AuthFlowRateLimiter.TryAcquireMfaSend(userId))
+            {
+                Response.StatusCode = 429;
+                Response.TrySkipIisCustomErrors = true;
+                return Json(new { success = false, message = AuthFlowRateLimiter.MfaSendLimitMessage });
             }
 
             if (!_accountSecurityService.SendMfaCode(userId))
@@ -537,6 +579,12 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
+            if (!AuthFlowRateLimiter.TryAcquireRegistration(HttpContext))
+            {
+                ModelState.AddModelError("", AuthFlowRateLimiter.RegistrationLimitMessage);
+                return View(model);
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -640,12 +688,27 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
+            if (!AuthFlowRateLimiter.TryAcquireResetPasswordSubmit(HttpContext))
+            {
+                ModelState.AddModelError("", AuthFlowRateLimiter.ResetPasswordSubmitLimitMessage);
+                return View(model);
+            }
+
+            int minutesRemaining;
+            if (!AuthFlowRateLimiter.IsResetPasswordAllowed(model.Email, model.Code, out minutesRemaining))
+            {
+                ModelState.AddModelError("", string.Format(AuthFlowRateLimiter.ResetPasswordFailureLockoutMessage, minutesRemaining));
+                return View(model);
+            }
+
             if (_userAccountService.ResetPasswordWithToken(model.Email, model.Code, model.Password))
             {
+                AuthFlowRateLimiter.ClearResetPasswordFailures(model.Email, model.Code);
                 TempData["Message"] = "Password reset successful.";
                 return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
             }
 
+            AuthFlowRateLimiter.RecordResetPasswordFailure(model.Email, model.Code);
             ModelState.AddModelError("", "Password reset failed. Ensure the password meets complexity requirements.");
             return View(model);
         }

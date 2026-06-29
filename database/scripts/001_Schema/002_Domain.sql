@@ -65,6 +65,13 @@ BEGIN
         [Address] NVARCHAR(500) NULL,
         [RegistrationNumber] NVARCHAR(100) NULL,
         [Notes] NVARCHAR(MAX) NULL,
+        [TaxId] NVARCHAR(50) NULL,
+        [PaymentTerms] NVARCHAR(100) NULL,
+        [DefaultLeadTimeDays] INT NULL,
+        [Website] NVARCHAR(300) NULL,
+        [IsPreferred] BIT NOT NULL CONSTRAINT DF_Supplier_IsPreferred DEFAULT(0),
+        [Country] NVARCHAR(100) NULL,
+        [PaymentInstructions] NVARCHAR(MAX) NULL,
         [CreatedAt] DATETIME NOT NULL,
         [UpdatedAt] DATETIME NULL,
         [IsActive] BIT NOT NULL CONSTRAINT DF_Supplier_IsActive DEFAULT(1)
@@ -82,6 +89,35 @@ BEGIN
         [CreatedAt] DATETIME NOT NULL,
         [UpdatedAt] DATETIME NULL,
         [IsActive] BIT NOT NULL CONSTRAINT DF_AssetCategory_IsActive DEFAULT(1)
+    );
+END
+GO
+
+IF OBJECT_ID(N'[SupplierCatalogItem]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [SupplierCatalogItem] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [OrganizationId] INT NULL,
+        [SupplierId] INT NOT NULL,
+        [ItemName] NVARCHAR(200) NOT NULL,
+        [ItemDescription] NVARCHAR(2000) NULL,
+        [Sku] NVARCHAR(100) NULL,
+        [AssetCategoryId] INT NULL,
+        [AssetTypeId] INT NULL,
+        [TaggedAssetId] INT NULL,
+        [UnitPrice] DECIMAL(18,2) NOT NULL,
+        [Currency] NVARCHAR(10) NULL,
+        [MinimumOrderQuantity] INT NULL,
+        [LeadTimeDays] INT NULL,
+        [EffectiveFrom] DATETIME NULL,
+        [EffectiveTo] DATETIME NULL,
+        [IsActive] BIT NOT NULL CONSTRAINT DF_SupplierCatalogItem_IsActive DEFAULT(1),
+        [CreatedAt] DATETIME NOT NULL,
+        [UpdatedAt] DATETIME NULL,
+        CONSTRAINT FK_SupplierCatalogItem_Supplier FOREIGN KEY ([SupplierId]) REFERENCES [Supplier]([Id]),
+        CONSTRAINT FK_SupplierCatalogItem_AssetCategory FOREIGN KEY ([AssetCategoryId]) REFERENCES [AssetCategory]([Id]),
+        CONSTRAINT FK_SupplierCatalogItem_AssetType FOREIGN KEY ([AssetTypeId]) REFERENCES [AssetType]([Id]),
+        CONSTRAINT FK_SupplierCatalogItem_TaggedAsset FOREIGN KEY ([TaggedAssetId]) REFERENCES [Asset]([Id])
     );
 END
 GO
@@ -215,10 +251,20 @@ BEGIN
         [Currency] NVARCHAR(10) NULL,
         [Notes] NVARCHAR(MAX) NULL,
         [ApprovedAt] DATETIME NULL,
+        [ItemDescription] NVARCHAR(2000) NULL,
+        [QuantityInStock] INT NULL,
+        [RequiredDate] DATETIME NULL,
+        [OrderByUserId] NVARCHAR(128) NULL,
+        [AttachmentFileName] NVARCHAR(260) NULL,
+        [AttachmentFilePath] NVARCHAR(500) NULL,
+        [AttachmentContentType] NVARCHAR(100) NULL,
+        [AttachmentFileSizeBytes] BIGINT NULL,
+        [TargetAssetId] INT NULL,
         [CreatedAt] DATETIME NOT NULL,
         [UpdatedAt] DATETIME NULL,
         [IsActive] BIT NOT NULL CONSTRAINT DF_PurchaseRequest_IsActive DEFAULT(1),
-        CONSTRAINT FK_PurchaseRequest_Department FOREIGN KEY ([DepartmentId]) REFERENCES [Department]([Id])
+        CONSTRAINT FK_PurchaseRequest_Department FOREIGN KEY ([DepartmentId]) REFERENCES [Department]([Id]),
+        CONSTRAINT FK_PurchaseRequest_TargetAsset FOREIGN KEY ([TargetAssetId]) REFERENCES [Asset]([Id])
     );
 END
 GO
@@ -259,8 +305,6 @@ BEGIN
         [TotalCost] DECIMAL(18,2) NOT NULL,
         [Currency] NVARCHAR(10) NULL,
         [TaxAmount] DECIMAL(18,2) NOT NULL,
-        [FundingSource] NVARCHAR(100) NULL,
-        [BudgetCode] NVARCHAR(50) NULL,
         [UsefulLifeMonths] INT NOT NULL,
         [WarrantyStartDate] DATETIME NULL,
         [WarrantyEndDate] DATETIME NULL,

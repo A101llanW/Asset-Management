@@ -22,6 +22,10 @@
                 <div class="col-md-6">
                     <label class="form-label">Asset</label>
                     @Html.DropDownListFor(m => m.AssetId, (SelectList)ViewBag.Assets, "Select asset", new { @class = "form-select" })
+                    @if (detail != null && !string.IsNullOrWhiteSpace(detail.ItemDescription))
+                    {
+                        <div class="form-text">Matching in-store assets for requisition item: @detail.ItemDescription</div>
+                    }
                     @Html.ValidationMessageFor(m => m.AssetId, "", new { @class = "text-danger small" })
                 </div>
                 <div class="col-md-3">

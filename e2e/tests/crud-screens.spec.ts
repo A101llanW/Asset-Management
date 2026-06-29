@@ -145,6 +145,8 @@ test.describe('Tenant admin CRUD screens', () => {
     await page.locator('#ContactPerson').fill('E2E Contact');
     await page.locator('#Email').fill(`supplier.${suffix}@example.com`);
     await page.locator('#Phone').fill('+254700888888');
+    await page.locator('input[name="CatalogItems[0].ItemName"]').fill(`E2E Item ${suffix}`);
+    await page.locator('input[name="CatalogItems[0].UnitPrice"]').fill('1500');
     await page.getByRole('button', { name: 'Create Supplier' }).click();
     await expect(page.getByText('Supplier created.')).toBeVisible();
 
@@ -212,20 +214,21 @@ test.describe('Tenant admin CRUD screens', () => {
     await expect(page.getByText('Asset request submitted successfully.')).toBeVisible();
   });
 
-  test('purchase requests — index and create', async ({ page }) => {
+  test('requisitions — index and create', async ({ page }) => {
     await openCreateFromIndex(
       page,
       '/PurchaseRequests/Index',
-      'Purchase Requests',
-      'New request',
-      'New purchase request',
+      'Requisitions',
+      'New requisition',
+      'New requisition',
     );
     await selectDropdownOptionContaining(page, 'DepartmentId', 'Information Technology');
+    await page.locator('#ItemDescription').fill('E2E CRUD requisition item');
     await page.locator('#Quantity').fill('2');
     await page.locator('#EstimatedUnitCost').fill('15000');
-    await page.locator('#Justification').fill('E2E CRUD purchase request');
-    await page.getByRole('button', { name: 'Submit request' }).click();
-    await expect(page.getByText('Purchase request submitted.')).toBeVisible();
+    await page.locator('#Justification').fill('E2E CRUD requisition');
+    await page.getByRole('button', { name: 'Submit requisition' }).click();
+    await expect(page.getByText('Requisition submitted.')).toBeVisible();
   });
 
   test('purchases — index and create form', async ({ page }) => {

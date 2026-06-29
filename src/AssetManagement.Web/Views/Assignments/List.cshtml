@@ -59,7 +59,6 @@
                         <th>@Html.SortLink("Assignee", "user", currentSort, currentDirection)</th>
                         <th>@Html.SortLink("Department", "department", currentSort, currentDirection)</th>
                         <th>@Html.SortLink("Type", "type", currentSort, currentDirection)</th>
-                        <th>Acknowledged</th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
@@ -79,19 +78,6 @@
                             <td>
                                 <span class="badge rounded-pill" style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);font-weight:600;font-size:.78rem;">@item.AssignmentType</span>
                             </td>
-                            <td>
-                                @if (item.RecipientAcknowledged)
-                                {
-                                    <span class="badge bg-success rounded-pill">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" style="vertical-align:-1px;margin-right:.2rem"><polyline points="20 6 9 17 4 12"/></svg>
-                                        Yes
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-light text-muted border rounded-pill">Pending</span>
-                                }
-                            </td>
                             <td class="text-end pe-3">
                                 <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", "Assets", new { id = item.AssetId })">Asset</a>
                             </td>
@@ -101,7 +87,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="7" class="py-5 text-center">
+                        <td colspan="6" class="py-5 text-center">
                             <div class="text-muted mb-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="16" y1="11" x2="21" y2="16"/></svg>
                             </div>
