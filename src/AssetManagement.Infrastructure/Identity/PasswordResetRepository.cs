@@ -73,6 +73,24 @@ WHERE [UserId]=@UserId AND [TokenHash]=@TokenHash AND [UsedAtUtc] IS NULL";
             return true;
         }
 
+        public void PurgeStale(DateTime cutoffUtc)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+DELETE FROM [PasswordResetToken]
+WHERE ([UsedAtUtc] IS NOT NULL OR [ExpiresAtUtc] < @NowUtc)
+  AND [CreatedAtUtc] < @CutoffUtc";
+                    command.Parameters.Add(CreateParameter(command, "@NowUtc", DateTime.UtcNow));
+                    command.Parameters.Add(CreateParameter(command, "@CutoffUtc", cutoffUtc));
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
         private static IDbDataParameter CreateParameter(IDbCommand command, string name, object value)
         {
             var parameter = command.CreateParameter();

@@ -19,31 +19,39 @@ Default (`src/AssetManagement.Web/Web.config`):
 
 ## Creating/Updating Database
 
-The ASP.NET web app applies SQL scripts from `database/scripts/` on startup (or via `initialize-database.ps1`). Schema and seed scripts are idempotent (`IF NOT EXISTS` / `IF OBJECT_ID IS NULL`).
+The ASP.NET web app applies SQL scripts from `database/scripts/` on startup when `AutoInitializeDatabase=true` (Debug only). For explicit control, use scripts in **`tools/database/`** (see [`tools/database/README.md`](../tools/database/README.md)). Schema and seed scripts are idempotent (`IF NOT EXISTS` / `IF OBJECT_ID IS NULL`).
 
-### Automatic (recommended for local dev)
+### Automatic (Debug builds only)
 
-On startup, the web app runs all scripts when `AutoInitializeDatabase` is `true` in `Web.config` (default). Restart IIS Express / the app pool after pulling schema changes.
+On startup, the web app runs all scripts when `AutoInitializeDatabase` is `true` (`Web.Debug.config`). **Release/production keeps this `false`.** Restart IIS Express / the app pool after pulling schema changes.
 
-### Manual
+### Manual (recommended for production and persistent dev DBs)
 
 From the repository root:
 
 ```powershell
-.\run-migrations.ps1
+.\tools\database\Invoke-Migrations.ps1
 ```
 
-This applies `database/scripts/004_Migrations` via the ASP.NET `SqlDatabaseInitializer` (same path as app startup), not raw ADO.NET in PowerShell. Optional targets:
+This applies `database/scripts/004_Migrations` via the ASP.NET `SqlDatabaseInitializer` (tracks `SchemaMigrationHistory`). Optional targets:
 
 ```powershell
-.\run-migrations.ps1 -Targets @("localhost\SQLEXPRESS|AssetManagementModuleDb")
+.\tools\database\Invoke-Migrations.ps1 -Targets @("localhost\SQLEXPRESS|AssetManagementModuleDb")
 ```
 
-Full schema + seed (new database or full refresh):
+Full schema + seed (new database; **does not DROP** existing DB):
 
 ```powershell
-.\initialize-database.ps1
+.\tools\database\Initialize-Database.ps1
 ```
+
+### E2E only (DESTRUCTIVE — DROP DATABASE)
+
+```powershell
+.\tools\database\Reset-E2eDatabase.ps1 -ConfirmDestructive
+```
+
+Only allowed for databases named `*_E2E`. Never run against production.
 
 ## Recommended SQL Indexes
 

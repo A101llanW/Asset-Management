@@ -18,6 +18,12 @@ namespace AssetManagement.Web.ViewModels
 
         [Display(Name = "Default useful life (months)")]
         public int? DefaultUsefulLifeMonths { get; set; }
+
+        [Display(Name = "Default depreciation life (months)")]
+        public int? DefaultDepreciationLifeMonths { get; set; }
+
+        [Display(Name = "Default annual depreciation rate (%)")]
+        public decimal? DefaultDepreciationRatePercent { get; set; }
     }
 
     public class AssetTypeVm
@@ -43,5 +49,17 @@ namespace AssetManagement.Web.ViewModels
 
         [Display(Name = "Useful life (months)")]
         public int? UsefulLifeMonths { get; set; }
+
+        [Display(Name = "Override category depreciation life")]
+        public bool UseCustomDepreciationLife { get; set; }
+
+        [Display(Name = "Depreciation life (months)")]
+        public int? DepreciationLifeMonths { get; set; }
+
+        [Display(Name = "Override category depreciation rate")]
+        public bool UseCustomDepreciationRate { get; set; }
+
+        [Display(Name = "Annual depreciation rate (%)")]
+        public decimal? DepreciationRatePercent { get; set; }
     }
 }

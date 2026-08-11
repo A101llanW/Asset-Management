@@ -69,7 +69,9 @@ namespace AssetManagement.Application.Helpers
             }
 
             var maps = new List<IDictionary<string, string>>();
-            for (var rowIndex = 1; rowIndex < rows.Count; rowIndex++)
+            // Official template: row 1 headers, row 2 required/optional legend, row 3 sample, row 4+ data.
+            var dataStartIndex = rows.Count > 1 && IsRequirementLegendRow(rows[1]) ? 3 : 1;
+            for (var rowIndex = dataStartIndex; rowIndex < rows.Count; rowIndex++)
             {
                 var row = rows[rowIndex] ?? new string[0];
                 if (IsBlankRow(row))
@@ -117,6 +119,33 @@ namespace AssetManagement.Application.Helpers
             return headers;
         }
 
+        private static bool IsRequirementLegendRow(string[] row)
+        {
+            if (row == null || row.Length == 0)
+            {
+                return false;
+            }
+
+            var hasContent = false;
+            foreach (var cell in row)
+            {
+                if (string.IsNullOrWhiteSpace(cell))
+                {
+                    continue;
+                }
+
+                hasContent = true;
+                var normalized = cell.Trim();
+                if (!normalized.StartsWith("Required", StringComparison.OrdinalIgnoreCase)
+                    && !normalized.StartsWith("Optional", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return hasContent;
+        }
+
         private static bool IsBlankRow(string[] row)
         {
             if (row == null || row.Length == 0)
@@ -137,23 +166,71 @@ namespace AssetManagement.Application.Helpers
 
         private static IList<string[]> ReadExcelRows(Stream stream, bool isBinary)
         {
+            if (stream == null)
+            {
+                return new List<string[]>();
+            }
+
+            if (stream.CanSeek)
+            {
+                stream.Position = 0;
+            }
+
+            if (isBinary)
+            {
+                return ReadRowsFromReader(ExcelReaderFactory.CreateBinaryReader(stream));
+            }
+
+            using (var reader = ExcelReaderFactory.CreateOpenXmlReader(stream))
+            {
+                do
+                {
+                    if (string.Equals(reader.Name, "Import", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ReadRowsFromReader(reader);
+                    }
+                }
+                while (reader.NextResult());
+            }
+
+            if (stream.CanSeek)
+            {
+                stream.Position = 0;
+            }
+
+            using (var reader = ExcelReaderFactory.CreateOpenXmlReader(stream))
+            {
+                return ReadRowsFromReader(reader);
+            }
+        }
+
+        private static IList<string[]> ReadRowsFromReader(IExcelDataReader reader)
+        {
             var rows = new List<string[]>();
-            using (var reader = isBinary
-                ? ExcelReaderFactory.CreateBinaryReader(stream)
-                : ExcelReaderFactory.CreateOpenXmlReader(stream))
+            if (reader == null)
+            {
+                return rows;
+            }
+
+            // ExcelDataReader reports FieldCount = -1 before the first Read() when
+            // the worksheet has no <dimension> element (our generated templates).
+            // Resolve column count per row after Read().
+            while (reader.Read())
             {
                 var fieldCount = reader.FieldCount;
-                while (reader.Read())
+                if (fieldCount < 0)
                 {
-                    var row = new string[fieldCount];
-                    for (var i = 0; i < fieldCount; i++)
-                    {
-                        var value = reader.GetValue(i);
-                        row[i] = value == null ? string.Empty : Convert.ToString(value).Trim();
-                    }
-
-                    rows.Add(row);
+                    fieldCount = 0;
                 }
+
+                var row = new string[fieldCount];
+                for (var i = 0; i < fieldCount; i++)
+                {
+                    var value = reader.GetValue(i);
+                    row[i] = value == null ? string.Empty : Convert.ToString(value).Trim();
+                }
+
+                rows.Add(row);
             }
 
             return rows;

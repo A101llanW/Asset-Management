@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application;
@@ -5,6 +6,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Web.Filters;
 
 namespace AssetManagement.Web.Controllers
@@ -15,42 +17,19 @@ namespace AssetManagement.Web.Controllers
         private readonly IRoleService _roleService;
         private readonly IRoleTemplateService _roleTemplateService;
         private readonly IPermissionService _permissionService;
+        private readonly IModulePermissionService _modulePermissionService;
 
         public RolesController()
         {
             _roleService = BuildRoleService();
             _roleTemplateService = BuildRoleTemplateService();
             _permissionService = BuildPermissionService();
+            _modulePermissionService = DependencyResolver.Current.GetService<IModulePermissionService>();
         }
 
         public ActionResult Index(string search = null, bool? isActive = null, string sort = "name", string direction = "asc", int page = 1, int pageSize = 10)
         {
-            var items = _roleService.GetRoles();
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim().ToLowerInvariant();
-                items = items.Where(x => (x.Name ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.Description ?? string.Empty).ToLowerInvariant().Contains(term));
-            }
-
-            if (isActive.HasValue)
-            {
-                items = items.Where(x => x.IsActive == isActive.Value);
-            }
-
-            switch ((sort ?? string.Empty).ToLowerInvariant())
-            {
-                case "status":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.IsActive) : items.OrderBy(x => x.IsActive);
-                    break;
-                case "system":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.IsSystemRole) : items.OrderBy(x => x.IsSystemRole);
-                    break;
-                default:
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.Name) : items.OrderBy(x => x.Name);
-                    sort = "name";
-                    break;
-            }
+            var pageResult = _roleService.GetListPage(search, isActive, sort, direction, page, pageSize);
 
             ViewBag.StatusFilter = new SelectList(new[]
             {
@@ -60,7 +39,7 @@ namespace AssetManagement.Web.Controllers
             }, "Value", "Text", isActive.HasValue ? isActive.Value.ToString().ToLowerInvariant() : string.Empty);
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
-            return View(BuildListPage(items, search, sort, direction, page, pageSize));
+            return View(ToListPage(pageResult));
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -75,14 +54,15 @@ namespace AssetManagement.Web.Controllers
                 .Find(x => x.RoleId == id)
                 .Select(x => x.PermissionId)
                 .ToList();
-            var permissions = _permissionService.GetAll()
-                .Where(x => assignedPermissionIds.Contains(x.Id))
-                .OrderBy(x => x.Module)
-                .ThenBy(x => x.Name)
-                .ToList();
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.PermissionGroups = permissions.GroupBy(x => x.Module).ToList();
+            ViewBag.PermissionGroups = _modulePermissionService != null
+                ? _modulePermissionService.GetModuleGroupedPermissions(assignedPermissionIds)
+                : _permissionService.GetAll()
+                    .Where(x => assignedPermissionIds.Contains(x.Id))
+                    .GroupBy(x => x.Module)
+                    .Select(g => new PermissionGroupVm { Module = g.Key, Permissions = g.ToList() })
+                    .ToList();
             ViewBag.UserCount = BuildUserService().GetAll().Count(x => x.RoleId == id);
             ViewBag.WorkflowNote = ApprovalWorkflowSettingsHelper.GetTypicalRoleWorkflowNote(role.Name);
             ViewBag.OfferRoleTemplateSave = TempData["OfferRoleTemplateSave"] != null;
@@ -154,6 +134,20 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Roles.Create")]
+        public JsonResult RolePermissions(int id)
+        {
+            try
+            {
+                return Json(new { permissionIds = _roleService.GetPermissionIds(id) }, JsonRequestBehavior.AllowGet);
+            }
+            catch (BusinessException ex)
+            {
+                Response.StatusCode = 400;
+                return Json(new { error = ex.Message }, JsonRequestBehavior.AllowGet);
+            }
+        }
+
+        [PermissionAuthorize("Roles.Create")]
         public JsonResult TemplatePermissions(int id)
         {
             try
@@ -186,7 +180,9 @@ namespace AssetManagement.Web.Controllers
                 IsActive = role.IsActive,
                 IsSystemRole = role.IsSystemRole,
                 SelectedPermissionIds = selected,
-                PermissionGroups = _permissionService.GetGroupedPermissions()
+                PermissionGroups = _modulePermissionService != null
+                    ? _modulePermissionService.GetModuleGroupedPermissions()
+                    : _permissionService.GetGroupedPermissions()
             });
         }
 
@@ -199,7 +195,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
             if (!ModelState.IsValid)
             {
-                model.PermissionGroups = _permissionService.GetGroupedPermissions();
+                model.PermissionGroups = GetPermissionGroups();
                 return View(model);
             }
 
@@ -211,9 +207,39 @@ namespace AssetManagement.Web.Controllers
         private RoleCreateEditVm BuildCreateEditVm(RoleCreateEditVm model)
         {
             model = model ?? new RoleCreateEditVm();
-            model.PermissionGroups = _permissionService.GetGroupedPermissions();
+            model.PermissionGroups = GetPermissionGroups();
             model.RoleTemplates = _roleTemplateService.GetTemplates();
+            model.CopySourceRoles = BuildRoleCopySources();
             return model;
+        }
+
+        private IList<RolePermissionCopyVm> BuildRoleCopySources()
+        {
+            var roles = _roleService.GetRoles().Where(x => x.IsActive).OrderBy(x => x.Name).ToList();
+            if (roles.Count == 0)
+            {
+                return new List<RolePermissionCopyVm>();
+            }
+
+            var roleIds = roles.Select(x => x.Id).ToList();
+            var permissionCounts = UnitOfWork.Repository<RolePermission>()
+                .Find(x => roleIds.Contains(x.RoleId))
+                .GroupBy(x => x.RoleId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            return roles.Select(role => new RolePermissionCopyVm
+            {
+                Id = role.Id,
+                Name = role.Name,
+                PermissionCount = permissionCounts.ContainsKey(role.Id) ? permissionCounts[role.Id] : 0
+            }).ToList();
+        }
+
+        private IList<PermissionGroupVm> GetPermissionGroups()
+        {
+            return _modulePermissionService != null
+                ? _modulePermissionService.GetModuleGroupedPermissions()
+                : _permissionService.GetGroupedPermissions().ToList();
         }
     }
 }

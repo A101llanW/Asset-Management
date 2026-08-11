@@ -5,6 +5,7 @@ using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Services
 {
@@ -14,20 +15,24 @@ namespace AssetManagement.Application.Services
         private readonly ICurrentUserContext _currentUser;
         private readonly IUserService _userService;
         private readonly IOrganizationScopeService _organizationScope;
+        private readonly IAuthorizationService _authorizationService;
         private bool _profileLoaded;
         private UserVm _profile;
         private Role _role;
+        private bool? _includesClassDepartmentAssets;
 
         public DepartmentScopeService(
             IUnitOfWork unitOfWork,
             ICurrentUserContext currentUser,
             IUserService userService,
-            IOrganizationScopeService organizationScope)
+            IOrganizationScopeService organizationScope,
+            IAuthorizationService authorizationService = null)
         {
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
             _userService = userService;
             _organizationScope = organizationScope;
+            _authorizationService = authorizationService;
         }
 
         public bool BypassesDepartmentScope
@@ -42,6 +47,24 @@ namespace AssetManagement.Application.Services
                 EnsureProfileLoaded();
                 return _role != null && _role.IsSystemRole
                     && string.Equals(_role.Name, "Company Admin", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        public bool IncludesClassDepartmentAssets
+        {
+            get
+            {
+                if (BypassesDepartmentScope)
+                {
+                    return false;
+                }
+
+                if (!_includesClassDepartmentAssets.HasValue)
+                {
+                    _includesClassDepartmentAssets = ResolveIncludesClassDepartmentAssets();
+                }
+
+                return _includesClassDepartmentAssets.Value;
             }
         }
 
@@ -72,6 +95,13 @@ namespace AssetManagement.Application.Services
                 return query.Where(x => false);
             }
 
+            if (IncludesClassDepartmentAssets)
+            {
+                return query.Where(x =>
+                    x.DepartmentId == departmentId.Value
+                    || (x.DepartmentId.HasValue && IsClassDepartmentId(x.DepartmentId.Value)));
+            }
+
             return query.Where(x => x.DepartmentId == departmentId.Value);
         }
 
@@ -91,6 +121,13 @@ namespace AssetManagement.Application.Services
             if (!departmentId.HasValue)
             {
                 return query.Where(x => false);
+            }
+
+            if (IncludesClassDepartmentAssets)
+            {
+                return query.Where(x =>
+                    x.Id == departmentId.Value
+                    || (x.IsActive && x.DepartmentKind == DepartmentKind.Class));
             }
 
             return query.Where(x => x.Id == departmentId.Value);
@@ -122,6 +159,13 @@ namespace AssetManagement.Application.Services
 
             if (asset.DepartmentId != departmentId.Value)
             {
+                if (IncludesClassDepartmentAssets
+                    && asset.DepartmentId.HasValue
+                    && IsClassDepartmentId(asset.DepartmentId.Value))
+                {
+                    return;
+                }
+
                 var userId = _currentUser == null ? null : _currentUser.UserId;
                 if (!string.IsNullOrWhiteSpace(userId)
                     && (ApprovalWorkflowHelper.CanAccessAssetForPendingApproval(
@@ -154,6 +198,13 @@ namespace AssetManagement.Application.Services
 
             if (department.Id != departmentId.Value)
             {
+                if (IncludesClassDepartmentAssets
+                    && department.IsActive
+                    && department.DepartmentKind == DepartmentKind.Class)
+                {
+                    return;
+                }
+
                 throw new BusinessException("This department is outside your scope. Only administrators can access it.");
             }
         }
@@ -173,8 +224,40 @@ namespace AssetManagement.Application.Services
 
             if (departmentId != scopedDepartmentId.Value)
             {
+                if (IncludesClassDepartmentAssets)
+                {
+                    var department = _unitOfWork.Repository<Department>().GetById(departmentId);
+                    if (department != null
+                        && department.IsActive
+                        && department.DepartmentKind == DepartmentKind.Class)
+                    {
+                        return;
+                    }
+                }
+
                 throw new BusinessException("This department is outside your scope. Only administrators can access it.");
             }
+        }
+
+        private bool ResolveIncludesClassDepartmentAssets()
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return !string.IsNullOrWhiteSpace(userId)
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Assets.Transfer");
+        }
+
+        private bool IsClassDepartmentId(int departmentId)
+        {
+            if (_unitOfWork == null)
+            {
+                return false;
+            }
+
+            var department = _unitOfWork.Repository<Department>().GetById(departmentId);
+            return department != null
+                && department.IsActive
+                && department.DepartmentKind == DepartmentKind.Class;
         }
 
         private void EnsureProfileLoaded()

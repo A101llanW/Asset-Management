@@ -23,6 +23,16 @@ namespace AssetManagement.Application.Contracts.Queries
     {
         IList<UserVm> GetUsersForOrganization(int organizationId, int? departmentId, bool bypassDepartmentScope);
 
+        PagedListVm<UserVm> GetUserListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            UserListFilterVm filter,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
         UserVm GetUserById(string userId, int organizationId);
 
         UserDisplayProjection GetDisplayById(string userId, int? organizationId);
@@ -32,6 +42,21 @@ namespace AssetManagement.Application.Contracts.Queries
         int CountUsersForOrganization(int organizationId);
 
         IList<PlatformUserListItemVm> GetAllUsersForPlatformAdmin();
+
+        PagedListVm<PlatformUserListItemVm> GetPlatformUserListPage(
+            PlatformUserListFilterVm filter,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
+        PlatformUserIndexViewModel GetPlatformUserIndexPage(
+            PlatformUserListFilterVm filter,
+            string sort,
+            string direction,
+            string category,
+            int page,
+            int pageSize);
 
         PlatformUserListItemVm GetUserByIdForPlatform(string userId);
 

@@ -49,10 +49,14 @@ namespace AssetManagement.Application.Services
                 case "insurance-coverage":
                     context = BuildInsuranceCoverageContext(request, period);
                     break;
+                case "asset-depreciation":
+                    context = BuildAssetDepreciationContext(request, period);
+                    break;
                 default:
                     throw new InvalidOperationException("Unknown report type: " + reportType);
             }
 
+            var branding = ReportBrandingHelper.Resolve(_unitOfWork, _organizationScope, request.ApplicationBaseUrl);
             var html = ReportHtmlBuilder.BuildReportFragment(
                 context.Title,
                 context.Subtitle,
@@ -64,7 +68,8 @@ namespace AssetManagement.Application.Services
                 context.Stats,
                 context.Headers,
                 context.Rows,
-                context.FooterNote);
+                context.FooterNote,
+                branding);
 
             return new ReportDocumentResultVm
             {
@@ -718,6 +723,233 @@ namespace AssetManagement.Application.Services
                     new ReportStatCard { Label = "Total insured", Value = CurrencyFormatter.Format(totalInsured) }
                 }
             };
+        }
+
+        private ReportBuildContext BuildAssetDepreciationContext(ReportExportRequestVm request, ReportPeriodHelper.DateRange period)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (organizationId.HasValue)
+            {
+                DepreciationCalculator.RefreshOrganization(_unitOfWork, organizationId.Value, period.To);
+            }
+
+            var types = _unitOfWork.Repository<AssetType>().GetAll().ToDictionary(x => x.Id);
+            var categories = _unitOfWork.Repository<AssetCategory>().GetAll().ToDictionary(x => x.Id);
+            var departments = _unitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id, x => x.Name);
+            var csvRows = new List<string[]>
+            {
+                new[]
+                {
+                    "AssetTag", "AssetName", "Department", "Category", "Method", "DepreciationStart",
+                    "AcquisitionCost", "OpeningBookValue", "PeriodDepreciation", "ClosingBookValue",
+                    "AccumulatedDepreciation", "SalvageValue"
+                }
+            };
+            var displayRows = new List<IList<string>>();
+            var rowModels = new List<DepreciationReportRow>();
+            decimal totalPeriodDepreciation = 0m;
+            decimal totalClosingBook = 0m;
+
+            var assetsQuery = _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query());
+            if (!request.Status.HasValue)
+            {
+                assetsQuery = assetsQuery.Where(x => x.IsActive);
+            }
+            else
+            {
+                assetsQuery = assetsQuery.Where(x => x.CurrentStatus == request.Status.Value);
+            }
+
+            if (request.DepartmentId.HasValue)
+            {
+                assetsQuery = assetsQuery.Where(x => x.DepartmentId == request.DepartmentId.Value);
+            }
+
+            if (request.CategoryId.HasValue)
+            {
+                assetsQuery = assetsQuery.Where(x => x.CategoryId == request.CategoryId.Value);
+            }
+
+            foreach (var asset in assetsQuery.ToList())
+            {
+                AssetType assetType;
+                types.TryGetValue(asset.AssetTypeId, out assetType);
+                AssetCategory category;
+                categories.TryGetValue(asset.CategoryId, out category);
+                var settings = DepreciationSettingsResolver.Resolve(asset, assetType, category);
+                if (settings.LifeMonths <= 0 || settings.AnnualRatePercent <= 0)
+                {
+                    continue;
+                }
+
+                if (asset.DepreciationStartDate.Date > period.To)
+                {
+                    continue;
+                }
+
+                var opening = DepreciationCalculator.Compute(asset, settings, period.From);
+                var closing = DepreciationCalculator.Compute(asset, settings, period.To);
+                var periodDepreciation = closing.AccumulatedDepreciation - opening.AccumulatedDepreciation;
+                if (periodDepreciation < 0m)
+                {
+                    periodDepreciation = 0m;
+                }
+
+                var depreciable = asset.AcquisitionCost - asset.SalvageValue;
+                var fullyDepreciatedAtStart = depreciable > 0m && opening.AccumulatedDepreciation >= depreciable;
+                if (periodDepreciation <= 0m && fullyDepreciatedAtStart)
+                {
+                    continue;
+                }
+
+                if (periodDepreciation <= 0m && asset.DepreciationStartDate.Date > period.From)
+                {
+                    continue;
+                }
+
+                var dept = asset.DepartmentId.HasValue && departments.ContainsKey(asset.DepartmentId.Value)
+                    ? departments[asset.DepartmentId.Value]
+                    : string.Empty;
+                var categoryName = category != null ? category.Name : string.Empty;
+                rowModels.Add(new DepreciationReportRow
+                {
+                    AssetTag = asset.AssetTag,
+                    AssetName = asset.AssetName,
+                    Department = dept,
+                    Category = categoryName,
+                    Method = asset.DepreciationMethod.ToString(),
+                    DepreciationStart = asset.DepreciationStartDate.ToString("yyyy-MM-dd"),
+                    AcquisitionCost = asset.AcquisitionCost,
+                    OpeningBookValue = opening.CurrentBookValue,
+                    PeriodDepreciation = periodDepreciation,
+                    ClosingBookValue = closing.CurrentBookValue,
+                    AccumulatedDepreciation = closing.AccumulatedDepreciation,
+                    SalvageValue = asset.SalvageValue
+                });
+            }
+
+            var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? "tag" : request.SortBy.Trim().ToLowerInvariant();
+            var descending = string.Equals(request.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+            IEnumerable<DepreciationReportRow> sorted = rowModels;
+            switch (sortBy)
+            {
+                case "name":
+                    sorted = descending
+                        ? rowModels.OrderByDescending(x => x.AssetName)
+                        : rowModels.OrderBy(x => x.AssetName);
+                    break;
+                case "department":
+                    sorted = descending
+                        ? rowModels.OrderByDescending(x => x.Department).ThenBy(x => x.AssetTag)
+                        : rowModels.OrderBy(x => x.Department).ThenBy(x => x.AssetTag);
+                    break;
+                case "period-dep":
+                    sorted = descending
+                        ? rowModels.OrderByDescending(x => x.PeriodDepreciation).ThenBy(x => x.AssetTag)
+                        : rowModels.OrderBy(x => x.PeriodDepreciation).ThenBy(x => x.AssetTag);
+                    break;
+                case "closing-book":
+                    sorted = descending
+                        ? rowModels.OrderByDescending(x => x.ClosingBookValue).ThenBy(x => x.AssetTag)
+                        : rowModels.OrderBy(x => x.ClosingBookValue).ThenBy(x => x.AssetTag);
+                    break;
+                case "cost":
+                    sorted = descending
+                        ? rowModels.OrderByDescending(x => x.AcquisitionCost).ThenBy(x => x.AssetTag)
+                        : rowModels.OrderBy(x => x.AcquisitionCost).ThenBy(x => x.AssetTag);
+                    break;
+                default:
+                    sorted = descending
+                        ? rowModels.OrderByDescending(x => x.AssetTag)
+                        : rowModels.OrderBy(x => x.AssetTag);
+                    break;
+            }
+
+            foreach (var row in sorted)
+            {
+                totalPeriodDepreciation += row.PeriodDepreciation;
+                totalClosingBook += row.ClosingBookValue;
+                var csvValues = new[]
+                {
+                    row.AssetTag,
+                    row.AssetName,
+                    row.Department,
+                    row.Category,
+                    row.Method,
+                    row.DepreciationStart,
+                    CurrencyFormatter.Format(row.AcquisitionCost),
+                    CurrencyFormatter.Format(row.OpeningBookValue),
+                    CurrencyFormatter.Format(row.PeriodDepreciation),
+                    CurrencyFormatter.Format(row.ClosingBookValue),
+                    CurrencyFormatter.Format(row.AccumulatedDepreciation),
+                    CurrencyFormatter.Format(row.SalvageValue)
+                };
+                csvRows.Add(csvValues);
+                displayRows.Add(new[]
+                {
+                    row.AssetTag,
+                    row.AssetName,
+                    row.Department,
+                    row.Method,
+                    CurrencyFormatter.Format(row.AcquisitionCost),
+                    CurrencyFormatter.Format(row.OpeningBookValue),
+                    CurrencyFormatter.Format(row.PeriodDepreciation),
+                    CurrencyFormatter.Format(row.ClosingBookValue),
+                    CurrencyFormatter.Format(row.AccumulatedDepreciation)
+                });
+            }
+
+            return new ReportBuildContext
+            {
+                Title = "Asset Depreciation",
+                Subtitle = "Depreciation expense and book values for the selected period",
+                ThemeColor = "#0dcaf0",
+                ReportCode = "AM-RPT-DEP",
+                FileStem = "asset-depreciation",
+                PeriodLabel = period.Label,
+                FilterSummary = BuildFilterSummary(request),
+                FooterNote = "Opening values are as of the period start date; closing values as of the period end. CSV export includes category, depreciation start date, and salvage value.",
+                Headers = new List<string>
+                {
+                    "Tag", "Asset", "Department", "Method", "Cost",
+                    "Opening", "Period Dep.", "Closing", "Accumulated"
+                },
+                Rows = displayRows,
+                CsvRows = csvRows,
+                Stats = new List<ReportStatCard>
+                {
+                    new ReportStatCard { Label = "Assets", Value = displayRows.Count.ToString() },
+                    new ReportStatCard { Label = "Period depreciation", Value = CurrencyFormatter.Format(totalPeriodDepreciation) },
+                    new ReportStatCard { Label = "Closing book total", Value = CurrencyFormatter.Format(totalClosingBook) }
+                }
+            };
+        }
+
+        private sealed class DepreciationReportRow
+        {
+            public string AssetTag { get; set; }
+
+            public string AssetName { get; set; }
+
+            public string Department { get; set; }
+
+            public string Category { get; set; }
+
+            public string Method { get; set; }
+
+            public string DepreciationStart { get; set; }
+
+            public decimal AcquisitionCost { get; set; }
+
+            public decimal OpeningBookValue { get; set; }
+
+            public decimal PeriodDepreciation { get; set; }
+
+            public decimal ClosingBookValue { get; set; }
+
+            public decimal AccumulatedDepreciation { get; set; }
+
+            public decimal SalvageValue { get; set; }
         }
 
         private static string ResolveExpiryBand(int daysRemaining)

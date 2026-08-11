@@ -6,6 +6,11 @@ namespace AssetManagement.Application.Contracts.Security
     {
         bool RequiresPrivilegedMfa(string userId);
 
+        /// <summary>
+        /// True when MFA setup/verification is required at sign-in (all users in production, or privileged roles in dev).
+        /// </summary>
+        bool RequiresMfa(string userId);
+
         bool UserNeedsLegalConsent(string userId);
 
         void RecordLegalAcceptance(string userId);
@@ -44,5 +49,23 @@ namespace AssetManagement.Application.Contracts.Security
         void ClearFailedLoginAttemptsForUser(string userId);
 
         void ClearAllLoginLockouts();
+
+        bool IsEmailVerificationRequired();
+
+        bool UserNeedsEmailVerification(string userId);
+
+        bool SendEmailVerificationCode(string userId);
+
+        bool ValidateEmailVerificationCode(string userId, string code);
+
+        void MarkEmailVerified(string userId);
+
+        void RotateUserAccessToken(string userId);
+
+        /// <summary>
+        /// Rotates access tokens for all active users, forcing re-authentication on the next request.
+        /// When organizationId is set, only users in that organization are affected.
+        /// </summary>
+        int InvalidateAllActiveSessions(int? organizationId);
     }
 }

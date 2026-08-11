@@ -7,6 +7,12 @@ namespace AssetManagement.Application.Contracts
     {
         bool BypassesDepartmentScope { get; }
 
+        /// <summary>
+        /// When true, scoped users with asset transfer permission can view and relocate assets
+        /// registered to class departments across the organization.
+        /// </summary>
+        bool IncludesClassDepartmentAssets { get; }
+
         int? ScopedDepartmentId { get; }
 
         IQueryable<Asset> ApplyAssetScope(IQueryable<Asset> query);

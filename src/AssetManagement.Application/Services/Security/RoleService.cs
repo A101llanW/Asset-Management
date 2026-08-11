@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
@@ -16,19 +17,22 @@ namespace AssetManagement.Application.Services
         private readonly IAuthorizationService _authorizationService;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly ICurrentUserContext _currentUser;
+        private readonly ICatalogQueryRepository _catalogQueryRepository;
 
         public RoleService(
             IUnitOfWork unitOfWork,
             IAuditWriter auditWriter,
             IAuthorizationService authorizationService,
             IOrganizationScopeService organizationScope,
-            ICurrentUserContext currentUser)
+            ICurrentUserContext currentUser,
+            ICatalogQueryRepository catalogQueryRepository = null)
         {
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _authorizationService = authorizationService;
             _organizationScope = organizationScope;
             _currentUser = currentUser;
+            _catalogQueryRepository = catalogQueryRepository;
         }
 
         public IEnumerable<RoleVm> GetRoles()
@@ -44,6 +48,68 @@ namespace AssetManagement.Application.Services
                     IsSystemRole = x.IsSystemRole
                 })
                 .ToList();
+        }
+
+        public PagedListVm<RoleVm> GetListPage(
+            string search,
+            bool? isActive,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue || _catalogQueryRepository == null)
+            {
+                var items = GetRoles();
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var term = search.Trim().ToLowerInvariant();
+                    items = items.Where(x => (x.Name ?? string.Empty).ToLowerInvariant().Contains(term)
+                        || (x.Description ?? string.Empty).ToLowerInvariant().Contains(term));
+                }
+
+                if (isActive.HasValue)
+                {
+                    items = items.Where(x => x.IsActive == isActive.Value);
+                }
+
+                return PaginateInMemory(items, search, sort, direction, page, pageSize);
+            }
+
+            return _catalogQueryRepository.GetRoleListPage(
+                organizationId.Value,
+                search,
+                isActive,
+                sort,
+                direction,
+                page,
+                pageSize);
+        }
+
+        private static PagedListVm<RoleVm> PaginateInMemory(
+            IEnumerable<RoleVm> source,
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
+            var materialized = source.ToList();
+            var totalCount = materialized.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
+            var safePage = Math.Min(Math.Max(page, 1), totalPages);
+            return new PagedListVm<RoleVm>
+            {
+                Items = materialized.Skip((safePage - 1) * safePageSize).Take(safePageSize).ToList(),
+                TotalCount = totalCount,
+                Search = search,
+                Sort = sort,
+                Direction = direction,
+                Page = safePage,
+                PageSize = safePageSize
+            };
         }
 
         public RoleVm GetById(int id)
@@ -62,6 +128,30 @@ namespace AssetManagement.Application.Services
                 IsActive = role.IsActive,
                 IsSystemRole = role.IsSystemRole
             };
+        }
+
+        public IList<int> GetPermissionIds(int roleId)
+        {
+            var role = _unitOfWork.Repository<Role>().GetById(roleId);
+            if (role == null)
+            {
+                throw new BusinessException("Role not found.");
+            }
+
+            var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (organizationId.HasValue
+                && role.OrganizationId.HasValue
+                && role.OrganizationId.Value != organizationId.Value)
+            {
+                throw new BusinessException("You do not have access to this role.");
+            }
+
+            return _unitOfWork.Repository<RolePermission>()
+                .Find(x => x.RoleId == roleId)
+                .Select(x => x.PermissionId)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
         }
 
         public int Create(RoleCreateEditVm model)

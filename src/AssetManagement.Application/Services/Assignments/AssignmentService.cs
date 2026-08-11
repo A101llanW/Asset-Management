@@ -105,7 +105,17 @@ namespace AssetManagement.Application.Services
         {
             AssetAssignment assignment = null;
             _unitOfWork.ExecuteInTransaction(() => { assignment = AssignWithoutSave(model); });
-            _auditWriter.Write("Assets.Assign", nameof(AssetAssignment), assignment.Id.ToString(), null, model.AssetId.ToString());
+            RecordAssignmentAudit(assignment, model.AssetId);
+        }
+
+        public void RecordAssignmentAudit(AssetAssignment assignment, int assetId)
+        {
+            if (assignment == null || _auditWriter == null)
+            {
+                return;
+            }
+
+            _auditWriter.Write("Assets.Assign", nameof(AssetAssignment), assignment.Id.ToString(), null, assetId.ToString());
         }
 
         public AssetAssignment AssignWithoutSave(AssetAssignmentVm model)

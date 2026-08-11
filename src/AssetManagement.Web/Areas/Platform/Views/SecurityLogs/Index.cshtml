@@ -1,11 +1,31 @@
 @model AssetManagement.Application.ViewModels.SecurityLogsPageVm
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Application.Helpers
 @{
     ViewBag.Title = "Platform Security Logs";
     Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
     var activeTab = ViewBag.ActiveTab as string ?? "login";
-}
+    var canInvalidateSessions = Html.HasPermission("Platform.Organizations.Manage");
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
 <h3>Platform Security Logs</h3>
 <p class="text-muted">Cross-tenant login attempts and security events.</p>
+
+@if (canInvalidateSessions)
+{
+    <div class="alert alert-warning border mb-3" role="status">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+                <strong>Sign out all users</strong>
+                <div class="small">Invalidates every active session across all organizations and platform accounts.</div>
+            </div>
+            @using (Html.BeginForm("InvalidateAllSessions", "SecurityLogs", new { area = "Platform" }, FormMethod.Post, new { @class = "mb-0" }))
+            {
+                @Html.AntiForgeryToken()
+                <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('Sign out ALL users on the platform? This includes every tenant and platform administrator.');">Sign out all users</button>
+            }
+        </div>
+    </div>
+}
 
 <div class="row g-3 mb-3">
     <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Login attempts</div><div class="h4 mb-0">@Model.TotalLoginAttempts</div></div></div></div>
@@ -31,12 +51,12 @@
 @if (activeTab == "events")
 {
     <table class="table table-sm table-striped">
-        <thead><tr><th>Time (UTC)</th><th>Event</th><th>Email</th><th>IP</th><th>Org Id</th></tr></thead>
+        <thead><tr><th>Time (@eatLabel)</th><th>Event</th><th>Email</th><th>IP</th><th>Org Id</th></tr></thead>
         <tbody>
         @foreach (var item in Model.SecurityEvents ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.SecurityEventLogVm>())
         {
             <tr>
-                <td>@item.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@Html.FormatAuditTimestamp(item.CreatedAtUtc)</td>
                 <td>@item.EventType</td>
                 <td>@item.Email</td>
                 <td>@item.IpAddress</td>
@@ -49,12 +69,12 @@
 else
 {
     <table class="table table-sm table-striped">
-        <thead><tr><th>Time (UTC)</th><th>Username</th><th>IP</th><th>Org Id</th><th>Status</th><th>Details</th></tr></thead>
+        <thead><tr><th>Time (@eatLabel)</th><th>Username</th><th>IP</th><th>Org Id</th><th>Status</th><th>Details</th></tr></thead>
         <tbody>
         @foreach (var item in Model.LoginAttempts ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.LoginAttemptLogVm>())
         {
             <tr>
-                <td>@item.AttemptedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@Html.FormatAuditTimestamp(item.AttemptedAtUtc)</td>
                 <td>@item.Username</td>
                 <td>@item.IpAddress</td>
                 <td>@(item.OrganizationId.HasValue ? item.OrganizationId.Value.ToString() : "Platform")</td>

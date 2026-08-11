@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.ViewModels
 {
@@ -17,7 +19,52 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(500)]
         public string Description { get; set; }
 
+        public int? ParentDepartmentId { get; set; }
+
+        public string ParentDepartmentName { get; set; }
+
+        public DepartmentKind DepartmentKind { get; set; }
+
+        public bool IsRequisitionTarget { get; set; }
+
         public bool IsActive { get; set; }
+
+        public IList<DepartmentVm> Children { get; set; } = new List<DepartmentVm>();
+    }
+
+    public class DepartmentCreateVm
+    {
+        public string SetupMode { get; set; }
+
+        [StringLength(120)]
+        public string Name { get; set; }
+
+        [StringLength(20)]
+        public string Code { get; set; }
+
+        [StringLength(500)]
+        public string Description { get; set; }
+
+        public bool IsRequisitionTarget { get; set; } = true;
+
+        public int? ParentDepartmentId { get; set; }
+
+        public int? GradeNumber { get; set; }
+
+        public string SelectedStreams { get; set; }
+
+        public int BulkGradeFrom { get; set; } = 1;
+
+        public int BulkGradeTo { get; set; } = 6;
+
+        public string BulkStreams { get; set; } = "A,B,C,D";
+    }
+
+    public class DepartmentTreeSectionVm
+    {
+        public string Title { get; set; }
+
+        public IList<DepartmentVm> Items { get; set; } = new List<DepartmentVm>();
     }
 
     public class SupplierVm

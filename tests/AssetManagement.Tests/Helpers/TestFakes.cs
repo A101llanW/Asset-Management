@@ -32,6 +32,57 @@ namespace AssetManagement.Tests.Helpers
             return _users.Values.ToList();
         }
 
+        public PagedListVm<UserVm> GetListPage(
+            UserListFilterVm filter,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var items = GetAll().AsEnumerable();
+            if (filter != null)
+            {
+                if (!string.IsNullOrWhiteSpace(filter.Search))
+                {
+                    var term = filter.Search.Trim().ToLowerInvariant();
+                    items = items.Where(x => ((x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty)).Trim().ToLowerInvariant().Contains(term)
+                        || (x.Email ?? string.Empty).ToLowerInvariant().Contains(term)
+                        || (x.EmployeeNumber ?? string.Empty).ToLowerInvariant().Contains(term));
+                }
+
+                if (filter.RoleId.HasValue)
+                {
+                    items = items.Where(x => x.RoleId == filter.RoleId);
+                }
+
+                if (filter.DepartmentId.HasValue)
+                {
+                    items = items.Where(x => x.DepartmentId == filter.DepartmentId);
+                }
+
+                if (filter.IsActive.HasValue)
+                {
+                    items = items.Where(x => x.IsActive == filter.IsActive.Value);
+                }
+            }
+
+            var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
+            var materialized = items.ToList();
+            var totalCount = materialized.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
+            var safePage = Math.Min(Math.Max(page, 1), totalPages);
+            return new PagedListVm<UserVm>
+            {
+                Items = materialized.Skip((safePage - 1) * safePageSize).Take(safePageSize).ToList(),
+                TotalCount = totalCount,
+                Search = filter?.Search,
+                Sort = sort,
+                Direction = direction,
+                Page = safePage,
+                PageSize = safePageSize
+            };
+        }
+
         public UserVm GetById(string id)
         {
             UserVm user;
@@ -72,6 +123,8 @@ namespace AssetManagement.Tests.Helpers
     {
         public bool BypassesDepartmentScope => true;
 
+        public bool IncludesClassDepartmentAssets => false;
+
         public int? ScopedDepartmentId => null;
 
         public IQueryable<Asset> ApplyAssetScope(IQueryable<Asset> query) => query;
@@ -96,6 +149,8 @@ namespace AssetManagement.Tests.Helpers
     internal class NoOpDepartmentScopeService : IDepartmentScopeService
     {
         public bool BypassesDepartmentScope => true;
+
+        public bool IncludesClassDepartmentAssets => false;
 
         public int? ScopedDepartmentId => null;
 
@@ -128,6 +183,8 @@ namespace AssetManagement.Tests.Helpers
         }
 
         public bool BypassesDepartmentScope => false;
+
+        public bool IncludesClassDepartmentAssets => false;
 
         public int? ScopedDepartmentId => _departmentId;
 
@@ -232,6 +289,14 @@ namespace AssetManagement.Tests.Helpers
         {
         }
 
+        public void SetPlatformAdminOverride(bool isPlatformAdmin)
+        {
+        }
+
+        public void SetCompanyAdminOverride(bool isCompanyAdmin)
+        {
+        }
+
         public bool IsImpersonating() => _impersonating;
 
         public bool IsPlatformAdmin() => _platformAdmin;
@@ -315,6 +380,21 @@ namespace AssetManagement.Tests.Helpers
         public bool HasPermission(string userId, string permissionCode) => false;
     }
 
+    internal class FixedPermissionAuthorizationService : IAuthorizationService
+    {
+        private readonly HashSet<string> _granted;
+
+        public FixedPermissionAuthorizationService(params string[] grantedPermissions)
+        {
+            _granted = new HashSet<string>(grantedPermissions ?? new string[0], StringComparer.OrdinalIgnoreCase);
+        }
+
+        public bool HasPermission(string userId, string permissionCode)
+        {
+            return _granted.Contains(permissionCode);
+        }
+    }
+
     internal class FakeCurrentUserContext : ICurrentUserContext
     {
         public FakeCurrentUserContext(string userId)
@@ -351,7 +431,12 @@ namespace AssetManagement.Tests.Helpers
                 return null;
             }
 
-            var lookupKey = code.Trim();
+            var lookupKey = ScanCodeHelper.ToLookupKey(code);
+            if (string.IsNullOrWhiteSpace(lookupKey))
+            {
+                return null;
+            }
+
             var match = _unitOfWork.Repository<Asset>().GetAll()
                 .Where(x => x.IsActive)
                 .Where(x => x.OrganizationId == organizationId)
@@ -459,9 +544,83 @@ namespace AssetManagement.Tests.Helpers
             return new List<PurchaseRecordVm>();
         }
 
-        public bool ExistsActiveAssetTag(int organizationId, string assetTag) => false;
+        public PagedListVm<PurchaseRequestListItemVm> GetPurchaseRequestListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            return new PagedListVm<PurchaseRequestListItemVm>
+            {
+                Items = new List<PurchaseRequestListItemVm>(),
+                TotalCount = 0,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
 
-        public bool ExistsActiveSerialNumber(int organizationId, string serialNumber) => false;
+        public PagedListVm<PurchaseRecordVm> GetPurchaseRecordListPage(
+            int organizationId,
+            string search,
+            int? supplierId,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            return new PagedListVm<PurchaseRecordVm>
+            {
+                Items = new List<PurchaseRecordVm>(),
+                TotalCount = 0,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
+
+        public PagedListVm<IncidentListVm> GetIncidentListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int page,
+            int pageSize)
+        {
+            return new PagedListVm<IncidentListVm>
+            {
+                Items = new List<IncidentListVm>(),
+                TotalCount = 0,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
+
+        public PagedListVm<ClaimListVm> GetClaimListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int page,
+            int pageSize)
+        {
+            return new PagedListVm<ClaimListVm>
+            {
+                Items = new List<ClaimListVm>(),
+                TotalCount = 0,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
+
+        public bool ExistsActiveSerialNumber(int organizationId, string serialNumber, int? excludeAssetId = null) => false;
     }
 
     internal class FakeAssetQueryService : IAssetQueryService
@@ -469,6 +628,23 @@ namespace AssetManagement.Tests.Helpers
         public AssetListPageVm GetListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
         {
             return new AssetListPageVm { Items = new List<AssetListVm>(), TotalCount = 0, Page = page, PageSize = pageSize };
+        }
+
+        public AssetGroupListPageVm GetGroupedListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
+        {
+            return new AssetGroupListPageVm { Items = new List<AssetGroupListVm>(), TotalCount = 0, Page = page, PageSize = pageSize };
+        }
+
+        public AssetGroupMembersPageVm GetGroupMembers(
+            AssetFilterVm filter,
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int skip,
+            int take)
+        {
+            return new AssetGroupMembersPageVm { Items = new List<AssetListVm>(), TotalCount = 0, Skip = skip, Take = take };
         }
 
         public int Count(AssetFilterVm filter) => 0;
@@ -700,7 +876,23 @@ namespace AssetManagement.Tests.Helpers
             Repository<T>().Update(entity);
         }
 
-        public int GetRemainingPurchaseQuantity(int purchaseRecordId) => 0;
+        public int GetRemainingPurchaseQuantity(int purchaseRecordId)
+        {
+            var purchase = Repository<PurchaseRecord>().GetById(purchaseRecordId);
+            if (purchase == null)
+            {
+                return 0;
+            }
+
+            var received = Repository<AssetReceiving>().GetAll()
+                .Where(x => x.PurchaseRecordId == purchaseRecordId && x.IsActive)
+                .Sum(x => x.QuantityReceived);
+            return Math.Max(0, purchase.Quantity - received);
+        }
+
+        public void ClearTracking()
+        {
+        }
 
         public void Dispose()
         {

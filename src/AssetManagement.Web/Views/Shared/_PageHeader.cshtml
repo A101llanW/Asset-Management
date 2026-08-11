@@ -44,11 +44,11 @@
             {
                 if (!string.IsNullOrWhiteSpace(Model.PrimaryActionModalTarget))
                 {
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#@Model.PrimaryActionModalTarget">@Model.PrimaryActionLabel</button>
+                    <button type="button" class="btn btn-primary am-click-spark" data-bs-toggle="modal" data-bs-target="#@Model.PrimaryActionModalTarget">@Model.PrimaryActionLabel</button>
                 }
                 else if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl))
                 {
-                    <a class="btn btn-primary" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>
+                    <a class="btn btn-primary am-click-spark" href="@Model.PrimaryActionUrl">@Model.PrimaryActionLabel</a>
                 }
             }
         </div>

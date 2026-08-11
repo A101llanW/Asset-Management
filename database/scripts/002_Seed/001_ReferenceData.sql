@@ -146,7 +146,7 @@ BEGIN
     FROM [Roles] r CROSS JOIN [Permission] p
     WHERE (@hasRoleOrgId = 0 OR r.[OrganizationId] = @seedOrgId)
       AND r.[Name] = N'Procurement Officer'
-      AND p.[Code] IN (N'Reports.View',N'Assets.View',N'Purchases.View',N'Purchases.Create',N'Purchases.Edit',N'Purchases.Approve',N'Suppliers.View',N'Suppliers.Create',N'Suppliers.Edit')
+      AND p.[Code] IN (N'Reports.View',N'Assets.View',N'Purchases.View',N'Purchases.Create',N'Purchases.Edit',N'Purchases.Approve',N'Suppliers.View',N'Suppliers.Create',N'Suppliers.Edit',N'Users.View')
       AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = p.[Id]);
 
     INSERT INTO [RolePermission] ([RoleId],[PermissionId],[OrganizationId])
@@ -162,7 +162,7 @@ BEGIN
     FROM [Roles] r CROSS JOIN [Permission] p
     WHERE (@hasRoleOrgId = 0 OR r.[OrganizationId] = @seedOrgId)
       AND r.[Name] = N'Department Head'
-      AND p.[Code] IN (N'Reports.View',N'Departments.View',N'Departments.Edit',N'Users.ViewDepartment',N'Assets.View',N'Assets.Assign',N'Assets.Return',N'Assets.Request',N'Assets.Request.Approve',N'Purchases.View',N'Purchases.Create',N'Purchases.Approve',N'Incidents.View',N'Incidents.Create',N'Claims.View',N'Assets.Transfer')
+      AND p.[Code] IN (N'Reports.View',N'Departments.View',N'Departments.Edit',N'Users.ViewDepartment',N'Assets.View',N'Assets.Assign',N'Assets.Return',N'Assets.Request',N'Assets.Request.Approve',N'Purchases.Create',N'Incidents.View',N'Incidents.Create',N'Claims.View',N'Assets.Transfer')
       AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = p.[Id]);
 
     INSERT INTO [RolePermission] ([RoleId],[PermissionId],[OrganizationId])
@@ -170,7 +170,7 @@ BEGIN
     FROM [Roles] r CROSS JOIN [Permission] p
     WHERE (@hasRoleOrgId = 0 OR r.[OrganizationId] = @seedOrgId)
       AND r.[Name] = N'Staff'
-      AND p.[Code] IN (N'Assets.View',N'Assets.Return',N'Assets.Request',N'Purchases.View',N'Incidents.Create',N'Incidents.View',N'Documents.View',N'Documents.Upload')
+      AND p.[Code] IN (N'Assets.View',N'Assets.Return',N'Assets.Request',N'Incidents.Create',N'Incidents.View',N'Documents.View',N'Documents.Upload')
       AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = p.[Id]);
 
     INSERT INTO [RolePermission] ([RoleId],[PermissionId],[OrganizationId])
@@ -215,33 +215,6 @@ BEGIN
         INSERT INTO [Department] ([Name],[Code],[Description],[OrganizationId],[CreatedAt],[IsActive]) VALUES (N'Operations', N'OPS', N'Operations department', @seedOrgId, @nowDept, 1);
     IF NOT EXISTS (SELECT 1 FROM [Department] WHERE [Code] = N'ADMIN' AND [OrganizationId] = @seedOrgId)
         INSERT INTO [Department] ([Name],[Code],[Description],[OrganizationId],[CreatedAt],[IsActive]) VALUES (N'Administration', N'ADMIN', N'Administration department', @seedOrgId, @nowDept, 1);
-END
-GO
-
--- Suppliers (upsert per name/org for idempotent re-init)
-DECLARE @nowSup DATETIME = GETUTCDATE();
-DECLARE @seedOrgId INT = NULL;
-DECLARE @hasSupplierOrgId BIT = CASE WHEN COL_LENGTH(N'[Supplier]', N'OrganizationId') IS NOT NULL THEN 1 ELSE 0 END;
-IF @hasSupplierOrgId = 1
-    SET @seedOrgId = (SELECT TOP 1 [Id] FROM [Organization] ORDER BY [Id]);
-
-IF @hasSupplierOrgId = 0
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'Tech Source Ltd')
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[CreatedAt],[IsActive]) VALUES (N'Tech Source Ltd', N'Mary Wanjiku', N'sales@techsource.example', N'+254700000001', N'Nairobi', N'TSL-001', N'Primary IT supplier', @nowSup, 1);
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'Office Works Hub')
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[CreatedAt],[IsActive]) VALUES (N'Office Works Hub', N'David Mwangi', N'contact@officeworks.example', N'+254700000002', N'Mombasa', N'OWH-003', N'Furniture and office equipment', @nowSup, 1);
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'MedEquip Africa')
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[CreatedAt],[IsActive]) VALUES (N'MedEquip Africa', N'Anne Njeri', N'support@medequip.example', N'+254700000003', N'Kisumu', N'MEA-018', N'Medical and lab equipment', @nowSup, 1);
-END
-ELSE IF @seedOrgId IS NOT NULL
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'Tech Source Ltd' AND [OrganizationId] = @seedOrgId)
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[OrganizationId],[CreatedAt],[IsActive]) VALUES (N'Tech Source Ltd', N'Mary Wanjiku', N'sales@techsource.example', N'+254700000001', N'Nairobi', N'TSL-001', N'Primary IT supplier', @seedOrgId, @nowSup, 1);
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'Office Works Hub' AND [OrganizationId] = @seedOrgId)
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[OrganizationId],[CreatedAt],[IsActive]) VALUES (N'Office Works Hub', N'David Mwangi', N'contact@officeworks.example', N'+254700000002', N'Mombasa', N'OWH-003', N'Furniture and office equipment', @seedOrgId, @nowSup, 1);
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'MedEquip Africa' AND [OrganizationId] = @seedOrgId)
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[OrganizationId],[CreatedAt],[IsActive]) VALUES (N'MedEquip Africa', N'Anne Njeri', N'support@medequip.example', N'+254700000003', N'Kisumu', N'MEA-018', N'Medical and lab equipment', @seedOrgId, @nowSup, 1);
 END
 GO
 
@@ -386,8 +359,13 @@ BEGIN
     IF COL_LENGTH(N'[SystemSetting]', N'OrganizationId') IS NOT NULL
         SET @seedOrgId = (SELECT TOP 1 [Id] FROM [Organization] ORDER BY [Id]);
     DECLARE @companyAdminRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Company Admin' ORDER BY [Id]);
+    DECLARE @departmentHeadRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Department Head' ORDER BY [Id]);
     DECLARE @assetManagerRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Asset Manager' ORDER BY [Id]);
     DECLARE @procurementRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [Name] = N'Procurement Officer' ORDER BY [Id]);
+    IF @departmentHeadRoleId IS NULL
+        SET @departmentHeadRoleId = @companyAdminRoleId;
+    IF @assetManagerRoleId IS NULL
+        SET @assetManagerRoleId = @departmentHeadRoleId;
     IF @procurementRoleId IS NULL
         SET @procurementRoleId = @companyAdminRoleId;
 
@@ -397,7 +375,7 @@ BEGIN
         (N'Approval.RequireDisposalApproval', N'false', N'Require approval before asset disposal.', @now, 1),
         (N'Approval.Process.Disposal.StageRoleIds', CAST(@companyAdminRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for disposal.', @now, 1),
         (N'Approval.RequireTransferApproval', N'false', N'Require approval before asset transfer.', @now, 1),
-        (N'Approval.Process.Transfer.StageRoleIds', CAST(@assetManagerRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for transfer.', @now, 1),
+        (N'Approval.Process.Transfer.StageRoleIds', CAST(@departmentHeadRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for transfer.', @now, 1),
         (N'Approval.RequirePurchaseApproval', N'false', N'Require approval before requisition fulfillment.', @now, 1),
         (N'Approval.Process.Purchase.StageRoleIds', CAST(@procurementRoleId AS NVARCHAR(20)), N'Stage 1 approver role ids for requisitions.', @now, 1);
     END

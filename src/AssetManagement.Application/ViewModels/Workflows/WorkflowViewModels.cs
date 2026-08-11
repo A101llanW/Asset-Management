@@ -100,7 +100,6 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(128)]
         public string ReturnedById { get; set; }
 
-        [Required]
         [Display(Name = "Received By")]
         [StringLength(128)]
         public string ReceivedById { get; set; }

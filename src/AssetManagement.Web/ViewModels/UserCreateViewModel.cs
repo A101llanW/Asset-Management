@@ -28,13 +28,12 @@ namespace AssetManagement.Web.ViewModels
         [StringLength(120)]
         public string PositionTitle { get; set; }
 
+        public int? RoleId { get; set; }
+
         [Required]
         [DataType(DataType.Password)]
         [StringLength(100)]
         [RegularExpression(@".{6,}", ErrorMessage = "Password must be at least 6 characters.")]
         public string Password { get; set; }
-
-        [Required]
-        public int RoleId { get; set; }
     }
 }

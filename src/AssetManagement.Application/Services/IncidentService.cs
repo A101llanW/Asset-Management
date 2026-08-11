@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Queries;
+using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
@@ -15,25 +17,34 @@ namespace AssetManagement.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuditWriter _auditWriter;
         private readonly IDepartmentScopeService _departmentScope;
+        private readonly IOrganizationScopeService _organizationScope;
+        private readonly IOperationsQueryRepository _operationsQueryRepository;
 
         public IncidentService(IUnitOfWork unitOfWork)
-            : this(unitOfWork, null, null)
+            : this(unitOfWork, null, null, null, null)
         {
         }
 
         public IncidentService(IUnitOfWork unitOfWork, IAuditWriter auditWriter)
-            : this(unitOfWork, auditWriter, null)
+            : this(unitOfWork, auditWriter, null, null, null)
         {
         }
 
-        public IncidentService(IUnitOfWork unitOfWork, IAuditWriter auditWriter, IDepartmentScopeService departmentScope)
+        public IncidentService(
+            IUnitOfWork unitOfWork,
+            IAuditWriter auditWriter,
+            IDepartmentScopeService departmentScope,
+            IOrganizationScopeService organizationScope = null,
+            IOperationsQueryRepository operationsQueryRepository = null)
         {
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _departmentScope = departmentScope;
+            _organizationScope = organizationScope;
+            _operationsQueryRepository = operationsQueryRepository;
         }
 
-        public void Create(AssetIncidentVm model)
+        public int Create(AssetIncidentVm model)
         {
             if (model == null)
             {
@@ -118,6 +129,7 @@ namespace AssetManagement.Application.Services
 
             _unitOfWork.SaveChanges();
             _auditWriter?.Write("Incidents.Create", nameof(AssetIncident), incident.Id.ToString(), null, incident.AssetId.ToString());
+            return incident.Id;
         }
 
         public IEnumerable<IncidentListVm> GetIncidents(string search, int? assetId)
@@ -147,6 +159,41 @@ namespace AssetManagement.Application.Services
             return query.OrderByDescending(x => x.IncidentDate)
                 .Select(x => MapListItem(x, assets))
                 .ToList();
+        }
+
+        public PagedListVm<IncidentListVm> GetListPage(string search, int? assetId, int page, int pageSize)
+        {
+            var organizationId = _organizationScope?.GetCurrentOrganizationId();
+            if (!organizationId.HasValue || _operationsQueryRepository == null)
+            {
+                var items = GetIncidents(search, assetId).ToList();
+                var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
+                var totalCount = items.Count;
+                var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
+                var safePage = Math.Min(Math.Max(page, 1), totalPages);
+                return new PagedListVm<IncidentListVm>
+                {
+                    Items = items.Skip((safePage - 1) * safePageSize).Take(safePageSize).ToList(),
+                    TotalCount = totalCount,
+                    Search = search,
+                    Page = safePage,
+                    PageSize = safePageSize
+                };
+            }
+
+            int? departmentId;
+            bool bypassDepartmentScope;
+            bool denyDepartmentScope;
+            ResolveDepartmentScope(out departmentId, out bypassDepartmentScope, out denyDepartmentScope);
+            return _operationsQueryRepository.GetIncidentListPage(
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                search,
+                assetId,
+                page,
+                pageSize);
         }
 
         public IncidentDetailsVm GetById(int id)
@@ -294,6 +341,18 @@ namespace AssetManagement.Application.Services
             }
 
             return new HashSet<int>(_departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query()).Select(x => x.Id));
+        }
+
+        private void ResolveDepartmentScope(out int? departmentId, out bool bypassDepartmentScope, out bool denyDepartmentScope)
+        {
+            bypassDepartmentScope = _departmentScope == null || _departmentScope.BypassesDepartmentScope;
+            departmentId = null;
+            denyDepartmentScope = false;
+            if (!bypassDepartmentScope)
+            {
+                departmentId = _departmentScope.ScopedDepartmentId;
+                denyDepartmentScope = !departmentId.HasValue;
+            }
         }
     }
 }

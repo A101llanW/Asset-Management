@@ -6,6 +6,10 @@
     var dash = Model != null ? Model.Dashboard : null;
     var definitions = Model != null && Model.ReportDefinitions != null
         ? Model.ReportDefinitions
+            .Where(d => string.IsNullOrWhiteSpace(d.RequiredPermission)
+                || Html.HasPermission(d.RequiredPermission)
+                || Html.HasPermission("Financials.View"))
+            .ToList()
         : new System.Collections.Generic.List<AssetManagement.Application.ViewModels.ReportDefinitionVm>();
     var sections = definitions.GroupBy(x => x.Section ?? "Reports").OrderBy(x => x.Key);
     var previewUrl = TenantUrlHelper.TenantRouteUrl(Url, "Preview", "Reports");
@@ -14,7 +18,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Reports Hub",
-    Subtitle = "Build customized operational and financial reports with live preview and PDF export.",
+    Subtitle = "Filter by period, department, and category, then preview or export.",
     BackUrl = Url.Action("Index", "Dashboard"),
     BackLabel = "Back to Dashboard"
 })
@@ -23,7 +27,7 @@
     @Html.AntiForgeryToken()
 </div>
 
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 am-stagger">
     <div class="col-md-3">
         <div class="card card-kpi h-100">
             <div class="card-body">
@@ -63,7 +67,7 @@
         @foreach (var reportSection in sections)
         {
             <h6 class="am-report-section-title">@reportSection.Key</h6>
-            <div class="list-group mb-4 am-report-list">
+            <div class="list-group mb-4 am-report-list am-stagger-list">
                 @foreach (var report in reportSection)
                 {
                     <div class="list-group-item am-report-item" data-report-key="@report.Key">
@@ -76,7 +80,7 @@
                                 </button>
                             </div>
                             <div class="btn-group flex-shrink-0">
-                                <button type="button" class="btn btn-outline-primary btn-sm am-report-preview-quick" data-report-key="@report.Key">
+                                <button type="button" class="btn btn-outline-primary btn-sm am-report-preview-quick am-click-spark" data-report-key="@report.Key">
                                     Preview
                                 </button>
                             </div>
@@ -116,10 +120,11 @@
             <div class="card-header">Report tips</div>
             <div class="card-body small">
                 <ul class="mb-3 ps-3">
+                    <li>Use <strong>Asset Depreciation</strong> with a custom date range to see opening book value, period expense, and closing book value.</li>
                     <li>Use <strong>This week</strong> on Custody Movement for weekly department reviews.</li>
                     <li><strong>Warranty Expiry</strong> and <strong>Insurance Coverage</strong> use forward-looking windows (next 30/90 days).</li>
-                    <li>Save templates for reports you run regularly — they appear in Saved templates above.</li>
-                    <li>Preview before download — PDF uses the same styled layout as on screen.</li>
+                    <li>Save templates for reports you run regularly. They appear in Saved templates above.</li>
+                    <li>Preview before download. PDF uses the same styled layout as on screen.</li>
                 </ul>
                 <div id="amRecentReports" class="am-recent-reports">
                     <p class="text-muted mb-0">Generated reports will appear here during this session.</p>
@@ -163,10 +168,14 @@
 <div class="modal fade" id="amReportLoadingModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-body text-center p-5">
-                <div class="spinner-border text-primary mb-3" role="status"></div>
-                <h5>Preparing report</h5>
-                <p class="text-muted mb-0">Applying your filters and building the document…</p>
+            <div class="modal-body am-loading-panel">
+                <div class="am-loading-orbit" role="status" aria-label="Loading report"></div>
+                <h5 class="am-loading-panel__title">Preparing report</h5>
+                <p class="am-loading-panel__hint mb-0">Building report...</p>
+                <div class="w-100 mt-2" style="max-width: 14rem;" aria-hidden="true">
+                    <div class="am-skeleton am-skeleton-line am-skeleton-line--medium"></div>
+                    <div class="am-skeleton am-skeleton-line am-skeleton-line--short"></div>
+                </div>
             </div>
         </div>
     </div>

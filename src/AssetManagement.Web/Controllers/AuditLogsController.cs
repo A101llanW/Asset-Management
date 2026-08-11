@@ -1,5 +1,7 @@
+using System;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Web.Filters;
 
@@ -42,7 +44,7 @@ namespace AssetManagement.Web.Controllers
             return File(
                 _auditLogService.ExportCsv(filter),
                 "text/csv",
-                "audit-log-" + System.DateTime.UtcNow.ToString("yyyyMMdd") + ".csv");
+                "audit-log-" + KenyaTimeHelper.LocalDateStamp(DateTime.UtcNow) + ".csv");
         }
     }
 }

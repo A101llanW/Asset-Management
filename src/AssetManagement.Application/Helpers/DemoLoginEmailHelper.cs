@@ -5,6 +5,34 @@ namespace AssetManagement.Application.Helpers
     public static class DemoLoginEmailHelper
     {
         public const string PlatformAdminEmail = "superadmin@asset.local";
+        public const string LegacyDefaultTenantAdminEmail = "default@asset.local";
+        public const string PrimaryDemoTenantSlug = "nanosoft";
+
+        public static string ResolveLoginEmail(string email, string organizationSlug)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return email;
+            }
+
+            var normalized = email.Trim();
+            if (!normalized.Contains("@"))
+            {
+                normalized = normalized + "@asset.local";
+            }
+
+            if (IsLegacyDefaultTenantAdminEmail(normalized))
+            {
+                return BuildCompanyAdminEmail(PrimaryDemoTenantSlug);
+            }
+
+            if (!string.IsNullOrWhiteSpace(organizationSlug))
+            {
+                return ResolveTenantLoginEmail(normalized, organizationSlug);
+            }
+
+            return normalized;
+        }
 
         public static string ResolveTenantLoginEmail(string email, string organizationSlug)
         {
@@ -14,6 +42,11 @@ namespace AssetManagement.Application.Helpers
             }
 
             var normalized = email.Trim();
+            if (!normalized.Contains("@"))
+            {
+                normalized = normalized + "@asset.local";
+            }
+
             if (IsLegacyTenantAdminEmail(normalized, organizationSlug))
             {
                 return BuildCompanyAdminEmail(organizationSlug);
@@ -53,6 +86,12 @@ namespace AssetManagement.Application.Helpers
                 && email.Trim().Equals(PlatformAdminEmail, StringComparison.OrdinalIgnoreCase);
         }
 
+        public static bool IsLegacyDefaultTenantAdminEmail(string email)
+        {
+            return !string.IsNullOrWhiteSpace(email)
+                && email.Trim().Equals(LegacyDefaultTenantAdminEmail, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool IsLegacyTenantAdminEmail(string email, string organizationSlug)
         {
             if (string.IsNullOrWhiteSpace(email))
@@ -60,7 +99,8 @@ namespace AssetManagement.Application.Helpers
                 return false;
             }
 
-            if (string.Equals(email, PlatformAdminEmail, StringComparison.OrdinalIgnoreCase)
+            if (IsLegacyDefaultTenantAdminEmail(email)
+                || string.Equals(email, PlatformAdminEmail, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(email, "companyadmin@asset.local", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(email, "platform@asset.local", StringComparison.OrdinalIgnoreCase)
                 || email.EndsWith("@demo-b.asset.local", StringComparison.OrdinalIgnoreCase))

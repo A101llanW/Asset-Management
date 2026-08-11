@@ -30,7 +30,7 @@
             <div class="row g-3">
                 <div class="col-12">
                     @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
-                    @Html.DropDownListFor(m => m.ReceivedById, users, "-- Receiving user --", new { @class = "form-select" })
+                    @Html.DropDownListFor(m => m.ReceivedById, users, "-- Receiving user (optional) --", new { @class = "form-select" })
                 </div>
                 @if (lockReturnedBy)
                 {

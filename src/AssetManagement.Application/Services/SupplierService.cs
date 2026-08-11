@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Queries;
+using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -12,11 +14,22 @@ namespace AssetManagement.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISupplierCatalogService _supplierCatalogService;
+        private readonly IOrganizationScopeService _organizationScope;
+        private readonly ICatalogQueryRepository _catalogQueryRepository;
+        private readonly IAuditWriter _auditWriter;
 
-        public SupplierService(IUnitOfWork unitOfWork, ISupplierCatalogService supplierCatalogService)
+        public SupplierService(
+            IUnitOfWork unitOfWork,
+            ISupplierCatalogService supplierCatalogService,
+            IOrganizationScopeService organizationScope = null,
+            ICatalogQueryRepository catalogQueryRepository = null,
+            IAuditWriter auditWriter = null)
         {
             _unitOfWork = unitOfWork;
             _supplierCatalogService = supplierCatalogService;
+            _organizationScope = organizationScope;
+            _catalogQueryRepository = catalogQueryRepository;
+            _auditWriter = auditWriter;
         }
 
         public IEnumerable<SupplierVm> GetAll()
@@ -26,6 +39,63 @@ namespace AssetManagement.Application.Services
                 .OrderBy(x => x.SupplierName)
                 .Select(x => MapSupplier(x, catalogStats))
                 .ToList();
+        }
+
+        public PagedListVm<SupplierVm> GetListPage(
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var organizationId = _organizationScope?.GetCurrentOrganizationId();
+            if (!organizationId.HasValue || _catalogQueryRepository == null)
+            {
+                return PaginateSuppliersInMemory(GetAll(), search, sort, direction, page, pageSize);
+            }
+
+            return _catalogQueryRepository.GetSupplierListPage(
+                organizationId.Value,
+                search,
+                sort,
+                direction,
+                page,
+                pageSize);
+        }
+
+        private static PagedListVm<SupplierVm> PaginateSuppliersInMemory(
+            IEnumerable<SupplierVm> source,
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var items = source;
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                items = items.Where(x => (x.SupplierName ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.ContactPerson ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.Email ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.Phone ?? string.Empty).ToLowerInvariant().Contains(term));
+            }
+
+            var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
+            var materialized = items.ToList();
+            var totalCount = materialized.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
+            var safePage = Math.Min(Math.Max(page, 1), totalPages);
+            return new PagedListVm<SupplierVm>
+            {
+                Items = materialized.Skip((safePage - 1) * safePageSize).Take(safePageSize).ToList(),
+                TotalCount = totalCount,
+                Search = search,
+                Sort = sort,
+                Direction = direction,
+                Page = safePage,
+                PageSize = safePageSize
+            };
         }
 
         public SupplierVm GetById(int id)
@@ -46,6 +116,7 @@ namespace AssetManagement.Application.Services
             entity.CreatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Supplier>().Add(entity);
             _unitOfWork.SaveChanges();
+            _auditWriter?.Write("Suppliers.Create", nameof(Supplier), entity.Id.ToString(), null, entity.SupplierName);
             return entity.Id;
         }
 
@@ -75,6 +146,7 @@ namespace AssetManagement.Application.Services
                 _unitOfWork.SaveChanges();
             });
 
+            _auditWriter?.Write("Suppliers.Create", nameof(Supplier), supplierId.ToString(), null, model.SupplierName);
             return supplierId;
         }
 
@@ -86,10 +158,12 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            var previousName = entity.SupplierName;
             ApplyModel(entity, model);
             entity.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Supplier>().Update(entity);
             _unitOfWork.SaveChanges();
+            _auditWriter?.Write("Suppliers.Edit", nameof(Supplier), entity.Id.ToString(), previousName, entity.SupplierName);
         }
 
         private static List<SupplierCatalogItemVm> NormalizeCatalogItems(IEnumerable<SupplierCatalogItemVm> catalogItems)

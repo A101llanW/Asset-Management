@@ -52,6 +52,8 @@ namespace AssetManagement.Application.Helpers
 
                 { "Assets.UpdateStatus", "Asset status changed" },
 
+                { "Assets.RelocateClass", "Asset class relocated" },
+
                 { "Assets.AcknowledgeReceipt", "Assignment receipt acknowledged" },
 
                 { "Assets.RequestReturn", "Return requested by custodian" },
@@ -84,6 +86,44 @@ namespace AssetManagement.Application.Helpers
 
                 { "Purchases.Approve", "Purchase request approval updated" },
 
+                { "Purchases.Create", "Purchase record created" },
+
+                { "Purchases.Receive", "Goods received into inventory" },
+
+                { "Departments.Create", "Department created" },
+
+                { "Departments.Edit", "Department updated" },
+
+                { "Suppliers.Create", "Supplier registered" },
+
+                { "Suppliers.Edit", "Supplier updated" },
+
+                { "Suppliers.Catalog.Create", "Supplier catalog item added" },
+
+                { "Suppliers.Catalog.Edit", "Supplier catalog item updated" },
+
+                { "Suppliers.Catalog.Deactivate", "Supplier catalog item deactivated" },
+
+                { "AssetSubTypes.Create", "Asset sub-type created" },
+
+                { "AssetSubTypes.Edit", "Asset sub-type updated" },
+
+                { "Documents.Requirement.Create", "Document requirement created" },
+
+                { "Documents.Requirement.Fulfill", "Document requirement fulfilled" },
+
+                { "Documents.Requirement.Clear", "Document requirement cleared" },
+
+                { "Users.Create", "User account created" },
+
+                { "Users.AssignDepartment", "User department updated" },
+
+                { "Users.EditProfile", "User profile updated" },
+
+                { "Users.PasswordChanged", "User password changed" },
+
+                { "Security.InvalidateAllSessions", "All user sessions invalidated" },
+
                 { "Roles.Create", "Role created" },
 
                 { "Roles.Edit", "Role updated" },
@@ -106,6 +146,8 @@ namespace AssetManagement.Application.Helpers
 
                 { "ORGANIZATION_CREATED", "Organization created" },
 
+                { "ORGANIZATION_DELETED", "Organization deleted" },
+
                 { "LICENSE_RENEWED", "License renewed" },
 
                 { "LICENSE_PAUSED", "License paused" },
@@ -119,6 +161,12 @@ namespace AssetManagement.Application.Helpers
                 { "LICENSE_PLAN_CHANGED", "License plan changed" },
 
                 { "LICENSE_EXPIRED", "License expired" },
+
+                { "LICENSE_LIMITS_CHANGED", "License limits changed" },
+
+                { "IMPERSONATION_REQUESTED", "Support access requested" },
+
+                { "IMPERSONATION_START", "Support access started" },
 
                 { "IMPERSONATION_APPROVED", "Support access approved" },
 
@@ -163,6 +211,20 @@ namespace AssetManagement.Application.Helpers
                 { "AssetRequest", "Asset request" },
 
                 { "PurchaseRequest", "Purchase request" },
+
+                { "PurchaseRecord", "Purchase record" },
+
+                { "AssetReceiving", "Goods receipt" },
+
+                { "Department", "Department" },
+
+                { "Supplier", "Supplier" },
+
+                { "SupplierCatalogItem", "Supplier catalog item" },
+
+                { "AssetSubType", "Asset sub-type" },
+
+                { "AssetDocumentRequirement", "Document requirement" },
 
                 { "DisposalRecord", "Disposal request" },
 

@@ -4,6 +4,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Application.Security;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.ViewModels;
 using AssetManagement.Web.Security;
@@ -11,6 +12,7 @@ using AssetManagement.Web.Security;
 namespace AssetManagement.Web.Controllers
 {
     [AnyPermissionAuthorize("Users.View", "Users.ViewDepartment")]
+    [ModuleAccess(ModulePermissionCatalog.Users)]
     public class UsersController : BaseController
     {
         private readonly IUserService _userService;
@@ -45,55 +47,19 @@ namespace AssetManagement.Web.Controllers
                 departmentId = scopedDepartmentId;
             }
 
-            ViewBag.DepartmentOptions = departments;
             ViewBag.IsDepartmentScoped = isDepartmentScoped;
             ViewBag.ScopedDepartmentName = isDepartmentScoped && departments.Count > 0
                 ? departments[0].Name
                 : null;
 
-            var items = _userService.GetAll();
-
-            if (!string.IsNullOrWhiteSpace(search))
+            var filter = new UserListFilterVm
             {
-                var term = search.Trim().ToLowerInvariant();
-                items = items.Where(x => ((x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty)).Trim().ToLowerInvariant().Contains(term)
-                    || (x.Email ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.EmployeeNumber ?? string.Empty).ToLowerInvariant().Contains(term));
-            }
-
-            if (roleId.HasValue)
-            {
-                items = items.Where(x => x.RoleId == roleId);
-            }
-
-            if (departmentId.HasValue)
-            {
-                items = items.Where(x => x.DepartmentId == departmentId);
-            }
-
-            if (isActive.HasValue)
-            {
-                items = items.Where(x => x.IsActive == isActive.Value);
-            }
-
-            switch ((sort ?? string.Empty).ToLowerInvariant())
-            {
-                case "email":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.Email) : items.OrderBy(x => x.Email);
-                    break;
-                case "role":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.RoleName) : items.OrderBy(x => x.RoleName);
-                    break;
-                case "status":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.IsActive) : items.OrderBy(x => x.IsActive);
-                    break;
-                default:
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => (x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty))
-                        : items.OrderBy(x => (x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty));
-                    sort = "name";
-                    break;
-            }
+                Search = search,
+                RoleId = roleId,
+                DepartmentId = departmentId,
+                IsActive = isActive
+            };
+            var pageResult = _userService.GetListPage(filter, sort, direction, page, pageSize);
 
             ViewBag.Roles = roles;
             ViewBag.Departments = new SelectList(departments, "Id", "Name", departmentId);
@@ -105,7 +71,7 @@ namespace AssetManagement.Web.Controllers
                 new { Value = "false", Text = "Inactive" }
             }, "Value", "Text", isActive.HasValue ? isActive.Value.ToString().ToLowerInvariant() : string.Empty);
             SetListSortViewBag(sort, direction);
-            return View(BuildListPage(items, search, sort, direction, page, pageSize));
+            return View(ToListPage(pageResult));
         }
 
         public ActionResult Details(string id, string returnUrl = null)
@@ -134,8 +100,6 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Users.Create")]
         public ActionResult Create(string returnUrl = null)
         {
-            ViewBag.Roles = _roleService.GetRoles();
-            ViewBag.Departments = BuildDepartmentService().GetAll();
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             return View(new UserCreateViewModel());
         }
@@ -145,17 +109,9 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Users.Create")]
         public ActionResult Create(UserCreateViewModel model, string returnUrl = null)
         {
-            ViewBag.Roles = _roleService.GetRoles();
-            ViewBag.Departments = BuildDepartmentService().GetAll();
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             if (!ModelState.IsValid)
             {
-                return View(model);
-            }
-
-            if (!IsAdministratorRole(model.RoleId) && !model.DepartmentId.HasValue)
-            {
-                ModelState.AddModelError("DepartmentId", "Department is required for non-administrator users.");
                 return View(model);
             }
 
@@ -166,9 +122,7 @@ namespace AssetManagement.Web.Controllers
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 Phone = model.Phone,
-                DepartmentId = model.DepartmentId,
                 PositionTitle = model.PositionTitle,
-                RoleId = model.RoleId,
                 OrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()
             };
 
@@ -184,7 +138,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             TempData["Message"] = "User created successfully.";
-            TempData["Guidance"] = "Next step: review the user profile and confirm their role and department before assigning assets.";
+            TempData["Guidance"] = "Open the user profile to assign their department and role before assigning assets.";
             return RedirectToAction("Details", new { id = result.UserId, returnUrl = ViewBag.ReturnUrl });
         }
 
@@ -203,7 +157,7 @@ namespace AssetManagement.Web.Controllers
                 TempData["Error"] = ex.Message;
             }
 
-            return RedirectToReturnUrl(returnUrl, "Details", null, new { id = userId });
+            return RedirectToAction("Details", new { id = userId, returnUrl });
         }
 
         [HttpPost]
@@ -211,15 +165,24 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Users.Edit")]
         public ActionResult AssignDepartment(string userId, int? departmentId, string returnUrl = null)
         {
-            if (departmentId.HasValue && BuildDepartmentService().GetById(departmentId.Value) == null)
+            try
             {
-                TempData["Error"] = "That department no longer exists.";
-                return RedirectToReturnUrl(returnUrl, "Details", null, new { id = userId });
+                if (departmentId.HasValue && BuildDepartmentService().GetById(departmentId.Value) == null)
+                {
+                    TempData["Error"] = "That department no longer exists.";
+                }
+                else
+                {
+                    _userService.AssignDepartment(userId, departmentId);
+                    TempData["Message"] = "User department updated.";
+                }
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
             }
 
-            _userService.AssignDepartment(userId, departmentId);
-            TempData["Message"] = "User department updated.";
-            return RedirectToReturnUrl(returnUrl, "Details", null, new { id = userId });
+            return RedirectToAction("Details", new { id = userId, returnUrl });
         }
 
         [HttpPost]
@@ -235,6 +198,11 @@ namespace AssetManagement.Web.Controllers
             else
             {
                 accountSecurity.ClearFailedLoginAttemptsForUser(userId);
+                if (accountSecurity != null)
+                {
+                    accountSecurity.RotateUserAccessToken(userId);
+                }
+
                 TempData["Message"] = "Failed login attempts cleared for this user.";
             }
 
@@ -280,14 +248,6 @@ namespace AssetManagement.Web.Controllers
 
             var departmentId = GetScopedDepartmentIdOrDeny();
             return departmentId.HasValue && user.DepartmentId == departmentId.Value;
-        }
-
-        private bool IsAdministratorRole(int roleId)
-        {
-            var role = _roleService.GetById(roleId);
-            return role != null
-                && role.IsSystemRole
-                && string.Equals(role.Name, "Company Admin", System.StringComparison.OrdinalIgnoreCase);
         }
     }
 }

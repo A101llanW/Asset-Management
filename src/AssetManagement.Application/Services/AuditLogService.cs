@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
@@ -35,14 +36,14 @@ namespace AssetManagement.Application.Services
         {
             var rows = new List<string[]>
             {
-                new[] { "Timestamp", "ActorUserId", "Action", "EntityType", "EntityId", "IPAddress" }
+                new[] { "Timestamp (EAT)", "ActorUserId", "Action", "EntityType", "EntityId", "IPAddress" }
             };
 
             foreach (var log in QueryLogs(filter))
             {
                 rows.Add(new[]
                 {
-                    log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
+                    KenyaTimeHelper.FormatUtc(log.Timestamp),
                     log.ActorUserId ?? string.Empty,
                     log.ActionLabel ?? log.Action ?? string.Empty,
                     log.EntityTypeLabel ?? log.EntityType ?? string.Empty,
@@ -79,6 +80,11 @@ namespace AssetManagement.Application.Services
                 bypassDepartmentScope,
                 denyDepartmentScope,
                 actorId);
+
+            if (filter != null && filter.BusinessEventsOnly)
+            {
+                logs = AssetAuditTrailFilterHelper.FilterBusinessEvents(logs).ToList();
+            }
 
             foreach (var log in logs)
             {

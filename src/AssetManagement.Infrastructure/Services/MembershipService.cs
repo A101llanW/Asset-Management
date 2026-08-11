@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Web;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Application.Contracts.Security;
@@ -22,13 +25,17 @@ namespace AssetManagement.Infrastructure.Services
         private readonly IOrganizationLicenseService _licenseService;
         private readonly IEmailService _emailService;
         private readonly IPlatformSettingsService _platformSettings;
+        private readonly IUnitOfWorkEnlistment _unitOfWorkEnlistment;
+        private readonly IAuditWriter _auditWriter;
 
         public MembershipService(
             ISqlConnectionFactory connectionFactory,
             IOrganizationScopeService organizationScope,
             IOrganizationLicenseService licenseService,
             IEmailService emailService,
-            IPlatformSettingsService platformSettings)
+            IPlatformSettingsService platformSettings,
+            IUnitOfWorkEnlistment unitOfWorkEnlistment,
+            IAuditWriter auditWriter = null)
         {
             _users = new UserAccountRepository(connectionFactory);
             _resetTokens = new PasswordResetRepository(connectionFactory);
@@ -36,6 +43,8 @@ namespace AssetManagement.Infrastructure.Services
             _licenseService = licenseService;
             _emailService = emailService;
             _platformSettings = platformSettings;
+            _unitOfWorkEnlistment = unitOfWorkEnlistment;
+            _auditWriter = auditWriter;
         }
 
         public bool ValidateCredentials(string email, string password, out string userId)
@@ -51,12 +60,11 @@ namespace AssetManagement.Infrastructure.Services
                 return false;
             }
 
-            var normalizedEmail = email.Trim();
+            var normalizedEmail = DemoLoginEmailHelper.ResolveLoginEmail(email, organizationSlug);
             ApplicationUser user = null;
 
             if (!string.IsNullOrWhiteSpace(organizationSlug))
             {
-                normalizedEmail = DemoLoginEmailHelper.ResolveTenantLoginEmail(normalizedEmail, organizationSlug);
                 var orgId = _users.FindOrganizationIdBySlug(organizationSlug);
                 if (orgId.HasValue)
                 {
@@ -74,9 +82,15 @@ namespace AssetManagement.Infrastructure.Services
                 return false;
             }
 
-            if (!PasswordHasher.VerifyHashedPassword(user.PasswordHash, password))
+            var verifyResult = PasswordHasher.VerifyHashedPassword(user.PasswordHash, password);
+            if (verifyResult == PasswordVerificationResult.Failed)
             {
                 return false;
+            }
+
+            if (verifyResult == PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                UpgradePasswordHash(user, password);
             }
 
             userId = user.Id;
@@ -124,7 +138,10 @@ namespace AssetManagement.Infrastructure.Services
                 RoleId = request == null ? null : request.RoleId,
                 OrganizationId = organizationId,
                 IsActive = true,
-                EmailConfirmed = true
+                EmailConfirmed = true,
+                AccessToken = SecurePasswordGenerator.GenerateAccessToken(),
+                RequirePasswordChange = request != null && request.RequirePasswordChange,
+                IsEmailVerified = !IsEmailVerificationRequired()
             };
 
             var errors = ValidateNewUser(user, password).ToList();
@@ -173,7 +190,20 @@ namespace AssetManagement.Infrastructure.Services
             user.PasswordHash = PasswordHasher.HashPassword(password);
             user.SecurityStamp = Guid.NewGuid().ToString("N");
             user.UserName = user.Email;
-            _users.Insert(user);
+
+            IDbConnection enlistedConnection;
+            IDbTransaction enlistedTransaction;
+            if (_unitOfWorkEnlistment != null
+                && _unitOfWorkEnlistment.TryGetActiveTransaction(out enlistedConnection, out enlistedTransaction))
+            {
+                _users.Insert(user, enlistedConnection as SqlConnection, enlistedTransaction as SqlTransaction);
+            }
+            else
+            {
+                _users.Insert(user);
+            }
+
+            _auditWriter?.Write("Users.Create", nameof(ApplicationUser), user.Id, null, user.Email);
 
             return new UserAccountCreateResult
             {
@@ -210,15 +240,21 @@ namespace AssetManagement.Infrastructure.Services
                 return null;
             }
 
+            var relaxed = DeploymentSecuritySettings.MfaAllowAnyCode;
+            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            {
+                System.Diagnostics.Trace.WriteLine(
+                    "Password reset suppressed: SMTP is not configured while MfaAllowAnyCode=false.");
+                return null;
+            }
+
             var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
                 .Replace("+", string.Empty)
                 .Replace("/", string.Empty)
                 .TrimEnd('=');
             var tokenHash = ComputeTokenHash(user.SecurityStamp, token);
-            _resetTokens.CreateToken(user.Id, tokenHash, DateTime.UtcNow.AddHours(24));
-            SecurityDiagnostics.LogOneTimeCode("PASSWORD RESET", user.Email, token);
-
             var resetLink = BuildPasswordResetLink(token, user.Email, organizationSlug);
+
             if (_emailService != null && _emailService.IsConfigured)
             {
                 try
@@ -228,7 +264,21 @@ namespace AssetManagement.Infrastructure.Services
                 catch (Exception ex)
                 {
                     System.Diagnostics.Trace.WriteLine("Password reset email failed: " + ex.Message);
+                    if (!relaxed)
+                    {
+                        return null;
+                    }
                 }
+            }
+            else if (!relaxed)
+            {
+                return null;
+            }
+
+            _resetTokens.CreateToken(user.Id, tokenHash, DateTime.UtcNow.AddHours(24));
+            if (relaxed)
+            {
+                SecurityDiagnostics.LogPasswordResetLink(user.Email, resetLink);
             }
 
             return token;
@@ -247,13 +297,14 @@ namespace AssetManagement.Infrastructure.Services
                 return false;
             }
 
+            var currentVerifyResult = PasswordHasher.VerifyHashedPassword(user.PasswordHash, currentPassword);
             if (string.IsNullOrEmpty(currentPassword)
-                || !PasswordHasher.VerifyHashedPassword(user.PasswordHash, currentPassword))
+                || currentVerifyResult == PasswordVerificationResult.Failed)
             {
                 return false;
             }
 
-            if (PasswordHasher.VerifyHashedPassword(user.PasswordHash, newPassword))
+            if (PasswordHasher.VerifyHashedPassword(user.PasswordHash, newPassword) != PasswordVerificationResult.Failed)
             {
                 return false;
             }
@@ -274,12 +325,17 @@ namespace AssetManagement.Infrastructure.Services
             user.Phone = phone == null ? null : phone.Trim();
             user.PhoneNumber = user.Phone;
             _users.Update(user);
+            _auditWriter?.Write("Users.EditProfile", nameof(ApplicationUser), userId, null, user.Email);
             return true;
         }
 
         private string BuildPasswordResetLink(string token, string email, string organizationSlug)
         {
-            var baseUrl = _platformSettings == null ? null : _platformSettings.GetExternalBaseUrl();
+            var configuredBaseUrl = _platformSettings == null ? null : _platformSettings.GetExternalBaseUrl();
+            var requestUrl = HttpContext.Current != null && HttpContext.Current.Request != null
+                ? HttpContext.Current.Request.Url
+                : null;
+            var baseUrl = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(configuredBaseUrl, requestUrl);
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
                 baseUrl = "http://localhost";
@@ -294,56 +350,111 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool ResetPasswordWithToken(string email, string token, string newPassword)
         {
-            var user = _users.FindActiveUserByEmail(email);
-            if (user == null)
-            {
-                return false;
-            }
-
-            return ResetPasswordWithTokenForUser(user.Id, token, newPassword);
+            return ResetPasswordWithToken(email, token, newPassword, null);
         }
 
-        private bool ResetPasswordWithTokenForUser(string userId, string token, string newPassword)
+        public bool ResetPasswordWithToken(string email, string token, string newPassword, string organizationSlug)
         {
-            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
-            {
-                return false;
-            }
+            return ResetPasswordWithTokenDetailed(email, token, newPassword, organizationSlug).Succeeded;
+        }
 
-            var user = _users.FindById(userId);
+        public PasswordResetResult ResetPasswordWithTokenDetailed(string email, string token, string newPassword, string organizationSlug)
+        {
+            var result = new PasswordResetResult
+            {
+                PolicyErrors = new List<string>()
+            };
+
+            var user = ResolveUserForPasswordReset(email, organizationSlug);
             if (user == null)
             {
-                return false;
+                result.FailureReason = PasswordResetFailureReason.UserNotFound;
+                return result;
+            }
+
+            var policyErrors = ValidatePasswordPolicy(newPassword).ToList();
+            if (policyErrors.Count > 0)
+            {
+                result.FailureReason = PasswordResetFailureReason.PolicyViolation;
+                result.PolicyErrors = policyErrors;
+                return result;
+            }
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                result.FailureReason = PasswordResetFailureReason.InvalidOrExpiredToken;
+                return result;
             }
 
             var tokenHash = ComputeTokenHash(user.SecurityStamp, token.Trim());
             string consumedUserId;
-            if (!_resetTokens.TryConsumeToken(userId, tokenHash, out consumedUserId))
+            if (!_resetTokens.TryConsumeToken(user.Id, tokenHash, out consumedUserId))
             {
-                return false;
+                result.FailureReason = PasswordResetFailureReason.InvalidOrExpiredToken;
+                return result;
             }
 
-            return ResetPassword(userId, newPassword);
+            if (!ApplyPasswordReset(user.Id, newPassword))
+            {
+                result.FailureReason = PasswordResetFailureReason.InvalidOrExpiredToken;
+                return result;
+            }
+
+            result.Succeeded = true;
+            return result;
+        }
+
+        private ApplicationUser ResolveUserForPasswordReset(string email, string organizationSlug)
+        {
+            if (!string.IsNullOrWhiteSpace(organizationSlug))
+            {
+                var orgId = _users.FindOrganizationIdBySlug(organizationSlug);
+                if (orgId.HasValue)
+                {
+                    return _users.FindByEmailAndOrganization(email, orgId.Value);
+                }
+
+                return null;
+            }
+
+            return _users.FindPlatformAdminByEmail(email)
+                ?? _users.FindActiveUserByEmail(email);
         }
 
         public bool ResetPassword(string userId, string newPassword)
         {
-            var user = _users.FindById(userId);
-            if (user == null)
-            {
-                return false;
-            }
-
             var errors = ValidatePasswordPolicy(newPassword).ToList();
             if (errors.Count > 0)
             {
                 return false;
             }
 
+            return ApplyPasswordReset(userId, newPassword);
+        }
+
+        private bool ApplyPasswordReset(string userId, string newPassword)
+        {
+            var user = _users.FindById(userId);
+            if (user == null)
+            {
+                return false;
+            }
+
             user.PasswordHash = PasswordHasher.HashPassword(newPassword);
             user.SecurityStamp = Guid.NewGuid().ToString("N");
+            user.AccessToken = SecurePasswordGenerator.GenerateAccessToken();
+            user.LastPasswordChange = DateTime.UtcNow;
+            user.RequirePasswordChange = false;
             _users.Update(user);
+            _auditWriter?.Write("Users.PasswordChanged", nameof(ApplicationUser), userId, null, null);
             return true;
+        }
+
+        private bool IsEmailVerificationRequired()
+        {
+            var setting = System.Configuration.ConfigurationManager.AppSettings["EmailVerificationRequired"];
+            return string.Equals(setting, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(setting, "1", StringComparison.OrdinalIgnoreCase);
         }
 
         private IEnumerable<string> ValidateSeatCap(int? organizationId)
@@ -392,6 +503,34 @@ namespace AssetManagement.Infrastructure.Services
             {
                 return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(token ?? string.Empty)));
             }
+        }
+
+        public void RehashPasswordOnLogin(string userId, string plainPassword)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrEmpty(plainPassword))
+            {
+                return;
+            }
+
+            var user = _users.FindById(userId);
+            if (user == null)
+            {
+                return;
+            }
+
+            var verifyResult = PasswordHasher.VerifyHashedPassword(user.PasswordHash, plainPassword);
+            if (verifyResult != PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                return;
+            }
+
+            UpgradePasswordHash(user, plainPassword);
+        }
+
+        private void UpgradePasswordHash(ApplicationUser user, string plainPassword)
+        {
+            user.PasswordHash = PasswordHasher.HashPassword(plainPassword);
+            _users.Update(user);
         }
 
         private static IEnumerable<string> ValidatePasswordPolicy(string password)

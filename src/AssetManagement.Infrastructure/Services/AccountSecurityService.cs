@@ -90,6 +90,24 @@ namespace AssetManagement.Infrastructure.Services
 
 
 
+        public bool RequiresMfa(string userId)
+
+        {
+
+            if (DeploymentSecuritySettings.RequireMfaForAllUsers)
+
+            {
+
+                return !string.IsNullOrWhiteSpace(userId);
+
+            }
+
+            return RequiresPrivilegedMfa(userId);
+
+        }
+
+
+
         public bool UserNeedsLegalConsent(string userId)
 
         {
@@ -206,6 +224,22 @@ namespace AssetManagement.Infrastructure.Services
 
 
 
+            var relaxed = IsMfaCodeValidationRelaxed();
+
+            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+
+            {
+
+                System.Diagnostics.Trace.WriteLine(
+
+                    "MFA code not sent: SMTP is not configured while MfaAllowAnyCode=false.");
+
+                return false;
+
+            }
+
+
+
             var code = GenerateNumericCode(6);
 
             user.TwoFactorCode = code;
@@ -224,7 +258,15 @@ namespace AssetManagement.Infrastructure.Services
 
             _users.Update(user);
 
-            SecurityDiagnostics.LogOneTimeCode("MFA", user.Email, code);
+
+
+            if (relaxed)
+
+            {
+
+                SecurityDiagnostics.LogOneTimeCode("MFA", user.Email, code);
+
+            }
 
 
 
@@ -238,6 +280,8 @@ namespace AssetManagement.Infrastructure.Services
 
                     _emailService.SendMfaCodeEmail(user.Email, code);
 
+                    return true;
+
                 }
 
                 catch (Exception ex)
@@ -246,13 +290,27 @@ namespace AssetManagement.Infrastructure.Services
 
                     System.Diagnostics.Trace.WriteLine("MFA email send failed: " + ex.Message);
 
+                    if (!relaxed)
+
+                    {
+
+                        user.TwoFactorCode = null;
+
+                        user.TwoFactorExpiryUtc = null;
+
+                        _users.Update(user);
+
+                        return false;
+
+                    }
+
                 }
 
             }
 
 
 
-            return true;
+            return relaxed;
 
         }
 
@@ -262,7 +320,7 @@ namespace AssetManagement.Infrastructure.Services
 
         {
 
-            return ReadMfaAllowAnyCodeSetting();
+            return DeploymentSecuritySettings.MfaAllowAnyCode;
 
         }
 
@@ -272,23 +330,13 @@ namespace AssetManagement.Infrastructure.Services
 
         {
 
-            if (string.IsNullOrWhiteSpace(code))
+            var relaxed = ReadMfaAllowAnyCodeSetting();
 
-            {
-
-                return false;
-
-            }
-
-
-
-            if (ReadMfaAllowAnyCodeSetting())
+            if (relaxed && !string.IsNullOrWhiteSpace(code))
 
             {
 
                 SecurityDiagnostics.LogMfaDevBypass(userId);
-
-                return true;
 
             }
 
@@ -296,27 +344,12 @@ namespace AssetManagement.Infrastructure.Services
 
             var user = _users.FindById(userId);
 
-            if (user == null || string.IsNullOrWhiteSpace(user.TwoFactorCode))
-
-            {
-
-                return false;
-
-            }
-
-
-
-            if (!user.TwoFactorExpiryUtc.HasValue || user.TwoFactorExpiryUtc.Value < DateTime.UtcNow)
-
-            {
-
-                return false;
-
-            }
-
-
-
-            return string.Equals(user.TwoFactorCode.Trim(), code.Trim(), StringComparison.Ordinal);
+            return MfaCodeValidator.Validate(
+                relaxed,
+                user == null ? null : user.TwoFactorCode,
+                user == null ? null : user.TwoFactorExpiryUtc,
+                code,
+                DateTime.UtcNow);
 
         }
 
@@ -560,7 +593,19 @@ namespace AssetManagement.Infrastructure.Services
 
 
 
+            var wasAlreadyLocked = !wasSuccessful && IsAccountLocked(username, organizationId);
+
             _loginAttempts.Record(username, ipAddress, wasSuccessful, organizationId, failureReason);
+
+
+
+            if (!wasSuccessful && !wasAlreadyLocked && IsAccountLocked(username, organizationId))
+
+            {
+
+                InvalidateSessionsForLockedAccount(username, organizationId);
+
+            }
 
         }
 
@@ -599,34 +644,148 @@ namespace AssetManagement.Infrastructure.Services
 
 
         public void ClearAllLoginLockouts()
-
         {
-
             _loginAttempts.ClearAllFailedAttempts();
-
         }
 
+        public bool IsEmailVerificationRequired()
+        {
+            var setting = ConfigurationManager.AppSettings["EmailVerificationRequired"];
+            return string.Equals(setting, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(setting, "1", StringComparison.OrdinalIgnoreCase);
+        }
 
+        public bool UserNeedsEmailVerification(string userId)
+        {
+            if (!IsEmailVerificationRequired())
+            {
+                return false;
+            }
+
+            var user = _users.FindById(userId);
+            return user != null && user.IsActive && !user.IsEmailVerified;
+        }
+
+        public bool SendEmailVerificationCode(string userId)
+        {
+            var user = _users.FindById(userId);
+            if (user == null || string.IsNullOrWhiteSpace(user.Email))
+            {
+                return false;
+            }
+
+            var relaxed = IsMfaCodeValidationRelaxed();
+            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            {
+                System.Diagnostics.Trace.WriteLine(
+                    "Email verification code not sent: SMTP is not configured while MfaAllowAnyCode=false.");
+                return false;
+            }
+
+            user.EmailVerificationCode = GenerateNumericCode(6);
+            user.EmailVerificationExpiryUtc = DateTime.UtcNow.AddMinutes(30);
+            _users.Update(user);
+
+            if (_emailService != null && _emailService.IsConfigured)
+            {
+                try
+                {
+                    _emailService.SendMfaCodeEmail(user.Email, user.EmailVerificationCode);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Email verification send failed: " + ex.Message);
+                    if (!relaxed)
+                    {
+                        user.EmailVerificationCode = null;
+                        user.EmailVerificationExpiryUtc = null;
+                        _users.Update(user);
+                        return false;
+                    }
+                }
+            }
+
+            return relaxed;
+        }
+
+        public bool ValidateEmailVerificationCode(string userId, string code)
+        {
+            var user = _users.FindById(userId);
+            if (user == null || string.IsNullOrWhiteSpace(code))
+            {
+                return false;
+            }
+
+            if (!string.Equals(user.EmailVerificationCode, code.Trim(), StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!user.EmailVerificationExpiryUtc.HasValue || user.EmailVerificationExpiryUtc.Value < DateTime.UtcNow)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public void MarkEmailVerified(string userId)
+        {
+            var user = _users.FindById(userId);
+            if (user == null)
+            {
+                return;
+            }
+
+            user.IsEmailVerified = true;
+            user.EmailVerificationCode = null;
+            user.EmailVerificationExpiryUtc = null;
+            _users.Update(user);
+        }
+
+        public void RotateUserAccessToken(string userId)
+        {
+            var user = _users.FindById(userId);
+            if (user == null)
+            {
+                return;
+            }
+
+            user.AccessToken = SecurePasswordGenerator.GenerateAccessToken();
+            _users.Update(user);
+        }
+
+        public int InvalidateAllActiveSessions(int? organizationId)
+        {
+            _users.ExpireActiveImpersonationRequests(organizationId);
+            return _users.RotateAllAccessTokens(organizationId);
+        }
+
+        private void InvalidateSessionsForLockedAccount(string username, int? organizationId)
+        {
+            ApplicationUser user;
+            if (organizationId.HasValue)
+            {
+                user = _users.FindByEmailAndOrganization(username, organizationId.Value);
+            }
+            else
+            {
+                user = _users.FindPlatformAdminByEmail(username)
+                    ?? _users.FindActiveUserByEmail(username);
+            }
+
+            if (user != null)
+            {
+                RotateUserAccessToken(user.Id);
+            }
+        }
 
         private static bool ReadMfaAllowAnyCodeSetting()
 
         {
 
-            var setting = ConfigurationManager.AppSettings["MfaAllowAnyCode"];
-
-            if (string.IsNullOrWhiteSpace(setting))
-
-            {
-
-                return false;
-
-            }
-
-
-
-            return string.Equals(setting.Trim(), "true", StringComparison.OrdinalIgnoreCase)
-
-                || string.Equals(setting.Trim(), "1", StringComparison.OrdinalIgnoreCase);
+            return DeploymentSecuritySettings.MfaAllowAnyCode;
 
         }
 

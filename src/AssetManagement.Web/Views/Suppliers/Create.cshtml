@@ -7,6 +7,7 @@
     var defaultCurrency = ViewBag.DefaultCurrency as string ?? "KES";
     var assetTypesUrl = ViewBag.AssetTypesUrl as string ?? Url.Action("AvailableAssetTypes");
     var taggedAssetsUrl = ViewBag.TaggedAssetsUrl as string ?? Url.Action("AvailableTaggedAssets");
+    var catalogAssetsSearchUrl = ViewBag.CatalogAssetsSearchUrl as string ?? Url.Action("SearchCatalogAssets");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -26,7 +27,8 @@
     data_am_supplier_create = "true",
     data_am_default_currency = defaultCurrency,
     data_am_asset_types_url = assetTypesUrl,
-    data_am_tagged_assets_url = taggedAssetsUrl
+    data_am_tagged_assets_url = taggedAssetsUrl,
+    data_am_catalog_assets_search_url = catalogAssetsSearchUrl
 }))
 {
     @Html.AntiForgeryToken()
@@ -92,7 +94,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary" id="add-catalog-row">Add line</button>
         </div>
         <div class="card-body p-0">
-            <p class="text-muted small px-3 pt-3 mb-0">Add at least one item with a unit price. Pick a category to narrow asset type and optionally tag an existing asset for requisition matching.</p>
+            <p class="text-muted small px-3 pt-3 mb-0">Add at least one item with a unit price. Use <strong>Pick</strong> to start from an existing register item, or enter details manually.</p>
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
@@ -114,7 +116,10 @@
                 {
                     <tr class="catalog-item-row">
                         <td>
-                            <input class="form-control form-control-sm" name="CatalogItems[@i].ItemName" value="@Model.CatalogItems[i].ItemName" placeholder="e.g. Dell Latitude laptop" />
+                            <div class="input-group input-group-sm">
+                                <input class="form-control form-control-sm catalog-item-name" name="CatalogItems[@i].ItemName" value="@Model.CatalogItems[i].ItemName" placeholder="e.g. Dell Latitude laptop" />
+                                <button type="button" class="btn btn-outline-secondary catalog-pick-asset" title="Pick from asset register">Pick</button>
+                            </div>
                         </td>
                         <td>
                             @Html.DropDownList("CatalogItems[" + i + "].AssetCategoryId", categories, string.Empty, new { @class = "form-select form-select-sm catalog-category" })
@@ -175,6 +180,8 @@
         BackLabel = "Back"
     })
 }
+
+@Html.Partial("_CatalogAssetPickerModal")
 
 @section scripts {
     <script src="@Url.Content("~/Scripts/app/supplier-create.js")"></script>

@@ -14,12 +14,27 @@ namespace AssetManagement.Infrastructure.Queries
         private static readonly string StatusCountsSql = @"
 SELECT
     COUNT(*) AS TotalAssets,
-    SUM(CASE WHEN a.[CurrentStatus] = @AssignedStatus THEN 1 ELSE 0 END) AS AssignedAssets,
-    SUM(CASE WHEN a.[CurrentStatus] IN (@InStoreStatus, @ReturnedStatus) THEN 1 ELSE 0 END) AS UnassignedAssets,
-    SUM(CASE WHEN a.[CurrentStatus] = @UnderMaintenanceStatus THEN 1 ELSE 0 END) AS AssetsUnderMaintenance,
-    SUM(CASE WHEN a.[CurrentStatus] IN (@LostStatus, @StolenStatus, @DamagedStatus) THEN 1 ELSE 0 END) AS LostDamagedStolenAssets,
-    ISNULL(SUM(a.[AcquisitionCost]), 0) AS TotalAcquisitionValue
+    ISNULL(SUM(CASE WHEN a.[CurrentStatus] = @AssignedStatus THEN 1 ELSE 0 END), 0) AS AssignedAssets,
+    ISNULL(SUM(CASE WHEN a.[CurrentStatus] IN (@InStoreStatus, @ReturnedStatus) THEN 1 ELSE 0 END), 0) AS UnassignedAssets,
+    ISNULL(SUM(CASE WHEN a.[CurrentStatus] IN (@UnderMaintenanceStatus, @DamagedStatus) THEN 1 ELSE 0 END), 0) AS MaintenanceAndDamagedAssets,
+    ISNULL(SUM(CASE WHEN a.[CurrentStatus] IN (@LostStatus, @StolenStatus) THEN 1 ELSE 0 END), 0) AS LostAssets,
+    ISNULL(SUM(CASE WHEN a.[CurrentStatus] IN (@LostStatus, @StolenStatus, @DamagedStatus) THEN 1 ELSE 0 END), 0) AS LostDamagedStolenAssets,
+    ISNULL(SUM(a.[AcquisitionCost]), 0) AS TotalAcquisitionValue,
+    ISNULL(SUM(a.[CurrentBookValue]), 0) AS TotalCurrentBookValue,
+    ISNULL(SUM(a.[AccumulatedDepreciation]), 0) AS TotalAccumulatedDepreciation,
+    ISNULL(AVG(
+        CASE
+            WHEN a.[DepreciationRatePercent] IS NOT NULL AND a.[DepreciationRatePercent] > 0 THEN a.[DepreciationRatePercent]
+            WHEN at.[DepreciationRatePercent] IS NOT NULL AND at.[DepreciationRatePercent] > 0 THEN at.[DepreciationRatePercent]
+            WHEN ac.[DefaultDepreciationRatePercent] IS NOT NULL AND ac.[DefaultDepreciationRatePercent] > 0 THEN ac.[DefaultDepreciationRatePercent]
+            WHEN COALESCE(NULLIF(a.[DepreciationLifeMonths], 0), NULLIF(at.[DepreciationLifeMonths], 0), NULLIF(ac.[DefaultDepreciationLifeMonths], 0), NULLIF(a.[UsefulLifeMonths], 0), NULLIF(at.[UsefulLifeMonths], 0), NULLIF(ac.[DefaultUsefulLifeMonths], 0)) IS NOT NULL
+                THEN 1200.0 / COALESCE(NULLIF(a.[DepreciationLifeMonths], 0), NULLIF(at.[DepreciationLifeMonths], 0), NULLIF(ac.[DefaultDepreciationLifeMonths], 0), NULLIF(a.[UsefulLifeMonths], 0), NULLIF(at.[UsefulLifeMonths], 0), NULLIF(ac.[DefaultUsefulLifeMonths], 0))
+            ELSE NULL
+        END
+    ), 0) AS AverageAnnualDepreciationRatePercent
 FROM [Asset] a
+LEFT JOIN [AssetType] at ON at.[Id] = a.[AssetTypeId]
+LEFT JOIN [AssetCategory] ac ON ac.[Id] = a.[CategoryId]
 WHERE a.[OrganizationId] = @OrganizationId
   AND a.[IsActive] = 1
   AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a");
@@ -27,7 +42,7 @@ WHERE a.[OrganizationId] = @OrganizationId
         private static readonly string TopDepartmentsSql = @"
 SELECT TOP 5
     d.[Name] AS DepartmentName,
-    ISNULL(SUM(a.[AcquisitionCost]), 0) AS BookValue,
+    ISNULL(SUM(a.[CurrentBookValue]), 0) AS BookValue,
     COUNT(*) AS AssetCount
 FROM [Asset] a
 INNER JOIN [Department] d ON d.[Id] = a.[DepartmentId]
@@ -91,9 +106,13 @@ WHERE a.[OrganizationId] = @OrganizationId
                     TotalAssets = statusCounts.TotalAssets,
                     AssignedAssets = statusCounts.AssignedAssets,
                     UnassignedAssets = statusCounts.UnassignedAssets,
-                    AssetsUnderMaintenance = statusCounts.AssetsUnderMaintenance,
+                    MaintenanceAndDamagedAssets = statusCounts.MaintenanceAndDamagedAssets,
+                    LostAssets = statusCounts.LostAssets,
                     LostDamagedStolenAssets = statusCounts.LostDamagedStolenAssets,
                     TotalAcquisitionValue = statusCounts.TotalAcquisitionValue,
+                    TotalCurrentBookValue = statusCounts.TotalCurrentBookValue,
+                    TotalAccumulatedDepreciation = statusCounts.TotalAccumulatedDepreciation,
+                    AverageAnnualDepreciationRatePercent = statusCounts.AverageAnnualDepreciationRatePercent,
                     TotalCostOfOwnership = totalTco,
                     TopDepartmentValues = topDepartments,
                     AssignmentsPerMonth = assignmentsPerMonth
@@ -108,9 +127,13 @@ WHERE a.[OrganizationId] = @OrganizationId
                 TotalAssets = 0,
                 AssignedAssets = 0,
                 UnassignedAssets = 0,
-                AssetsUnderMaintenance = 0,
+                MaintenanceAndDamagedAssets = 0,
+                LostAssets = 0,
                 LostDamagedStolenAssets = 0,
                 TotalAcquisitionValue = 0m,
+                TotalCurrentBookValue = 0m,
+                TotalAccumulatedDepreciation = 0m,
+                AverageAnnualDepreciationRatePercent = 0m,
                 TotalCostOfOwnership = 0m,
                 TopDepartmentValues = new List<DepartmentValueVm>(),
                 AssignmentsPerMonth = new List<DashboardTrendPointVm>()
@@ -145,12 +168,16 @@ WHERE a.[OrganizationId] = @OrganizationId
 
                     return new StatusCounts
                     {
-                        TotalAssets = Convert.ToInt32(reader["TotalAssets"]),
-                        AssignedAssets = Convert.ToInt32(reader["AssignedAssets"]),
-                        UnassignedAssets = Convert.ToInt32(reader["UnassignedAssets"]),
-                        AssetsUnderMaintenance = Convert.ToInt32(reader["AssetsUnderMaintenance"]),
-                        LostDamagedStolenAssets = Convert.ToInt32(reader["LostDamagedStolenAssets"]),
-                        TotalAcquisitionValue = Convert.ToDecimal(reader["TotalAcquisitionValue"])
+                        TotalAssets = ReadInt32(reader, "TotalAssets"),
+                        AssignedAssets = ReadInt32(reader, "AssignedAssets"),
+                        UnassignedAssets = ReadInt32(reader, "UnassignedAssets"),
+                        MaintenanceAndDamagedAssets = ReadInt32(reader, "MaintenanceAndDamagedAssets"),
+                        LostAssets = ReadInt32(reader, "LostAssets"),
+                        LostDamagedStolenAssets = ReadInt32(reader, "LostDamagedStolenAssets"),
+                        TotalAcquisitionValue = ReadDecimal(reader, "TotalAcquisitionValue"),
+                        TotalCurrentBookValue = ReadDecimal(reader, "TotalCurrentBookValue"),
+                        TotalAccumulatedDepreciation = ReadDecimal(reader, "TotalAccumulatedDepreciation"),
+                        AverageAnnualDepreciationRatePercent = ReadDecimal(reader, "AverageAnnualDepreciationRatePercent")
                     };
                 }
             }
@@ -245,6 +272,18 @@ WHERE a.[OrganizationId] = @OrganizationId
             SqlQueryHelper.AddDepartmentScopeParameters(command, bypassDepartmentScope, denyDepartmentScope, departmentId);
         }
 
+        private static int ReadInt32(IDataRecord reader, string column)
+        {
+            var value = reader[column];
+            return value == null || value == DBNull.Value ? 0 : Convert.ToInt32(value);
+        }
+
+        private static decimal ReadDecimal(IDataRecord reader, string column)
+        {
+            var value = reader[column];
+            return value == null || value == DBNull.Value ? 0m : Convert.ToDecimal(value);
+        }
+
         private sealed class StatusCounts
         {
             public int TotalAssets { get; set; }
@@ -253,11 +292,19 @@ WHERE a.[OrganizationId] = @OrganizationId
 
             public int UnassignedAssets { get; set; }
 
-            public int AssetsUnderMaintenance { get; set; }
+            public int MaintenanceAndDamagedAssets { get; set; }
+
+            public int LostAssets { get; set; }
 
             public int LostDamagedStolenAssets { get; set; }
 
             public decimal TotalAcquisitionValue { get; set; }
+
+            public decimal TotalCurrentBookValue { get; set; }
+
+            public decimal TotalAccumulatedDepreciation { get; set; }
+
+            public decimal AverageAnnualDepreciationRatePercent { get; set; }
         }
     }
 }

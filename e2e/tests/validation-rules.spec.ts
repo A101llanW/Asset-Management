@@ -55,7 +55,7 @@ test.describe('Asset tag rules', () => {
     await page.locator('#DepartmentId').selectOption({ label: 'Information Technology' });
     await page.getByRole('button', { name: 'Create Asset' }).click();
 
-    await expect(page.getByText(/Asset tag:\s*IT-LTP-\d{3}/i)).toBeVisible();
+    await expect(page.getByText(/Asset tag:\s*[A-Z2-9]{10}/i)).toBeVisible();
   });
 
   test('edit rejects duplicate asset tag', async ({ page }) => {

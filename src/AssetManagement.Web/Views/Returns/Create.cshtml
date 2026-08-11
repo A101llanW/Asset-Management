@@ -58,7 +58,7 @@
         </div>
         <div class="col-md-4">
             @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user --", new { @class = "form-select" })
+            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user (optional) --", new { @class = "form-select" })
             @if (!string.IsNullOrWhiteSpace(receiveDepartmentName))
             {
                 <div class="form-text">Receiving users are limited to @receiveDepartmentName.</div>

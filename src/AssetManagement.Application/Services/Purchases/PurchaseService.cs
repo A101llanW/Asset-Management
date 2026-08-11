@@ -16,15 +16,18 @@ namespace AssetManagement.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOperationsQueryRepository _operationsQueryRepository;
         private readonly IOrganizationScopeService _organizationScope;
+        private readonly IAuditWriter _auditWriter;
 
         public PurchaseService(
             IUnitOfWork unitOfWork,
             IOperationsQueryRepository operationsQueryRepository,
-            IOrganizationScopeService organizationScope)
+            IOrganizationScopeService organizationScope,
+            IAuditWriter auditWriter = null)
         {
             _unitOfWork = unitOfWork;
             _operationsQueryRepository = operationsQueryRepository;
             _organizationScope = organizationScope;
+            _auditWriter = auditWriter;
         }
 
         public IEnumerable<PurchaseRecordVm> GetAll()
@@ -36,6 +39,30 @@ namespace AssetManagement.Application.Services
             }
 
             return _operationsQueryRepository.GetPurchaseRecordList(organizationId.Value);
+        }
+
+        public PagedListVm<PurchaseRecordVm> GetListPage(
+            string search,
+            int? supplierId,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new PagedListVm<PurchaseRecordVm>();
+            }
+
+            return _operationsQueryRepository.GetPurchaseRecordListPage(
+                organizationId.Value,
+                search,
+                supplierId,
+                sort,
+                direction,
+                page,
+                pageSize);
         }
 
         public PurchaseRecordVm GetById(int id)
@@ -71,6 +98,7 @@ namespace AssetManagement.Application.Services
 
         public int Create(PurchaseRecordVm model)
         {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
             if (model.PurchaseRequestId.HasValue)
             {
                 var request = _unitOfWork.Repository<PurchaseRequest>().GetById(model.PurchaseRequestId.Value);
@@ -84,6 +112,11 @@ namespace AssetManagement.Application.Services
                     throw new BusinessException("Only approved purchase requests can be linked to a purchase record.");
                 }
 
+                if (!organizationId.HasValue && request.OrganizationId.HasValue)
+                {
+                    organizationId = request.OrganizationId;
+                }
+
                 var alreadyLinked = _unitOfWork.Repository<PurchaseRecord>().Find(x => x.PurchaseRequestId == model.PurchaseRequestId.Value).Any();
                 if (alreadyLinked)
                 {
@@ -91,8 +124,14 @@ namespace AssetManagement.Application.Services
                 }
             }
 
+            if (!organizationId.HasValue)
+            {
+                throw new BusinessException("Organization context is required to create a purchase record.");
+            }
+
             var entity = new PurchaseRecord
             {
+                OrganizationId = organizationId,
                 PurchaseRequestId = model.PurchaseRequestId,
                 PurchaseOrderNumber = model.PurchaseOrderNumber,
                 SupplierId = model.SupplierId,
@@ -109,6 +148,12 @@ namespace AssetManagement.Application.Services
 
             _unitOfWork.Repository<PurchaseRecord>().Add(entity);
             _unitOfWork.SaveChanges();
+            _auditWriter?.Write(
+                "Purchases.Create",
+                nameof(PurchaseRecord),
+                entity.Id.ToString(),
+                null,
+                entity.PurchaseOrderNumber ?? entity.Id.ToString());
             return entity.Id;
         }
     }

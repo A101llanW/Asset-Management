@@ -24,9 +24,11 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(SupplierCatalogItem));
             Register(typeof(AssetCategory));
             Register(typeof(AssetType));
+            Register(typeof(AssetSubType));
             Register(typeof(Asset));
             Register(typeof(AssetRequest));
             Register(typeof(AssetDocument));
+            Register(typeof(AssetDocumentRequirement));
             Register(typeof(PurchaseRequest));
             Register(typeof(PurchaseApprovalAction));
             Register(typeof(PurchaseRecord));
@@ -51,6 +53,7 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(Organization));
             Register(typeof(OrganizationLicense));
             Register(typeof(OrganizationLicenseHistory));
+            Register(typeof(TemporaryCredential), "TemporaryCredentials");
             Register(typeof(ImpersonationRequest));
             Register(typeof(SystemSetting));
             Register(typeof(ApplicationUser), "Users", "Id", false);

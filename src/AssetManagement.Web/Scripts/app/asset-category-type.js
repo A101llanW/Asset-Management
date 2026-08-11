@@ -3,18 +3,43 @@
 (function (global) {
     "use strict";
 
-    function readTypeOptions(select) {
-        return Array.prototype.slice.call(select.options)
-            .filter(function (option, index) {
-                return index > 0 && option.value;
-            })
-            .map(function (option) {
-                return {
-                    value: option.value,
-                    text: option.text,
-                    categoryId: option.getAttribute("data-category-id") || ""
-                };
-            });
+    function readTypeGroups(select) {
+        var groups = [];
+        var childNodes = select.childNodes;
+
+        for (var i = 0; i < childNodes.length; i++) {
+            var node = childNodes[i];
+            if (!node || node.nodeName !== "OPTGROUP") {
+                continue;
+            }
+
+            var categoryId = node.getAttribute("data-category-id") || "";
+            var options = [];
+            var optionNodes = node.childNodes;
+
+            for (var j = 0; j < optionNodes.length; j++) {
+                var optionNode = optionNodes[j];
+                if (!optionNode || optionNode.nodeName !== "OPTION" || !optionNode.value) {
+                    continue;
+                }
+
+                options.push({
+                    value: optionNode.value,
+                    text: optionNode.textContent,
+                    categoryId: optionNode.getAttribute("data-category-id") || categoryId
+                });
+            }
+
+            if (options.length > 0) {
+                groups.push({
+                    label: node.label,
+                    categoryId: categoryId,
+                    options: options
+                });
+            }
+        }
+
+        return groups;
     }
 
     function optionExists(select, value) {
@@ -31,40 +56,50 @@
         return false;
     }
 
-    function renderAssetTypes(category, assetType, allOptions) {
-        var selectedCategoryId = category.value;
-        var previousValue = assetType.value;
-
-        while (assetType.options.length > 1) {
-            assetType.remove(1);
+    function clearTypeOptions(select) {
+        while (select.options.length > 1) {
+            select.remove(1);
         }
 
-        if (!selectedCategoryId) {
-            allOptions.forEach(function (opt) {
+        var optgroups = select.querySelectorAll("optgroup");
+        for (var i = 0; i < optgroups.length; i++) {
+            select.removeChild(optgroups[i]);
+        }
+    }
+
+    function rebuildTypeSelect(select, groups, filterCategoryId, selectedValue) {
+        clearTypeOptions(select);
+
+        groups.forEach(function (group) {
+            if (filterCategoryId && group.categoryId !== filterCategoryId) {
+                return;
+            }
+
+            var optgroup = document.createElement("optgroup");
+            optgroup.label = group.label;
+            optgroup.setAttribute("data-category-id", group.categoryId);
+
+            group.options.forEach(function (opt) {
                 var option = document.createElement("option");
                 option.value = opt.value;
                 option.textContent = opt.text;
                 option.setAttribute("data-category-id", opt.categoryId);
-                assetType.appendChild(option);
+                optgroup.appendChild(option);
             });
 
-            assetType.value = optionExists(assetType, previousValue) ? previousValue : "";
-            return;
-        }
-
-        allOptions.forEach(function (opt) {
-            if (opt.categoryId !== selectedCategoryId) {
-                return;
-            }
-
-            var option = document.createElement("option");
-            option.value = opt.value;
-            option.textContent = opt.text;
-            option.setAttribute("data-category-id", opt.categoryId);
-            assetType.appendChild(option);
+            select.appendChild(optgroup);
         });
 
-        assetType.value = optionExists(assetType, previousValue) ? previousValue : "";
+        select.value = optionExists(select, selectedValue) ? selectedValue : "";
+    }
+
+    function getSelectedTypeCategoryId(assetType) {
+        var selectedOption = assetType.options[assetType.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            return "";
+        }
+
+        return selectedOption.getAttribute("data-category-id") || "";
     }
 
     function initCategoryAssetTypeSync() {
@@ -74,29 +109,65 @@
             return;
         }
 
-        var allOptions = readTypeOptions(assetType);
-
-        function syncAssetTypes() {
-            renderAssetTypes(category, assetType, allOptions);
+        var allGroups = readTypeGroups(assetType);
+        if (allGroups.length === 0) {
+            return;
         }
 
-        function syncCategoryFromAssetType() {
-            var selectedOption = assetType.options[assetType.selectedIndex];
-            if (!selectedOption || !selectedOption.value) {
+        function syncTypesFromCategory() {
+            var selectedCategoryId = category.value;
+            var previousTypeId = assetType.value;
+
+            if (!selectedCategoryId) {
+                rebuildTypeSelect(assetType, allGroups, "", previousTypeId);
                 return;
             }
 
-            var categoryId = selectedOption.getAttribute("data-category-id");
-            if (categoryId && category.value !== categoryId) {
+            var typeStillValid = false;
+            if (previousTypeId) {
+                for (var i = 0; i < allGroups.length; i++) {
+                    if (allGroups[i].categoryId !== selectedCategoryId) {
+                        continue;
+                    }
+
+                    for (var j = 0; j < allGroups[i].options.length; j++) {
+                        if (allGroups[i].options[j].value === previousTypeId) {
+                            typeStillValid = true;
+                            break;
+                        }
+                    }
+
+                    if (typeStillValid) {
+                        break;
+                    }
+                }
+            }
+
+            rebuildTypeSelect(
+                assetType,
+                allGroups,
+                selectedCategoryId,
+                typeStillValid ? previousTypeId : ""
+            );
+        }
+
+        function syncCategoryFromType() {
+            var categoryId = getSelectedTypeCategoryId(assetType);
+            if (!categoryId) {
+                return;
+            }
+
+            if (category.value !== categoryId) {
                 category.value = categoryId;
-                syncAssetTypes();
+                syncTypesFromCategory();
             }
         }
 
-        category.addEventListener("change", syncAssetTypes);
-        assetType.addEventListener("change", syncCategoryFromAssetType);
-        syncCategoryFromAssetType();
-        syncAssetTypes();
+        category.addEventListener("change", syncTypesFromCategory);
+        assetType.addEventListener("change", syncCategoryFromType);
+
+        syncCategoryFromType();
+        syncTypesFromCategory();
     }
 
     global.AmAssetCategoryTypeSync = {

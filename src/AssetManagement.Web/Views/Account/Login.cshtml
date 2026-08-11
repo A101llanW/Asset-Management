@@ -55,18 +55,38 @@
                 {
                     <input type="hidden" name="tenantPortal" value="@tenantToken" />
                 }
-                @Html.ValidationSummary(true, "", new { @class = "text-danger alert alert-danger am-portal-alert py-2 mb-3" })
+                @{
+                    var multiCandidates = ViewBag.MultiCandidates as System.Collections.Generic.IList<AssetManagement.Web.Models.LoginPortalCandidate>;
+                }
+                @if (multiCandidates != null && multiCandidates.Count > 0)
+                {
+                    <div class="alert alert-info am-portal-alert mb-3">
+                        <p class="mb-2"><strong>Select your organization portal:</strong></p>
+                        <ul class="list-unstyled mb-0">
+                            @foreach (var candidate in multiCandidates)
+                            {
+                                var portalUrl = string.IsNullOrWhiteSpace(candidate.OrganizationSlug)
+                                    ? Url.Action("Login", "Account")
+                                    : Url.RouteUrl("Tenant", new { tenant = candidate.OrganizationSlug, controller = "Account", action = "Login" });
+                                <li class="mb-1">
+                                    <a href="@portalUrl" class="am-auth-link am-auth-link--strong">@candidate.OrganizationName</a>
+                                    <span class="text-muted small">(@candidate.Email)</span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
 
-                <div class="mb-3">
+                <div class="mb-3 am-auth-field">
                     @Html.LabelFor(m => m.Email, new { @class = "form-label" })
                     @Html.TextBoxFor(m => m.Email, new { @class = "form-control", autocomplete = "username", placeholder = "name@example.com" })
-                    @Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger small" })
+                    @Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger small am-field-validation-error" })
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-3 am-auth-field">
                     @Html.LabelFor(m => m.Password, new { @class = "form-label" })
                     @Html.PasswordFieldFor(m => m.Password, new { autocomplete = "current-password" })
-                    @Html.ValidationMessageFor(m => m.Password, "", new { @class = "text-danger small" })
+                    @Html.ValidationMessageFor(m => m.Password, "", new { @class = "text-danger small am-field-validation-error" })
                 </div>
 
                 <div class="form-check mb-3">
@@ -78,6 +98,8 @@
                 {
                     @Html.Partial("_CaptchaPartial")
                 }
+
+                @Html.ValidationSummary(true, "", new { @class = "text-danger alert alert-danger am-portal-alert py-2 mb-3 am-auth-form-summary" })
 
                 <button type="submit" class="btn btn-primary w-100 py-2">Login</button>
             </form>

@@ -23,6 +23,7 @@ namespace AssetManagement.Application.Services
         private readonly IDepartmentScopeService _departmentScope;
         private readonly IAuthorizationService _authorizationService;
         private readonly ICurrentUserContext _currentUserContext;
+        private readonly IAssetDocumentRequirementService _requirementService;
 
         public AssetDocumentService(
             IUnitOfWork unitOfWork,
@@ -31,7 +32,8 @@ namespace AssetManagement.Application.Services
             IAuditWriter auditWriter,
             IDepartmentScopeService departmentScope,
             IAuthorizationService authorizationService,
-            ICurrentUserContext currentUserContext)
+            ICurrentUserContext currentUserContext,
+            IAssetDocumentRequirementService requirementService = null)
         {
             _unitOfWork = unitOfWork;
             _storage = storage;
@@ -40,6 +42,7 @@ namespace AssetManagement.Application.Services
             _departmentScope = departmentScope;
             _authorizationService = authorizationService;
             _currentUserContext = currentUserContext;
+            _requirementService = requirementService;
         }
 
         public IEnumerable<AssetDocumentVm> GetByAsset(int assetId)
@@ -73,6 +76,64 @@ namespace AssetManagement.Application.Services
 
         public int Upload(int assetId, string documentType, string fileName, string contentType, Stream content, string uploadedByUserId)
         {
+            return UploadInternal(assetId, documentType, fileName, contentType, content, uploadedByUserId, null);
+        }
+
+        public int UploadForRequirement(
+            int assetId,
+            int requirementId,
+            string fileName,
+            string contentType,
+            Stream content,
+            string uploadedByUserId)
+        {
+            var requirement = _unitOfWork.Repository<AssetDocumentRequirement>().GetById(requirementId);
+            if (requirement == null || !requirement.IsActive || requirement.AssetId != assetId)
+            {
+                throw new BusinessException("Document requirement not found for this asset.");
+            }
+
+            if (requirement.DocumentId.HasValue)
+            {
+                throw new BusinessException("This document requirement has already been fulfilled.");
+            }
+
+            var documentId = UploadInternal(
+                assetId,
+                requirement.DocumentType,
+                fileName,
+                contentType,
+                content,
+                uploadedByUserId,
+                requirement,
+                imageOnly: true);
+
+            if (_requirementService != null)
+            {
+                _requirementService.FulfillRequirement(requirementId, documentId);
+            }
+            else
+            {
+                requirement.DocumentId = documentId;
+                requirement.FulfilledAt = DateTime.UtcNow;
+                requirement.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<AssetDocumentRequirement>().Update(requirement);
+                _unitOfWork.SaveChanges();
+            }
+
+            return documentId;
+        }
+
+        private int UploadInternal(
+            int assetId,
+            string documentType,
+            string fileName,
+            string contentType,
+            Stream content,
+            string uploadedByUserId,
+            AssetDocumentRequirement requirement,
+            bool imageOnly = false)
+        {
             if (content == null)
             {
                 throw new BusinessException("File content is required.");
@@ -92,7 +153,21 @@ namespace AssetManagement.Application.Services
             }
 
             var extension = Path.GetExtension(fileName);
-            if (string.IsNullOrWhiteSpace(extension) || !AllowedExtensions.Contains(extension.ToLowerInvariant()))
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                throw new BusinessException("File name is required.");
+            }
+
+            var normalizedExtension = extension.ToLowerInvariant();
+            if (imageOnly)
+            {
+                if (normalizedExtension != ".jpg" && normalizedExtension != ".jpeg"
+                    && normalizedExtension != ".png" && normalizedExtension != ".gif")
+                {
+                    throw new BusinessException("Process-linked photos must be JPG, PNG, or GIF images.");
+                }
+            }
+            else if (!AllowedExtensions.Contains(normalizedExtension))
             {
                 throw new BusinessException("File type is not allowed.");
             }
@@ -121,6 +196,9 @@ namespace AssetManagement.Application.Services
                 FileSizeBytes = fileSizeBytes,
                 UploadedById = uploadedByUserId,
                 UploadedAt = now,
+                ProcessType = requirement == null ? null : requirement.ProcessType,
+                ProcessId = requirement == null ? (int?)null : requirement.ProcessId,
+                RequirementId = requirement == null ? (int?)null : requirement.Id,
                 CreatedAt = now,
                 IsActive = true
             };
@@ -144,6 +222,10 @@ namespace AssetManagement.Application.Services
             entity.IsActive = false;
             entity.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<AssetDocument>().Update(entity);
+            if (_requirementService != null)
+            {
+                _requirementService.ClearRequirementOnDocumentDelete(documentId);
+            }
             _storage.Delete(entity.FilePath);
             _unitOfWork.SaveChanges();
             _auditWriter?.Write("Documents.Delete", nameof(AssetDocument), entity.Id.ToString(), "Active", "Deleted");
@@ -327,7 +409,10 @@ namespace AssetManagement.Application.Services
                 ContentType = entity.ContentType,
                 FileSizeBytes = entity.FileSizeBytes,
                 UploadedByName = uploaderName,
-                UploadedAt = entity.UploadedAt
+                UploadedAt = entity.UploadedAt,
+                ProcessType = entity.ProcessType,
+                ProcessId = entity.ProcessId,
+                RequirementId = entity.RequirementId
             };
         }
     }

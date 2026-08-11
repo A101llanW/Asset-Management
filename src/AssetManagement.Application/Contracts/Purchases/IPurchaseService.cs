@@ -7,6 +7,14 @@ namespace AssetManagement.Application.Contracts
     {
         IEnumerable<PurchaseRecordVm> GetAll();
 
+        PagedListVm<PurchaseRecordVm> GetListPage(
+            string search,
+            int? supplierId,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
         PurchaseRecordVm GetById(int id);
 
         int Create(PurchaseRecordVm model);

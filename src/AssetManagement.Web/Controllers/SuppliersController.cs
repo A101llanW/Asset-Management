@@ -1,11 +1,15 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
+using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
@@ -24,32 +28,9 @@ namespace AssetManagement.Web.Controllers
 
         public ActionResult Index(string search = null, string sort = "name", string direction = "asc", int page = 1, int pageSize = 10)
         {
-            var items = _supplierService.GetAll();
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim().ToLowerInvariant();
-                items = items.Where(x => (x.SupplierName ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.ContactPerson ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.Email ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.Phone ?? string.Empty).ToLowerInvariant().Contains(term));
-            }
-
-            switch ((sort ?? string.Empty).ToLowerInvariant())
-            {
-                case "contact":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.ContactPerson) : items.OrderBy(x => x.ContactPerson);
-                    break;
-                case "status":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.IsActive) : items.OrderBy(x => x.IsActive);
-                    break;
-                default:
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderByDescending(x => x.SupplierName) : items.OrderBy(x => x.SupplierName);
-                    sort = "name";
-                    break;
-            }
-
+            var pageResult = _supplierService.GetListPage(search, sort, direction, page, pageSize);
             SetListSortViewBag(sort, direction);
-            return View(BuildListPage(items, search, sort, direction, page, pageSize));
+            return View(ToListPage(pageResult));
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -70,7 +51,61 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DefaultCurrency = GetDefaultCurrencyCode();
             ViewBag.AssetTypesUrl = Url.Action("AvailableAssetTypes");
             ViewBag.TaggedAssetsUrl = Url.Action("AvailableTaggedAssets");
+            ViewBag.CatalogAssetsSearchUrl = Url.Action("SearchCatalogAssets");
+            ViewBag.Departments = BuildDepartmentSelectList(null);
             return View(model);
+        }
+
+        public JsonResult SearchCatalogAssets(string search = null, int? departmentId = null, AssetStatus? status = null, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
+        {
+            var filter = new AssetFilterVm
+            {
+                Search = search,
+                DepartmentId = departmentId,
+                Status = status,
+                OrganizationWide = true
+            };
+
+            var pageModel = BuildAssetService().GetAssetListPage(filter, sort, direction, page, pageSize);
+            EnrichAssetListCustodianNames(pageModel.Items);
+            var listPage = ToAssetListPage(pageModel);
+
+            var items = pageModel.Items.Select(x => new
+            {
+                id = x.Id,
+                assetTag = x.AssetTag,
+                assetName = x.AssetName,
+                categoryId = x.CategoryId,
+                categoryName = x.CategoryName,
+                assetTypeId = x.AssetTypeId,
+                subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "—" : x.AssetSubTypeName,
+                departmentId = x.DepartmentId,
+                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "—" : x.CurrentCustodianName,
+                status = FormatCatalogAssetStatusLabel(x.CurrentStatus),
+                statusBadge = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
+                serialNumber = x.SerialNumber,
+                brand = x.Brand,
+                model = x.Model,
+                acquisitionCost = x.AcquisitionCost,
+                acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
+                label = FormatTaggedAssetLabel(x),
+                itemName = FormatCatalogItemName(x),
+                itemDescription = FormatCatalogItemDescription(x)
+            }).ToList();
+
+            return Json(new
+            {
+                items = items,
+                page = listPage.Page,
+                pageSize = listPage.PageSize,
+                totalCount = listPage.TotalCount,
+                totalPages = listPage.TotalPages,
+                startItem = listPage.StartItem,
+                endItem = listPage.EndItem,
+                sort = sort,
+                direction = direction
+            }, JsonRequestBehavior.AllowGet);
         }
 
         public JsonResult AvailableAssetTypes(int? categoryId)
@@ -179,6 +214,8 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
+            StripEmptyCatalogItems(model, ModelState);
+
             if (!ModelState.IsValid)
             {
                 EnsureCatalogItemRows(model);
@@ -250,6 +287,8 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DefaultCurrency = GetDefaultCurrencyCode();
             ViewBag.AssetTypesUrl = Url.Action("AvailableAssetTypes");
             ViewBag.TaggedAssetsUrl = Url.Action("AvailableTaggedAssets");
+            ViewBag.CatalogAssetsSearchUrl = Url.Action("SearchCatalogAssets");
+            ViewBag.Departments = BuildDepartmentSelectList(null);
         }
 
         private IList<AssetType> GetActiveAssetTypes()
@@ -278,6 +317,61 @@ namespace AssetManagement.Web.Controllers
             return label;
         }
 
+        private static string FormatCatalogAssetStatusLabel(AssetStatus status)
+        {
+            return status.ToString()
+                .Replace("AwaitingApproval", "Pending Approval")
+                .Replace("InStore", "In Store");
+        }
+
+        private static string FormatCatalogItemName(AssetListVm asset)
+        {
+            if (asset == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(asset.AssetName))
+            {
+                return asset.AssetName;
+            }
+
+            var brandModel = string.Join(" ", new[] { asset.Brand, asset.Model }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            return brandModel;
+        }
+
+        private static string FormatCatalogItemDescription(AssetListVm asset)
+        {
+            if (asset == null)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(asset.AssetTag))
+            {
+                parts.Add(asset.AssetTag);
+            }
+            if (!string.IsNullOrWhiteSpace(asset.AssetName))
+            {
+                parts.Add(asset.AssetName);
+            }
+            if (!string.IsNullOrWhiteSpace(asset.Brand))
+            {
+                parts.Add(asset.Brand);
+            }
+            if (!string.IsNullOrWhiteSpace(asset.Model))
+            {
+                parts.Add(asset.Model);
+            }
+            if (!string.IsNullOrWhiteSpace(asset.CategoryName))
+            {
+                parts.Add(asset.CategoryName);
+            }
+
+            return string.Join(" ", parts.Distinct());
+        }
+
         private SupplierCreateVm BuildCreateModel()
         {
             var currency = GetDefaultCurrencyCode();
@@ -288,6 +382,36 @@ namespace AssetManagement.Web.Controllers
                 new SupplierCatalogItemVm { Currency = currency }
             };
             return model;
+        }
+
+        private static void StripEmptyCatalogItems(SupplierCreateVm model, ModelStateDictionary modelState)
+        {
+            if (model?.CatalogItems == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < model.CatalogItems.Count; i++)
+            {
+                var item = model.CatalogItems[i];
+                if (item != null && !string.IsNullOrWhiteSpace(item.ItemName))
+                {
+                    continue;
+                }
+
+                var prefix = "CatalogItems[" + i + "].";
+                if (modelState != null)
+                {
+                    foreach (var key in modelState.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+                    {
+                        modelState.Remove(key);
+                    }
+                }
+            }
+
+            model.CatalogItems = model.CatalogItems
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.ItemName))
+                .ToList();
         }
 
         private static void EnsureCatalogItemRows(SupplierCreateVm model)

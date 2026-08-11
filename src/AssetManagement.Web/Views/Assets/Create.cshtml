@@ -1,13 +1,8 @@
 @using System.Globalization
 @using System.Linq
 @model AssetManagement.Application.ViewModels.AssetCreateVm
-@using AssetManagement.Domain.Entities
 @{
     ViewBag.Title = "Create Asset";
-    var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetType> ?? Enumerable.Empty<AssetType>();
-    var departments = ViewBag.Departments as SelectList;
-    var suppliers = ViewBag.Suppliers as SelectList;
     var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
     var acquisitionCostDisplay = Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"));
 }
@@ -66,34 +61,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                 Classification
             </h6>
-            <div class="row g-3">
-                <div class="col-md-3">
-                    @Html.LabelFor(m => m.CategoryId, new { @class = "form-label" })
-                    @Html.DropDownListFor(m => m.CategoryId, categories, "-- Select category --", new { @class = "form-select", id = "CategoryId" })
-                    @Html.ValidationMessageFor(m => m.CategoryId, "", new { @class = "text-danger small" })
-                </div>
-                <div class="col-md-3">
-                    @Html.LabelFor(m => m.AssetTypeId, new { @class = "form-label" })
-                    <select class="form-select" id="AssetTypeId" name="AssetTypeId">
-                        <option value="">-- Select asset type --</option>
-                        @foreach (var assetType in assetTypeOptions)
-                        {
-                            if (assetType == null) { continue; }
-                            <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId" @(Model != null && Model.AssetTypeId == assetType.Id ? "selected" : null)>@assetType.Name</option>
-                        }
-                    </select>
-                    @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger small" })
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="DepartmentId">Department <span class="text-muted fw-normal">(optional)</span></label>
-                    @Html.DropDownListFor(m => m.DepartmentId, departments, "-- No department (organization custody) --", new { @class = "form-select" })
-                    <p class="form-text mb-0">Leave blank to register the asset under organization custody until a department is assigned.</p>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="SupplierId">Supplier <span class="text-muted fw-normal">(optional)</span></label>
-                    @Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select" })
-                </div>
-            </div>
+            @Html.Partial("_AssetClassificationFields", Model)
         </div>
     </div>
 
@@ -122,9 +90,11 @@
                 </div>
                 @Html.Partial("_AssetTaxAmountFields", Model)
             </div>
-            <p class="text-muted small mb-0 mt-3">Expected useful life is applied from asset type or category rules when your company administrator has configured them. Otherwise it remains not set.</p>
+            <p class="text-muted small mb-0 mt-3">Expected useful life and depreciation defaults are applied from asset type or category rules when configured.</p>
         </div>
     </div>
+
+    @Html.Partial("_AssetDepreciationFields", Model)
 
     @* Section 4: Approval Paths *@
     <div class="card card-kpi border-0 shadow-sm mb-4">
@@ -146,6 +116,9 @@
     })
 }
 
+@Html.Partial("_AssetSubTypePickerModal")
+
 <script src="@Url.Content("~/Scripts/app/asset-monetary-input.js")"></script>
 <script src="@Url.Content("~/Scripts/app/asset-category-type.js")"></script>
 <script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>

@@ -1,6 +1,6 @@
 -- ============================================================================
 -- DEV-ONLY: Large dataset generator for performance benchmarks (100k assets).
--- Disabled by default. Enable with initialize-database.ps1 -IncludeLargeDataset
+-- Disabled by default. Enable with tools/database/Initialize-Database.ps1 -IncludeLargeDataset
 -- or set @RunLargeDatasetSeed = 1 below before running this script manually.
 -- Requires multitenancy (OrganizationId on Asset). Do NOT run in production.
 -- ============================================================================

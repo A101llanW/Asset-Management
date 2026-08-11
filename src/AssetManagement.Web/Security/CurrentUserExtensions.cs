@@ -1,30 +1,61 @@
 using System;
 using System.Configuration;
 using System.Reflection;
-using System.Security.Principal;
 using System.Web;
 using System.Web.Security;
+using AssetManagement.Application.Security;
 using AssetManagement.Infrastructure.Identity;
-using AssetManagement.Infrastructure.Security;
+using AssetManagement.Web.Helpers;
 
 namespace AssetManagement.Web.Security
 {
     public static class CurrentUserExtensions
     {
-        public static string GetUserId(this IPrincipal principal)
+        public static string GetUserId(this System.Security.Principal.IPrincipal principal)
         {
-            return FormsAuthHelper.GetUserId(principal);
+            return Infrastructure.Security.FormsAuthHelper.GetUserId(principal);
         }
 
         public static void SetAuthCookie(HttpResponseBase response, ApplicationUser user, bool rememberMe)
         {
+            var userAgent = HttpContext.Current != null && HttpContext.Current.Request != null
+                ? HttpContext.Current.Request.UserAgent
+                : null;
+            SetAuthCookie(response, user, rememberMe, userAgent);
+        }
+
+        public static void SetAuthCookie(HttpResponseBase response, ApplicationUser user, bool rememberMe, string userAgent)
+        {
+            SetAuthCookie(response, user, rememberMe, userAgent, user != null && user.RequirePasswordChange);
+        }
+
+        public static void SetAuthCookie(
+            HttpResponseBase response,
+            ApplicationUser user,
+            bool rememberMe,
+            string userAgent,
+            bool requirePasswordChange)
+        {
+            if (user == null || string.IsNullOrWhiteSpace(user.Id))
+            {
+                return;
+            }
+
+            var uaHash = UserAgentFingerprint.Compute(userAgent);
+            var userData = AuthTicketHelper.BuildUserData(
+                user.Id,
+                user.OrganizationId,
+                user.AccessToken,
+                uaHash,
+                requirePasswordChange);
+
             var ticket = new FormsAuthenticationTicket(
                 1,
-                user.Email,
+                string.IsNullOrWhiteSpace(user.Email) ? user.Id : user.Email,
                 DateTime.Now,
                 DateTime.Now.AddMinutes(FormsAuthentication.Timeout.TotalMinutes),
                 rememberMe,
-                user.Id,
+                userData,
                 FormsAuthentication.FormsCookiePath);
 
             var encryptedTicket = FormsAuthentication.Encrypt(ticket);

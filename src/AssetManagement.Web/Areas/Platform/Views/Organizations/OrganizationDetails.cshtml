@@ -1,10 +1,12 @@
 @model AssetManagement.Web.Areas.Platform.Controllers.OrganizationDetailsViewModel
 @using AssetManagement.Domain.Enums
+@using AssetManagement.Application.Helpers
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Organization Profile - " + Model.Organization.Name;
     Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
     const int previewRowCount = 5;
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
     var authorizedStaff = (Model.Users ?? new List<AssetManagement.Application.ViewModels.UserVm>())
         .OrderBy(u => u.LastName)
         .ThenBy(u => u.FirstName)
@@ -27,6 +29,8 @@
     var relativeLogin = Url.RouteUrl("Tenant", new { tenant = Model.Organization.Slug, controller = "Account", action = "Login" });
     var portalUrl = new Uri(Request.Url, relativeLogin).AbsoluteUri;
     var tenantDashboardUrl = TenantUrlHelper.TenantRouteUrl(Url, Model.Organization.Slug, "Index", "Dashboard");
+    var canManageOrg = Html.HasPermission("Platform.Organizations.Manage");
+    var logoUrl = OrganizationLogoHelper.GetLogoUrl(Url, Model.Organization.LogoPath);
 
     Func<AssetManagement.Application.ViewModels.UserVm, string> displayName = user =>
     {
@@ -48,7 +52,14 @@
     <div class="card card-kpi am-platform-profile-header mb-4">
         <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="d-flex align-items-center gap-3">
-                <div class="am-platform-profile-logo" aria-hidden="true">Org</div>
+                @if (!string.IsNullOrWhiteSpace(logoUrl))
+                {
+                    <img src="@logoUrl" alt="" class="am-platform-profile-logo am-platform-profile-logo--image" width="64" height="64" />
+                }
+                else
+                {
+                    <div class="am-platform-profile-logo" aria-hidden="true">Org</div>
+                }
                 <div>
                     <h1 class="am-platform-profile-header__title mb-1">@Model.Organization.Name</h1>
                     <p class="text-muted mb-0">
@@ -58,6 +69,10 @@
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-secondary btn-sm"
+                   href="@Url.Action("ExportOrganizationDetailsCsv", "Organizations", new { area = "Platform", id = Model.Organization.Id })">
+                    Export CSV
+                </a>
                 @if (canViewLicenses)
                 {
                     <a class="btn btn-outline-primary btn-sm"
@@ -73,6 +88,53 @@
         </div>
     </div>
 
+    @if (canManageOrg)
+    {
+        <div class="alert alert-danger border mb-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                <div>
+                    <strong>Test only — permanent delete</strong>
+                    <p class="mb-0 small">
+                        Removes this organization and all related tenant data (users, roles, assets, procurement, licenses, etc.).
+                        This cannot be undone.
+                    </p>
+                </div>
+                <button type="button"
+                        class="btn btn-danger btn-sm"
+                        data-bs-toggle="modal"
+                        data-bs-target="#deleteOrganizationModal">
+                    Delete organization &amp; data
+                </button>
+            </div>
+        </div>
+
+        <div class="modal fade" id="deleteOrganizationModal" tabindex="-1" aria-labelledby="deleteOrganizationModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    @using (Html.BeginForm("DeleteOrganization", "Organizations", new { area = "Platform", id = Model.Organization.Id }, FormMethod.Post))
+                    {
+                        @Html.AntiForgeryToken()
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="deleteOrganizationModalLabel">Confirm permanent delete</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Type <strong>@Model.Organization.Name</strong> to confirm deletion of organization #@Model.Organization.Id.</p>
+                            <div class="mb-0">
+                                <label class="form-label" for="confirmName">Organization name</label>
+                                <input type="text" class="form-control" id="confirmName" name="confirmName" autocomplete="off" required />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Delete permanently</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="row g-4">
         <div class="col-lg-4">
             <div class="card card-kpi am-platform-section-card mb-4">
@@ -80,6 +142,19 @@
                     <h2 class="am-platform-section-card__title mb-0">Organization Details</h2>
                 </div>
                 <div class="card-body">
+                    @if (canManageOrg)
+                    {
+                        using (Html.BeginForm("UploadLogo", "Organizations", new { area = "Platform", id = Model.Organization.Id }, FormMethod.Post, new { enctype = "multipart/form-data", @class = "mb-3" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <label class="form-label small text-muted" for="logoFile">Organization logo</label>
+                            <div class="input-group input-group-sm">
+                                <input type="file" name="logoFile" id="logoFile" class="form-control" accept="image/png,image/jpeg,image/gif,image/webp" />
+                                <button type="submit" class="btn btn-outline-primary">Upload</button>
+                            </div>
+                            <div class="form-text">PNG, JPG, GIF, or WEBP up to 512 KB.</div>
+                        }
+                    }
                     <table class="table am-platform-info-table mb-0">
                         <tbody>
                             <tr>
@@ -318,7 +393,7 @@
                     <table class="table table-hover mb-0 am-platform-details-table">
                         <thead>
                             <tr>
-                                <th>Timestamp</th>
+                                <th>Timestamp (@eatLabel)</th>
                                 <th>Subject</th>
                                 <th>Action Signature</th>
                                 <th>Entity</th>
@@ -339,7 +414,7 @@
                                     var hideRow = i >= previewRowCount;
                                     var rowClass = hideRow ? "audit-feed-extra d-none" : string.Empty;
                                     <tr class="@rowClass">
-                                        <td><span class="text-muted">@log.Timestamp.ToString("HH:mm:ss dd/MM")</span></td>
+                                        <td><span class="text-muted">@Html.FormatAuditTimestamp(log.Timestamp, "HH:mm:ss dd/MM")</span></td>
                                         <td>@(string.IsNullOrWhiteSpace(log.ActorUserId) ? "System" : log.ActorUserId)</td>
                                         <td>@(string.IsNullOrWhiteSpace(log.ActionLabel) ? log.Action : log.ActionLabel)</td>
                                         <td>

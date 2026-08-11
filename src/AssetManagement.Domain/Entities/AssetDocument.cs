@@ -25,6 +25,14 @@ namespace AssetManagement.Domain.Entities
 
         public DateTime UploadedAt { get; set; }
 
+        public string ProcessType { get; set; }
+
+        public int? ProcessId { get; set; }
+
+        public int? RequirementId { get; set; }
+
         public virtual Asset Asset { get; set; }
+
+        public virtual AssetDocumentRequirement Requirement { get; set; }
     }
 }

@@ -41,12 +41,13 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
     leadDays: string,
     matchDescription: string,
   ): Promise<void> {
-    await page.locator('input[name="ItemName"]').fill(itemName);
-    await page.locator('input[name="Sku"]').fill(`SKU-${suffix}`);
-    await page.locator('input[name="UnitPrice"]').fill(unitPrice);
-    await page.locator('input[name="LeadTimeDays"]').fill(leadDays);
-    await page.locator('input[name="ItemDescription"]').fill(matchDescription);
-    await page.getByRole('button', { name: 'Add' }).click();
+    await page.locator('#show-supplier-catalog-add').click();
+    await page.locator('#supplier-catalog-add-panel input[name="ItemName"]').fill(itemName);
+    await page.locator('#supplier-catalog-add-panel input[name="Sku"]').fill(`SKU-${suffix}`);
+    await page.locator('#supplier-catalog-add-panel input[name="UnitPrice"]').fill(unitPrice);
+    await page.locator('#supplier-catalog-add-panel input[name="LeadTimeDays"]').fill(leadDays);
+    await page.locator('#supplier-catalog-add-panel input[name="ItemDescription"]').fill(matchDescription);
+    await page.locator('#supplier-catalog-add-form').getByRole('button', { name: 'Save item' }).click();
     await expect(page.getByText('Catalog item added.')).toBeVisible();
     await expect(page.getByText(itemName)).toBeVisible();
   }
@@ -86,13 +87,14 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
     await page.locator('#TaxId').fill(`TAX-${suffix}`);
     await page.locator('#PaymentTerms').fill('Net 30');
     await page.locator('#DefaultLeadTimeDays').fill('7');
+    await page.getByText('Optional address, registration, and notes').click();
     await page.locator('#Website').fill('https://example.com/e2e-vendor');
     await page.locator('#Country').fill('Kenya');
     await page.locator('#Address').fill('Nairobi, Kenya');
     await page.locator('#PaymentInstructions').fill('Pay via bank transfer.');
     await page.locator('input[name="CatalogItems[0].ItemName"]').fill(`E2E Catalog ${suffix}`);
     await page.locator('input[name="CatalogItems[0].UnitPrice"]').fill('2500');
-    await page.locator('input[name="CatalogItems[0].ItemDescription"]').fill(`E2E Catalog ${suffix}`);
+    await page.locator('input[name="CatalogItems[0].ItemDescription"]').fill(`General supplies catalog ${suffix}`);
     await page.getByRole('button', { name: 'Create Supplier' }).click();
     await expect(page.getByText('Supplier created.')).toBeVisible();
     await expect(page.getByRole('heading', { name: newSupplierName }).first()).toBeVisible();
@@ -123,7 +125,7 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
 
     await gotoAppPath(page, '/Purchases/Index');
     await expectHeading(page, 'Purchase Records');
-    await page.getByRole('link', { name: 'Purchase requests (requisitions)' }).click();
+    await page.getByRole('link', { name: 'Requisitions' }).click();
     await expectHeading(page, 'Requisitions');
     await page.getByRole('link', { name: 'Back to Purchases' }).click();
     await expectHeading(page, 'Purchase Records');
@@ -137,10 +139,9 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
     );
     await expect(page.getByRole('textbox').first()).toHaveValue('Human Resources');
     await page.locator('#ItemDescription').fill(itemDescription);
-    await page.locator('#QuantityInStock').fill('2');
+    await expect(page.locator('#QuantityInStock')).toHaveAttribute('readonly', '');
     await page.locator('#Quantity').fill('10');
     await page.locator('#RequiredDate').fill('2026-07-15');
-    await page.locator('#EstimatedUnitCost').fill('5000');
     await page.locator('#Justification').fill(`Dept head E2E requisition ${suffix}`);
     await page.locator('#Notes').fill('Deliver to HR stores.');
     await page.locator('input[name="attachment"]').setInputFiles(attachmentPath);
@@ -156,7 +157,6 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
     await gotoAppPath(page, '/PurchaseRequests/Create');
     await page.locator('#ItemDescription').fill(rejectItemDescription);
     await page.locator('#Quantity').fill('3');
-    await page.locator('#EstimatedUnitCost').fill('1200');
     await page.locator('#Justification').fill(`E2E reject path ${suffix}`);
     await page.getByRole('button', { name: 'Submit requisition' }).click();
     await expect(page.getByText('Requisition submitted.')).toBeVisible();
@@ -194,7 +194,7 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
 
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.getByText('Lowest price')).toBeVisible();
-    await page.locator('.select-offer').first().click();
+    await page.locator('#comparison-table tr', { hasText: 'Tech Source Ltd' }).locator('.select-offer').click();
 
     await page.locator('#PurchaseOrderNumber').fill(poNumber);
     await page.locator('#InvoiceNumber').fill(`INV-${suffix}`);
@@ -228,7 +228,7 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
     await page.locator('#manual-item-description').fill(itemDescription);
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.getByText('Lowest price')).toBeVisible({ timeout: 15_000 });
-    await page.locator('.select-offer').first().click();
+    await page.locator('#comparison-table tr', { hasText: 'Tech Source Ltd' }).locator('.select-offer').click();
     await expect(page.locator('#SupplierId')).not.toHaveValue('');
     await gotoAppPath(page, '/Purchases/Index');
     await expectHeading(page, 'Purchase Records');
@@ -243,14 +243,17 @@ test.describe('Procurement and requisitions — full wired E2E', () => {
     await page.getByRole('link', { name: 'Details' }).first().click();
 
     await page.getByRole('link', { name: 'Receive Asset' }).click();
-    await expectHeading(page, 'Receive Asset');
-    await selectDropdownOptionContaining(page, 'AssetId', inStoreAssetTags[3]);
+    await expectHeading(page, /Receive Asset/);
     await page.locator('#ReceivedDate').fill('2026-06-21');
     await page.locator('#QuantityReceived').fill('1');
-    await page.locator('#ConditionOnReceipt').fill('New');
+    await selectDropdownOptionContaining(page, 'ConditionOnReceipt', 'New');
     await page.locator('#Notes').fill('E2E receive against PO');
-    await page.getByRole('button', { name: 'Record Receiving' }).click();
-    await expect(page.getByText('Asset received against purchase record.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Enter serial numbers (optional)' }).click();
+    await page.locator('#receive-serial-input').fill(`SN-E2E-${suffix}`);
+    await page.getByRole('button', { name: 'Done' }).click();
+    await page.getByRole('button', { name: 'Create assets & record receiving' }).click();
+    await expect(page.getByText(/created and received/i)).toBeVisible();
     await expect(page.getByText('1 / 10')).toBeVisible();
   });
 

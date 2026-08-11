@@ -1,4 +1,7 @@
 @model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
+@using System
+@using System.Linq
+@using AssetManagement.Application.ViewModels
 @using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
@@ -6,10 +9,19 @@
     var canCreateAsset = Html.HasPermission("Assets.Create");
     var canEditAsset = Html.HasPermission("Assets.Edit");
     var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
+    var canRelocateAsset = ViewBag.CanRelocateAsset as bool? ?? false;
+    var classDepartments = ViewBag.ClassDepartments as System.Web.Mvc.SelectList;
     var departments = ViewBag.Departments as System.Web.Mvc.SelectList;
     var statuses = ViewBag.Statuses as System.Web.Mvc.SelectList;
     var currentSort = ViewBag.Sort as string;
     var currentDirection = ViewBag.Direction as string;
+    var listViewMode = ViewBag.ListViewMode as string ?? "grouped";
+    var groupedPage = ViewBag.GroupedPage as AssetGroupListPageVm;
+    var isGrouped = string.Equals(listViewMode, "grouped", StringComparison.OrdinalIgnoreCase);
+    var listFilter = ViewBag.Filter as AssetFilterVm ?? new AssetFilterVm();
+    var hasResults = isGrouped
+        ? groupedPage != null && groupedPage.Items.Any()
+        : Model.Items.Any();
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -21,7 +33,7 @@
     SecondaryActionLabel = canCreateAsset ? "Import from Excel" : null
 })
 
-<div class="card card-kpi border-0 shadow-sm mb-4">
+<div class="card card-kpi border-0 shadow-sm mb-4 am-fade-content">
     <div class="card-body p-3">
         <form class="am-list-toolbar mb-0" method="get">
             <div class="row g-2 align-items-center">
@@ -35,15 +47,21 @@
                     @Html.DropDownList("Status", statuses, "All statuses", new { @class = "form-select" })
                 </div>
                 <div class="col-md-2">
+                    <select class="form-select" name="view">
+                        <option value="flat" @(isGrouped ? null : "selected")>Flat list</option>
+                        <option value="grouped" @(isGrouped ? "selected" : null)>Grouped</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
                     <select class="form-select" name="pageSize">
                         @foreach (var size in new[] { 10, 25, 50 })
                         {
-                            <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                            <option value="@size" @(Model.PageSize == size ? "selected" : null)>@size per page</option>
                         }
                     </select>
                 </div>
                 <div class="col-md-1 d-grid">
-                    <button type="submit" class="btn btn-primary">Apply</button>
+                    <button type="submit" class="btn btn-primary am-click-spark">Apply</button>
                 </div>
             </div>
         </form>
@@ -55,7 +73,7 @@
     @Html.Partial("_ListBulkToolbar")
 }
 
-@if (!Model.Items.Any())
+@if (!hasResults)
 {
     <div class="card card-kpi border-0 shadow-sm">
         <div class="card-body am-empty-state py-5">
@@ -66,14 +84,215 @@
             <p class="text-muted mb-4">@(string.IsNullOrWhiteSpace(Model.Search) ? "Start by creating your first asset record, then use the asset profile to assign it, transfer it, or track maintenance." : "Try adjusting the search, department, or status filters to widen the results.")</p>
             @if (canCreateAsset)
             {
-                <a class="btn btn-primary" href="@Url.Action("Create")">Create Asset</a>
+                <a class="btn btn-primary am-click-spark" href="@Url.Action("Create")">Create Asset</a>
             }
         </div>
     </div>
 }
+else if (isGrouped && groupedPage != null)
+{
+    <div class="card card-kpi border-0 shadow-sm am-fade-content mb-4">
+        <div class="card-body p-0">
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom am-group-expand-toolbar">
+                @if (canBulkEdit)
+                {
+                    <span class="text-muted small">Expand groups to select individual units for bulk actions.</span>
+                }
+                else
+                {
+                    <span></span>
+                }
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-group-expand-all>Expand all</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-group-collapse-all>Collapse all</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="bg-light text-secondary">
+                            <th class="ps-3">Name</th>
+                            <th>Category</th>
+                            <th>Department</th>
+                            <th>Sub-type</th>
+                            <th>Status</th>
+                            <th>Units</th>
+                            <th>Total cost</th>
+                            <th class="text-end pe-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @{
+                        var groupIndex = 0;
+                    }
+                    @foreach (var group in groupedPage.Items)
+                    {
+                        var groupCollapseId = "asset-group-" + groupIndex;
+                        groupIndex++;
+                        <tr class="am-group-summary-row">
+                            <td class="ps-3 fw-bold">@group.AssetName</td>
+                            <td>@group.CategoryName</td>
+                            <td>@(string.IsNullOrWhiteSpace(group.DepartmentName) ? "Company custody" : group.DepartmentName)</td>
+                            <td>@(string.IsNullOrWhiteSpace(group.AssetSubTypeName) ? DisplayText.Empty : group.AssetSubTypeName)</td>
+                            <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(group.CurrentStatus) badge-status">@group.CurrentStatus</span></td>
+                            <td>@group.Count</td>
+                            <td>@Html.FormatCurrency(group.TotalAcquisitionCost)</td>
+                            <td class="text-end pe-3 text-nowrap">
+                                @if (canRelocateAsset && classDepartments != null && classDepartments.Any())
+                                {
+                                    var groupStatusRelocatable = group.CurrentStatus == AssetStatus.InStore
+                                        || group.CurrentStatus == AssetStatus.Received
+                                        || group.CurrentStatus == AssetStatus.Returned;
+                                    var relocatableCount = groupStatusRelocatable ? group.Count : 0;
+                                    if (relocatableCount > 0)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary me-1"
+                                                data-am-relocate-group-open
+                                                data-asset-name="@group.AssetName"
+                                                data-asset-sub-type-id="@(group.AssetSubTypeId.HasValue ? group.AssetSubTypeId.Value.ToString() : string.Empty)"
+                                                data-group-department-id="@(group.DepartmentId.HasValue ? group.DepartmentId.Value.ToString() : string.Empty)"
+                                                data-group-status="@((int)group.CurrentStatus)"
+                                                data-group-label="@group.AssetName (@relocatableCount)">Move group</button>
+                                    }
+                                }
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#@groupCollapseId"
+                                        aria-expanded="false"
+                                        aria-controls="@groupCollapseId"
+                                        data-am-group-toggle>Expand</button>
+                            </td>
+                        </tr>
+                        <tr class="am-group-detail-row" hidden="hidden" data-am-group-detail-row>
+                            <td colspan="8" class="bg-light p-0 border-0">
+                                <div class="collapse"
+                                     id="@groupCollapseId"
+                                     data-am-group-panel
+                                     data-am-group-key="@group.GroupKey"
+                                     data-am-group-asset-name="@group.AssetName"
+                                     data-am-group-sub-type-id="@(group.AssetSubTypeId.HasValue ? group.AssetSubTypeId.Value.ToString() : string.Empty)"
+                                     data-am-group-department-id="@(group.DepartmentId.HasValue ? group.DepartmentId.Value.ToString() : string.Empty)"
+                                     data-am-group-status="@((int)group.CurrentStatus)"
+                                     data-am-group-count="@group.Count">
+                                    <div class="py-2 px-3">
+                                        <table class="table table-sm table-borderless mb-0 am-group-members-table">
+                                            <thead class="text-muted small">
+                                                <tr>
+                                                    @if (canBulkEdit)
+                                                    {
+                                                        <th class="fw-normal am-bulk-col">
+                                                            <input type="checkbox"
+                                                                   class="form-check-input"
+                                                                   data-am-bulk-group-master
+                                                                   aria-label="Select all units in @group.AssetName" />
+                                                        </th>
+                                                    }
+                                                    <th class="fw-normal">Tag</th>
+                                                    <th class="fw-normal">Name</th>
+                                                    <th class="fw-normal">Custodian</th>
+                                                    <th class="fw-normal text-end">Cost</th>
+                                                    <th class="fw-normal text-end">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody data-am-group-members data-am-group-key="@group.GroupKey"></tbody>
+                                        </table>
+                                        <div class="text-muted small py-2 d-none" data-am-group-loading>Loading members...</div>
+                                        <div class="text-danger small py-2 d-none" data-am-group-error></div>
+                                        <button type="button" class="btn btn-sm btn-link px-0 am-group-view-more d-none" data-am-view-more>View more</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel
+    {
+        Page = groupedPage.Page,
+        TotalPages = Math.Max(1, (int)Math.Ceiling((double)groupedPage.TotalCount / groupedPage.PageSize)),
+        TotalCount = groupedPage.TotalCount,
+        StartItem = groupedPage.TotalCount == 0 ? 0 : ((groupedPage.Page - 1) * groupedPage.PageSize) + 1,
+        EndItem = Math.Min(groupedPage.Page * groupedPage.PageSize, groupedPage.TotalCount)
+    })
+    if (canRelocateAsset && classDepartments != null && classDepartments.Any())
+    {
+        <div class="modal fade" id="amRelocateClassModal" tabindex="-1" aria-labelledby="amRelocateClassModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    @using (Html.BeginForm("RelocateToClass", "Assets", FormMethod.Post, new { id = "amRelocateClassForm" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        @Html.Hidden("assetId", "", new { id = "amRelocateAssetId" })
+                        @Html.Hidden("Search", listFilter.Search ?? Model.Search)
+                        @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                        @Html.Hidden("Status", listFilter.Status)
+                        @Html.Hidden("sort", currentSort)
+                        @Html.Hidden("direction", currentDirection)
+                        @Html.Hidden("page", Model.Page)
+                        @Html.Hidden("pageSize", Model.PageSize)
+                        @Html.Hidden("view", "grouped")
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to class</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another class.</p>
+                            <label class="form-label" for="targetDepartmentId">Target class</label>
+                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select class --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Move asset</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="amRelocateGroupModal" tabindex="-1" aria-labelledby="amRelocateGroupModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    @using (Html.BeginForm("RelocateGroupToClass", "Assets", FormMethod.Post, new { id = "amRelocateGroupForm" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        @Html.Hidden("assetName", "", new { id = "amRelocateGroupAssetName" })
+                        @Html.Hidden("assetSubTypeId", "", new { id = "amRelocateGroupAssetSubTypeId" })
+                        @Html.Hidden("groupDepartmentId", "", new { id = "amRelocateGroupDepartmentId" })
+                        @Html.Hidden("groupStatus", "", new { id = "amRelocateGroupStatus" })
+                        @Html.Hidden("Search", listFilter.Search ?? Model.Search)
+                        @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                        @Html.Hidden("Status", listFilter.Status)
+                        @Html.Hidden("sort", currentSort)
+                        @Html.Hidden("direction", currentDirection)
+                        @Html.Hidden("page", Model.Page)
+                        @Html.Hidden("pageSize", Model.PageSize)
+                        @Html.Hidden("view", "grouped")
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="amRelocateGroupModalLabel">Move group to class</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">Move all eligible in-store units in <strong id="amRelocateGroupLabel"></strong> to another class. Assigned or non-eligible units are skipped.</p>
+                            <label class="form-label" for="amRelocateGroupTargetDepartmentId">Target class</label>
+                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select class --", new { @class = "form-select", id = "amRelocateGroupTargetDepartmentId", required = "required" })
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Move group</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
 else
 {
-    <div class="card card-kpi border-0 shadow-sm am-fade-in mb-4">
+    <div class="card card-kpi border-0 shadow-sm am-fade-content mb-4">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0 am-filterable-table" data-am-filterable>
@@ -104,8 +323,12 @@ else
                             <td class="@(canBulkEdit ? "" : "ps-3")"><span class="am-tag-pill">@item.AssetTag</span></td>
                             <td class="fw-bold text-dark">@item.AssetName</td>
                             <td>@item.CategoryName</td>
-                            <td><span class="text-secondary small fw-medium">@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Organization custody" : item.DepartmentName)</span></td>
-                            <td class="text-muted" style="font-size: 0.85rem;">@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? DisplayText.Empty : item.CurrentCustodianName)</td>
+                            <td><span class="text-secondary small fw-medium">@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Company custody" : item.DepartmentName)</span></td>
+                            <td class="text-muted" style="font-size: 0.85rem;">
+                                <span class="@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? "am-empty-custodian" : null)">
+                                    @(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? DisplayText.Unassigned : item.CurrentCustodianName)
+                                </span>
+                            </td>
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.CurrentStatus) badge-status px-2 py-1.5 rounded-pill text-capitalize">@item.CurrentStatus.ToString().Replace("AwaitingApproval", "Pending Approval").Replace("InStore", "In Store")</span></td>
                             <td class="fw-bold text-primary">@Html.FormatCurrency(item.AcquisitionCost)</td>
                             <td class="text-end pe-3">
@@ -136,5 +359,22 @@ else
     @if (canBulkEdit)
     {
         <script src="@Url.Content("~/Scripts/app/list-bulk.js")"></script>
+    }
+    @if (isGrouped && groupedPage != null && groupedPage.Items.Any())
+    {
+        <script>
+            window.AmGroupedAssetsConfig = {
+                groupMembersUrl: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Action("GroupMembers", "Assets"))),
+                canBulkEdit: @(canBulkEdit ? "true" : "false"),
+                unassignedLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Unassigned)),
+                memberPageSize: 10,
+                listFilter: {
+                    search: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(listFilter.Search ?? "")),
+                    departmentId: @(listFilter.DepartmentId.HasValue ? listFilter.DepartmentId.Value.ToString() : "null"),
+                    status: @(listFilter.Status.HasValue ? ((int)listFilter.Status.Value).ToString() : "null")
+                }
+            };
+        </script>
+        <script src="@Url.Content("~/Scripts/app/assets-grouped.js")"></script>
     }
 }

@@ -11,11 +11,21 @@ namespace AssetManagement.Application.DTOs
 
         public int UnassignedAssets { get; set; }
 
-        public int AssetsUnderMaintenance { get; set; }
+        public int MaintenanceAndDamagedAssets { get; set; }
+
+        public int LostAssets { get; set; }
 
         public int LostDamagedStolenAssets { get; set; }
 
         public decimal TotalAcquisitionValue { get; set; }
+
+        public decimal TotalCurrentBookValue { get; set; }
+
+        public decimal TotalAccumulatedDepreciation { get; set; }
+
+        public decimal AverageAnnualDepreciationRatePercent { get; set; }
+
+        public decimal DepreciationToDatePercent { get; set; }
 
         public decimal TotalCostOfOwnership { get; set; }
 

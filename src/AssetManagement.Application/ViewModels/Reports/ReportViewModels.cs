@@ -46,6 +46,8 @@ namespace AssetManagement.Application.ViewModels
         public string DefaultPeriodPreset { get; set; }
 
         public bool UsesForwardPeriods { get; set; }
+
+        public string RequiredPermission { get; set; }
     }
 
     public class ReportLookupVm
@@ -74,6 +76,16 @@ namespace AssetManagement.Application.ViewModels
         public string SortBy { get; set; }
 
         public string SortDirection { get; set; }
+
+        /// <summary>Optional host base URL (e.g. https://app.example.com) for absolute logo URLs in HTML/PDF exports.</summary>
+        public string ApplicationBaseUrl { get; set; }
+    }
+
+    public class ReportBrandingVm
+    {
+        public string OrganizationName { get; set; }
+
+        public string OrganizationLogoUrl { get; set; }
     }
 
     public class ReportDocumentResultVm

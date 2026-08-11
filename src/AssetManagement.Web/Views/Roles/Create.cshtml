@@ -5,11 +5,12 @@
     ViewBag.Title = "Create Role";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var roleTemplates = (Model.RoleTemplates ?? Enumerable.Empty<AssetManagement.Application.ViewModels.RoleTemplateVm>()).ToList();
+    var copySourceRoles = (Model.CopySourceRoles ?? Enumerable.Empty<AssetManagement.Application.ViewModels.RolePermissionCopyVm>()).ToList();
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Create Role",
-    Subtitle = "Combine permissions into a reusable role. Roles appear as approval stage choices under Settings &rarr; Approval Matrix (e.g. Procurement Officer for requisitions).",
+    Subtitle = "Combine module permissions into a reusable role. Roles appear as approval stage choices under Settings &rarr; Approval Matrix.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -23,22 +24,61 @@
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-    if (roleTemplates.Any())
-    {
-        <div class="card card-kpi mb-3">
-            <div class="card-body">
-                <label class="form-label" for="roleTemplatePicker">Start from template</label>
-                <select id="roleTemplatePicker" class="form-select" data-template-url="@Url.Action("TemplatePermissions", "Roles")">
-                    <option value="">— Select a saved template (optional) —</option>
-                    @foreach (var template in roleTemplates)
-                    {
-                        <option value="@template.Id">@template.Name (@template.PermissionCount permissions)</option>
-                    }
-                </select>
-                <div class="form-text">Applying a template fills the permission matrix below. You can still adjust individual permissions before saving.</div>
+    <div class="card card-kpi mb-3">
+        <div class="card-body">
+            <h6 class="mb-3">How should permissions start?</h6>
+            <div class="vstack gap-2">
+                <div class="form-check">
+                    <input class="form-check-input js-permission-start-mode" type="radio" name="permissionStartMode" id="permissionStartBlank" value="blank" checked="checked" />
+                    <label class="form-check-label" for="permissionStartBlank">
+                        <strong>Start from scratch</strong>
+                        <span class="d-block small text-muted">Begin with an empty permission matrix and select each permission manually.</span>
+                    </label>
+                </div>
+                @if (copySourceRoles.Any())
+                {
+                    <div class="form-check">
+                        <input class="form-check-input js-permission-start-mode" type="radio" name="permissionStartMode" id="permissionStartRole" value="role" />
+                        <label class="form-check-label" for="permissionStartRole">
+                            <strong>Copy from an existing role</strong>
+                            <span class="d-block small text-muted">Pre-fill the matrix from a role already in your organization, then adjust as needed.</span>
+                        </label>
+                    </div>
+                    <div id="roleCopyPanel" class="ms-4 mt-1" hidden="hidden">
+                        <label class="form-label" for="roleCopyPicker">Existing role</label>
+                        <select id="roleCopyPicker" class="form-select" data-role-url="@Url.Action("RolePermissions", "Roles")">
+                            <option value="">— Select a role —</option>
+                            @foreach (var role in copySourceRoles)
+                            {
+                                <option value="@role.Id">@role.Name (@role.PermissionCount permissions)</option>
+                            }
+                        </select>
+                    </div>
+                }
+                @if (roleTemplates.Any())
+                {
+                    <div class="form-check">
+                        <input class="form-check-input js-permission-start-mode" type="radio" name="permissionStartMode" id="permissionStartTemplate" value="template" />
+                        <label class="form-check-label" for="permissionStartTemplate">
+                            <strong>Copy from a saved template</strong>
+                            <span class="d-block small text-muted">Use a reusable permission set saved from a previous role.</span>
+                        </label>
+                    </div>
+                    <div id="roleTemplatePanel" class="ms-4 mt-1" hidden="hidden">
+                        <label class="form-label" for="roleTemplatePicker">Saved template</label>
+                        <select id="roleTemplatePicker" class="form-select" data-template-url="@Url.Action("TemplatePermissions", "Roles")">
+                            <option value="">— Select a template —</option>
+                            @foreach (var template in roleTemplates)
+                            {
+                                <option value="@template.Id">@template.Name (@template.PermissionCount permissions)</option>
+                            }
+                        </select>
+                    </div>
+                }
             </div>
+            <div class="form-text mt-3">You can still change individual permissions in the matrix below before saving the new role.</div>
         </div>
-    }
+    </div>
     <div class="row g-3 mb-3">
         <div class="col-md-4">
             @Html.LabelFor(m => m.Name, new { @class = "form-label" })
@@ -56,38 +96,7 @@
         </div>
     </div>
 
-    <div class="card card-kpi mb-3">
-        <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <h5 class="mb-0">Permission Matrix</h5>
-                <button type="button" class="btn btn-outline-secondary btn-sm js-select-all-permissions">Select all</button>
-            </div>
-            <p class="text-muted small mb-3">For requisitions: <strong>Department Head</strong> needs <code>Purchases.Create</code>; the approval stage role (typically <strong>Procurement Officer</strong>) needs <code>Purchases.Approve</code>. In-store requests use <code>Assets.Request</code> and <code>Assets.Request.Approve</code> instead of the approval matrix.</p>
-            @foreach (var group in Model.PermissionGroups)
-            {
-                <div class="border rounded p-3 mb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <strong>@group.Module</strong>
-                        <label class="form-check-label small">
-                            <input type="checkbox" class="form-check-input js-select-all-module" data-module="@group.Module" /> Select all
-                        </label>
-                    </div>
-                    <div class="row mt-2">
-                        @foreach (var permission in group.Permissions)
-                        {
-                            var isChecked = Model.SelectedPermissionIds.Contains(permission.Id);
-                            <div class="col-md-4">
-                                <label class="form-check-label" title="@permission.Code">
-                                    <input type="checkbox" name="SelectedPermissionIds" value="@permission.Id" data-module-item="@group.Module" class="form-check-input js-permission-checkbox" @(isChecked ? "checked=\"checked\"" : null) />
-                                    @PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)
-                                </label>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
+    @Html.Partial("_RolePermissionMatrix", Model)
 
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
@@ -98,5 +107,6 @@
 }
 
 @section Scripts {
+    <script src="@Url.Content("~/Scripts/app/permissions.js")"></script>
     <script src="@Url.Content("~/Scripts/app/role-templates.js")"></script>
 }

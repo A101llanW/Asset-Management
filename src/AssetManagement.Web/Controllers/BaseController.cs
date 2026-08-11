@@ -52,6 +52,13 @@ namespace AssetManagement.Web.Controllers
             return currency.Trim().ToUpperInvariant();
         }
 
+        protected string ResolveApplicationBaseUrl()
+        {
+            return Request != null && Request.Url != null
+                ? Request.Url.GetLeftPart(UriPartial.Authority)
+                : null;
+        }
+
         protected IAssetService BuildAssetService() => DependencyResolver.Current.GetService<IAssetService>();
 
         protected IAssetRequestService BuildAssetRequestService() => DependencyResolver.Current.GetService<IAssetRequestService>();
@@ -103,6 +110,12 @@ namespace AssetManagement.Web.Controllers
         protected IApprovalWorkflowService BuildApprovalWorkflowService() => DependencyResolver.Current.GetService<IApprovalWorkflowService>();
 
         protected IAssetDocumentService BuildAssetDocumentService() => DependencyResolver.Current.GetService<IAssetDocumentService>();
+
+        protected IAssetDocumentRequirementService BuildAssetDocumentRequirementService() => DependencyResolver.Current.GetService<IAssetDocumentRequirementService>();
+
+        protected IAssetSubTypeService BuildAssetSubTypeService() => DependencyResolver.Current.GetService<IAssetSubTypeService>();
+
+        protected IAssetStockService BuildAssetStockService() => DependencyResolver.Current.GetService<IAssetStockService>();
 
         protected IReferenceDataCache BuildReferenceDataCache() => DependencyResolver.Current.GetService<IReferenceDataCache>();
 
@@ -203,6 +216,13 @@ namespace AssetManagement.Web.Controllers
             return GetCurrentUserDepartmentId().HasValue;
         }
 
+        protected bool HasPermission(string permissionCode)
+        {
+            var userId = User.GetUserId();
+            return !string.IsNullOrWhiteSpace(userId)
+                && BuildAuthorizationService().HasPermission(userId, permissionCode);
+        }
+
         protected void ApplyLockedUserDepartment(int? lockedDepartmentId, Action<int?> applyDepartment)
         {
             if (!lockedDepartmentId.HasValue || applyDepartment == null || IsCurrentUserSuperAdmin())
@@ -252,6 +272,105 @@ namespace AssetManagement.Web.Controllers
 
             var cachedDepartments = BuildReferenceDataCache().GetDepartments(orgId.Value, activeOnly);
             return new SelectList(cachedDepartments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
+        }
+
+        protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null)
+        {
+            var items = new List<SelectListItem>();
+            foreach (var section in BuildDepartmentService().GetTreeSections())
+            {
+                foreach (var parent in section.Items)
+                {
+                    if (parent.IsRequisitionTarget)
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = parent.Id.ToString(),
+                            Text = parent.Name,
+                            Selected = selectedDepartmentId.HasValue && parent.Id == selectedDepartmentId.Value
+                        });
+                    }
+
+                    foreach (var child in parent.Children.Where(x => x.IsRequisitionTarget))
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = child.Id.ToString(),
+                            Text = parent.Name + " \u2192 " + child.Name,
+                            Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
+                        });
+                    }
+                }
+            }
+
+            return new SelectList(items, "Value", "Text", selectedDepartmentId);
+        }
+
+        protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)
+        {
+            var items = new List<SelectListItem>();
+            foreach (var section in BuildDepartmentService().GetTreeSections())
+            {
+                foreach (var parent in section.Items)
+                {
+                    foreach (var child in parent.Children.Where(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class))
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = child.Id.ToString(),
+                            Text = section.Title + " \u2192 " + child.Name,
+                            Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
+                        });
+                    }
+                }
+            }
+
+            return new SelectList(items, "Value", "Text", selectedDepartmentId);
+        }
+
+        protected SelectList BuildAssetFilterDepartmentSelectList(int? selectedDepartmentId = null)
+        {
+            var sections = BuildDepartmentService().GetTreeSections().ToList();
+            var hasClassDepartments = sections
+                .SelectMany(x => x.Items)
+                .SelectMany(x => x.Children)
+                .Any(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class);
+
+            if (!hasClassDepartments)
+            {
+                return BuildDepartmentSelectList(selectedDepartmentId, activeOnly: false);
+            }
+
+            var items = new List<SelectListItem>();
+            foreach (var section in sections)
+            {
+                foreach (var parent in section.Items)
+                {
+                    foreach (var child in parent.Children.Where(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class))
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = child.Id.ToString(),
+                            Text = section.Title + " \u2192 " + child.Name,
+                            Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
+                        });
+                    }
+
+                    if (parent.DepartmentKind != DepartmentKind.Grade
+                        && parent.IsActive
+                        && !parent.Children.Any(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class))
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = parent.Id.ToString(),
+                            Text = parent.Name,
+                            Selected = selectedDepartmentId.HasValue && parent.Id == selectedDepartmentId.Value
+                        });
+                    }
+                }
+            }
+
+            return new SelectList(items, "Value", "Text", selectedDepartmentId);
         }
 
         protected SelectList BuildCategorySelectList(int? selectedCategoryId = null, bool activeOnly = true)
@@ -414,6 +533,28 @@ namespace AssetManagement.Web.Controllers
                 TotalCount = source.TotalCount
             };
         }
+
+        protected ListPageViewModel<T> ToListPage<T>(PagedListVm<T> source)
+        {
+            if (source == null)
+            {
+                return new ListPageViewModel<T>();
+            }
+
+            return new ListPageViewModel<T>
+            {
+                Items = source.Items == null ? new List<T>() : source.Items.ToList(),
+                Search = source.Search,
+                Sort = source.Sort,
+                Direction = source.Direction,
+                Page = source.Page,
+                PageSize = source.PageSize,
+                TotalCount = source.TotalCount
+            };
+        }
+
+        protected ICatalogQueryRepository BuildCatalogQueryRepository()
+            => DependencyResolver.Current.GetService<ICatalogQueryRepository>();
 
         protected AssetWorkflowContextViewModel BuildAssetWorkflowContext(int assetId)
         {

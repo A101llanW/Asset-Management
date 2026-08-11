@@ -28,5 +28,14 @@ namespace AssetManagement.Web.ViewModels
 
         [Display(Name = "External base URL")]
         public string ExternalBaseUrl { get; set; }
+
+        [Display(Name = "Test recipient email")]
+        public string TestRecipientEmail { get; set; }
+
+        public bool ConfigurationIsReady { get; set; }
+
+        public bool ConfigurationIsBlocking { get; set; }
+
+        public string ConfigurationSummary { get; set; }
     }
 }

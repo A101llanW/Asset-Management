@@ -10,10 +10,15 @@
     var submitBtn = toolbar.querySelector("[data-am-bulk-submit]");
     var deptBlock = toolbar.querySelector("[data-am-bulk-dept]");
     var statusBlock = toolbar.querySelector("[data-am-bulk-status]");
-    var checkboxes = document.querySelectorAll("[data-am-bulk-id]");
+    var master = document.querySelector("[data-am-bulk-master]");
+
+    function getCheckboxes() {
+        return document.querySelectorAll("[data-am-bulk-id]");
+    }
 
     function selectedIds() {
         var ids = [];
+        var checkboxes = getCheckboxes();
         for (var i = 0; i < checkboxes.length; i++) {
             if (checkboxes[i].checked) {
                 ids.push(checkboxes[i].value);
@@ -53,13 +58,17 @@
         syncHiddenIds();
     }
 
-    for (var i = 0; i < checkboxes.length; i++) {
-        checkboxes[i].addEventListener("change", syncHiddenIds);
-    }
+    document.addEventListener("change", function (event) {
+        var target = event.target;
+        if (!target || !target.matches || !target.matches("[data-am-bulk-id]")) {
+            return;
+        }
+        syncHiddenIds();
+    });
 
-    var master = document.querySelector("[data-am-bulk-master]");
     if (master) {
         master.addEventListener("change", function () {
+            var checkboxes = getCheckboxes();
             for (var j = 0; j < checkboxes.length; j++) {
                 checkboxes[j].checked = master.checked;
             }
@@ -78,6 +87,10 @@
             }
         });
     }
+
+    window.AmListBulk = {
+        refresh: syncHiddenIds
+    };
 
     syncActionFields();
 })();

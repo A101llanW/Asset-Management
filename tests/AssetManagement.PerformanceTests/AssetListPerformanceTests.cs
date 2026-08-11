@@ -23,14 +23,14 @@ namespace AssetManagement.PerformanceTests
 
             if (!PerformanceTestSettings.TryGetDefaultOrganizationId(_connectionString, out _organizationId))
             {
-                Assert.Ignore("No organization found. Run initialize-database.ps1 first.");
+                Assert.Ignore("No organization found. Run tools/database/Initialize-Database.ps1 first.");
             }
 
             var assetCount = PerformanceTestSettings.CountActiveAssets(_connectionString, _organizationId);
             if (assetCount < PerformanceTestSettings.LargeDatasetMinimumAssets)
             {
                 Assert.Ignore(
-                    "Large dataset not seeded (" + assetCount + " assets). Run: .\\initialize-database.ps1 -IncludeLargeDataset");
+                    "Large dataset not seeded (" + assetCount + " assets). Run: .\\tools\\database\\Initialize-Database.ps1 -IncludeLargeDataset");
             }
         }
 

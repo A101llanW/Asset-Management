@@ -6,7 +6,8 @@ namespace AssetManagement.Infrastructure.Queries
     public static class SqlQueryHelper
     {
         public const string AssetDepartmentScopeSql =
-            "(@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND {0}.[DepartmentId] = @DepartmentId))";
+            "(@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND {0}.[DepartmentId] = @DepartmentId)" +
+            " OR (@IncludeClassDepartmentAssets = 1 AND EXISTS (SELECT 1 FROM [Department] dc WHERE dc.[Id] = {0}.[DepartmentId] AND dc.[DepartmentKind] = 2 AND dc.[IsActive] = 1)))";
 
         public static string FormatAssetDepartmentScopeSql(string tableAlias)
         {
@@ -17,11 +18,13 @@ namespace AssetManagement.Infrastructure.Queries
             IDbCommand command,
             bool bypassesDepartmentScope,
             bool denyDepartmentScope,
-            int? departmentId)
+            int? departmentId,
+            bool includeClassDepartmentAssets = false)
         {
             AddParameter(command, "@BypassDepartmentScope", bypassesDepartmentScope ? 1 : 0);
             AddParameter(command, "@DenyDepartmentScope", denyDepartmentScope ? 1 : 0);
             AddParameter(command, "@DepartmentId", departmentId.HasValue ? (object)departmentId.Value : DBNull.Value);
+            AddParameter(command, "@IncludeClassDepartmentAssets", includeClassDepartmentAssets ? 1 : 0);
         }
 
         public static void AddParameter(IDbCommand command, string name, object value)

@@ -1,14 +1,16 @@
 @using AssetManagement.Application.ViewModels
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Web.Helpers
 @{
     var auditLogs = ViewBag.AssetAuditLogs as IEnumerable<AuditLogVm> ?? Enumerable.Empty<AuditLogVm>();
     var assetId = ViewBag.AssetId as int?;
     var canViewAuditLogs = Html.HasPermission("AuditLogs.View");
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
 }
-
 <div class="card card-kpi">
     <div class="card-body">
         <h6 class="mb-3">Audit trail</h6>
-        <p class="text-muted small">System activity recorded for this asset.</p>
+        <p class="text-muted small">Key lifecycle events for this asset (assignments, transfers, incidents, claims, and other important changes).</p>
 
         @if (auditLogs.Any())
         {
@@ -16,7 +18,7 @@
                 <table class="table table-sm table-striped mb-0">
                     <thead>
                         <tr>
-                            <th>When</th>
+                            <th>When (@eatLabel)</th>
                             <th>Action</th>
                             <th>Actor</th>
                             <th>IP</th>
@@ -26,7 +28,7 @@
                     @foreach (var entry in auditLogs)
                     {
                         <tr>
-                            <td>@entry.Timestamp.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@Html.FormatAuditTimestamp(entry.Timestamp, KenyaTimeHelper.ShortTimestampFormat)</td>
                             <td>@(string.IsNullOrWhiteSpace(entry.ActionLabel) ? entry.Action : entry.ActionLabel)</td>
                             <td>@entry.ActorUserId</td>
                             <td>@(string.IsNullOrWhiteSpace(entry.IPAddress) ? "—" : entry.IPAddress)</td>

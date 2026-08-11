@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
+using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
@@ -10,6 +11,7 @@ using AssetManagement.Application.Services;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Infrastructure.Identity;
+using AssetManagement.Application.Security;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
@@ -17,6 +19,7 @@ using AssetManagement.Web.Security;
 namespace AssetManagement.Web.Controllers
 {
     [PermissionAuthorize("Assets.View")]
+    [ModuleAccess(ModulePermissionCatalog.Assets)]
     public class AssetsController : BaseController
     {
         private readonly IAssetService _assetService;
@@ -32,21 +35,105 @@ namespace AssetManagement.Web.Controllers
             _authorizationService = BuildAuthorizationService();
         }
 
-        public ActionResult Index(AssetFilterVm filter, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
+        public ActionResult Index(AssetFilterVm filter, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10, string view = "grouped")
         {
             filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
                 filter,
                 GetCurrentUserProfile(),
                 CanApproveAssetRequests(),
                 IsCurrentUserSuperAdmin());
-            var pageModel = _assetService.GetAssetListPage(filter, sort, direction, page, pageSize);
-            EnrichAssetListCustodianNames(pageModel.Items);
-            ViewBag.Departments = BuildDepartmentSelectList(filter?.DepartmentId, activeOnly: false);
+            if (filter == null)
+            {
+                filter = new AssetFilterVm();
+            }
+
+            filter.ListViewMode = string.Equals(view, "grouped", StringComparison.OrdinalIgnoreCase) ? "grouped" : "flat";
+            ViewBag.ListViewMode = filter.ListViewMode;
+            ViewBag.Departments = BuildAssetFilterDepartmentSelectList(filter?.DepartmentId);
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
+            ViewBag.CanRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
+            ViewBag.ClassDepartments = BuildClassDepartmentSelectList();
             ViewBag.Filter = filter;
             SetListSortViewBag(sort, direction);
+
+            if (string.Equals(filter.ListViewMode, "grouped", StringComparison.OrdinalIgnoreCase))
+            {
+                var groupedPage = _assetService.GetAssetGroupListPage(filter, sort, direction, page, pageSize);
+                ViewBag.GroupedPage = groupedPage;
+                return View(ToAssetListPage(new AssetListPageVm
+                {
+                    Items = new List<AssetListVm>(),
+                    TotalCount = groupedPage.TotalCount,
+                    Search = groupedPage.Search,
+                    Sort = groupedPage.Sort,
+                    Direction = groupedPage.Direction,
+                    Page = groupedPage.Page,
+                    PageSize = groupedPage.PageSize
+                }));
+            }
+
+            var pageModel = _assetService.GetAssetListPage(filter, sort, direction, page, pageSize);
+            EnrichAssetListCustodianNames(pageModel.Items);
             return View(ToAssetListPage(pageModel));
+        }
+
+        [PermissionAuthorize("Assets.View")]
+        public JsonResult GroupMembers(
+            AssetFilterVm filter,
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int skip = 0,
+            int take = 10)
+        {
+            filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
+                filter,
+                GetCurrentUserProfile(),
+                CanApproveAssetRequests(),
+                IsCurrentUserSuperAdmin());
+            if (filter == null)
+            {
+                filter = new AssetFilterVm();
+            }
+
+            if (string.IsNullOrWhiteSpace(assetName))
+            {
+                return Json(new { items = new object[0], totalCount = 0, skip = 0, take = take, hasMore = false, remainingCount = 0 }, JsonRequestBehavior.AllowGet);
+            }
+
+            var canRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
+            var pageModel = _assetService.GetAssetGroupMembers(filter, assetName, assetSubTypeId, groupDepartmentId, groupStatus, skip, take);
+            EnrichAssetListCustodianNames(pageModel.Items);
+
+            var items = pageModel.Items.Select(x => new
+            {
+                id = x.Id,
+                assetTag = x.AssetTag,
+                assetName = x.AssetName,
+                brandModel = DisplayText.FormatBrandModel(x.Brand, x.Model),
+                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? DisplayText.Unassigned : x.CurrentCustodianName,
+                acquisitionCost = x.AcquisitionCost,
+                acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
+                detailsUrl = Url.Action("Details", new { id = x.Id }),
+                canMove = canRelocateAsset
+                    && string.IsNullOrWhiteSpace(x.CurrentCustodianId)
+                    && (x.CurrentStatus == AssetStatus.InStore
+                        || x.CurrentStatus == AssetStatus.Received
+                        || x.CurrentStatus == AssetStatus.Returned)
+            }).ToList();
+
+            var loadedCount = pageModel.Skip + pageModel.Items.Count;
+            return Json(new
+            {
+                items = items,
+                totalCount = pageModel.TotalCount,
+                skip = pageModel.Skip,
+                take = pageModel.Take,
+                hasMore = loadedCount < pageModel.TotalCount,
+                remainingCount = Math.Max(0, pageModel.TotalCount - loadedCount)
+            }, JsonRequestBehavior.AllowGet);
         }
 
         [HttpPost]
@@ -76,6 +163,93 @@ namespace AssetManagement.Web.Controllers
             }
 
             return RedirectToAction("Index");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AnyPermissionAuthorize("Assets.Edit", "Assets.Transfer")]
+        public ActionResult RelocateToClass(
+            int assetId,
+            int targetDepartmentId,
+            AssetFilterVm filter,
+            string sort = "tag",
+            string direction = "asc",
+            int page = 1,
+            int pageSize = 10,
+            string view = "grouped")
+        {
+            try
+            {
+                _assetService.RelocateToClassDepartment(assetId, targetDepartmentId, User.GetUserId());
+                TempData["Message"] = "Asset moved to the selected class.";
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            filter = filter ?? new AssetFilterVm();
+            return RedirectToAction("Index", new
+            {
+                Search = filter.Search,
+                DepartmentId = filter.DepartmentId,
+                Status = filter.Status,
+                sort,
+                direction,
+                page,
+                pageSize,
+                view
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AnyPermissionAuthorize("Assets.Edit", "Assets.Transfer")]
+        public ActionResult RelocateGroupToClass(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int targetDepartmentId,
+            AssetFilterVm filter,
+            string sort = "tag",
+            string direction = "asc",
+            int page = 1,
+            int pageSize = 10,
+            string view = "grouped")
+        {
+            try
+            {
+                var result = _assetService.RelocateGroupToClassDepartment(
+                    assetName,
+                    assetSubTypeId,
+                    groupDepartmentId,
+                    groupStatus,
+                    targetDepartmentId,
+                    User.GetUserId());
+                TempData["Message"] = "Group move completed: " + result.ProcessedCount + " moved, " + result.SkippedCount + " skipped.";
+                if (result.Messages != null && result.Messages.Count > 0)
+                {
+                    TempData["Guidance"] = string.Join(" ", result.Messages.Take(5));
+                }
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            filter = filter ?? new AssetFilterVm();
+            return RedirectToAction("Index", new
+            {
+                Search = filter.Search,
+                DepartmentId = filter.DepartmentId,
+                Status = filter.Status,
+                sort,
+                direction,
+                page,
+                pageSize,
+                view
+            });
         }
 
         [PermissionAuthorize("Assets.View")]
@@ -157,16 +331,18 @@ namespace AssetManagement.Web.Controllers
             var entity = UnitOfWork.Repository<Asset>().GetById(id);
             ViewBag.TransferApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Transfer);
             ViewBag.DisposalApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Disposal);
-            ViewBag.AssetLabelPrint = AssetLabelPrintHelper.CreateModel(Request, Url, model);
+            ViewBag.AssetLabelPrint = AssetLabelPrintHelper.CreateModel(Request, Url, model, GetExternalBaseUrl());
             ViewBag.AssetId = id;
             ViewBag.AssetAuditLogs = BuildAuditLogService()
-                .GetLogs(new AuditLogFilterVm { RelatedAssetId = id })
+                .GetLogs(new AuditLogFilterVm { RelatedAssetId = id, BusinessEventsOnly = true })
                 .OrderByDescending(x => x.Timestamp)
                 .Take(30)
                 .ToList();
             ViewBag.DisposalBlockedReason = BuildDisposalBlockedReason(model);
             EnrichAssetDetails(model);
             model.Documents = BuildAssetDocumentService().GetByAsset(id).ToList();
+            model.DocumentRows = BuildAssetDocumentRequirementService().GetStatusRowsByAsset(id).ToList();
+            ViewBag.PendingDocumentRequirementId = Request.QueryString["uploadRequirement"];
 
             return View(model);
         }
@@ -174,13 +350,73 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.View")]
         public ActionResult PrintLabel(int id)
         {
-            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id);
+            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
             if (model == null)
             {
                 return HttpNotFound();
             }
 
             return View(model);
+        }
+
+        [PermissionAuthorize("Assets.View")]
+        public ActionResult LabelZpl(int id)
+        {
+            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
+            if (model == null)
+            {
+                return HttpNotFound();
+            }
+
+            var settings = GetLabelPrinterSettings();
+            var zpl = ZplLabelBuilder.Build(ToZplLabelData(model), settings);
+            return Content(zpl, "text/plain");
+        }
+
+        [PermissionAuthorize("Assets.View")]
+        public JsonResult LabelPrintConfig(int id)
+        {
+            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
+            if (model == null)
+            {
+                return Json(new { error = "Asset not found." }, JsonRequestBehavior.AllowGet);
+            }
+
+            var settings = GetLabelPrinterSettings();
+            return Json(new
+            {
+                enabled = settings.Enabled,
+                mode = settings.Mode,
+                deviceName = settings.DeviceName,
+                zplUrl = Url.Action("LabelZpl", new { id = model.AssetId }),
+                labelWidthMm = settings.WidthMm,
+                labelHeightMm = settings.HeightMm,
+                assetId = model.AssetId
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        private string GetExternalBaseUrl()
+        {
+            var platformSettings = DependencyResolver.Current.GetService<IPlatformSettingsService>();
+            return platformSettings == null ? null : platformSettings.GetExternalBaseUrl();
+        }
+
+        private LabelPrinterSettingsVm GetLabelPrinterSettings()
+        {
+            return LabelPrinterSettingsHelper.FromDictionary(
+                ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll()));
+        }
+
+        private static ZplLabelData ToZplLabelData(AssetManagement.Web.ViewModels.AssetLabelPrintVm model)
+        {
+            return new ZplLabelData
+            {
+                AssetTag = model.AssetTag,
+                AssetName = model.AssetName,
+                DepartmentName = model.DepartmentName,
+                SerialNumber = model.SerialNumber,
+                ScanUrl = model.ScanUrl
+            };
         }
 
         [PermissionAuthorize("Assets.Create")]
@@ -196,6 +432,7 @@ namespace AssetManagement.Web.Controllers
 
             ApplyAssetFormDefaults(model);
             PopulateLookups(model);
+            PopulateDepreciationContext(model);
             PopulateAssetApprovalFormOptions();
             return View(model);
         }
@@ -222,6 +459,7 @@ namespace AssetManagement.Web.Controllers
             ApplyAssetFormDefaults(viewModel);
             ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
+            PopulateDepreciationContext(viewModel);
             PopulateAssetApprovalFormOptions();
             AssetApprovalSettingsHelper.ValidateApprovalProcesses(viewModel.ApprovalProcesses, (key, message) => ModelState.AddModelError(key, message));
             if (!ModelState.IsValid)
@@ -231,6 +469,7 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
+                viewModel.CanManageDepreciationSettings = CanManageDepreciationSettings();
                 var assetId = _assetService.Create(viewModel);
                 TempData["Message"] = "Asset created successfully.";
                 TempData["Guidance"] = "Next step: review the asset details, then assign it, transfer it, or add maintenance and insurance information.";
@@ -287,8 +526,8 @@ namespace AssetManagement.Web.Controllers
         {
             return File(
                 _assetImportService.GetImportTemplate(),
-                "text/csv",
-                "asset-import-template.csv");
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "asset-import-template.xlsx");
         }
 
         [PermissionAuthorize("Assets.Edit")]
@@ -311,6 +550,10 @@ namespace AssetManagement.Web.Controllers
                 Model = item.Model,
                 CategoryId = entity.CategoryId,
                 AssetTypeId = entity.AssetTypeId,
+                AssetSubTypeId = entity.AssetSubTypeId,
+                AssetSubTypeName = entity.AssetSubTypeId.HasValue
+                    ? ResolveAssetSubTypeName(entity.AssetSubTypeId.Value)
+                    : null,
                 DepartmentId = entity.DepartmentId,
                 SupplierId = entity.SupplierId,
                 PurchaseDate = entity.PurchaseDate,
@@ -323,6 +566,10 @@ namespace AssetManagement.Web.Controllers
                 ConditionOnReceipt = entity.ConditionOnReceipt,
                 DepreciationMethod = entity.DepreciationMethod,
                 DepreciationStartDate = entity.DepreciationStartDate,
+                UseCustomDepreciationLife = entity.DepreciationLifeMonths.HasValue,
+                DepreciationLifeMonths = entity.DepreciationLifeMonths,
+                UseCustomDepreciationRate = entity.DepreciationRatePercent.HasValue,
+                DepreciationRatePercent = entity.DepreciationRatePercent,
                 IsInsured = entity.IsInsured,
                 InsuredValue = entity.InsuredValue,
                 WarrantyStartDate = entity.WarrantyStartDate,
@@ -341,6 +588,7 @@ namespace AssetManagement.Web.Controllers
             AssetTaxInputHelper.SeedTaxInputFromStoredAmount(model);
             ApplyAssetFormDefaults(model);
             PopulateLookups(model);
+            PopulateDepreciationContext(model, entity);
             PopulateAssetApprovalFormOptions(entity.OrganizationId);
             return View(model);
         }
@@ -350,11 +598,12 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.Edit")]
         public ActionResult Edit([Bind(Prefix = "")] AssetEditVm viewModel)
         {
+            var assetEntity = UnitOfWork.Repository<Asset>().GetById(viewModel.Id);
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
             ApplyAssetFormDefaults(viewModel);
             ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
-            var assetEntity = UnitOfWork.Repository<Asset>().GetById(viewModel.Id);
+            PopulateDepreciationContext(viewModel, assetEntity);
             PopulateAssetApprovalFormOptions(assetEntity == null ? null : assetEntity.OrganizationId);
             AssetApprovalSettingsHelper.ValidateApprovalProcesses(viewModel.ApprovalProcesses, (key, message) => ModelState.AddModelError(key, message));
             if (!ModelState.IsValid)
@@ -364,6 +613,7 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
+                viewModel.CanManageDepreciationSettings = CanManageDepreciationSettings();
                 _assetService.Update(viewModel);
                 TempData["Message"] = "Asset updated successfully.";
                 return RedirectToAction("Details", new { id = viewModel.Id });
@@ -529,6 +779,64 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Departments = BuildDepartmentSelectList(model?.DepartmentId, activeOnly: false);
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId, activeOnly: false);
             ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
+            ViewBag.SubTypeLookupUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
+            ViewBag.SubTypeByTypeUrl = TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
+            ViewBag.SubTypeCreateUrl = TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
+        }
+
+        private string ResolveAssetSubTypeName(int subTypeId)
+        {
+            var subType = BuildAssetSubTypeService().GetById(subTypeId);
+            return subType == null ? null : subType.Name;
+        }
+
+        private bool CanManageDepreciationSettings()
+        {
+            var userId = User.GetUserId();
+            return _authorizationService.HasPermission(userId, "Depreciation.Manage")
+                || _authorizationService.HasPermission(userId, "Financials.Edit");
+        }
+
+        private void PopulateDepreciationContext(AssetCreateVm model, Asset entity = null)
+        {
+            ViewBag.CanManageDepreciation = CanManageDepreciationSettings();
+            if (model == null || model.CategoryId <= 0 || model.AssetTypeId <= 0)
+            {
+                ViewBag.EffectiveDepreciationLifeMonths = null;
+                ViewBag.EffectiveDepreciationRatePercent = null;
+                ViewBag.EffectiveDepreciationLifeSource = null;
+                ViewBag.EffectiveDepreciationRateSource = null;
+                return;
+            }
+
+            var previewAsset = entity ?? new Asset
+            {
+                CategoryId = model.CategoryId,
+                AssetTypeId = model.AssetTypeId,
+                UsefulLifeMonths = UsefulLifeResolver.Resolve(UnitOfWork, model.AssetTypeId, model.CategoryId),
+                DepreciationLifeMonths = model.UseCustomDepreciationLife ? model.DepreciationLifeMonths : null,
+                DepreciationRatePercent = model.UseCustomDepreciationRate ? model.DepreciationRatePercent : null,
+                DepreciationMethod = model.DepreciationMethod,
+                AcquisitionCost = model.AcquisitionCost,
+                SalvageValue = model.SalvageValue,
+                CurrentBookValue = model.AcquisitionCost
+            };
+
+            if (entity != null)
+            {
+                previewAsset.UsefulLifeMonths = entity.UsefulLifeMonths;
+                previewAsset.DepreciationLifeMonths = model.UseCustomDepreciationLife ? model.DepreciationLifeMonths : entity.DepreciationLifeMonths;
+                previewAsset.DepreciationRatePercent = model.UseCustomDepreciationRate ? model.DepreciationRatePercent : entity.DepreciationRatePercent;
+                previewAsset.CurrentBookValue = entity.CurrentBookValue;
+            }
+
+            var assetType = UnitOfWork.Repository<AssetType>().GetById(model.AssetTypeId);
+            var category = UnitOfWork.Repository<AssetCategory>().GetById(model.CategoryId);
+            var settings = DepreciationSettingsResolver.Resolve(previewAsset, assetType, category);
+            ViewBag.EffectiveDepreciationLifeMonths = settings.LifeMonths;
+            ViewBag.EffectiveDepreciationRatePercent = settings.AnnualRatePercent;
+            ViewBag.EffectiveDepreciationLifeSource = settings.LifeSource;
+            ViewBag.EffectiveDepreciationRateSource = settings.RateSource;
         }
 
         private void ApplyAssetFormDefaults(AssetCreateVm model)
@@ -586,7 +894,6 @@ namespace AssetManagement.Web.Controllers
         private void PopulateAssetApprovalFormOptions(int? organizationId = null)
         {
             PopulateRoleOptions();
-            PopulateAssetApproverPickerOptions(organizationId);
         }
     }
 }

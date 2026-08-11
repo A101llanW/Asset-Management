@@ -158,5 +158,77 @@
         </script>
     }
     @RenderSection("scripts", required: false)
+
+    @if (TempData.Peek("CredentialDownloadToken") != null)
+    {
+        var token = TempData["CredentialDownloadToken"].ToString();
+        var organizationName = TempData["NewOrganizationName"] ?? "the new organization";
+        // Build outside area routing — Url.Action inherits Platform area and produces /Platform/Account/...
+        var securityFilePath = Url.Content("~/Account/DownloadAdminCredentials") + "?token=" + Uri.EscapeDataString(token);
+        var securityFileAbsoluteUrl = Request.Url.GetLeftPart(UriPartial.Authority) + securityFilePath;
+
+        <div class="modal show" id="adminCredentialsModal" tabindex="-1" role="dialog" aria-labelledby="adminCredentialsModalLabel" aria-hidden="false" style="display: block; background-color: rgba(0,0,0,0.8); z-index: 10001; overflow-y: auto; overflow-x: hidden;">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+                    <div class="modal-header border-0 bg-primary text-white p-4">
+                        <h5 class="modal-title fw-bold" id="adminCredentialsModalLabel">Secure Access Protected</h5>
+                        <button type="button" class="btn-close btn-close-white" aria-label="Close" onclick="document.getElementById('adminCredentialsModal').style.display='none'; document.body.style.overflow='auto';"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <h4 class="fw-bold text-dark">Credentials Ready</h4>
+                        <p class="text-muted">Administrator credentials for <strong>@organizationName</strong> have been generated and encrypted.</p>
+
+                        <div class="card bg-light border-0 mb-4">
+                            <div class="card-body p-4">
+                                <p class="small text-muted mb-3">Copy this one-time secure link to share, or download the credentials yourself.</p>
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="secureDownloadUrl" readonly value="@securityFileAbsoluteUrl" style="background-color: #fff; font-family: monospace;" />
+                                    <button class="btn btn-outline-secondary" type="button" id="secureDownloadCopyBtn" title="Copy to clipboard">Copy</button>
+                                </div>
+                                <a href="@securityFilePath" class="btn btn-primary btn-lg w-100 fw-bold">
+                                    Download Security File
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning text-start mb-0">
+                            <strong>Critical Security Notice</strong>
+                            <ul class="small mb-0 mt-2">
+                                <li>This is a <strong>one-time</strong> link. Once downloaded, it cannot be accessed again.</li>
+                                <li>The file contains sensitive login details. Store it in a secure location.</li>
+                                <li>This link will expire in 60 minutes if not used.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 bg-light">
+                        <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('adminCredentialsModal').style.display='none'; document.body.style.overflow='auto';">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.body.style.overflow = 'hidden';
+            document.getElementById('adminCredentialsModal').addEventListener('click', function (e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
+            });
+            var copyBtn = document.getElementById('secureDownloadCopyBtn');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function () {
+                    var input = document.getElementById('secureDownloadUrl');
+                    if (!input) { return; }
+                    input.select();
+                    input.setSelectionRange(0, 99999);
+                    try {
+                        document.execCommand('copy');
+                        copyBtn.textContent = 'Copied';
+                        setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+                    } catch (err) { }
+                });
+            }
+        </script>
+    }
 </body>
 </html>

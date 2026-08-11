@@ -13,8 +13,10 @@
             <div class="col-md-4">
                 <div class="border rounded p-3 h-100">
                     <strong>Financial</strong>
-                    <p class="small text-muted mb-2">Acquisition @Html.FormatCurrency(Model.AcquisitionCost)@(Model.UsefulLifeMonths > 0 ? string.Format(" · useful life {0} months", Model.UsefulLifeMonths) : "")</p>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-am-asset-tab="financial">Financial details</button>
+                    <p class="small text-muted mb-2">@(Model.DepreciationSettings != null && Model.DepreciationSettings.EffectiveLifeMonths > 0 ? string.Format("Book value {0} · {1}% / year", Html.FormatCurrency(Model.CurrentBookValue), Model.DepreciationSettings.EffectiveRatePercent.ToString("N2")) : string.Format("Acquisition {0}", Html.FormatCurrency(Model.AcquisitionCost)))@(Model.UsefulLifeMonths > 0 ? string.Format(" · useful life {0} months", Model.UsefulLifeMonths) : "")</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-am-asset-tab="financial">Financial details</button>
+                    </div>
                 </div>
             </div>
             <div class="col-md-4">

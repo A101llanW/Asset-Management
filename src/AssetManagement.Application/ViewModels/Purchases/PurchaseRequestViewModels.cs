@@ -26,9 +26,6 @@ namespace AssetManagement.Application.ViewModels
 
         public DateTime? RequiredDate { get; set; }
 
-        [Required]
-        public decimal? EstimatedUnitCost { get; set; }
-
         [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
         public int Quantity { get; set; }
 
@@ -56,8 +53,6 @@ namespace AssetManagement.Application.ViewModels
         public string ApprovalStatus { get; set; }
 
         public DateTime CreatedAt { get; set; }
-
-        public decimal EstimatedUnitCost { get; set; }
 
         public int Quantity { get; set; }
 
@@ -95,8 +90,6 @@ namespace AssetManagement.Application.ViewModels
         public int? QuantityInStock { get; set; }
 
         public DateTime? RequiredDate { get; set; }
-
-        public decimal EstimatedUnitCost { get; set; }
 
         public int Quantity { get; set; }
 

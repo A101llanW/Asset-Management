@@ -34,5 +34,7 @@ namespace AssetManagement.Application.ViewModels
         public bool RequireDisposalApproval { get; set; }
 
         public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
+
+        public LabelPrinterSettingsVm LabelPrinter { get; set; } = new LabelPrinterSettingsVm();
     }
 }

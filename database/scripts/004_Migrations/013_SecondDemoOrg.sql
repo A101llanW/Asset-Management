@@ -126,12 +126,7 @@ BEGIN
         SET @typeId = SCOPE_IDENTITY();
     END
 
-    IF @supplierId IS NULL
-    BEGIN
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[OrganizationId],[CreatedAt],[IsActive])
-        VALUES (N'Beta Supply Co', N'Contact', N'supply@demo-b.local', N'+254700000000', @orgBId, @now, 1);
-        SET @supplierId = SCOPE_IDENTITY();
-    END
+    SET @supplierId = NULL;
 
     DECLARE @i INT = 1;
     WHILE @i <= 5

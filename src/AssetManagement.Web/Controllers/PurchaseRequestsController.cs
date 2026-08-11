@@ -7,17 +7,19 @@ using System.Web;
 using System.Web.Mvc;
 using System.Web.Script.Serialization;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
 {
-    [PermissionAuthorize("Purchases.View")]
+    [AnyPermissionAuthorize("Purchases.View", "Purchases.Create", "Purchases.Approve")]
     public class PurchaseRequestsController : BaseController
     {
         private static readonly string[] AllowedAttachmentExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv" };
@@ -32,9 +34,12 @@ namespace AssetManagement.Web.Controllers
             _storage = DependencyResolver.Current.GetService<IFileStorageProvider>();
         }
 
-        public ActionResult Index()
+        public ActionResult Index(string search = null, string sort = "created", string direction = "desc", int page = 1, int pageSize = 10)
         {
-            return View(_purchaseRequestService.GetAll());
+            var pageResult = _purchaseRequestService.GetListPage(search, sort, direction, page, pageSize);
+            ViewBag.Sort = sort;
+            ViewBag.Direction = direction;
+            return View(ToListPage(pageResult));
         }
 
         [PermissionAuthorize("Purchases.Create")]
@@ -96,7 +101,10 @@ namespace AssetManagement.Web.Controllers
             });
 
             model.RequestForSelf = true;
-            model.OrderByUserId = null;
+            if (!HasPermission("Purchases.CreateForAnyDepartment"))
+            {
+                model.OrderByUserId = null;
+            }
 
             PopulateCreateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
@@ -109,7 +117,10 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 var id = _purchaseRequestService.Submit(model, User.GetUserId());
-                SaveOptionalAttachment(id, attachment);
+                if (!HasPermission("Purchases.CreateForAnyDepartment"))
+                {
+                    SaveOptionalAttachment(id, attachment);
+                }
                 TempData["Message"] = "Requisition submitted.";
                 return RedirectToAction("Details", new { id, returnUrl = ViewBag.ReturnUrl });
             }
@@ -187,7 +198,11 @@ namespace AssetManagement.Web.Controllers
             var generatedBy = User != null && User.Identity != null && User.Identity.IsAuthenticated
                 ? User.Identity.Name
                 : "System";
-            var html = ReportHtmlBuilder.BuildRequisitionDocument(model, generatedBy);
+            var branding = ReportBrandingHelper.Resolve(
+                UnitOfWork,
+                DependencyResolver.Current.GetService<IOrganizationScopeService>(),
+                ResolveApplicationBaseUrl());
+            var html = ReportHtmlBuilder.BuildRequisitionDocument(model, generatedBy, branding);
             var fileName = SanitizeDownloadFileName(model.RequestNumber) + ".html";
             return File(Encoding.UTF8.GetBytes(html), "text/html; charset=utf-8", fileName);
         }
@@ -205,7 +220,11 @@ namespace AssetManagement.Web.Controllers
             var generatedBy = User != null && User.Identity != null && User.Identity.IsAuthenticated
                 ? User.Identity.Name
                 : "System";
-            var html = ReportHtmlBuilder.BuildRequisitionFragment(model, generatedBy);
+            var branding = ReportBrandingHelper.Resolve(
+                UnitOfWork,
+                DependencyResolver.Current.GetService<IOrganizationScopeService>(),
+                ResolveApplicationBaseUrl());
+            var html = ReportHtmlBuilder.BuildRequisitionFragment(model, generatedBy, branding);
             var fileName = SanitizeDownloadFileName(model.RequestNumber) + ".pdf";
             return Json(new { success = true, html, fileName }, JsonRequestBehavior.AllowGet);
         }
@@ -267,6 +286,55 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Purchases.Create")]
+        public JsonResult SearchTargetAssets(string search = null, int? departmentId = null, AssetStatus? status = null, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
+        {
+            var filter = new AssetFilterVm
+            {
+                Search = search,
+                DepartmentId = departmentId,
+                Status = status,
+                OrganizationWide = true
+            };
+
+            var pageModel = BuildAssetService().GetAssetListPage(filter, sort, direction, page, pageSize);
+            EnrichAssetListCustodianNames(pageModel.Items);
+            var listPage = ToAssetListPage(pageModel);
+            var inStockLookup = BuildInStockQuantityLookup(pageModel.Items);
+
+            var items = pageModel.Items.Select(x => new
+            {
+                id = x.Id,
+                assetTag = x.AssetTag,
+                assetName = x.AssetName,
+                categoryName = x.CategoryName,
+                departmentId = x.DepartmentId,
+                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "—" : x.CurrentCustodianName,
+                status = FormatAssetStatusLabel(x.CurrentStatus),
+                statusBadge = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
+                acquisitionCost = x.AcquisitionCost,
+                acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
+                label = FormatTargetAssetLabel(x),
+                itemDescription = FormatTargetAssetItemDescription(x),
+                subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "—" : x.AssetSubTypeName,
+                quantityInStock = ResolveInStockQuantity(x, inStockLookup)
+            }).ToList();
+
+            return Json(new
+            {
+                items = items,
+                page = listPage.Page,
+                pageSize = listPage.PageSize,
+                totalCount = listPage.TotalCount,
+                totalPages = listPage.TotalPages,
+                startItem = listPage.StartItem,
+                endItem = listPage.EndItem,
+                sort = sort,
+                direction = direction
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [PermissionAuthorize("Purchases.Create")]
         public JsonResult AvailableTargetAssets()
         {
             var items = GetTargetAssetOptions()
@@ -277,24 +345,69 @@ namespace AssetManagement.Web.Controllers
 
         private void PopulateCreateLookups(PurchaseRequestCreateVm model)
         {
-            var lockDepartment = !IsCurrentUserSuperAdmin() && GetCurrentUserDepartmentId().HasValue;
+            var canCreateForAnyDepartment = HasPermission("Purchases.CreateForAnyDepartment");
+            var lockDepartment = !canCreateForAnyDepartment
+                && !IsCurrentUserSuperAdmin()
+                && GetCurrentUserDepartmentId().HasValue;
             int? departmentId = model == null ? GetCurrentUserDepartmentId() : (int?)model.DepartmentId;
+            ViewBag.CanCreateForAnyDepartment = canCreateForAnyDepartment;
             ViewBag.LockDepartment = lockDepartment;
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
                 BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
-            ViewBag.Departments = BuildDepartmentSelectList(departmentId);
-            ViewBag.TargetAssets = BuildTargetAssetSelectList(model?.TargetAssetId);
+            ViewBag.Departments = canCreateForAnyDepartment
+                ? BuildRequisitionDepartmentSelectList(departmentId)
+                : BuildDepartmentSelectList(departmentId);
+            ViewBag.OrderByUsers = BuildOrderByUserSelectList(departmentId, model?.OrderByUserId);
+            ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
+            ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
         }
 
-        private SelectList BuildTargetAssetSelectList(int? selectedAssetId)
+        private SelectList BuildOrderByUserSelectList(int? departmentId, string selectedUserId)
         {
-            var options = GetTargetAssetOptions();
-            return new SelectList(
-                options,
-                "Value",
-                "Text",
-                selectedAssetId.HasValue ? selectedAssetId.Value.ToString() : null);
+            if (!departmentId.HasValue || departmentId.Value <= 0)
+            {
+                return new SelectList(Enumerable.Empty<SelectListItem>(), "Value", "Text");
+            }
+
+            var orgId = ResolveCurrentOrganizationId();
+            var users = orgId.HasValue
+                ? BuildReferenceDataCache().GetUsersForDropdown(orgId.Value, departmentId)
+                : BuildUserService().GetAll().Where(x => x.IsActive && x.DepartmentId == departmentId).ToList();
+            var items = users
+                .OrderBy(x => x.LastName)
+                .ThenBy(x => x.FirstName)
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id,
+                    Text = BuildUserLabel(x)
+                })
+                .ToList();
+            return new SelectList(items, "Value", "Text", selectedUserId);
+        }
+
+        private string ResolveSelectedTargetAssetLabel(int? assetId)
+        {
+            if (!assetId.HasValue || assetId.Value <= 0)
+            {
+                return string.Empty;
+            }
+
+            var page = BuildAssetService().GetAssetListPage(
+                new AssetFilterVm { OrganizationWide = true },
+                "tag",
+                "asc",
+                1,
+                500);
+            var match = page.Items.FirstOrDefault(x => x.Id == assetId.Value);
+            return match == null ? string.Empty : FormatTargetAssetLabel(match);
+        }
+
+        private static string FormatAssetStatusLabel(AssetStatus status)
+        {
+            return status.ToString()
+                .Replace("AwaitingApproval", "Pending Approval")
+                .Replace("InStore", "In Store");
         }
 
         private IList<SelectListItem> GetTargetAssetOptions()
@@ -333,6 +446,89 @@ namespace AssetManagement.Web.Controllers
             }
 
             return label;
+        }
+
+        private static string FormatTargetAssetItemDescription(AssetListVm asset)
+        {
+            if (asset == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(asset.AssetTag) && !string.IsNullOrWhiteSpace(asset.AssetName))
+            {
+                return asset.AssetTag + " - " + asset.AssetName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(asset.AssetName))
+            {
+                return asset.AssetName;
+            }
+
+            return asset.AssetTag ?? string.Empty;
+        }
+
+        private Dictionary<string, int> BuildInStockQuantityLookup(IList<AssetListVm> items)
+        {
+            var lookup = new Dictionary<string, int>(StringComparer.Ordinal);
+            if (items == null || items.Count == 0)
+            {
+                return lookup;
+            }
+
+            var stockService = BuildAssetStockService();
+            foreach (var group in items.GroupBy(BuildInStockQuantityKey))
+            {
+                if (lookup.ContainsKey(group.Key))
+                {
+                    continue;
+                }
+
+                var sample = group.First();
+                if (sample.AssetSubTypeId.HasValue && sample.AssetSubTypeId.Value > 0)
+                {
+                    lookup[group.Key] = stockService.GetAvailableQuantity(sample.AssetSubTypeId.Value, sample.DepartmentId);
+                    continue;
+                }
+
+                if (sample.AssetTypeId <= 0)
+                {
+                    lookup[group.Key] = sample.CurrentStatus == AssetStatus.InStore ? 1 : 0;
+                    continue;
+                }
+
+                lookup[group.Key] = BuildAssetService().CountAssets(new AssetFilterVm
+                {
+                    OrganizationWide = true,
+                    AssetTypeId = sample.AssetTypeId,
+                    DepartmentId = sample.DepartmentId,
+                    Status = AssetStatus.InStore
+                });
+            }
+
+            return lookup;
+        }
+
+        private static int ResolveInStockQuantity(AssetListVm asset, IDictionary<string, int> lookup)
+        {
+            if (asset == null || lookup == null)
+            {
+                return 0;
+            }
+
+            int quantity;
+            return lookup.TryGetValue(BuildInStockQuantityKey(asset), out quantity) ? quantity : 0;
+        }
+
+        private static string BuildInStockQuantityKey(AssetListVm asset)
+        {
+            var departmentId = asset.DepartmentId.GetValueOrDefault(0);
+            if (asset.AssetSubTypeId.HasValue && asset.AssetSubTypeId.Value > 0)
+            {
+                return "sub:" + departmentId + ":" + asset.AssetSubTypeId.Value;
+            }
+
+            return "type:" + departmentId + ":" + asset.AssetTypeId;
         }
 
         private void EnrichUserNames(PurchaseRequestDetailVm model)

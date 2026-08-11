@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Domain.Entities;
@@ -54,26 +56,27 @@ namespace AssetManagement.Tests
         }
 
         [Test]
-        public void GenerateNextTag_BuildsDemoStyleTag()
+        public void GenerateUniqueRandomTag_ReturnsUniqueValues()
         {
-            var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Asset
-            {
-                Id = 1,
-                AssetTag = "IT-LTP-001",
-                IsActive = true,
-                DepartmentId = 1,
-                CategoryId = 1,
-                AssetTypeId = 1,
-                SupplierId = 1,
-                CurrentStatus = AssetStatus.InStore,
-                PurchaseDate = System.DateTime.UtcNow
-            });
+            var taken = new[] { "IT-LTP-001", "ABCDEFGHJK" };
+            var tag1 = AssetTagHelper.GenerateUniqueRandomTag(taken);
+            var tag2 = AssetTagHelper.GenerateUniqueRandomTag(taken.Concat(new[] { tag1 }));
 
-            var assets = unitOfWork.Repository<Asset>().Query().Where(x => x.IsActive);
-            var tag = AssetTagHelper.GenerateNextTag(assets, "IT", "Laptop");
+            Assert.AreNotEqual(tag1, tag2);
+            Assert.AreEqual(AssetTagHelper.DefaultRandomTagLength, tag1.Length);
+            const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            Assert.IsTrue(tag1.All(ch => alphabet.IndexOf(ch) >= 0));
+            CollectionAssert.DoesNotContain(taken, tag1);
+        }
 
-            Assert.AreEqual("IT-LTP-002", tag);
+        [Test]
+        public void GenerateUniqueRandomTag_ReservesAgainstCollision()
+        {
+            var reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "RESERVED01" };
+            var tag = AssetTagHelper.GenerateUniqueRandomTag(null, reserved);
+
+            Assert.AreNotEqual("RESERVED01", tag);
+            Assert.AreEqual(AssetTagHelper.DefaultRandomTagLength, tag.Length);
         }
     }
 }

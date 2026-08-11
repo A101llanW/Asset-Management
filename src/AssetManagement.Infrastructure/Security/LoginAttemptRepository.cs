@@ -126,6 +126,20 @@ WHERE LOWER([Username]) = LOWER(@Username)
             }
         }
 
+        public void PurgeOlderThan(DateTime cutoffUtc)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "DELETE FROM [LoginAttempts] WHERE [AttemptedAtUtc] < @CutoffUtc";
+                    AddParameter(command, "@CutoffUtc", cutoffUtc);
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
         private static void AddParameter(IDbCommand command, string name, object value)
         {
             var parameter = command.CreateParameter();

@@ -12,56 +12,43 @@ namespace AssetManagement.Web.Controllers
     {
         public ActionResult Index(string search = null, int? categoryId = null, string sort = "name", string direction = "asc", int page = 1, int pageSize = 10)
         {
-            var items = UnitOfWork.Repository<AssetType>().GetAll();
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim().ToLowerInvariant();
-                items = items.Where(x => (x.Name ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.Description ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.AssetCategory.Name ?? string.Empty).ToLowerInvariant().Contains(term));
-            }
+            var orgId = ResolveCurrentOrganizationId();
+            var catalogQuery = BuildCatalogQueryRepository();
+            var pageResult = orgId.HasValue && catalogQuery != null
+                ? catalogQuery.GetAssetTypeListPage(orgId.Value, search, categoryId, sort, direction, page, pageSize)
+                : new PagedListVm<AssetTypeListVm>();
 
-            if (categoryId.HasValue)
-            {
-                items = items.Where(x => x.AssetCategoryId == categoryId.Value);
-            }
-
-            switch ((sort ?? string.Empty).ToLowerInvariant())
-            {
-                case "category":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.AssetCategory.Name)
-                        : items.OrderBy(x => x.AssetCategory.Name);
-                    break;
-                case "status":
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.IsActive)
-                        : items.OrderBy(x => x.IsActive);
-                    break;
-                default:
-                    items = string.Equals(direction, "desc", System.StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.Name)
-                        : items.OrderBy(x => x.Name);
-                    sort = "name";
-                    break;
-            }
-
-            var models = items.ToList().Select(x => new AssetTypeVm
+            var models = pageResult.Items.Select(x => new AssetTypeVm
             {
                 Id = x.Id,
                 AssetCategoryId = x.AssetCategoryId,
                 Name = x.Name,
                 Description = x.Description,
                 IsActive = x.IsActive,
-                UseCustomUsefulLife = x.UsefulLifeMonths.HasValue,
-                UsefulLifeMonths = x.UsefulLifeMonths
+                UseCustomUsefulLife = x.UseCustomUsefulLife,
+                UsefulLifeMonths = x.UsefulLifeMonths,
+                UseCustomDepreciationLife = x.UseCustomDepreciationLife,
+                DepreciationLifeMonths = x.DepreciationLifeMonths,
+                UseCustomDepreciationRate = x.UseCustomDepreciationRate,
+                DepreciationRatePercent = x.DepreciationRatePercent
             });
 
             ViewBag.Categories = BuildCategorySelectList(categoryId);
-            ViewBag.CategoryLookup = UnitOfWork.Repository<AssetCategory>().GetAll().ToDictionary(x => x.Id, x => x.Name);
+            ViewBag.CategoryLookup = pageResult.Items
+                .GroupBy(x => x.AssetCategoryId)
+                .ToDictionary(x => x.Key, x => x.First().CategoryName);
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
-            return View(BuildListPage(models, search, sort, direction, page, pageSize));
+            return View(ToListPage(new PagedListVm<AssetTypeVm>
+            {
+                Items = models.ToList(),
+                TotalCount = pageResult.TotalCount,
+                Search = pageResult.Search,
+                Sort = pageResult.Sort,
+                Direction = pageResult.Direction,
+                Page = pageResult.Page,
+                PageSize = pageResult.PageSize
+            }));
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -77,8 +64,12 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.CategoryName = entity.AssetCategory?.Name;
             ViewBag.CanManageUsefulLife = IsCurrentUserCompanyAdmin();
+            ViewBag.CanManageDepreciation = IsCurrentUserCompanyAdmin();
             ViewBag.CategoryDefaultUsefulLifeMonths = entity.AssetCategory?.DefaultUsefulLifeMonths;
+            ViewBag.CategoryDefaultDepreciationLifeMonths = entity.AssetCategory?.DefaultDepreciationLifeMonths;
+            ViewBag.CategoryDefaultDepreciationRatePercent = entity.AssetCategory?.DefaultDepreciationRatePercent;
             ViewBag.AssetCount = BuildAssetService().CountAssets(new AssetFilterVm { AssetTypeId = id });
+            ViewBag.SubTypes = BuildAssetSubTypeService().GetByAssetTypeId(id, activeOnly: false).ToList();
             return View(model);
         }
 
@@ -116,6 +107,7 @@ namespace AssetManagement.Web.Controllers
                 IsActive = model.IsActive
             };
             ApplyAssetTypeUsefulLife(entity, model);
+            ApplyAssetTypeDepreciation(entity, model);
 
             UnitOfWork.Repository<AssetType>().Add(entity);
             UnitOfWork.SaveChanges();
@@ -162,6 +154,7 @@ namespace AssetManagement.Web.Controllers
             entity.Description = model.Description;
             entity.IsActive = model.IsActive;
             ApplyAssetTypeUsefulLife(entity, model);
+            ApplyAssetTypeDepreciation(entity, model);
             UnitOfWork.Repository<AssetType>().Update(entity);
             UnitOfWork.SaveChanges();
             TempData["Message"] = "Asset type updated.";
@@ -220,21 +213,30 @@ namespace AssetManagement.Web.Controllers
                 Description = entity.Description,
                 IsActive = entity.IsActive,
                 UseCustomUsefulLife = entity.UsefulLifeMonths.HasValue,
-                UsefulLifeMonths = entity.UsefulLifeMonths
+                UsefulLifeMonths = entity.UsefulLifeMonths,
+                UseCustomDepreciationLife = entity.DepreciationLifeMonths.HasValue,
+                DepreciationLifeMonths = entity.DepreciationLifeMonths,
+                UseCustomDepreciationRate = entity.DepreciationRatePercent.HasValue,
+                DepreciationRatePercent = entity.DepreciationRatePercent
             };
         }
 
         private void PopulateUsefulLifeContext(int categoryId)
         {
             ViewBag.CanManageUsefulLife = IsCurrentUserCompanyAdmin();
+            ViewBag.CanManageDepreciation = IsCurrentUserCompanyAdmin();
             if (categoryId <= 0)
             {
                 ViewBag.CategoryDefaultUsefulLifeMonths = null;
+                ViewBag.CategoryDefaultDepreciationLifeMonths = null;
+                ViewBag.CategoryDefaultDepreciationRatePercent = null;
                 return;
             }
 
             var category = UnitOfWork.Repository<AssetCategory>().GetById(categoryId);
             ViewBag.CategoryDefaultUsefulLifeMonths = category == null ? null : category.DefaultUsefulLifeMonths;
+            ViewBag.CategoryDefaultDepreciationLifeMonths = category == null ? null : category.DefaultDepreciationLifeMonths;
+            ViewBag.CategoryDefaultDepreciationRatePercent = category == null ? null : category.DefaultDepreciationRatePercent;
         }
 
         private void ApplyAssetTypeUsefulLife(AssetType entity, AssetTypeVm model)
@@ -251,6 +253,32 @@ namespace AssetManagement.Web.Controllers
             }
 
             entity.UsefulLifeMonths = null;
+        }
+
+        private void ApplyAssetTypeDepreciation(AssetType entity, AssetTypeVm model)
+        {
+            if (!IsCurrentUserCompanyAdmin() || entity == null || model == null)
+            {
+                return;
+            }
+
+            if (model.UseCustomDepreciationLife && model.DepreciationLifeMonths.HasValue && model.DepreciationLifeMonths.Value > 0)
+            {
+                entity.DepreciationLifeMonths = model.DepreciationLifeMonths;
+            }
+            else
+            {
+                entity.DepreciationLifeMonths = null;
+            }
+
+            if (model.UseCustomDepreciationRate && model.DepreciationRatePercent.HasValue && model.DepreciationRatePercent.Value > 0)
+            {
+                entity.DepreciationRatePercent = model.DepreciationRatePercent;
+            }
+            else
+            {
+                entity.DepreciationRatePercent = null;
+            }
         }
     }
 }

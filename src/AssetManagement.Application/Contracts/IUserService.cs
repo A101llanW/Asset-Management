@@ -7,6 +7,13 @@ namespace AssetManagement.Application.Contracts
     {
         IEnumerable<UserVm> GetAll();
 
+        PagedListVm<UserVm> GetListPage(
+            UserListFilterVm filter,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
         UserVm GetById(string id);
 
         void AssignRole(string userId, int roleId);

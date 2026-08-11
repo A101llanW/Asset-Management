@@ -41,7 +41,7 @@ namespace AssetManagement.Application.ViewModels
                 case Disposal:
                     return "Disposal requests must be approved before assets are written off.";
                 case Purchase:
-                    return "Department heads submit requisitions; the configured role(s) approve before procurement records a purchase order. Typical setup: one stage — Procurement Officer (not Finance).";
+                    return "Department Heads submit requisitions for their department. Assign the approver role (typically Procurement Officer) as stage 1 under this matrix. Users need matching permissions — for example Purchases.Approve on the stage role. Assign department and role on each user's Details page.";
                 default:
                     return null;
             }
@@ -438,15 +438,15 @@ namespace AssetManagement.Application.ViewModels
                 case "Company Admin":
                     return "Configures approval matrix, roles, and org defaults.";
                 case "Department Head":
-                    return "Submits requisitions and in-store asset requests for their department.";
+                    return "Submits requisitions and in-store asset requests for their department. Only one Department Head per department.";
                 case "Procurement Officer":
                     return "Typical requisition approver; manages suppliers, catalog, and purchase orders.";
                 case "Asset Manager":
-                    return "Receives goods and approves in-store asset requests; may approve transfers/disposals when configured.";
+                    return "Receives goods and approves in-store asset requests; may approve transfers or disposals when configured.";
                 case "Finance Officer":
                     return "Financial reporting and depreciation; not the default requisition approver.";
                 case "Staff":
-                    return "Assignee-only profile — register employees without this login role.";
+                    return "Assignee-only profile — register employees without assigning this login role.";
                 case "Auditor":
                     return "Read-only access to reports and audit data.";
                 default:

@@ -35,6 +35,10 @@
                     <dd class="col-sm-7">@ViewBag.AssetCount</dd>
                     <dt class="col-sm-5">Default useful life</dt>
                     <dd class="col-sm-7">@(Model.DefaultUsefulLifeMonths.HasValue ? (Model.DefaultUsefulLifeMonths + " months") : "Not set")</dd>
+                    <dt class="col-sm-5">Depreciation life</dt>
+                    <dd class="col-sm-7">@(Model.DefaultDepreciationLifeMonths.HasValue ? (Model.DefaultDepreciationLifeMonths + " months") : "Inherits useful life")</dd>
+                    <dt class="col-sm-5">Depreciation rate</dt>
+                    <dd class="col-sm-7">@(Model.DefaultDepreciationRatePercent.HasValue ? (Model.DefaultDepreciationRatePercent + "% per year") : "Derived from life")</dd>
                 </dl>
             </div>
         </div>

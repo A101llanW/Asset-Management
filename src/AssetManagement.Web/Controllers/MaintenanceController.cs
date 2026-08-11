@@ -35,16 +35,22 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.Edit")]
-        public ActionResult Create(int assetId)
+        public ActionResult Create(int? assetId)
         {
+            if (!assetId.HasValue)
+            {
+                TempData["Error"] = "Select an asset to log maintenance for.";
+                return RedirectToAction("Index", "Assets");
+            }
+
             var model = new AssetMaintenanceVm
             {
-                AssetId = assetId,
+                AssetId = assetId.Value,
                 MaintenanceType = MaintenanceType.Corrective.ToString()
             };
 
             PopulateCreateLookups(model);
-            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId);
+            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
             return View(model);
         }
 

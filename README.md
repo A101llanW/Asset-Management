@@ -41,9 +41,27 @@ After running migration `database/scripts/004_Migrations/005_Multitenancy.sql`:
 
 ### Demo data (default tenant)
 
-Re-run `initialize-database.ps1` to apply the diverse seed (`017_DiverseDemoAssets.sql`). The default org includes **19 assets** across IT, Finance, HR, Operations, and Admin — laptops, desktops, printers, routers, furniture, lab equipment, and a fleet vehicle — with linked assignments, incidents, maintenance, insurance claims, asset requests, and purchase requests.
+Re-run `tools/database/Initialize-Database.ps1` to apply the diverse seed (`017_DiverseDemoAssets.sql`). The default org includes **19 assets** across IT, Finance, HR, Operations, and Admin — laptops, desktops, printers, routers, furniture, lab equipment, and a fleet vehicle — with linked assignments, incidents, maintenance, insurance claims, asset requests, and purchase requests.
 
 Example asset tags for scan/label testing: `IT-LTP-001` (barcode `BC-IT-LTP-001`), `OPS-MED-001` (under maintenance), `IT-LTP-003` (damaged + claim `CLM-2026-003`).
+
+### Asset import template
+
+Download the Excel template from **Assets → Import from Excel → Download template**. The workbook has three sheets:
+
+| Sheet | Purpose |
+| ----- | ------- |
+| **Instructions** | How to fill in the file (same text as the Import Assets page) |
+| **Import** | Row 1 = column headers (`*` = required), row 2 = Required/Optional, row 3 = example, row 4+ = your data |
+| **Lists** | Hidden pick-lists for condition, status, depreciation, and insurance columns |
+
+School opening-balance imports use **Department**, **Class**, and **Quantity**:
+
+- **Department** — `Classroom` for class assets; `Administration` or `Information Technology` for admin/IT rows
+- **Class** — required when Department is Classroom (e.g. `2A`, `3B`); for admin/IT rows, the sub-unit name (e.g. `Comp Lab - Senior`)
+- **Quantity** — optional unit count; if blank, counts are parsed from Description (e.g. `12 units`)
+
+Required columns: AssetName, AssetCategory, AssetType, Brand, Model, PurchaseDate, AcquisitionCost. Asset tags and QR codes are generated on import. The first pass can auto-provision missing departments, categories, and asset types. Fixture copies live at `e2e/fixtures/school-import-template.xlsx` and `database/fixtures/nis-school-opening-balance.xlsx`.
 
 Workflow highlights:
 
@@ -76,11 +94,17 @@ The repo stays in **development mode** by default. Daily work uses `Web.config` 
 | ------- | ---------------------------------- | --------------------------------- |
 | `compilation debug` | `true` | `false` (via `Web.Release.config`) |
 | `customErrors` | `Off` (full error details) | `RemoteOnly` |
-| `AutoInitializeDatabase` | `true` (schema/seed on startup) | `false` — run `initialize-database.ps1` explicitly |
+| `AutoInitializeDatabase` | `true` (schema/seed on startup) | `false` — run `tools/database/Initialize-Database.ps1` explicitly |
 | `RequireSecureCookies` | `false` (HTTP localhost works) | `true` |
+| `RequireHttpsRedirect` | `false` | `true` (HTTP → HTTPS redirect) |
+| `RequireMfaForAllUsers` | `false` (MFA only for platform/company admin) | `true` (all users) |
+| `MfaAllowAnyCode` | `true` (E2E/dev bypass) | `false` |
 | Auth cookie `Secure` | Only when HTTPS or `RequireSecureCookies=true` | `true` (HTTPS + app setting) |
 | Security headers (HSTS, etc.) | Not added | Added in Release transform |
 | Connection string | Inline in `Web.config` | External `connectionStrings.config` |
+| Forms auth `machineKey` | Auto-generated (Debug) | External `machineKey.config` (Release) |
+
+Full before/after deployment checklist: [docs/DEPLOYMENT-READINESS.md](docs/DEPLOYMENT-READINESS.md).
 
 `Web.Debug.config` reaffirms dev values on Debug builds. `Web.Release.config` applies production-ready settings **only** when publishing or building with **Release** — the running dev app is unchanged.
 
@@ -93,18 +117,24 @@ Publish with **Release** configuration so `Web.Release.config` transforms are ap
 - `RequireSecureCookies=true` plus `httpCookies requireSSL="true" sameSite="Lax"`
 - Security headers (HSTS, `X-Content-Type-Options`, `X-Frame-Options`)
 - Connection strings moved to an external file
+- Forms auth `machineKey` moved to an external file (`machineKey.config`)
 
 **Before deploying:**
 
 1. Copy `src/AssetManagement.Web/connectionStrings.config.example` to `connectionStrings.config` in the same folder (this file is gitignored).
 2. Set the production SQL Server connection string in `connectionStrings.config`.
-3. Run database migrations explicitly:
+3. Copy `src/AssetManagement.Web/machineKey.config.example` to `machineKey.config` (gitignored). Generate unique validation and decryption keys; deploy the **same** file to every IIS node in a web farm. See [docs/DEPLOYMENT-READINESS.md](docs/DEPLOYMENT-READINESS.md#forms-auth-machinekey).
+4. Run database migrations explicitly:
 
 ```powershell
-.\initialize-database.ps1 -ServerInstance "YOUR_SERVER" -Database "AssetManagementModuleDb"
+.\tools\database\Initialize-Database.ps1 -ServerInstance "YOUR_SERVER" -Database "AssetManagementModuleDb"
+# or incremental:
+.\tools\database\Invoke-Migrations.ps1 -Targets @("YOUR_SERVER|AssetManagementModuleDb")
 ```
 
-4. Publish with **Release** configuration (Visual Studio or MSBuild). The publish output includes the transformed `Web.config` referencing `connectionStrings.config` — deploy both files to the server.
+Database operational scripts (including **destructive E2E reset** guards) are documented in [`tools/database/README.md`](tools/database/README.md).
+
+5. Publish with **Release** configuration (Visual Studio or MSBuild). The publish output includes the transformed `Web.config` referencing `connectionStrings.config` and `machineKey.config` — deploy all three files to the server.
 
 ## Build & Test
 
@@ -119,7 +149,7 @@ Benchmarks asset list, dashboard KPIs, and global search against a LocalDB datab
 
 ```powershell
 # One-time: initialize schema + optional 100k asset seed (~5–15 min)
-.\initialize-database.ps1 -IncludeLargeDataset
+.\tools\database\Initialize-Database.ps1 -IncludeLargeDataset
 
 # Run performance suite only
 dotnet test tests/AssetManagement.PerformanceTests/AssetManagement.PerformanceTests.csproj --filter "TestCategory=Performance"
@@ -146,7 +176,7 @@ The E2E run uses database `AssetManagementModuleDb_E2E` and temporarily points `
 
 Build the web project with MSBuild / Visual Studio (MVC 3 Web Application targets).
 
-**Note:** The legacy `.build/DbInit` tool is deprecated. Use [`initialize-database.ps1`](initialize-database.ps1) and app startup (`DatabaseConfig`) instead.
+**Note:** The legacy `.build/DbInit` tool is deprecated. Use [`tools/database/`](tools/database/README.md) scripts and app startup (`DatabaseConfig`) instead.
 
 ## SQL Server Guidance
 

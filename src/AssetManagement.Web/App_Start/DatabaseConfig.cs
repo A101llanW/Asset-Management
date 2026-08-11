@@ -18,7 +18,9 @@ namespace AssetManagement.Web.App_Start
 
         public static void ApplyMigrations()
         {
-            SqlDatabaseInitializer.ApplyMigrations("AssetManagementConnection");
+            SqlDatabaseInitializer.ApplyMigrations(
+                "AssetManagementConnection",
+                SqlDatabaseInitializer.ResolveMigrationContinueOnError());
         }
     }
 }

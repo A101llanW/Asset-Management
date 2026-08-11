@@ -1,0 +1,51 @@
+@model AssetManagement.Application.ViewModels.RoleCreateEditVm
+@using AssetManagement.Web.Helpers
+@using System.Linq
+
+<div class="card card-kpi mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h5 class="mb-0">Permission Matrix</h5>
+            <button type="button" class="btn btn-outline-secondary btn-sm js-select-all-permissions">Select all</button>
+        </div>
+        <p class="text-muted small mb-3">
+            Permissions are grouped by module. For requisitions, assign <code>Purchases.Create</code> to <strong>Department Head</strong>
+            and <code>Purchases.Approve</code> to the approval-stage role (typically <strong>Procurement Officer</strong>).
+            In-store needs use <code>Assets.Request</code> and <code>Assets.Request.Approve</code> instead of the approval matrix.
+            Assign department and role on each user's <strong>Details</strong> page; only one Department Head is allowed per department.
+        </p>
+        @foreach (var group in Model.PermissionGroups ?? Enumerable.Empty<AssetManagement.Application.ViewModels.PermissionGroupVm>())
+        {
+            <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                    <div>
+                        <strong>@group.Module</strong>
+                        @if (!string.IsNullOrWhiteSpace(group.ModuleDescription))
+                        {
+                            <div class="small text-muted mt-1">@group.ModuleDescription</div>
+                        }
+                    </div>
+                    <label class="form-check-label small text-nowrap">
+                        <input type="checkbox" class="form-check-input js-select-all-module" data-module="@group.Module" /> Select all
+                    </label>
+                </div>
+                <div class="row mt-2">
+                    @foreach (var permission in group.Permissions ?? Enumerable.Empty<AssetManagement.Application.ViewModels.PermissionVm>())
+                    {
+                        var isChecked = Model.SelectedPermissionIds != null && Model.SelectedPermissionIds.Contains(permission.Id);
+                        <div class="col-md-4">
+                            <label class="form-check-label" title="@permission.Code">
+                                <input type="checkbox" name="SelectedPermissionIds" value="@permission.Id" data-module-item="@group.Module" class="form-check-input js-permission-checkbox" @(isChecked ? "checked=\"checked\"" : null) />
+                                @PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)
+                            </label>
+                            @if (!string.IsNullOrWhiteSpace(permission.Description))
+                            {
+                                <div class="small text-muted ms-4">@permission.Description</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>

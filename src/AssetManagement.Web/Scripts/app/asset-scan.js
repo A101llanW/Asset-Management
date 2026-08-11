@@ -59,7 +59,48 @@
         return escapeHtml(emptyLabel || "");
     }
 
+    function renderSearchResults(data) {
+        var results = data.SearchResults;
+        if (!results || !results.Assets || !results.Assets.length) {
+            return "";
+        }
+
+        var rows = results.Assets.map(function (hit) {
+            var serial = displayText(hit.SerialNumber, data.EmptyDisplay);
+            var detailsUrl = hit.DetailsUrl ? escapeHtml(hit.DetailsUrl) : "#";
+            return (
+                "<tr class=\"border-bottom border-light\">" +
+                '<td class="ps-3"><span class="am-tag-pill am-tag-pill--sm">' + escapeHtml(hit.AssetTag) + "</span></td>" +
+                '<td class="fw-semibold text-dark">' + escapeHtml(hit.AssetName) + "</td>" +
+                '<td class="text-muted small">' + serial + "</td>" +
+                '<td class="text-muted small">' + displayText(hit.DepartmentName, data.EmptyDisplay) + "</td>" +
+                '<td class="text-muted small">' + displayText(hit.CustodianName, data.EmptyDisplay) + "</td>" +
+                '<td><span class="badge rounded-pill bg-light border text-secondary">' + escapeHtml(hit.Status) + "</span></td>" +
+                '<td class="small text-muted"><span style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;">' +
+                escapeHtml(hit.MatchReason) + "</span></td>" +
+                '<td class="text-end pe-3"><a class="btn btn-sm btn-outline-primary" href="' + detailsUrl + '">Open</a></td>" +
+                "</tr>"
+            );
+        }).join("");
+
+        return (
+            '<div class="card card-kpi border-0 shadow-sm mt-4 am-fade-in am-scan-search-results">' +
+            '<div class="card-header bg-white border-bottom py-3">' +
+            '<span class="text-muted small">' + results.TotalCount + ' result(s) for <strong class="text-dark">"' +
+            escapeHtml(results.Query) + '"</strong></span></div>' +
+            '<div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0">' +
+            '<thead><tr class="bg-light" style="font-size:0.82rem;letter-spacing:0.04em;">' +
+            '<th class="ps-3">Tag</th><th>Name</th><th>Serial</th><th>Department</th><th>Custodian</th>' +
+            '<th>Status</th><th>Matched on</th><th class="pe-3 text-end">Action</th></tr></thead>' +
+            "<tbody>" + rows + "</tbody></table></div></div></div>"
+        );
+    }
+
     function renderResult(data) {
+        if (data.SearchResults && data.SearchResults.Assets && data.SearchResults.Assets.length) {
+            return renderSearchResults(data);
+        }
+
         if (data.Found) {
             var actions = "";
             if (data.CanOpenQuickActions || data.CanViewAssetDetails) {
@@ -110,7 +151,7 @@
                 '<div class="am-scan-no-result mt-4 am-fade-in">' +
                 '<div class="am-scan-no-result-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div>' +
                 '<p class="am-scan-no-result-text">' + escapeHtml(data.Message) + "</p>" +
-                '<p class="am-scan-no-result-hint">Try scanning again or check the asset tag manually.</p>' +
+                '<p class="am-scan-no-result-hint">Try a different tag, serial number, custodian name, or department keyword.</p>' +
                 "</div>"
             );
         }
@@ -191,6 +232,8 @@
 
                 if (data.Found) {
                     setStatus("Asset found — scan next code", "success");
+                } else if (data.SearchResults && data.SearchResults.Assets && data.SearchResults.Assets.length) {
+                    setStatus(data.SearchResults.TotalCount + " match(es) found", "success");
                 } else if (data.Message) {
                     setStatus("No match — scan again", "warning");
                 } else {

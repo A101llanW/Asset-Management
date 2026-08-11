@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 
@@ -98,7 +99,7 @@ namespace AssetManagement.Application.Services
 
         public static void ValidateApprovalProcesses(IList<ApprovalProcessSettingsVm> processes, Action<string, string> addModelError)
         {
-            ApprovalWorkflowSettingsHelper.ValidateAssetApprovalProcessSettings(processes, addModelError);
+            ApprovalWorkflowSettingsHelper.ValidateApprovalProcessSettings(processes, addModelError);
         }
 
         private static ApprovalProcessSettingsVm BuildAssetProcessVm(
@@ -186,21 +187,7 @@ namespace AssetManagement.Application.Services
 
         private static int? GetDefaultApproverRoleId(string processCode, IEnumerable<RoleVm> roles)
         {
-            string roleName;
-            switch (processCode)
-            {
-                case ApprovalProcessCodes.Transfer:
-                case ApprovalProcessCodes.Disposal:
-                    roleName = "Asset Manager";
-                    break;
-                default:
-                    roleName = "Asset Manager";
-                    break;
-            }
-
-            return roles == null
-                ? null
-                : roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase))?.Id;
+            return OrganizationApprovalDefaults.ResolveDefaultApproverRoleId(processCode, roles);
         }
     }
 }

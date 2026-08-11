@@ -10,6 +10,17 @@ namespace AssetManagement.Application.Contracts
 
         AssetListPageVm GetAssetListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize);
 
+        AssetGroupListPageVm GetAssetGroupListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize);
+
+        AssetGroupMembersPageVm GetAssetGroupMembers(
+            AssetFilterVm filter,
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int skip,
+            int take);
+
         int CountAssets(AssetFilterVm filter);
 
         AssetDetailsVm GetById(int id);
@@ -21,6 +32,16 @@ namespace AssetManagement.Application.Contracts
         int Create(AssetCreateVm model);
 
         void Update(AssetEditVm model);
+
+        void RelocateToClassDepartment(int assetId, int targetDepartmentId, string actorUserId);
+
+        AssetBulkActionResultVm RelocateGroupToClassDepartment(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus status,
+            int targetDepartmentId,
+            string actorUserId);
 
         void UpdateStatus(int id, AssetStatus status);
 

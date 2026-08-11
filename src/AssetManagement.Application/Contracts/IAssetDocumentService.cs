@@ -12,6 +12,14 @@ namespace AssetManagement.Application.Contracts
 
         int Upload(int assetId, string documentType, string fileName, string contentType, Stream content, string uploadedByUserId);
 
+        int UploadForRequirement(
+            int assetId,
+            int requirementId,
+            string fileName,
+            string contentType,
+            Stream content,
+            string uploadedByUserId);
+
         void Delete(int documentId, string deletedByUserId);
 
         string GetStoredRelativePath(int documentId, string userId);

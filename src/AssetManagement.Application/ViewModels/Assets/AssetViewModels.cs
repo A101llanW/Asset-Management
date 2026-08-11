@@ -15,6 +15,8 @@ namespace AssetManagement.Application.ViewModels
 
         public int? AssetTypeId { get; set; }
 
+        public int? AssetSubTypeId { get; set; }
+
         public int? SupplierId { get; set; }
 
         public AssetStatus? Status { get; set; }
@@ -23,6 +25,9 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>When true, returns all organization assets regardless of the user's department scope.</summary>
         public bool OrganizationWide { get; set; }
+
+        /// <summary>flat (default) or grouped.</summary>
+        public string ListViewMode { get; set; }
     }
 
     public class AssetListVm
@@ -33,9 +38,25 @@ namespace AssetManagement.Application.ViewModels
 
         public string AssetName { get; set; }
 
+        public int CategoryId { get; set; }
+
         public string CategoryName { get; set; }
 
+        public string SerialNumber { get; set; }
+
         public string DepartmentName { get; set; }
+
+        public int? DepartmentId { get; set; }
+
+        public int AssetTypeId { get; set; }
+
+        public int? AssetSubTypeId { get; set; }
+
+        public string Brand { get; set; }
+
+        public string Model { get; set; }
+
+        public string AssetSubTypeName { get; set; }
 
         public string CurrentCustodianId { get; set; }
 
@@ -61,6 +82,10 @@ namespace AssetManagement.Application.ViewModels
 
         [Required]
         public int AssetTypeId { get; set; }
+
+        public int? AssetSubTypeId { get; set; }
+
+        public string AssetSubTypeName { get; set; }
 
         [Required]
         [StringLength(120)]
@@ -102,6 +127,15 @@ namespace AssetManagement.Application.ViewModels
 
         public decimal SalvageValue { get; set; }
 
+        public bool UseCustomDepreciationLife { get; set; }
+
+        public int? DepreciationLifeMonths { get; set; }
+
+        public bool UseCustomDepreciationRate { get; set; }
+
+        [Range(0.01, 100)]
+        public decimal? DepreciationRatePercent { get; set; }
+
         public DepreciationMethod DepreciationMethod { get; set; }
 
         public DateTime DepreciationStartDate { get; set; }
@@ -115,6 +149,8 @@ namespace AssetManagement.Application.ViewModels
         public DateTime? WarrantyEndDate { get; set; }
 
         public AssetStatus CurrentStatus { get; set; }
+
+        public bool CanManageDepreciationSettings { get; set; }
 
         public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
     }
@@ -165,9 +201,15 @@ namespace AssetManagement.Application.ViewModels
 
         public DateTime DepreciationStartDate { get; set; }
 
-        public DateTime PurchaseDate { get; set; }
+        public decimal CurrentBookValue { get; set; }
 
-        public IEnumerable<AssetDepreciationLineVm> DepreciationHistory { get; set; } = new List<AssetDepreciationLineVm>();
+        public decimal AccumulatedDepreciation { get; set; }
+
+        public AssetDepreciationSettingsVm DepreciationSettings { get; set; }
+
+        public int DepreciationElapsedMonths { get; set; }
+
+        public DateTime PurchaseDate { get; set; }
 
         public string PolicyReference { get; set; }
 
@@ -190,19 +232,8 @@ namespace AssetManagement.Application.ViewModels
         public AssetTcoVm TotalCostOfOwnership { get; set; }
 
         public IEnumerable<AssetDocumentVm> Documents { get; set; } = new List<AssetDocumentVm>();
-    }
 
-    public class AssetDepreciationLineVm
-    {
-        public DateTime PeriodStartDate { get; set; }
-
-        public DateTime PeriodEndDate { get; set; }
-
-        public decimal DepreciationAmount { get; set; }
-
-        public decimal ClosingBookValue { get; set; }
-
-        public DateTime? PostedAt { get; set; }
+        public IEnumerable<AssetDocumentStatusRowVm> DocumentRows { get; set; } = new List<AssetDocumentStatusRowVm>();
     }
 
     public class AssetCustodyTimelineVm

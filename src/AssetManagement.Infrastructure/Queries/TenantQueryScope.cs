@@ -15,6 +15,8 @@ namespace AssetManagement.Infrastructure.Queries
 
         public bool DenyDepartmentScope { get; private set; }
 
+        public bool IncludeClassDepartmentAssets { get; private set; }
+
         public static TenantQueryScope Resolve(IOrganizationScopeService organizationScope, IDepartmentScopeService departmentScope)
         {
             if (organizationScope == null)
@@ -37,12 +39,17 @@ namespace AssetManagement.Infrastructure.Queries
                 denyDepartmentScope = !departmentId.HasValue;
             }
 
+            var includeClassDepartmentAssets = departmentScope != null
+                && !bypassesDepartmentScope
+                && departmentScope.IncludesClassDepartmentAssets;
+
             return new TenantQueryScope
             {
                 OrganizationId = organizationId.Value,
                 DepartmentId = departmentId,
                 BypassesDepartmentScope = bypassesDepartmentScope,
-                DenyDepartmentScope = denyDepartmentScope
+                DenyDepartmentScope = denyDepartmentScope,
+                IncludeClassDepartmentAssets = includeClassDepartmentAssets
             };
         }
 
@@ -71,7 +78,12 @@ namespace AssetManagement.Infrastructure.Queries
         public void AddScopeParameters(IDbCommand command)
         {
             SqlQueryHelper.AddParameter(command, "@OrganizationId", OrganizationId);
-            SqlQueryHelper.AddDepartmentScopeParameters(command, BypassesDepartmentScope, DenyDepartmentScope, DepartmentId);
+            SqlQueryHelper.AddDepartmentScopeParameters(
+                command,
+                BypassesDepartmentScope,
+                DenyDepartmentScope,
+                DepartmentId,
+                IncludeClassDepartmentAssets);
         }
     }
 }

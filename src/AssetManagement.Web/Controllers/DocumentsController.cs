@@ -25,19 +25,12 @@ namespace AssetManagement.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Upload(int assetId, string documentType, HttpPostedFileBase attachment)
+        public ActionResult Upload(int assetId, string documentType, HttpPostedFileBase attachment, int? requirementId)
         {
             if (_assetService.GetById(assetId) == null)
             {
                 TempData["Error"] = "Asset not found.";
                 return RedirectToAction("Index", "Assets");
-            }
-
-            documentType = AssetDocumentTypeCatalog.NormalizeType(documentType);
-            if (string.IsNullOrWhiteSpace(documentType))
-            {
-                TempData["Error"] = "Select or enter a document type before uploading.";
-                return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
             }
 
             if (attachment == null || attachment.ContentLength == 0)
@@ -50,16 +43,36 @@ namespace AssetManagement.Web.Controllers
             {
                 using (var stream = attachment.InputStream)
                 {
-                    _documentService.Upload(
-                        assetId,
-                        documentType,
-                        attachment.FileName,
-                        attachment.ContentType,
-                        stream,
-                        User.GetUserId());
-                }
+                    if (requirementId.HasValue)
+                    {
+                        _documentService.UploadForRequirement(
+                            assetId,
+                            requirementId.Value,
+                            attachment.FileName,
+                            attachment.ContentType,
+                            stream,
+                            User.GetUserId());
+                        TempData["Message"] = "Process-linked photo uploaded successfully.";
+                    }
+                    else
+                    {
+                        documentType = AssetDocumentTypeCatalog.NormalizeType(documentType);
+                        if (string.IsNullOrWhiteSpace(documentType))
+                        {
+                            TempData["Error"] = "Select or enter a document type before uploading.";
+                            return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
+                        }
 
-                TempData["Message"] = "Document uploaded successfully.";
+                        _documentService.Upload(
+                            assetId,
+                            documentType,
+                            attachment.FileName,
+                            attachment.ContentType,
+                            stream,
+                            User.GetUserId());
+                        TempData["Message"] = "Document uploaded successfully.";
+                    }
+                }
             }
             catch (BusinessException ex)
             {

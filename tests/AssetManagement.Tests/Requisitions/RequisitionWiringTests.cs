@@ -83,7 +83,7 @@ namespace AssetManagement.Tests.Requisitions
         public void PurchaseRequestService_Submit_PersistsRequisitionFormFields()
         {
             var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true });
+            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true, IsRequisitionTarget = true });
             unitOfWork.Seed(new SystemSetting
             {
                 Id = 1,
@@ -116,7 +116,6 @@ namespace AssetManagement.Tests.Requisitions
                 QuantityInStock = 2,
                 RequiredDate = requiredDate,
                 OrderByUserId = "staff-1",
-                EstimatedUnitCost = 150m,
                 Quantity = 5,
                 Currency = "KES"
             }, "dept-head");
@@ -133,7 +132,7 @@ namespace AssetManagement.Tests.Requisitions
         public void PurchaseRequestService_Submit_RejectsOrderByUserOutsideDepartment()
         {
             var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true });
+            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true, IsRequisitionTarget = true });
             var users = new FakeUserService();
             users.Seed(new UserVm { Id = "staff-other", DepartmentId = 9, IsActive = true, FirstName = "Other", LastName = "Dept" });
 
@@ -154,7 +153,6 @@ namespace AssetManagement.Tests.Requisitions
                 ItemDescription = "Desk",
                 Justification = "Need desk",
                 OrderByUserId = "staff-other",
-                EstimatedUnitCost = 100m,
                 Quantity = 1,
                 Currency = "KES"
             }, "dept-head"));
@@ -164,7 +162,7 @@ namespace AssetManagement.Tests.Requisitions
         public void PurchaseRequestService_Submit_PersistsOptionalTargetAsset()
         {
             var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true });
+            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true, IsRequisitionTarget = true });
             unitOfWork.Seed(new SystemSetting
             {
                 Id = 1,
@@ -203,7 +201,6 @@ namespace AssetManagement.Tests.Requisitions
                 ItemDescription = "Replacement laptop",
                 Justification = "Broken unit",
                 TargetAssetId = 42,
-                EstimatedUnitCost = 800m,
                 Quantity = 1,
                 Currency = "KES"
             }, "dept-head");
@@ -216,7 +213,7 @@ namespace AssetManagement.Tests.Requisitions
         public void PurchaseRequestService_Submit_AllowsTargetAssetOutsideRequestDepartment()
         {
             var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true });
+            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true, IsRequisitionTarget = true });
             unitOfWork.Seed(new SystemSetting
             {
                 Id = 1,
@@ -255,7 +252,6 @@ namespace AssetManagement.Tests.Requisitions
                 ItemDescription = "Server",
                 Justification = "Need server",
                 TargetAssetId = 50,
-                EstimatedUnitCost = 5000m,
                 Quantity = 1,
                 Currency = "KES"
             }, "dept-head");

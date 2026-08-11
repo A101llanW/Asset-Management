@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Data" />
     <Reference Include="Excel">
       <HintPath>$(RepoRoot).nuget\packages\exceldatareader\2.1.2\lib\net20\Excel.dll</HintPath>
       <Private>true</Private>

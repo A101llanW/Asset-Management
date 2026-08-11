@@ -8,7 +8,7 @@ namespace AssetManagement.Web.Helpers
 {
     public static class AssetLabelPrintHelper
     {
-        public static AssetLabelPrintVm CreateModel(IAssetService assetService, HttpRequestBase request, UrlHelper urlHelper, int assetId)
+        public static AssetLabelPrintVm CreateModel(IAssetService assetService, HttpRequestBase request, UrlHelper urlHelper, int assetId, string externalBaseUrl = null)
         {
             if (assetService == null || request == null || urlHelper == null)
             {
@@ -21,10 +21,10 @@ namespace AssetManagement.Web.Helpers
                 return null;
             }
 
-            return CreateModel(request, urlHelper, asset);
+            return CreateModel(request, urlHelper, asset, externalBaseUrl);
         }
 
-        public static AssetLabelPrintVm CreateModel(HttpRequestBase request, UrlHelper urlHelper, AssetDetailsVm asset)
+        public static AssetLabelPrintVm CreateModel(HttpRequestBase request, UrlHelper urlHelper, AssetDetailsVm asset, string externalBaseUrl = null)
         {
             if (request == null || urlHelper == null || asset == null)
             {
@@ -39,7 +39,7 @@ namespace AssetManagement.Web.Helpers
                 DepartmentName = asset.DepartmentName,
                 SerialNumber = asset.SerialNumber,
                 CurrentStatus = asset.CurrentStatus.ToString(),
-                ScanUrl = AssetQrUrlHelper.BuildScanUrl(request, urlHelper, asset.AssetTag)
+                ScanUrl = AssetQrUrlHelper.BuildScanUrl(request, urlHelper, asset.AssetTag, externalBaseUrl: externalBaseUrl)
             };
         }
     }

@@ -2,13 +2,10 @@
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Users";
-    var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
-    var departmentOptions = ViewBag.DepartmentOptions as IEnumerable<AssetManagement.Application.ViewModels.DepartmentVm>;
     var roleFilter = ViewBag.RoleFilter as SelectList;
     var departments = ViewBag.Departments as SelectList;
     var statusFilter = ViewBag.StatusFilter as SelectList;
     var canCreateUser = Html.HasPermission("Users.Create");
-    var canEditUser = Html.HasPermission("Users.Edit");
     var isDepartmentScoped = ViewBag.IsDepartmentScoped == true;
     var scopedDepartmentName = ViewBag.ScopedDepartmentName as string;
     var currentSort = ViewBag.Sort as string;
@@ -19,7 +16,7 @@
     Title = isDepartmentScoped && !string.IsNullOrWhiteSpace(scopedDepartmentName) ? scopedDepartmentName + " — Users" : "Users",
     Subtitle = isDepartmentScoped
         ? "Employees registered in your department (including assignees without login access)."
-        : "Manage people, their access, and security roles. Job title (e.g. HOD) is separate from the login role.",
+        : "Manage people and their access. Assign department and role from each user's details page.",
     PrimaryActionUrl = canCreateUser ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateUser ? "Create User" : null
 })
@@ -84,11 +81,6 @@ else
                             <th>Job title</th>
                             <th>@Html.SortLink("Role", "role", currentSort, currentDirection)</th>
                             <th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th>
-                            @if (canEditUser)
-                            {
-                                <th class="am-users-assign-col">Assign dept</th>
-                                <th class="am-users-assign-col">Assign role</th>
-                            }
                             <th class="text-end pe-3">Actions</th>
                         </tr>
                     </thead>
@@ -106,46 +98,6 @@ else
                             <td>@(string.IsNullOrWhiteSpace(user.PositionTitle) ? DisplayText.Empty : user.PositionTitle)</td>
                             <td class="text-nowrap">@(string.IsNullOrWhiteSpace(user.RoleName) ? DisplayText.Empty : user.RoleName)</td>
                             <td class="text-nowrap"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive) badge-status">@(user.IsActive ? "Active" : "Inactive")</span></td>
-                            @if (canEditUser)
-                            {
-                                <td class="am-users-assign-col">
-                                    @using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "am-inline-assign-form" }))
-                                    {
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="userId" value="@user.Id" />
-                                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
-                                        <select name="departmentId" class="form-select form-select-sm">
-                                            <option value="">None</option>
-                                            @if (departmentOptions != null)
-                                            {
-                                                foreach (var d in departmentOptions)
-                                                {
-                                                    <option value="@d.Id" @(user.DepartmentId == d.Id ? "selected" : null)>@d.Name</option>
-                                                }
-                                            }
-                                        </select>
-                                        <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
-                                    }
-                                </td>
-                                <td class="am-users-assign-col">
-                                    @using (Html.BeginForm("AssignRole", "Users", FormMethod.Post, new { @class = "am-inline-assign-form" }))
-                                    {
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="userId" value="@user.Id" />
-                                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
-                                        <select name="roleId" class="form-select form-select-sm">
-                                            @if (roles != null)
-                                            {
-                                                foreach (var role in roles)
-                                                {
-                                                    <option value="@role.Id" @(user.RoleId == role.Id ? "selected" : null)>@role.Name</option>
-                                                }
-                                            }
-                                        </select>
-                                        <button class="btn btn-sm btn-primary" type="submit">Save</button>
-                                    }
-                                </td>
-                            }
                             <td class="text-end pe-3 text-nowrap">
                                 <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id, returnUrl = Request.RawUrl })">Details</a>
                             </td>

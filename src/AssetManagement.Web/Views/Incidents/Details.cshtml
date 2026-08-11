@@ -2,6 +2,7 @@
 @{
     ViewBag.Title = "Incident " + Model.IncidentNumber;
     var canEdit = ViewBag.CanEdit == true;
+    var canUploadPhoto = ViewBag.CanUploadPhoto == true;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -12,6 +13,34 @@
     PrimaryActionUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
     PrimaryActionLabel = "View Asset"
 })
+
+@if (Model.RequiresDamagePhoto && Model.PendingPhotoRequirementId.HasValue)
+{
+    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <strong>Damage photo required.</strong>
+            Upload a photo of the asset's current condition and link it to this incident.
+        </div>
+        @if (canUploadPhoto)
+        {
+            using (Html.BeginForm("UploadDamagePhoto", "Incidents", FormMethod.Post, new { enctype = "multipart/form-data", @class = "d-flex flex-wrap align-items-end gap-2" }))
+            {
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div>
+                    <label class="form-label small mb-1" for="damagePhoto">Photo</label>
+                    <input type="file" class="form-control form-control-sm" id="damagePhoto" name="damagePhoto" accept=".jpg,.jpeg,.png,.gif,image/*" required="required" />
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary">Upload photo</button>
+            }
+        }
+        else
+        {
+            <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", "Assets", new { id = Model.AssetId, uploadRequirement = Model.PendingPhotoRequirementId.Value })#documents">Open asset documents</a>
+        }
+    </div>
+}
+
 <div class="card card-kpi am-fade-in">
     <div class="card-body">
         <dl class="row mb-0">

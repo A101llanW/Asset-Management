@@ -1,3 +1,6 @@
+import { execFileSync } from 'child_process';
+import { copyFileSync, mkdirSync } from 'fs';
+import path from 'path';
 import { expect, Page } from '@playwright/test';
 import { gotoAppPath } from './auth';
 
@@ -38,44 +41,68 @@ export function uniqueSuffix(): string {
 
 export function buildAssetImportCsv(uniqueSuffix: string): string {
   const headers =
-    'AssetName,AssetTag,Category,CategoryId,AssetType,AssetTypeId,Brand,Model,SerialNumber,Description,PurchaseDate,AcquisitionCost,TaxAmount,Currency,Supplier,SupplierId,Department,DepartmentId,ConditionOnReceipt,UsefulLifeMonths,SalvageValue,DepreciationMethod,DepreciationStartDate,IsInsured,InsuredValue,WarrantyStartDate,WarrantyEndDate,CurrentStatus,BarcodeOrQRCode,Specifications,Condition,CustodianUserId,ImpairmentNotes,PolicyReference,IsLeased';
-  const tag = `E2E-IMP-${uniqueSuffix}`;
+    'AssetName,AssetCategory,AssetType,Brand,Model,PurchaseDate,AcquisitionCost,AssetSubType,SerialNumber,Description,Department,Class,Supplier,Currency,TaxAmount,ConditionOnReceipt,SalvageValue,DepreciationMethod,DepreciationStartDate,DepreciationLifeMonths,DepreciationRatePercent,IsInsured,InsuredValue,WarrantyStartDate,WarrantyEndDate,CurrentStatus,Condition,Specifications,IsLeased,PolicyReference,Quantity';
   const row = [
     `E2E Import Asset ${uniqueSuffix}`,
-    tag,
     'IT Equipment',
-    '',
     'Laptop',
-    '',
     'E2EBrand',
     'ModelX',
-    `SN-E2E-${uniqueSuffix}`,
-    'Created by E2E import test',
     '2026-06-01',
     '45000',
-    '0',
+    '',
+    `SN-E2E-${uniqueSuffix}`,
+    'Created by E2E import test',
+    '',
+    '',
+    '',
     'KES',
-    '',
-    '',
-    '',
-    '',
+    '0',
     'New',
-    '36',
     '0',
     'StraightLine',
     '2026-06-01',
+    '',
+    '',
     'false',
     '',
     '',
     '',
     'InStore',
-    `BC-E2E-${uniqueSuffix}`,
-    '',
     'New',
     '',
-    '',
-    '',
     'false',
+    '',
+    '1',
   ];
   return `${headers}\n${row.join(',')}\n`;
+}
+
+/** School-themed .xlsx import (Classrooms / Desks / Classroom / 2A) matching the downloadable template layout. */
+export function buildSchoolImportXlsx(
+  suffix: string,
+  outputDir: string,
+): { filePath: string; importName: string; importSerial: string } {
+  const importName = `Smoke Desk ${suffix}`;
+  const importSerial = `SN-SMOKE-${suffix}`;
+  mkdirSync(outputDir, { recursive: true });
+  const filePath = path.join(outputDir, `school-import-${suffix}.xlsx`);
+  const templatePath = path.join(__dirname, 'school-import-template.xlsx');
+  copyFileSync(templatePath, filePath);
+
+  const ps = [
+    '$excel = New-Object -ComObject Excel.Application',
+    '$excel.Visible = $false',
+    '$excel.DisplayAlerts = $false',
+    `$wb = $excel.Workbooks.Open('${filePath.replace(/'/g, "''")}')`,
+    '$ws = $wb.Worksheets.Item("Import")',
+    `$ws.Cells.Item(4,1).Value2 = '${importName.replace(/'/g, "''")}'`,
+    `$ws.Cells.Item(4,9).Value2 = '${importSerial.replace(/'/g, "''")}'`,
+    '$wb.Save()',
+    '$wb.Close($false)',
+    '$excel.Quit()',
+  ].join('; ');
+
+  execFileSync('powershell', ['-NoProfile', '-Command', ps], { stdio: 'pipe' });
+  return { filePath, importName, importSerial };
 }

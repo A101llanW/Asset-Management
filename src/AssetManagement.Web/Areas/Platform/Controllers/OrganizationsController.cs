@@ -12,6 +12,8 @@ using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
+using AssetManagement.Web.ViewModels;
+using Newtonsoft.Json;
 
 namespace AssetManagement.Web.Areas.Platform.Controllers
 {
@@ -22,6 +24,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
         private readonly IOrganizationService _organizationService;
+        private readonly IOrganizationPurgeService _organizationPurgeService;
         private readonly IOrganizationLicenseService _licenseService;
         private readonly IUserAccountQueryRepository _userAccountQuery;
         private readonly IAuditLogService _auditLogService;
@@ -32,6 +35,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             _organizationScope = DependencyResolver.Current.GetService<IOrganizationScopeService>();
             _auditWriter = DependencyResolver.Current.GetService<IAuditWriter>();
             _organizationService = DependencyResolver.Current.GetService<IOrganizationService>();
+            _organizationPurgeService = DependencyResolver.Current.GetService<IOrganizationPurgeService>();
             _licenseService = DependencyResolver.Current.GetService<IOrganizationLicenseService>();
             _userAccountQuery = DependencyResolver.Current.GetService<IUserAccountQueryRepository>();
             _auditLogService = DependencyResolver.Current.GetService<IAuditLogService>();
@@ -41,8 +45,16 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         {
             EnsurePlatformAccess();
             var organizations = _unitOfWork.Repository<Organization>().Query().OrderBy(o => o.Name).ToList();
+            foreach (var organization in organizations.Where(o => string.IsNullOrWhiteSpace(o.AccessToken)))
+            {
+                organization.AccessToken = Application.Security.SecurePasswordGenerator.GenerateAccessToken().Substring(0, 8).ToUpperInvariant();
+                _unitOfWork.Repository<Organization>().Update(organization);
+            }
+            _unitOfWork.SaveChanges();
+
             var licenseByOrganization = LoadLicenseSummariesByOrganization(organizations.Count);
             var assetCounts = LoadAssetCountsByOrganization();
+            var pendingByOrganization = LoadPendingApprovalCountsByOrganization();
 
             var summaries = organizations.Select(o =>
             {
@@ -50,6 +62,8 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 licenseByOrganization.TryGetValue(o.Id, out license);
                 int assetCount;
                 assetCounts.TryGetValue(o.Id, out assetCount);
+                int pendingCount;
+                pendingByOrganization.TryGetValue(o.Id, out pendingCount);
                 return new OrganizationSummaryViewModel
                 {
                     Id = o.Id,
@@ -60,6 +74,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                     CreatedDate = o.CreatedAt,
                     UserCount = CountUsersForOrganization(o.Id),
                     AssetCount = assetCount,
+                    PendingApprovalCount = pendingCount,
                     LicenseExpiryDate = license != null ? (DateTime?)license.ExpiryDate : null,
                     DaysUntilExpiry = license != null ? (int?)license.DaysRemaining : null,
                     LicenseEffectiveStatus = license != null ? license.EffectiveStatus : LicenseStatus.Expired
@@ -70,6 +85,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             {
                 TotalOrganizations = organizations.Count,
                 ActiveOrganizations = organizations.Count(o => o.IsActive),
+                InactiveOrganizations = organizations.Count(o => !o.IsActive),
                 ExpiringSoon = summaries.Count(s =>
                     s.LicenseExpiryDate.HasValue
                     && s.DaysUntilExpiry.HasValue
@@ -161,6 +177,23 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 return View("Create", model ?? new CreateOrganizationViewModel());
             }
 
+            var submitToken = Request.Form["submitToken"];
+            var sessionToken = Session["OrganizationCreateSubmitToken"] as string;
+            if (!string.IsNullOrWhiteSpace(sessionToken) && string.Equals(sessionToken, submitToken, StringComparison.Ordinal))
+            {
+                TempData["Message"] = "Organization creation request was already submitted.";
+                return RedirectToAction("Index");
+            }
+
+            if (!model.IgnoreSimilarNameWarning && HasSimilarOrganizationName(model.Name))
+            {
+                ModelState.AddModelError("Name", "An organization with a similar name already exists. Confirm below to proceed.");
+                ViewBag.ShowSimilarNameWarning = true;
+                return View("Create", model);
+            }
+
+            Session["OrganizationCreateSubmitToken"] = submitToken ?? Guid.NewGuid().ToString("N");
+
             var result = _organizationService.CreateOrganization(new OrganizationCreateRequest
             {
                 Name = model.Name,
@@ -170,15 +203,173 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 AdminLastName = model.AdminLastName
             });
 
-            TempData[result.Succeeded ? "Message" : "Error"] = result.Succeeded
-                ? result.Message + " Portal login: /" + result.Organization.Slug + "/Account/Login"
-                : result.Message;
             if (result.Succeeded && result.Organization != null)
             {
+                var portalUrl = ExternalUrlHelper.GetTenantPortalUrl(Request, result.Organization.Slug);
+                var loginUrl = portalUrl.TrimEnd('/') + "/Account/Login";
+                SaveOrganizationAdminCredentialPackage(result, loginUrl);
+                TempData["Message"] = result.Message + " Portal: " + loginUrl;
                 return RedirectToAction("OrganizationDetails", new { id = result.Organization.Id });
             }
 
+            TempData["Error"] = result.Message;
             return View("Create", model);
+        }
+
+        [PermissionAuthorize("Platform.Organizations.Manage")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult UploadLogo(int id, System.Web.HttpPostedFileBase logoFile)
+        {
+            EnsurePlatformAccess();
+            var organization = _unitOfWork.Repository<Organization>().GetById(id);
+            if (organization == null)
+            {
+                return HttpNotFound();
+            }
+
+            var logoPath = OrganizationLogoHelper.SaveLogo(logoFile, id);
+            if (string.IsNullOrWhiteSpace(logoPath))
+            {
+                TempData["Error"] = "Logo upload failed. Use PNG/JPG/GIF/WEBP up to 512 KB.";
+                return RedirectToAction("OrganizationDetails", new { id });
+            }
+
+            OrganizationLogoHelper.DeleteLogo(organization.LogoPath);
+            organization.LogoPath = logoPath;
+            organization.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Repository<Organization>().Update(organization);
+            _unitOfWork.SaveChanges();
+            TempData["Message"] = "Organization logo updated.";
+            return RedirectToAction("OrganizationDetails", new { id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize("Platform.Organizations.Manage")]
+        public ActionResult DeleteOrganization(int id, string confirmName)
+        {
+            EnsurePlatformAccess();
+
+            if (_organizationPurgeService == null)
+            {
+                TempData["Error"] = "Organization delete service is not available.";
+                return RedirectToAction("OrganizationDetails", new { id });
+            }
+
+            var organization = _unitOfWork.Repository<Organization>().GetById(id);
+            if (organization == null)
+            {
+                return HttpNotFound();
+            }
+
+            if (string.IsNullOrWhiteSpace(confirmName)
+                || !string.Equals(confirmName.Trim(), organization.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["Error"] = "Type the organization name exactly to confirm permanent deletion.";
+                return RedirectToAction("OrganizationDetails", new { id });
+            }
+
+            var impersonatedOrgId = Session["ImpersonatedOrganizationId"] as int?;
+            if (impersonatedOrgId.HasValue && impersonatedOrgId.Value == id)
+            {
+                TempData["Error"] = "Stop impersonating this organization before deleting it.";
+                return RedirectToAction("OrganizationDetails", new { id });
+            }
+
+            var logoPath = organization.LogoPath;
+            var result = _organizationPurgeService.DeleteOrganizationAndData(id);
+            if (!result.Succeeded)
+            {
+                TempData["Error"] = result.Message;
+                return RedirectToAction("OrganizationDetails", new { id });
+            }
+
+            OrganizationLogoHelper.DeleteLogo(logoPath);
+
+            if (_auditWriter != null)
+            {
+                _auditWriter.Write(
+                    "ORGANIZATION_DELETED",
+                    "Organization",
+                    id.ToString(),
+                    result.OrganizationName,
+                    null);
+            }
+
+            TempData["Message"] = result.Message;
+            return RedirectToAction("Index");
+        }
+
+        [PermissionAuthorize("Platform.Organizations.View")]
+        public ActionResult ExportOrganizationDetailsCsv(int id)
+        {
+            EnsurePlatformAccess();
+            var organization = _unitOfWork.Repository<Organization>().GetById(id);
+            if (organization == null)
+            {
+                return HttpNotFound();
+            }
+
+            var licenseDetail = _licenseService != null ? _licenseService.GetByOrganizationId(id) : null;
+            var csv = new System.Text.StringBuilder();
+            csv.AppendLine("Field,Value");
+            csv.AppendLine("Name," + CsvEscape(organization.Name));
+            csv.AppendLine("Slug," + CsvEscape(organization.Slug));
+            csv.AppendLine("Status," + CsvEscape(organization.Status));
+            csv.AppendLine("Users," + CountUsersForOrganization(id));
+            csv.AppendLine("LicenseStatus," + (licenseDetail != null ? licenseDetail.EffectiveStatus.ToString() : "Unknown"));
+            csv.AppendLine("LicenseExpiry," + (licenseDetail != null ? licenseDetail.ExpiryDate.ToString("u") : string.Empty));
+            if (licenseDetail != null && licenseDetail.History != null)
+            {
+                foreach (var item in licenseDetail.History)
+                {
+                    csv.AppendLine("History," + CsvEscape(item.Action + " " + item.PerformedBy + " " + item.Reason));
+                }
+            }
+
+            return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", "organization-" + id + ".csv");
+        }
+
+        private static string CsvEscape(string value)
+        {
+            value = value ?? string.Empty;
+            return value.Contains(",") ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
+        }
+
+        private bool HasSimilarOrganizationName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            var normalized = name.Trim().ToLowerInvariant();
+            return _unitOfWork.Repository<Organization>().Query()
+                .Any(o => o.Name != null && o.Name.ToLower().Contains(normalized));
+        }
+
+        private Dictionary<int, int> LoadPendingApprovalCountsByOrganization()
+        {
+            var pendingService = DependencyResolver.Current.GetService<IPendingApprovalQueryService>();
+            if (pendingService == null)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            return _unitOfWork.Repository<Organization>().Query()
+                .ToDictionary(o => o.Id, o =>
+                {
+                    _organizationScope.SetOrganizationFilterOverride(o.Id);
+                    try
+                    {
+                        return pendingService.CountGlobalPending();
+                    }
+                    finally
+                    {
+                        _organizationScope.SetOrganizationFilterOverride(null);
+                    }
+                });
         }
 
         [PermissionAuthorize("Platform.Support.Impersonate")]
@@ -493,6 +684,40 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             public List<ImpersonationRequest> Pending { get; set; }
             public ImpersonationRequest ActiveApproved { get; set; }
         }
+
+        private void SaveOrganizationAdminCredentialPackage(OrganizationCreateResult result, string loginUrl)
+        {
+            if (result == null || result.Organization == null || string.IsNullOrWhiteSpace(result.ProvisionalPassword))
+            {
+                return;
+            }
+
+            var package = new AdminCredentialsViewModel
+            {
+                CompanyName = result.Organization.Name,
+                CompanyUrl = loginUrl,
+                AdminUsername = result.AdminEmail,
+                AdminPassword = result.ProvisionalPassword
+            };
+
+            var encrypted = EncryptionHelper.Encrypt(JsonConvert.SerializeObject(package));
+            var token = Guid.NewGuid().ToString("N");
+            var entity = new TemporaryCredential
+            {
+                Token = token,
+                CredentialType = "CompanyAdmin",
+                EncryptedData = encrypted,
+                CreatedDate = DateTime.UtcNow,
+                ExpiryDate = DateTime.UtcNow.AddHours(1),
+                IsUsed = false
+            };
+
+            _unitOfWork.Repository<TemporaryCredential>().Add(entity);
+            _unitOfWork.SaveChanges();
+
+            TempData["CredentialDownloadToken"] = token;
+            TempData["NewOrganizationName"] = result.Organization.Name;
+        }
     }
 
     public class OrganizationsIndexViewModel
@@ -500,6 +725,8 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         public int TotalOrganizations { get; set; }
 
         public int ActiveOrganizations { get; set; }
+
+        public int InactiveOrganizations { get; set; }
 
         public int ExpiringSoon { get; set; }
 
@@ -525,6 +752,8 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         public int UserCount { get; set; }
 
         public int AssetCount { get; set; }
+
+        public int PendingApprovalCount { get; set; }
 
         public DateTime? LicenseExpiryDate { get; set; }
 
@@ -571,5 +800,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         public string AdminEmail { get; set; }
         public string AdminFirstName { get; set; }
         public string AdminLastName { get; set; }
+
+        public bool IgnoreSimilarNameWarning { get; set; }
     }
 }

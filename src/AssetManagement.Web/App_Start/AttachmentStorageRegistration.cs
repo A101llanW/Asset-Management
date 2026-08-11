@@ -20,6 +20,10 @@ namespace AssetManagement.Web.App_Start
                 .As<IFileStorageProvider>()
                 .InstancePerHttpRequest();
 
+            builder.RegisterType<AssetDocumentRequirementService>()
+                .As<IAssetDocumentRequirementService>()
+                .InstancePerHttpRequest();
+
             builder.RegisterType<AssetDocumentService>()
                 .As<IAssetDocumentService>()
                 .InstancePerHttpRequest();

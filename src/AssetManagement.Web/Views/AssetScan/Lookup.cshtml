@@ -12,8 +12,8 @@
 {
     @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
     {
-        Title = "Scan Asset",
-        Subtitle = "Scan or type an asset tag, barcode, or serial number."
+        Title = "Scan & Search",
+        Subtitle = "Scan a label or search by tag, serial number, custodian, department, or asset name."
     })
 }
 
@@ -33,7 +33,7 @@
         </div>
 
         <h2 class="am-scan-heading">Asset Lookup</h2>
-        <p class="am-scan-subtext">Scan a label or enter the asset tag below.</p>
+        <p class="am-scan-subtext">Scan a label or search using any asset detail below.</p>
 
         <div class="am-scan-camera-section">
             <button type="button" class="btn btn-outline-primary btn-lg w-100 am-scan-camera-toggle" id="am-scan-camera-toggle" aria-pressed="false">
@@ -69,7 +69,7 @@
                 <label class="visually-hidden" for="code">Scan or type code</label>
                 <input class="am-scan-input form-control form-control-lg" id="code" name="code"
                        type="text" autofocus="autofocus" autocomplete="off" inputmode="text"
-                       placeholder="Asset tag / QR / barcode" value="@Model.InitialCode" />
+                       placeholder="Tag, serial, custodian, department..." value="@Model.InitialCode" />
             </div>
 
             <div class="am-scan-status-bar mt-2" aria-live="polite">
@@ -92,6 +92,10 @@
 
 <div id="am-scan-result-host">
     @Html.Partial("_ScanLookupResult", Model)
+    @if (Model.SearchResults != null && Model.SearchResults.Assets != null && Model.SearchResults.Assets.Any())
+    {
+        @Html.Partial("_ScanSearchResults", Model.SearchResults)
+    }
 </div>
 
 @section scripts

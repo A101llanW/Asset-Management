@@ -1,0 +1,83 @@
+@model AssetManagement.Application.ViewModels.AssetCreateVm
+@using AssetManagement.Domain.Enums
+@{
+    var canManage = ViewBag.CanManageDepreciation == true;
+    var effectiveLife = ViewBag.EffectiveDepreciationLifeMonths as int?;
+    var effectiveRate = ViewBag.EffectiveDepreciationRatePercent as decimal?;
+    var lifeSource = ViewBag.EffectiveDepreciationLifeSource as string;
+    var rateSource = ViewBag.EffectiveDepreciationRateSource as string;
+    var useCustomDepreciation = Model.UseCustomDepreciationLife || Model.UseCustomDepreciationRate;
+}
+
+@if (canManage)
+{
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Depreciation</div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Override depreciation life and rate for this asset only. When left unset, values inherit from asset type (over category), then useful life defaults.
+                @if (effectiveLife.HasValue && effectiveLife.Value > 0)
+                {
+                    <span>Current effective settings: <strong>@effectiveLife months</strong> at <strong>@effectiveRate%</strong> per year (life from @lifeSource, rate from @rateSource).</span>
+                }
+            </p>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label" for="DepreciationMethod">Method</label>
+                    @Html.DropDownListFor(m => m.DepreciationMethod, new SelectList(new[]
+                    {
+                        new { Value = DepreciationMethod.StraightLine, Text = "Straight line" },
+                        new { Value = DepreciationMethod.ReducingBalance, Text = "Reducing balance" }
+                    }, "Value", "Text", Model.DepreciationMethod), new { @class = "form-select" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="DepreciationStartDate">Start date</label>
+                    @Html.TextBoxFor(m => m.DepreciationStartDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="SalvageValue">Salvage value</label>
+                    @Html.TextBoxFor(m => m.SalvageValue, new { @class = "form-control", type = "number", min = "0", step = "0.01" })
+                </div>
+            </div>
+
+            <div class="form-check mt-3 mb-2">
+                <input class="form-check-input" id="UseCustomDepreciation" type="checkbox" value="true" @(useCustomDepreciation ? "checked=\"checked\"" : null) />
+                <label class="form-check-label" for="UseCustomDepreciation">Set custom depreciation life and rate for this asset</label>
+            </div>
+            <input type="hidden" id="UseCustomDepreciationLife" name="UseCustomDepreciationLife" value="@(Model.UseCustomDepreciationLife ? "true" : "false")" />
+            <input type="hidden" id="UseCustomDepreciationRate" name="UseCustomDepreciationRate" value="@(Model.UseCustomDepreciationRate ? "true" : "false")" />
+
+            <div id="asset-depreciation-custom-group">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="DepreciationLifeMonths">Depreciation life (months)</label>
+                        @Html.TextBoxFor(m => m.DepreciationLifeMonths, new { @class = "form-control", type = "number", min = "1", placeholder = "Months" })
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="DepreciationRatePercent">Annual depreciation rate (%)</label>
+                        @Html.TextBoxFor(m => m.DepreciationRatePercent, new { @class = "form-control", type = "number", min = "0.01", max = "100", step = "0.01" })
+                    </div>
+                </div>
+                <div class="form-text">Fill either or both fields. Any left blank inherits from asset type, then category, then useful life.</div>
+            </div>
+
+            <script>
+                (function () {
+                    var master = document.getElementById("UseCustomDepreciation");
+                    var group = document.getElementById("asset-depreciation-custom-group");
+                    var lifeFlag = document.getElementById("UseCustomDepreciationLife");
+                    var rateFlag = document.getElementById("UseCustomDepreciationRate");
+                    if (!master || !group || !lifeFlag || !rateFlag) { return; }
+                    function sync() {
+                        var on = master.checked;
+                        group.style.display = on ? "" : "none";
+                        lifeFlag.value = on ? "true" : "false";
+                        rateFlag.value = on ? "true" : "false";
+                    }
+                    master.addEventListener("change", sync);
+                    sync();
+                })();
+            </script>
+        </div>
+    </div>
+}

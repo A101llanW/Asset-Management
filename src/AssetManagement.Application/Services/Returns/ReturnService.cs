@@ -58,11 +58,6 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("A returning user is required.");
             }
 
-            if (string.IsNullOrWhiteSpace(receivedById))
-            {
-                throw new BusinessException("A receiving user is required.");
-            }
-
             if (!string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
                 && !string.IsNullOrWhiteSpace(model.ReturnedById)
                 && !string.Equals(returnedById, asset.CurrentCustodianId, StringComparison.OrdinalIgnoreCase))
@@ -70,7 +65,9 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Returned by user does not match current custodian.");
             }
 
-            if (asset.DepartmentId.HasValue && asset.DepartmentId.Value > 0)
+            if (!string.IsNullOrWhiteSpace(receivedById)
+                && asset.DepartmentId.HasValue
+                && asset.DepartmentId.Value > 0)
             {
                 EnsureUserBelongsToDepartment(receivedById, asset.DepartmentId.Value);
             }

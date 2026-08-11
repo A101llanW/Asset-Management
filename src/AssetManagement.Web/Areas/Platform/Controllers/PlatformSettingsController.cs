@@ -1,5 +1,6 @@
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Security;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.ViewModels;
 
@@ -9,10 +10,12 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
     public class PlatformSettingsController : Controller
     {
         private readonly IPlatformSettingsService _platformSettings;
+        private readonly IEmailService _emailService;
 
         public PlatformSettingsController()
         {
             _platformSettings = DependencyResolver.Current.GetService<IPlatformSettingsService>();
+            _emailService = DependencyResolver.Current.GetService<IEmailService>();
         }
 
         [HttpGet]
@@ -27,12 +30,14 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         {
             if (!ModelState.IsValid)
             {
+                ApplyConfigurationStatus(model);
                 return View(model);
             }
 
             if (_platformSettings == null)
             {
                 TempData["Error"] = "Platform settings service is unavailable.";
+                ApplyConfigurationStatus(model);
                 return View(model);
             }
 
@@ -53,11 +58,36 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             return RedirectToAction("Email");
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult SendTestEmail(PlatformEmailSettingsViewModel model)
+        {
+            if (_emailService == null)
+            {
+                TempData["Error"] = "Email service is unavailable.";
+                return RedirectToAction("Email");
+            }
+
+            string errorMessage;
+            if (_emailService.SendTestEmail(model.TestRecipientEmail, out errorMessage))
+            {
+                TempData["Message"] = "Test email sent to " + model.TestRecipientEmail + ".";
+            }
+            else
+            {
+                TempData["Error"] = string.IsNullOrWhiteSpace(errorMessage)
+                    ? "Test email could not be sent."
+                    : errorMessage;
+            }
+
+            return RedirectToAction("Email");
+        }
+
         private PlatformEmailSettingsViewModel BuildViewModel()
         {
             if (_platformSettings == null)
             {
-                return new PlatformEmailSettingsViewModel();
+                return ApplyConfigurationStatus(new PlatformEmailSettingsViewModel());
             }
 
             int port;
@@ -72,7 +102,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 enableSsl = true;
             }
 
-            return new PlatformEmailSettingsViewModel
+            return ApplyConfigurationStatus(new PlatformEmailSettingsViewModel
             {
                 SmtpHost = _platformSettings.GetSetting("SmtpHost", string.Empty),
                 SmtpPort = port,
@@ -81,7 +111,29 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 FromEmail = _platformSettings.GetSetting("FromEmail", string.Empty),
                 FromName = _platformSettings.GetSetting("FromName", "Asset Management Module"),
                 ExternalBaseUrl = _platformSettings.GetExternalBaseUrl()
-            };
+            });
+        }
+
+        private PlatformEmailSettingsViewModel ApplyConfigurationStatus(PlatformEmailSettingsViewModel model)
+        {
+            if (model == null)
+            {
+                model = new PlatformEmailSettingsViewModel();
+            }
+
+            if (_emailService == null)
+            {
+                model.ConfigurationSummary = "Email service is unavailable.";
+                model.ConfigurationIsReady = false;
+                model.ConfigurationIsBlocking = DeploymentSecuritySettings.RequiresSmtpForAuthEmails;
+                return model;
+            }
+
+            var status = _emailService.GetConfigurationStatus();
+            model.ConfigurationSummary = status.GetSummary();
+            model.ConfigurationIsReady = status.IsReadyForAuthDelivery;
+            model.ConfigurationIsBlocking = status.IsBlockingProductionAuth;
+            return model;
         }
     }
 }

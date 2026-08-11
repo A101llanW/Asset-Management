@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AssetManagement.Domain.Common;
 
 namespace AssetManagement.Domain.Entities
@@ -16,6 +17,12 @@ namespace AssetManagement.Domain.Entities
 
         public int? UsefulLifeMonths { get; set; }
 
+        public int? DepreciationLifeMonths { get; set; }
+
+        public decimal? DepreciationRatePercent { get; set; }
+
         public virtual AssetCategory AssetCategory { get; set; }
+
+        public virtual ICollection<AssetSubType> SubTypes { get; set; } = new HashSet<AssetSubType>();
     }
 }

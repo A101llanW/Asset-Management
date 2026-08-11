@@ -283,9 +283,10 @@ namespace AssetManagement.Application.Services
             assignment.AssetId = assetId;
             assignment.ToUserId = string.IsNullOrWhiteSpace(assignment.ToUserId) ? entity.RequestedById : assignment.ToUserId;
 
+            AssetAssignment createdAssignment = null;
             _unitOfWork.ExecuteInTransaction(() =>
             {
-                _assignmentService.AssignWithoutSave(assignment);
+                createdAssignment = _assignmentService.AssignWithoutSave(assignment);
                 entity.Status = AssetRequestStatus.Fulfilled;
                 entity.FulfilledAssetId = assetId;
                 entity.ReviewedById = fulfilledByUserId;
@@ -303,6 +304,7 @@ namespace AssetManagement.Application.Services
                     "/Assets/Details/" + assetId);
             });
 
+            _assignmentService.RecordAssignmentAudit(createdAssignment, assetId);
             _auditWriter.Write("AssetRequests.Fulfill", nameof(AssetRequest), entity.Id.ToString(), AssetRequestStatus.Approved.ToString(), AssetRequestStatus.Fulfilled.ToString());
         }
 

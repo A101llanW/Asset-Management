@@ -6,6 +6,7 @@ using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Application.Security;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Infrastructure.Identity;
 
@@ -53,6 +54,32 @@ namespace AssetManagement.Infrastructure.Services
                 true);
             ApplyOrganizationRoleNames(users, organizationId.Value);
             return users;
+        }
+
+        public PagedListVm<UserVm> GetListPage(
+            UserListFilterVm filter,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new PagedListVm<UserVm>();
+            }
+
+            var result = _userAccountQueryRepository.GetUserListPage(
+                organizationId.Value,
+                null,
+                true,
+                filter,
+                sort,
+                direction,
+                page,
+                pageSize);
+            ApplyOrganizationRoleNames(result.Items, organizationId.Value);
+            return result;
         }
 
         public UserVm GetById(string id)
@@ -112,10 +139,12 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             EnsurePermissionCeiling(roleId);
+            EnsureDepartmentHeadAssignment(user, user.DepartmentId, roleId);
 
             var previousRoleId = user.RoleId;
             user.RoleId = roleId;
             user.UpdatedAt = System.DateTime.UtcNow;
+            user.AccessToken = Application.Security.SecurePasswordGenerator.GenerateAccessToken();
             _unitOfWork.Writer<ApplicationUser>().Update(user);
             _unitOfWork.SaveChanges();
             _auditWriter.Write(
@@ -131,7 +160,7 @@ namespace AssetManagement.Infrastructure.Services
             var user = _unitOfWork.Writer<ApplicationUser>().GetById(userId);
             if (user == null)
             {
-                return;
+                throw new BusinessException("User not found.");
             }
 
             if (departmentId.HasValue)
@@ -139,14 +168,77 @@ namespace AssetManagement.Infrastructure.Services
                 var department = _unitOfWork.Writer<Department>().GetById(departmentId.Value);
                 if (department == null)
                 {
-                    return;
+                    throw new BusinessException("That department no longer exists.");
                 }
             }
 
+            EnsureDepartmentHeadAssignment(user, departmentId, user.RoleId);
+
+            var previousDepartmentId = user.DepartmentId;
             user.DepartmentId = departmentId;
             user.UpdatedAt = System.DateTime.UtcNow;
             _unitOfWork.Writer<ApplicationUser>().Update(user);
             _unitOfWork.SaveChanges();
+            _auditWriter.Write(
+                "Users.AssignDepartment",
+                nameof(ApplicationUser),
+                userId,
+                previousDepartmentId.HasValue ? previousDepartmentId.Value.ToString() : null,
+                departmentId.HasValue ? departmentId.Value.ToString() : null);
+        }
+
+        private void EnsureDepartmentHeadAssignment(ApplicationUser user, int? departmentId, int? roleId)
+        {
+            if (user == null || !roleId.HasValue)
+            {
+                return;
+            }
+
+            var role = _unitOfWork.Writer<Role>().GetById(roleId.Value);
+            if (!DepartmentHeadAssignmentRules.IsDepartmentHeadRole(role))
+            {
+                return;
+            }
+
+            if (!departmentId.HasValue)
+            {
+                throw new BusinessException("Assign a department before making this user a Department Head.");
+            }
+
+            var organizationId = user.OrganizationId;
+            var peers = _unitOfWork.Repository<ApplicationUser>()
+                .Find(u => u.Id != user.Id
+                    && u.IsActive
+                    && u.OrganizationId == organizationId
+                    && u.DepartmentId == departmentId
+                    && u.RoleId.HasValue)
+                .ToList();
+
+            foreach (var peer in peers)
+            {
+                var peerRole = _unitOfWork.Writer<Role>().GetById(peer.RoleId.Value);
+                if (!DepartmentHeadAssignmentRules.IsDepartmentHeadRole(peerRole))
+                {
+                    continue;
+                }
+
+                var department = _unitOfWork.Writer<Department>().GetById(departmentId.Value);
+                var departmentName = department == null || string.IsNullOrWhiteSpace(department.Name)
+                    ? "this department"
+                    : department.Name;
+                var peerName = ((peer.FirstName ?? string.Empty) + " " + (peer.LastName ?? string.Empty)).Trim();
+                if (string.IsNullOrWhiteSpace(peerName))
+                {
+                    peerName = peer.Email;
+                }
+
+                throw new BusinessException(
+                    "Cannot assign Department Head: "
+                    + departmentName
+                    + " already has a Department Head ("
+                    + peerName
+                    + "). Each department may have only one head, and a head may lead only one department.");
+            }
         }
 
         private void EnsurePermissionCeiling(int roleId)

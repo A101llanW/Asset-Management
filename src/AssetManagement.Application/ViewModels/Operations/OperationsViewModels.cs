@@ -160,6 +160,10 @@ namespace AssetManagement.Application.ViewModels
         public string ResolutionStatus { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        public int? PendingPhotoRequirementId { get; set; }
+
+        public bool RequiresDamagePhoto { get; set; }
     }
 
     public class ClaimListVm
@@ -235,6 +239,56 @@ namespace AssetManagement.Application.ViewModels
         public string UploadedByName { get; set; }
 
         public DateTime UploadedAt { get; set; }
+
+        public string ProcessType { get; set; }
+
+        public int? ProcessId { get; set; }
+
+        public int? RequirementId { get; set; }
+    }
+
+    public class AssetDocumentRequirementVm
+    {
+        public int Id { get; set; }
+
+        public int AssetId { get; set; }
+
+        public string ProcessType { get; set; }
+
+        public int ProcessId { get; set; }
+
+        public string DocumentType { get; set; }
+
+        public string Label { get; set; }
+
+        public int? DocumentId { get; set; }
+
+        public bool IsPending { get; set; }
+    }
+
+    public class AssetDocumentStatusRowVm
+    {
+        public int? RequirementId { get; set; }
+
+        public int? DocumentId { get; set; }
+
+        public string ProcessType { get; set; }
+
+        public int? ProcessId { get; set; }
+
+        public string ProcessReference { get; set; }
+
+        public string DocumentType { get; set; }
+
+        public bool IsPending { get; set; }
+
+        public string FileName { get; set; }
+
+        public long? FileSizeBytes { get; set; }
+
+        public string UploadedByName { get; set; }
+
+        public DateTime? UploadedAt { get; set; }
     }
 
     public class AssetDocumentUploadVm

@@ -5,9 +5,11 @@ namespace AssetManagement.Application.Contracts
 {
     public interface IIncidentService
     {
-        void Create(AssetIncidentVm model);
+        int Create(AssetIncidentVm model);
 
         IEnumerable<IncidentListVm> GetIncidents(string search, int? assetId);
+
+        PagedListVm<IncidentListVm> GetListPage(string search, int? assetId, int page, int pageSize);
 
         IncidentDetailsVm GetById(int id);
 

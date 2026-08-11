@@ -65,6 +65,18 @@ namespace AssetManagement.Infrastructure.Identity
 
         public DateTime? UpdatedAt { get; set; }
 
+        public string AccessToken { get; set; }
+
+        public bool RequirePasswordChange { get; set; }
+
+        public DateTime? LastPasswordChange { get; set; }
+
+        public bool IsEmailVerified { get; set; }
+
+        public string EmailVerificationCode { get; set; }
+
+        public DateTime? EmailVerificationExpiryUtc { get; set; }
+
         public string FullName { get { return (FirstName + " " + LastName).Trim(); } }
     }
 }

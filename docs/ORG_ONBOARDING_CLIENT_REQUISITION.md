@@ -6,7 +6,7 @@ Use this checklist when onboarding a client that matches the **department-head +
 
 - [ ] Platform admin: register organization (name, slug, default currency **KES** if applicable).
 - [ ] Confirm tenant URL: `https://<host>/<slug>/Account/Login`.
-- [ ] Apply database migrations through **042** (or run full `initialize-database.ps1` on a fresh database).
+- [ ] Apply database migrations through **042** (or run full `tools/database/Initialize-Database.ps1` on a fresh database).
 
 ## 2. Structure departments
 

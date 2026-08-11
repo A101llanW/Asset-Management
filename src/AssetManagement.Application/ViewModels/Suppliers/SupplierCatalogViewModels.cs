@@ -86,8 +86,6 @@ namespace AssetManagement.Application.ViewModels
     {
         public string ItemDescription { get; set; }
 
-        public decimal? RequisitionEstimatedUnitCost { get; set; }
-
         public string Currency { get; set; }
 
         public IList<SupplierPriceComparisonRowVm> Rows { get; set; } = new List<SupplierPriceComparisonRowVm>();

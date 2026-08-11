@@ -15,6 +15,18 @@
                     @using (Html.BeginForm("CreateOrganization", "Organizations", new { area = "Platform" }, FormMethod.Post))
                     {
                         @Html.AntiForgeryToken()
+                        <input type="hidden" name="submitToken" value="@Guid.NewGuid().ToString("N")" />
+
+                        if (ViewBag.ShowSimilarNameWarning == true)
+                        {
+                            <div class="alert alert-warning">
+                                A similarly named organization may already exist. Check the box below to continue anyway.
+                            </div>
+                            <div class="form-check mb-3">
+                                @Html.CheckBoxFor(m => m.IgnoreSimilarNameWarning, new { @class = "form-check-input" })
+                                @Html.LabelFor(m => m.IgnoreSimilarNameWarning, "I understand and want to continue", new { @class = "form-check-label" })
+                            </div>
+                        }
 
                         if (!ViewData.ModelState.IsValid)
                         {

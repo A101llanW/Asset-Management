@@ -1,4 +1,5 @@
 using System;
+using System.Data;
 using System.Data.SqlClient;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
@@ -7,7 +8,7 @@ using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Infrastructure.Repositories
 {
-    public class UnitOfWork : IUnitOfWork
+    public class UnitOfWork : IUnitOfWork, IUnitOfWorkEnlistment
     {
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly IOrganizationScopeService _organizationScope;
@@ -67,6 +68,20 @@ namespace AssetManagement.Infrastructure.Repositories
             _session.ExecuteInTransaction(action);
         }
 
+        public bool TryGetActiveTransaction(out IDbConnection connection, out IDbTransaction transaction)
+        {
+            connection = null;
+            transaction = null;
+            if (_session == null || !_session.HasActiveTransaction)
+            {
+                return false;
+            }
+
+            connection = _session.Connection;
+            transaction = _session.Transaction;
+            return true;
+        }
+
         public void TrackAdd(object entity)
         {
             if (entity == null)
@@ -101,6 +116,12 @@ namespace AssetManagement.Infrastructure.Repositories
             };
             EntitySqlWriter.Update(_session.Connection, map, entity, writeOptions);
             _session.Track(entity, TrackedEntityState.Unchanged);
+        }
+
+        public void ClearTracking()
+        {
+            EnsureSession();
+            _session.ClearTracking();
         }
 
         private void EnsureSession()

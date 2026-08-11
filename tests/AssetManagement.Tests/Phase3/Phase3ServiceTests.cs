@@ -129,7 +129,62 @@ namespace AssetManagement.Tests.Phase3
             var service = TestServiceFactory.CreateAuditLogService(unitOfWork, "user-1");
             var csv = Encoding.UTF8.GetString(service.ExportCsv(new AuditLogFilterVm()));
             StringAssert.Contains("Timestamp", csv);
-            StringAssert.Contains("Assets.UpdateStatus", csv);
+            StringAssert.Contains("Asset status changed", csv);
+        }
+
+        [Test]
+        public void AuditLogService_BusinessEventsOnly_FiltersAssetAuditNoise()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new AuditLog
+            {
+                Id = 1,
+                ActorUserId = "user-1",
+                Action = "Assets.Assign",
+                EntityType = nameof(AssetAssignment),
+                EntityId = "5",
+                Timestamp = DateTime.UtcNow.AddMinutes(-5),
+                IPAddress = "127.0.0.1"
+            });
+            unitOfWork.Seed(new AuditLog
+            {
+                Id = 2,
+                ActorUserId = "user-1",
+                Action = "HTTP.Assets.Details",
+                EntityType = "Assets",
+                EntityId = "10",
+                Timestamp = DateTime.UtcNow.AddMinutes(-4),
+                IPAddress = "127.0.0.1"
+            });
+            unitOfWork.Seed(new AuditLog
+            {
+                Id = 3,
+                ActorUserId = "user-1",
+                Action = "Incidents.Edit",
+                EntityType = nameof(AssetIncident),
+                EntityId = "7",
+                Timestamp = DateTime.UtcNow.AddMinutes(-3),
+                IPAddress = "127.0.0.1"
+            });
+            unitOfWork.Seed(new AuditLog
+            {
+                Id = 4,
+                ActorUserId = "user-1",
+                Action = "Incidents.Create",
+                EntityType = nameof(AssetIncident),
+                EntityId = "7",
+                Timestamp = DateTime.UtcNow.AddMinutes(-2),
+                IPAddress = "127.0.0.1"
+            });
+
+            var service = TestServiceFactory.CreateAuditLogService(unitOfWork, "user-1");
+            var logs = service.GetLogs(new AuditLogFilterVm { BusinessEventsOnly = true }).ToList();
+
+            Assert.AreEqual(2, logs.Count);
+            Assert.IsTrue(logs.Any(x => x.Action == "Assets.Assign"));
+            Assert.IsTrue(logs.Any(x => x.Action == "Incidents.Create"));
+            Assert.IsFalse(logs.Any(x => x.Action.StartsWith("HTTP.", StringComparison.OrdinalIgnoreCase)));
+            Assert.IsFalse(logs.Any(x => x.Action == "Incidents.Edit"));
         }
 
         [Test]
@@ -202,6 +257,8 @@ namespace AssetManagement.Tests.Phase3
         }
 
         public bool BypassesDepartmentScope => false;
+
+        public bool IncludesClassDepartmentAssets => false;
 
         public int? ScopedDepartmentId => _departmentId;
 

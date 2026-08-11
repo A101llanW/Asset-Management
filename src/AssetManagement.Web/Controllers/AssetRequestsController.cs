@@ -4,6 +4,7 @@ using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
@@ -112,16 +113,31 @@ namespace AssetManagement.Web.Controllers
             ViewBag.CanCreateRequisition = HasPermission("Purchases.Create");
 
             int inStoreCount = 0;
-            if (model.DepartmentId.HasValue && model.CategoryId.HasValue)
+            if (model.DepartmentId.HasValue)
             {
-                var stockFilter = new AssetFilterVm
+                var stockService = BuildAssetStockService();
+                if (model.RequestedAssetId.HasValue && model.RequestedAssetId.Value > 0)
                 {
-                    Status = AssetStatus.InStore,
-                    DepartmentId = model.DepartmentId,
-                    CategoryId = model.CategoryId,
-                    OrganizationWide = true
-                };
-                inStoreCount = _assetService.GetAssetListPage(stockFilter, "name", "asc", 1, 1).TotalCount;
+                    var requestedAsset = UnitOfWork.Repository<Asset>().GetById(model.RequestedAssetId.Value);
+                    if (requestedAsset != null && requestedAsset.AssetSubTypeId.HasValue)
+                    {
+                        inStoreCount = stockService.GetAvailableQuantity(
+                            requestedAsset.AssetSubTypeId.Value,
+                            model.DepartmentId);
+                    }
+                }
+
+                if (inStoreCount == 0 && model.CategoryId.HasValue)
+                {
+                    var stockFilter = new AssetFilterVm
+                    {
+                        Status = AssetStatus.InStore,
+                        DepartmentId = model.DepartmentId,
+                        CategoryId = model.CategoryId,
+                        OrganizationWide = true
+                    };
+                    inStoreCount = _assetService.GetAssetListPage(stockFilter, "name", "asc", 1, 1).TotalCount;
+                }
             }
 
             ViewBag.InStoreAssetCount = inStoreCount;

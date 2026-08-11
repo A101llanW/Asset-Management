@@ -22,7 +22,8 @@ namespace AssetManagement.Application.Helpers
             IList<ReportStatCard> stats,
             IList<string> headers,
             IList<IList<string>> rows,
-            string footerNote)
+            string footerNote,
+            ReportBrandingVm branding = null)
         {
             var fragment = BuildReportFragment(
                 title,
@@ -35,7 +36,8 @@ namespace AssetManagement.Application.Helpers
                 stats,
                 headers,
                 rows,
-                footerNote);
+                footerNote,
+                branding);
             return WrapDocument(fragment);
         }
 
@@ -50,12 +52,14 @@ namespace AssetManagement.Application.Helpers
             IList<ReportStatCard> stats,
             IList<string> headers,
             IList<IList<string>> rows,
-            string footerNote)
+            string footerNote,
+            ReportBrandingVm branding = null)
         {
             var color = ResolveThemeColor(themeColor);
             var sb = new StringBuilder();
             sb.Append(GetStylesBlock(color));
             sb.Append("<div class=\"report-frame\">");
+            sb.Append(BuildBrandHeader(branding));
             sb.AppendFormat(
                 "<div class=\"report-header-box\"><h1>{0}</h1><p>{1}</p></div>",
                 Encode(title),
@@ -105,18 +109,18 @@ namespace AssetManagement.Application.Helpers
             sb.Append(BuildTable(headers, rows));
             sb.AppendFormat(
                 "<div class=\"report-footer\"><p>{0}</p><p class=\"report-footer-note\">{1}</p></div>",
-                Encode("Nanosoft Asset Suite — Confidential"),
+                Encode("Nanosoft Asset Suite - Confidential"),
                 Encode(footerNote ?? string.Empty));
             sb.Append("</div>");
             return sb.ToString();
         }
 
-        public static string BuildRequisitionDocument(PurchaseRequestDetailVm model, string generatedBy)
+        public static string BuildRequisitionDocument(PurchaseRequestDetailVm model, string generatedBy, ReportBrandingVm branding = null)
         {
-            return WrapDocument(BuildRequisitionFragment(model, generatedBy));
+            return WrapDocument(BuildRequisitionFragment(model, generatedBy, branding));
         }
 
-        public static string BuildRequisitionFragment(PurchaseRequestDetailVm model, string generatedBy)
+        public static string BuildRequisitionFragment(PurchaseRequestDetailVm model, string generatedBy, ReportBrandingVm branding = null)
         {
             if (model == null)
             {
@@ -127,6 +131,7 @@ namespace AssetManagement.Application.Helpers
             var sb = new StringBuilder();
             sb.Append(GetStylesBlock(color));
             sb.Append("<div class=\"report-frame\">");
+            sb.Append(BuildBrandHeader(branding));
             sb.AppendFormat(
                 "<div class=\"report-header-box\"><h1>{0}</h1><p>Purchase requisition</p></div>",
                 Encode(model.RequestNumber));
@@ -163,8 +168,6 @@ namespace AssetManagement.Application.Helpers
             sb.Append(BuildDetailRow("Qty in stock", model.QuantityInStock.HasValue ? model.QuantityInStock.Value.ToString() : "—"));
             sb.Append(BuildDetailRow("Qty to order", model.Quantity.ToString()));
             sb.Append(BuildDetailRow("Required by", model.RequiredDate.HasValue ? model.RequiredDate.Value.ToString("yyyy-MM-dd") : "—"));
-            sb.Append(BuildDetailRow("Est. unit cost", FormatMoney(model.EstimatedUnitCost, model.Currency)));
-            sb.Append(BuildDetailRow("Est. total", FormatMoney(model.EstimatedUnitCost * model.Quantity, model.Currency)));
             sb.Append(BuildDetailRow("Submitted", model.CreatedAt.ToString("yyyy-MM-dd HH:mm")));
             if (model.ApprovedAt.HasValue)
             {
@@ -210,8 +213,45 @@ namespace AssetManagement.Application.Helpers
 
             sb.AppendFormat(
                 "<div class=\"report-footer\"><p>{0}</p><p class=\"report-footer-note\">Prepared by {1}</p></div>",
-                Encode("Nanosoft Asset Suite — Confidential"),
+                Encode("Nanosoft Asset Suite - Confidential"),
                 Encode(string.IsNullOrWhiteSpace(generatedBy) ? "System" : generatedBy));
+            sb.Append("</div>");
+            return sb.ToString();
+        }
+
+        public static string BuildBrandHeaderFragment(ReportBrandingVm branding)
+        {
+            return BuildBrandHeader(branding);
+        }
+
+        private static string BuildBrandHeader(ReportBrandingVm branding)
+        {
+            if (branding == null)
+            {
+                return string.Empty;
+            }
+
+            var hasLogo = !string.IsNullOrWhiteSpace(branding.OrganizationLogoUrl);
+            var hasName = !string.IsNullOrWhiteSpace(branding.OrganizationName);
+            if (!hasLogo && !hasName)
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("<div class=\"report-brand-bar\">");
+            if (hasLogo)
+            {
+                sb.AppendFormat(
+                    "<img class=\"report-brand-logo\" src=\"{0}\" alt=\"{1}\" />",
+                    Encode(branding.OrganizationLogoUrl),
+                    Encode(string.IsNullOrWhiteSpace(branding.OrganizationName) ? "Organization logo" : branding.OrganizationName));
+            }
+            else
+            {
+                sb.AppendFormat("<div class=\"report-brand-name\">{0}</div>", Encode(branding.OrganizationName));
+            }
+
             sb.Append("</div>");
             return sb.ToString();
         }
@@ -226,13 +266,35 @@ namespace AssetManagement.Application.Helpers
 
         private static string BuildTable(IList<string> headers, IList<IList<string>> rows)
         {
+            var columnCount = headers == null ? 0 : headers.Count;
+            var isWide = columnCount >= 7;
+            var tableClass = isWide
+                ? string.Format("report-table report-table--wide report-table--cols{0}", columnCount)
+                : "report-table";
             var sb = new StringBuilder();
-            sb.Append("<table class=\"report-table\"><thead><tr>");
+            sb.Append("<div class=\"report-table-wrap\">");
+            sb.AppendFormat("<table class=\"{0}\">", tableClass);
+            if (isWide && columnCount > 0)
+            {
+                sb.Append("<colgroup>");
+                for (var i = 0; i < columnCount; i++)
+                {
+                    sb.AppendFormat("<col style=\"width:{0}%\" />", GetWideColumnWidthPercent(columnCount, i));
+                }
+
+                sb.Append("</colgroup>");
+            }
+
+            sb.Append("<thead><tr>");
             if (headers != null)
             {
-                foreach (var header in headers)
+                for (var headerIndex = 0; headerIndex < headers.Count; headerIndex++)
                 {
-                    sb.AppendFormat("<th>{0}</th>", Encode(header));
+                    var header = headers[headerIndex];
+                    var headerClass = isWide && IsNumericColumn(columnCount, headerIndex)
+                        ? " class=\"report-col-num\""
+                        : string.Empty;
+                    sb.AppendFormat("<th{0}>{1}</th>", headerClass, Encode(header));
                 }
             }
 
@@ -249,9 +311,13 @@ namespace AssetManagement.Application.Helpers
                 foreach (var row in rows)
                 {
                     sb.Append("<tr>");
-                    foreach (var cell in row)
+                    for (var cellIndex = 0; cellIndex < row.Count; cellIndex++)
                     {
-                        sb.AppendFormat("<td>{0}</td>", Encode(cell));
+                        var cell = row[cellIndex];
+                        var cellClass = isWide && IsNumericColumn(columnCount, cellIndex)
+                            ? " class=\"report-col-num\""
+                            : string.Empty;
+                        sb.AppendFormat("<td{0}>{1}</td>", cellClass, Encode(cell));
                     }
 
                     sb.Append("</tr>");
@@ -259,7 +325,47 @@ namespace AssetManagement.Application.Helpers
             }
 
             sb.Append("</tbody></table>");
+            if (isWide)
+            {
+                sb.Append("<div class=\"report-scroll-hint\">Scroll horizontally to view all columns.</div>");
+            }
+
+            sb.Append("</div>");
             return sb.ToString();
+        }
+
+        private static bool IsNumericColumn(int columnCount, int columnIndex)
+        {
+            if (columnCount == 9)
+            {
+                return columnIndex >= 4;
+            }
+
+            return columnIndex >= columnCount - 5;
+        }
+
+        private static int GetWideColumnWidthPercent(int columnCount, int columnIndex)
+        {
+            if (columnCount <= 0)
+            {
+                return 100;
+            }
+
+            if (columnCount == 9)
+            {
+                var widths = new[] { 6, 11, 9, 7, 12, 13, 14, 14, 14 };
+                return columnIndex >= 0 && columnIndex < widths.Length ? widths[columnIndex] : 100 / columnCount;
+            }
+
+            if (columnCount == 10)
+            {
+                var widths = new[] { 6, 10, 8, 8, 8, 8, 9, 9, 9, 9 };
+                return columnIndex >= 0 && columnIndex < widths.Length ? widths[columnIndex] : 100 / columnCount;
+            }
+
+            var equal = 100 / columnCount;
+            var remainder = 100 - (equal * columnCount);
+            return columnIndex == 0 ? equal + remainder : equal;
         }
 
         private static string WrapDocument(string fragment)
@@ -273,7 +379,10 @@ namespace AssetManagement.Application.Helpers
             return string.Format(@"<style>
 @page {{ margin: 1.5cm; size: A4; }}
 html, body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; color: #2c3e50; background: #fff; min-height: 0; }}
-.report-frame {{ border: 1px solid #e1e8ed; border-radius: 16px; margin: 0; background: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.03); border-top: 5px solid {0}; overflow: hidden; min-height: 0; }}
+.report-frame {{ border: 1px solid #e1e8ed; border-radius: 16px; margin: 0; background: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.03); border-top: 5px solid {0}; overflow: visible; width: 100%; max-width: 100%; box-sizing: border-box; min-height: 0; }}
+.report-brand-bar {{ text-align: center; padding: 16px 24px 8px; background: #fff; border-bottom: 1px solid #edf2f7; }}
+.report-brand-logo {{ max-height: 64px; max-width: 240px; object-fit: contain; }}
+.report-brand-name {{ font-size: 18px; font-weight: 600; color: #2c3e50; letter-spacing: 0.02em; }}
 .report-header-box {{ text-align: center; background: {0}; color: white; padding: 28px 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
 .report-header-box h1 {{ margin: 0; font-size: 26px; font-weight: 600; text-transform: uppercase; }}
 .report-header-box p {{ margin: 6px 0 0 0; opacity: 0.92; font-size: 14px; }}
@@ -293,9 +402,18 @@ html, body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; marg
 .detail-value {{ display: table-cell; font-size: 13px; color: #2c3e50; vertical-align: top; }}
 .detail-text {{ margin: 0; font-size: 13px; line-height: 1.55; white-space: pre-wrap; }}
 .detail-note {{ margin: 12px 0 0 0; font-size: 12px; color: #566573; }}
-.report-table {{ border-collapse: collapse; width: calc(100% - 48px); margin: 0 24px 24px 24px; }}
-.report-table th {{ background: {0}; color: white; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
-.report-table td {{ border-bottom: 1px solid #f1f4f6; padding: 10px 12px; font-size: 12px; }}
+.report-table-wrap {{ box-sizing: border-box; width: calc(100% - 48px); max-width: calc(100% - 48px); margin: 0 24px 24px 24px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }}
+.report-scroll-hint {{ display: none; font-size: 10px; color: #7f8c8d; text-align: right; padding: 6px 2px 0 0; }}
+.report-table {{ border-collapse: collapse; width: 100%; margin: 0; table-layout: auto; }}
+.report-table--wide {{ width: max-content; min-width: 100%; table-layout: fixed; }}
+.report-table--cols9 {{ min-width: 920px; }}
+.report-table--cols10 {{ min-width: 1000px; }}
+.report-table th {{ background: {0}; color: white; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; white-space: nowrap; }}
+.report-table td {{ border-bottom: 1px solid #f1f4f6; padding: 10px 12px; font-size: 12px; vertical-align: top; word-break: break-word; }}
+.report-table--wide th {{ font-size: 9px; padding: 7px 5px; white-space: normal; line-height: 1.25; word-break: break-word; vertical-align: bottom; }}
+.report-table--wide td {{ font-size: 10px; padding: 6px 5px; vertical-align: top; }}
+.report-table--wide .report-col-num {{ text-align: right; white-space: normal; word-break: normal; overflow-wrap: normal; font-variant-numeric: tabular-nums; }}
+.report-table--wide th.report-col-num {{ text-align: right; }}
 .report-footer {{ text-align: center; padding: 16px 24px 24px 24px; color: #95a5a6; font-size: 11px; }}
 .report-footer-note {{ margin-top: 6px; }}
 .text-center {{ text-align: center; }}

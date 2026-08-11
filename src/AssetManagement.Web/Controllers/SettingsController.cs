@@ -4,6 +4,7 @@ using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
@@ -46,6 +47,7 @@ namespace AssetManagement.Web.Controllers
             UpsertSetting(repository, settings, InsuranceThresholdKey, model.InsuranceThresholdDays.ToString(), "Days before insurance expiry to trigger alerts.");
             UpsertSetting(repository, settings, MaintenanceThresholdKey, model.MaintenanceThresholdDays.ToString(), "Days before maintenance due date to trigger alerts.");
             UpsertSetting(repository, settings, DefaultCurrencyKey, model.DefaultCurrency.ToUpperInvariant(), "Default finance currency code.");
+            UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter);
 
             foreach (var process in model.ApprovalProcesses ?? new List<ApprovalProcessSettingsVm>())
             {
@@ -89,28 +91,14 @@ namespace AssetManagement.Web.Controllers
                 DefaultCurrency = ApprovalWorkflowSettingsHelper.GetString(settings, DefaultCurrencyKey, FinanceDefaults.DefaultCurrencyCode),
                 RequireTransferApproval = ApprovalWorkflowSettingsHelper.GetBool(settings, ApprovalProcessCodes.GetLegacyRequireSettingKey(ApprovalProcessCodes.Transfer), false),
                 RequireDisposalApproval = ApprovalWorkflowSettingsHelper.GetBool(settings, ApprovalProcessCodes.GetLegacyRequireSettingKey(ApprovalProcessCodes.Disposal), false),
-                ApprovalProcesses = ApprovalProcessCodes.Ordered.Select(code => BuildApprovalProcessVm(code, settings, roleLookup, userLookup, GetDefaultApproverRoleIdForProcess(code, roles))).ToList()
+                ApprovalProcesses = ApprovalProcessCodes.Ordered.Select(code => BuildApprovalProcessVm(code, settings, roleLookup, userLookup, GetDefaultApproverRoleIdForProcess(code, roles))).ToList(),
+                LabelPrinter = LabelPrinterSettingsHelper.FromDictionary(settings)
             };
         }
 
         private static int? GetDefaultApproverRoleIdForProcess(string processCode, IList<RoleVm> roles)
         {
-            string roleName;
-            switch (processCode)
-            {
-                case ApprovalProcessCodes.Transfer:
-                case ApprovalProcessCodes.Disposal:
-                    roleName = "Asset Manager";
-                    break;
-                case ApprovalProcessCodes.Purchase:
-                    roleName = "Procurement Officer";
-                    break;
-                default:
-                    roleName = "Asset Manager";
-                    break;
-            }
-
-            return roles?.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase))?.Id;
+            return OrganizationApprovalDefaults.ResolveDefaultApproverRoleId(processCode, roles);
         }
 
         private ApprovalProcessSettingsVm BuildApprovalProcessVm(
@@ -147,7 +135,6 @@ namespace AssetManagement.Web.Controllers
         private void PopulateApprovalMatrixOptions()
         {
             PopulateRoleOptions();
-            PopulateAssetApproverPickerOptions();
         }
 
         private void PopulateRoleOptions()
@@ -157,7 +144,7 @@ namespace AssetManagement.Web.Controllers
 
         private void ValidateApprovalProcesses(SettingsVm model)
         {
-            ApprovalWorkflowSettingsHelper.ValidateAssetApprovalProcessSettings(
+            ApprovalWorkflowSettingsHelper.ValidateApprovalProcessSettings(
                 model?.ApprovalProcesses,
                 (key, message) => ModelState.AddModelError(key, message));
         }
@@ -193,6 +180,23 @@ namespace AssetManagement.Web.Controllers
             };
             repository.Add(newSetting);
             settings[key] = newSetting;
+        }
+
+        private static void UpsertLabelPrinterSettings(IRepository<SystemSetting> repository, IDictionary<string, SystemSetting> settings, LabelPrinterSettingsVm labelPrinter)
+        {
+            if (labelPrinter == null)
+            {
+                return;
+            }
+
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.EnabledKey, labelPrinter.Enabled.ToString(), "Enable Zebra ZD421 label printing.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.ModelKey, labelPrinter.Model ?? LabelPrinterSettingsHelper.DefaultModel, "Configured Zebra printer model reference.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.ModeKey, labelPrinter.Mode ?? LabelPrinterSettingsHelper.ModeZebraBrowserPrint, "Label print mode: ZebraBrowserPrint or Browser.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.DeviceNameKey, labelPrinter.DeviceName ?? string.Empty, "Optional Windows printer name for Zebra Browser Print.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.WidthMmKey, labelPrinter.WidthMm.ToString(), "Label width in millimeters.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.HeightMmKey, labelPrinter.HeightMm.ToString(), "Label height in millimeters.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.QrMagnificationKey, labelPrinter.QrMagnification.ToString(), "ZPL QR magnification factor (1-10).");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.LayoutPresetKey, labelPrinter.LayoutPreset ?? LabelPrinterSettingsHelper.LayoutQrWithMeta, "Label layout preset.");
         }
     }
 }

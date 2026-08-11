@@ -32,8 +32,35 @@ body.am-login-page.am-auth-theme-dark {
     object-fit: contain;
 }
 
+.am-auth-header-logo--tenant {
+    filter: none;
+}
+
+.am-auth-header-org-name {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 body.am-login-page.am-auth-theme-dark .am-auth-header-logo {
     filter: brightness(0) invert(1);
+}
+
+body.am-login-page.am-auth-theme-dark .am-auth-header-logo--tenant {
+    filter: none;
+}
+
+body.am-login-page.am-auth-theme-light .am-auth-header-org-name {
+    color: #0f172a;
+}
+
+body.am-login-page.am-auth-theme-dark .am-auth-header-org-name {
+    color: #fff;
 }
 
 .am-auth-header-copy {

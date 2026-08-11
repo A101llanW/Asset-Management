@@ -19,6 +19,8 @@ namespace AssetManagement.Domain.Entities
 
         public int AssetTypeId { get; set; }
 
+        public int? AssetSubTypeId { get; set; }
+
         public string Brand { get; set; }
 
         public string Model { get; set; }
@@ -56,6 +58,10 @@ namespace AssetManagement.Domain.Entities
         public decimal SalvageValue { get; set; }
 
         public DepreciationMethod DepreciationMethod { get; set; }
+
+        public int? DepreciationLifeMonths { get; set; }
+
+        public decimal? DepreciationRatePercent { get; set; }
 
         public DateTime DepreciationStartDate { get; set; }
 
@@ -96,6 +102,8 @@ namespace AssetManagement.Domain.Entities
         public virtual AssetCategory Category { get; set; }
 
         public virtual AssetType AssetType { get; set; }
+
+        public virtual AssetSubType AssetSubType { get; set; }
 
         public virtual Supplier Supplier { get; set; }
 

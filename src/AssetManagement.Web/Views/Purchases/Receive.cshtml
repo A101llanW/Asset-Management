@@ -1,45 +1,137 @@
 @model AssetManagement.Application.ViewModels.AssetReceiveVm
+@using AssetManagement.Domain.Enums
 @{
     ViewBag.Title = "Receive Asset";
     var detail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.PurchaseRecordId });
+    var requiresSubType = detail != null && detail.RequiresSubTypeAssignment;
+    var requiresCatalogConfirm = detail != null && detail.RequiresCatalogMatchConfirmation;
+    var requisitionDepartmentName = detail != null ? detail.RequisitionDepartmentName : null;
+    var hasRequisitionDepartment = detail != null && detail.RequisitionDepartmentId.HasValue && detail.RequisitionDepartmentId.Value > 0;
+    var catalogConfirmBase = AssetManagement.Web.Helpers.TenantUrlHelper.TenantRouteUrl(
+        Url, "Receive", "Purchases", new { id = Model.PurchaseRecordId });
+    var catalogConfirmUrl = catalogConfirmBase
+        + "?catalogConfirmed=true"
+        + (string.IsNullOrEmpty(returnUrl) ? "" : "&returnUrl=" + Uri.EscapeDataString(returnUrl));
+    var conditionOptions = ViewBag.ConditionOptions as SelectList;
+    if (conditionOptions == null)
+    {
+        var conditionItems = Enum.GetNames(typeof(AssetCondition))
+            .Select(name => new System.Web.Mvc.SelectListItem
+            {
+                Value = name,
+                Text = name.Replace("RepairNeeded", "Repair Needed").Replace("BeyondRepair", "Beyond Repair")
+            })
+            .ToList();
+        conditionOptions = new System.Web.Mvc.SelectList(conditionItems, "Value", "Text", Model.ConditionOnReceipt);
+    }
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Receive Asset",
-    Subtitle = detail != null ? ("PO " + (detail.PurchaseOrderNumber ?? detail.PurchaseRecordId.ToString()) + " - " + detail.RemainingQuantity + " unit(s) remaining") : "Link an in-store asset to this purchase.",
+    Subtitle = detail != null ? ("PO " + (detail.PurchaseOrderNumber ?? detail.PurchaseRecordId.ToString()) + " - " + detail.RemainingQuantity + " unit(s) remaining") : "Create new assets and link them to this purchase.",
     BackUrl = returnUrl,
     BackLabel = "Back to Purchase"
 })
-
 <div class="card card-kpi mb-3">
     <div class="card-body">
-        @using (Html.BeginForm("Receive", "Purchases", FormMethod.Post))
+        @using (Html.BeginForm("Receive", "Purchases", FormMethod.Post, new { id = "receive-form", data_am_receive_mode = "true" }))
         {
             @Html.AntiForgeryToken()
             @Html.HiddenFor(m => m.PurchaseRecordId)
+            @Html.HiddenFor(m => m.AssetSubTypeId)
+            @Html.HiddenFor(m => m.CatalogMatchConfirmed)
+            <input type="hidden" id="ReceiveAssetTypeId" value="@(detail != null && detail.ContextAssetTypeId.HasValue ? detail.ContextAssetTypeId.Value.ToString() : "")" />
+            <input type="hidden" id="ReceiveBrand" value="@(detail != null ? detail.ContextBrand : "")" />
+            <input type="hidden" id="ReceiveModel" value="@(detail != null ? detail.ContextModel : "")" />
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Asset</label>
-                    @Html.DropDownListFor(m => m.AssetId, (SelectList)ViewBag.Assets, "Select asset", new { @class = "form-select" })
-                    @if (detail != null && !string.IsNullOrWhiteSpace(detail.ItemDescription))
-                    {
-                        <div class="form-text">Matching in-store assets for requisition item: @detail.ItemDescription</div>
-                    }
-                    @Html.ValidationMessageFor(m => m.AssetId, "", new { @class = "text-danger small" })
+                <div class="col-md-12">
+                    <label class="form-label">Asset sub-type</label>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div id="receive-subtype-display" class="form-control-plaintext @(string.IsNullOrWhiteSpace(detail != null ? detail.AssetSubTypeName : null) ? "text-muted" : "fw-medium")">
+                            @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
+                            {
+                                @detail.AssetSubTypeName
+                            }
+                            else if (requiresSubType)
+                            {
+                                <text>Not assigned — required before receiving</text>
+                            }
+                            else
+                            {
+                                <text>Not assigned</text>
+                            }
+                        </div>
+                        @if (requiresSubType)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="receive-subtype-change">Assign</button>
+                        }
+                    </div>
                 </div>
+                @if (hasRequisitionDepartment)
+                {
+                    <div class="col-md-12">
+                        <div class="card border bg-light">
+                            <div class="card-body py-3">
+                                <p class="mb-2"><strong>Placement (required):</strong> choose where received goods should be recorded.</p>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ReceivePlacementChoice" id="placement-requisition" value="RequisitionDepartment" @(Model.ReceivePlacementChoice == "RequisitionDepartment" ? "checked" : null) />
+                                    <label class="form-check-label" for="placement-requisition">
+                                        Assign to <strong>@requisitionDepartmentName</strong>
+                                    </label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="radio" name="ReceivePlacementChoice" id="placement-company" value="CompanyCustody" @(Model.ReceivePlacementChoice == "CompanyCustody" ? "checked" : null) />
+                                    <label class="form-check-label" for="placement-company">
+                                        Keep in <strong>company custody</strong> for later assignment
+                                    </label>
+                                </div>
+                                @Html.ValidationMessage("ReceivePlacementChoice", "", new { @class = "text-danger small" })
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="col-md-12">
+                        <div class="form-text">Received items are recorded under <strong>company custody</strong> (no department, no custodian) until explicitly assigned.</div>
+                    </div>
+                }
                 <div class="col-md-3">
                     <label class="form-label">Received Date</label>
                     @Html.TextBoxFor(m => m.ReceivedDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Quantity Received</label>
-                    @Html.TextBoxFor(m => m.QuantityReceived, new { @class = "form-control", type = "number", min = "1", max = detail != null ? detail.RemainingQuantity.ToString() : "1" })
+                    @Html.TextBoxFor(m => m.QuantityReceived, new { @class = "form-control", type = "number", min = "1", max = detail != null ? detail.RemainingQuantity.ToString() : "1", id = "receive-quantity-input" })
                     @Html.ValidationMessageFor(m => m.QuantityReceived, "", new { @class = "text-danger small" })
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Condition on Receipt</label>
-                    @Html.TextBoxFor(m => m.ConditionOnReceipt, new { @class = "form-control" })
+                    @Html.DropDownListFor(
+                        m => m.ConditionOnReceipt,
+                        conditionOptions,
+                        "-- Select condition --",
+                        new { @class = "form-select" })
+                    @Html.ValidationMessageFor(m => m.ConditionOnReceipt, "", new { @class = "text-danger small" })
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">New assets</label>
+                    <p class="form-text mb-2">
+                        Each unit received creates a new asset with an auto-generated tag and QR code.
+                        Serial numbers are optional.
+                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.SuggestedAssetName))
+                        {
+                            <span>Name: <strong>@detail.SuggestedAssetName</strong>.</span>
+                        }
+                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.ContextBrand))
+                        {
+                            <span>@detail.ContextBrand @detail.ContextModel</span>
+                        }
+                    </p>
+                    <button type="button" class="btn btn-outline-primary" id="receive-open-serial-wizard">Enter serial numbers (optional)</button>
+                    <div id="receive-serial-status" class="small mt-2"><span class="text-muted">Serial numbers are optional. Submit without them to create assets with tags only.</span></div>
+                    <div id="receive-serial-hidden-fields"></div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Notes</label>
@@ -48,9 +140,45 @@
             </div>
             @Html.ValidationSummary(true, "", new { @class = "text-danger mt-2" })
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Record Receiving</button>
+                <button type="submit" class="btn btn-primary" id="receive-submit-btn">Create assets &amp; record receiving</button>
                 <a class="btn btn-outline-secondary" href="@returnUrl">Cancel</a>
             </div>
         }
     </div>
 </div>
+@Html.Partial("_AssetSubTypePickerModal")
+@Html.Partial("_ReceiveSerialWizardModal")
+@if (requiresCatalogConfirm)
+{
+    <div class="modal fade" id="catalogMatchConfirmModal" tabindex="-1" aria-hidden="true"
+         data-am-confirm-url="@catalogConfirmUrl" data-am-auto-show="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm catalog match</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">This purchase looks like it matches an existing asset from the supplier catalog:</p>
+                    <p class="mb-1"><strong>Asset:</strong> @detail.CatalogMatchLabel</p>
+                    @if (!string.IsNullOrWhiteSpace(detail.CatalogMatchItemName))
+                    {
+                        <p class="mb-1"><strong>Catalog item:</strong> @detail.CatalogMatchItemName</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.ItemDescription))
+                    {
+                        <p class="mb-0 text-muted">Requisition item: @detail.ItemDescription</p>
+                    }
+                    <p class="mt-3 mb-0">Do you want to use this match?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="catalog-match-decline">No, choose manually</button>
+                    <button type="button" class="btn btn-primary" id="catalog-match-confirm">Yes, use this match</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>
+<script src="@Url.Content("~/Scripts/app/receive-catalog-match.js")"></script>
+<script src="@Url.Content("~/Scripts/app/receive-serial-wizard.js")"></script>

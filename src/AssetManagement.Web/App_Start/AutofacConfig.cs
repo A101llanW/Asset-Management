@@ -4,12 +4,14 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Application.Contracts.Queries;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.Services.Organizations;
 using AssetManagement.Infrastructure.Identity;
 using AssetManagement.Infrastructure.Persistence;
 using AssetManagement.Infrastructure.Queries;
 using AssetManagement.Infrastructure.Repositories;
+using AssetManagement.Infrastructure.Security;
 using AssetManagement.Infrastructure.Services;
 using Autofac;
 using Autofac.Integration.Mvc;
@@ -24,7 +26,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterControllers(Assembly.GetExecutingAssembly());
 
             builder.RegisterType<SqlConnectionFactory>().As<ISqlConnectionFactory>().InstancePerHttpRequest();
-            builder.RegisterType<UnitOfWork>().As<IUnitOfWork>().InstancePerHttpRequest();
+            builder.RegisterType<UnitOfWork>().As<IUnitOfWork>().As<IUnitOfWorkEnlistment>().InstancePerHttpRequest();
             builder.RegisterType<AssetScanLookupRepository>().As<IAssetScanLookupRepository>().InstancePerHttpRequest();
             builder.RegisterType<HttpCurrentUserContext>().As<ICurrentUserContext>().InstancePerHttpRequest();
             builder.RegisterType<AuditWriter>().As<IAuditWriter>().InstancePerHttpRequest();
@@ -34,6 +36,8 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<DepartmentScopeService>().As<IDepartmentScopeService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationScopeService>().As<IOrganizationScopeService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationService>().As<IOrganizationService>().InstancePerHttpRequest();
+            builder.RegisterType<SchoolOrganizationBootstrapService>().As<ISchoolOrganizationBootstrapService>().InstancePerHttpRequest();
+            builder.RegisterType<OrganizationPurgeService>().As<IOrganizationPurgeService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationLicenseService>().As<IOrganizationLicenseService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationLicenseQueryRepository>().As<IOrganizationLicenseQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetQueryService>().As<IAssetQueryService>().InstancePerHttpRequest();
@@ -45,14 +49,21 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<ReferenceDataCache>().As<IReferenceDataCache>().InstancePerHttpRequest();
             builder.RegisterType<UserAccountQueryRepository>().As<IUserAccountQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
+            builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<MembershipService>().As<IUserAccountService>().InstancePerHttpRequest();
             builder.RegisterType<AccountSecurityService>().As<IAccountSecurityService>().InstancePerHttpRequest();
+            builder.RegisterType<AuthFlowRateLimiterService>().As<IAuthFlowRateLimiter>().InstancePerHttpRequest();
             builder.RegisterType<EmailService>().As<IEmailService>().InstancePerHttpRequest();
             builder.RegisterType<PlatformSettingsService>().As<IPlatformSettingsService>().InstancePerHttpRequest();
             builder.RegisterType<SecurityLogQueryRepository>().As<ISecurityLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<SecurityLogService>().As<ISecurityLogService>().InstancePerHttpRequest();
+            builder.RegisterType<ModulePermissionService>().As<IModulePermissionService>().InstancePerHttpRequest();
+            builder.RegisterType<SecurityReportExportService>().As<ISecurityReportExportService>().InstancePerHttpRequest();
 
+            builder.RegisterType<AssetStockService>().As<IAssetStockService>().InstancePerHttpRequest();
+            builder.RegisterType<AssetSubTypeService>().As<IAssetSubTypeService>().InstancePerHttpRequest();
+            builder.RegisterType<AssetSubTypeResolver>().InstancePerHttpRequest();
             builder.RegisterType<AssetService>().As<IAssetService>().InstancePerHttpRequest();
             builder.RegisterType<SearchService>().As<ISearchService>().InstancePerHttpRequest();
             builder.RegisterType<AssetBulkService>().As<IAssetBulkService>().InstancePerHttpRequest();
@@ -86,8 +97,6 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<SegregationOfDutiesService>().As<ISegregationOfDutiesService>().InstancePerHttpRequest();
             builder.RegisterType<InsurancePolicyService>().As<IInsurancePolicyService>().InstancePerHttpRequest();
             builder.RegisterType<WebhookService>().As<IWebhookService>().InstancePerHttpRequest();
-            builder.RegisterType<FormsSsoAuthenticationProvider>().As<ISsoAuthenticationProvider>().SingleInstance();
-
             AttachmentStorageRegistration.Register(builder);
 
             var container = builder.Build();

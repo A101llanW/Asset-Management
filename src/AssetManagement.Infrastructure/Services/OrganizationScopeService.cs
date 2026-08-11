@@ -20,6 +20,9 @@ namespace AssetManagement.Infrastructure.Services
         private bool _profileLoaded;
         private ApplicationUser _user;
         private string _roleName;
+        private int? _instanceFilterOverride;
+        private bool _instancePlatformAdminOverride;
+        private bool _instanceCompanyAdminOverride;
 
         public OrganizationScopeService(ICurrentUserContext currentUser, ISqlConnectionFactory connectionFactory)
         {
@@ -32,6 +35,7 @@ namespace AssetManagement.Infrastructure.Services
             var context = HttpContext.Current;
             if (context == null)
             {
+                _instanceFilterOverride = organizationId;
                 return;
             }
 
@@ -45,8 +49,23 @@ namespace AssetManagement.Infrastructure.Services
             }
         }
 
+        public void SetPlatformAdminOverride(bool isPlatformAdmin)
+        {
+            _instancePlatformAdminOverride = isPlatformAdmin;
+        }
+
+        public void SetCompanyAdminOverride(bool isCompanyAdmin)
+        {
+            _instanceCompanyAdminOverride = isCompanyAdmin;
+        }
+
         public int? GetCurrentOrganizationId()
         {
+            if (HttpContext.Current == null && _instanceFilterOverride.HasValue)
+            {
+                return _instanceFilterOverride;
+            }
+
             int? overrideId;
             if (TryGetContextItemInt(FilterOverrideKey, out overrideId))
             {
@@ -86,7 +105,7 @@ namespace AssetManagement.Infrastructure.Services
                 return null;
             }
 
-            if (entityType == typeof(ImpersonationRequest))
+            if (entityType == typeof(ImpersonationRequest) || entityType == typeof(TemporaryCredential))
             {
                 return null;
             }
@@ -123,6 +142,11 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool IsActualPlatformAdmin()
         {
+            if (HttpContext.Current == null && _instancePlatformAdminOverride)
+            {
+                return true;
+            }
+
             EnsureProfileLoaded();
             return _user != null
                 && string.Equals(_roleName, "Platform Admin", StringComparison.OrdinalIgnoreCase);
@@ -130,6 +154,11 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool IsCompanyAdmin()
         {
+            if (HttpContext.Current == null && _instanceCompanyAdminOverride)
+            {
+                return true;
+            }
+
             if (IsImpersonating())
             {
                 return true;
@@ -160,6 +189,12 @@ namespace AssetManagement.Infrastructure.Services
 
             if (filterOrgId.Value < 0)
             {
+                // Sentinel means "no tenant context": hide tenant-scoped rows, keep global entities readable.
+                if (!(typeof(ITenantEntity).IsAssignableFrom(typeof(T))))
+                {
+                    return query;
+                }
+
                 return query.Where(x => false);
             }
 

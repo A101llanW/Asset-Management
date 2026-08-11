@@ -83,6 +83,35 @@ namespace AssetManagement.PerformanceTests.Helpers
                 }
             }
         }
+
+        public static bool TableExists(string connectionString, string tableName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(tableName))
+            {
+                return false;
+            }
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT CASE WHEN OBJECT_ID(@TableName, 'U') IS NULL THEN 0 ELSE 1 END";
+                    command.Parameters.Add(new SqlParameter("@TableName", tableName));
+                    return Convert.ToInt32(command.ExecuteScalar()) == 1;
+                }
+            }
+        }
+
+        public static void EnsureGroupedAssetSchema(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString) || TableExists(connectionString, "AssetSubType"))
+            {
+                return;
+            }
+
+            SqlDatabaseInitializer.ApplyMigrationsToConnection(connectionString, continueOnError: true);
+        }
     }
 
     public sealed class FixedOrganizationScopeService : IOrganizationScopeService
@@ -105,6 +134,14 @@ namespace AssetManagement.PerformanceTests.Helpers
         }
 
         public void SetOrganizationFilterOverride(int? organizationId)
+        {
+        }
+
+        public void SetPlatformAdminOverride(bool isPlatformAdmin)
+        {
+        }
+
+        public void SetCompanyAdminOverride(bool isCompanyAdmin)
         {
         }
 
@@ -144,6 +181,11 @@ namespace AssetManagement.PerformanceTests.Helpers
         public bool BypassesDepartmentScope
         {
             get { return true; }
+        }
+
+        public bool IncludesClassDepartmentAssets
+        {
+            get { return false; }
         }
 
         public int? ScopedDepartmentId

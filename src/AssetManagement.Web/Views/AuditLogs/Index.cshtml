@@ -1,8 +1,10 @@
 @model IEnumerable<AssetManagement.Application.ViewModels.AuditLogVm>
 @using System.Linq
 @using AssetManagement.Web.Helpers
+@using AssetManagement.Application.Helpers
 @{
     ViewBag.Title = "Audit Logs";
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
     var canExport = Html.HasPermission("AuditLogs.Export");
     var filter = ViewBag.Filter as AssetManagement.Application.ViewModels.AuditLogFilterVm ?? new AssetManagement.Application.ViewModels.AuditLogFilterVm();
     var relatedAssetTag = ViewBag.RelatedAssetTag as string;
@@ -54,12 +56,12 @@ else
 @if (logs.Any())
 {
     <table class="table mb-0 table-sm">
-        <thead class="table-light"><tr><th>Time</th><th>Actor</th><th>Action</th><th>Record</th><th>Record Id</th><th>IP</th></tr></thead>
+        <thead class="table-light"><tr><th>Time (@eatLabel)</th><th>Actor</th><th>Action</th><th>Record</th><th>Record Id</th><th>IP</th></tr></thead>
         <tbody>
         @foreach (var item in logs)
         {
             <tr>
-                <td>@item.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@Html.FormatAuditTimestamp(item.Timestamp)</td>
                 <td>@item.ActorUserId</td>
                 <td>@(string.IsNullOrWhiteSpace(item.ActionLabel) ? item.Action : item.ActionLabel)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.EntityTypeLabel) ? item.EntityType : item.EntityTypeLabel)</td>

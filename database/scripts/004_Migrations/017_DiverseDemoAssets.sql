@@ -130,19 +130,9 @@ BEGIN
     SET @deptOps = (SELECT TOP 1 [Id] FROM [Department] WHERE [Code] = N'OPS' AND [OrganizationId] = @orgId ORDER BY [Id]);
     SET @deptAdmin = (SELECT TOP 1 [Id] FROM [Department] WHERE [Code] = N'ADMIN' AND [OrganizationId] = @orgId ORDER BY [Id]);
 
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'Tech Source Ltd' AND [OrganizationId] = @orgId)
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[OrganizationId],[CreatedAt],[IsActive])
-        VALUES (N'Tech Source Ltd', N'Mary Wanjiku', N'sales@techsource.example', N'+254700000001', N'Nairobi', N'TSL-001', N'Primary IT supplier', @orgId, @now, 1);
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'Office Works Hub' AND [OrganizationId] = @orgId)
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[OrganizationId],[CreatedAt],[IsActive])
-        VALUES (N'Office Works Hub', N'David Mwangi', N'contact@officeworks.example', N'+254700000002', N'Mombasa', N'OWH-003', N'Furniture and office equipment', @orgId, @now, 1);
-    IF NOT EXISTS (SELECT 1 FROM [Supplier] WHERE [SupplierName] = N'MedEquip Africa' AND [OrganizationId] = @orgId)
-        INSERT INTO [Supplier] ([SupplierName],[ContactPerson],[Email],[Phone],[Address],[RegistrationNumber],[Notes],[OrganizationId],[CreatedAt],[IsActive])
-        VALUES (N'MedEquip Africa', N'Anne Njeri', N'support@medequip.example', N'+254700000003', N'Kisumu', N'MEA-018', N'Medical and lab equipment', @orgId, @now, 1);
-
-    SET @supTech = (SELECT TOP 1 [Id] FROM [Supplier] WHERE [SupplierName] = N'Tech Source Ltd' AND [OrganizationId] = @orgId ORDER BY [Id]);
-    SET @supOffice = (SELECT TOP 1 [Id] FROM [Supplier] WHERE [SupplierName] = N'Office Works Hub' AND [OrganizationId] = @orgId ORDER BY [Id]);
-    SET @supMed = (SELECT TOP 1 [Id] FROM [Supplier] WHERE [SupplierName] = N'MedEquip Africa' AND [OrganizationId] = @orgId ORDER BY [Id]);
+    SET @supTech = NULL;
+    SET @supOffice = NULL;
+    SET @supMed = NULL;
 
     IF NOT EXISTS (SELECT 1 FROM [AssetType] WHERE [Name] = N'Laptop' AND [OrganizationId] = @orgId) AND @catIt IS NOT NULL
         INSERT INTO [AssetType] ([AssetCategoryId],[Name],[Description],[OrganizationId],[CreatedAt],[IsActive])
@@ -440,9 +430,9 @@ BEGIN
     IF OBJECT_ID(N'[PurchaseRequest]', N'U') IS NOT NULL
     BEGIN
         INSERT INTO [PurchaseRequest]
-            ([RequestNumber],[RequestedById],[ApprovalStatus],[CurrentApprovalStage],[DepartmentId],[Justification],[EstimatedUnitCost],[Quantity],[Currency],[Notes],[OrganizationId],[CreatedAt],[IsActive])
+            ([RequestNumber],[RequestedById],[ApprovalStatus],[CurrentApprovalStage],[DepartmentId],[Justification],[Quantity],[Currency],[Notes],[OrganizationId],[CreatedAt],[IsActive])
         VALUES
-        (N'PR-2026-004', @userOpsStaff, 1, 1, @deptOps, N'GPS trackers for fleet vehicles to improve dispatch visibility', 18500, 3, N'KES', N'Awaiting procurement approval', @orgId, @now, 1);
+        (N'PR-2026-004', @userOpsStaff, 1, 1, @deptOps, N'GPS trackers for fleet vehicles to improve dispatch visibility', 3, N'KES', N'Awaiting procurement approval', @orgId, @now, 1);
     END
 
     INSERT INTO [AuditLog]

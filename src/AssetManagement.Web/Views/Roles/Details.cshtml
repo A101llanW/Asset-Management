@@ -8,7 +8,8 @@
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditRole = Html.HasPermission("Roles.Edit");
     var canManageSettings = Html.HasPermission("Settings.Manage");
-    var permissionGroups = ViewBag.PermissionGroups as IEnumerable<IGrouping<string, AssetManagement.Application.ViewModels.PermissionVm>> ?? Enumerable.Empty<IGrouping<string, AssetManagement.Application.ViewModels.PermissionVm>>();
+    var permissionGroups = ViewBag.PermissionGroups as IList<PermissionGroupVm>
+        ?? new List<PermissionGroupVm>();
     var workflowNote = ViewBag.WorkflowNote as string;
     var approvalStageProcesses = ViewBag.ApprovalStageProcesses as IList<string> ?? new List<string>();
     var offerRoleTemplateSave = ViewBag.OfferRoleTemplateSave as bool? == true;
@@ -91,11 +92,15 @@
                     foreach (var group in permissionGroups)
                     {
                         <div class="mb-3">
-                            <h6 class="mb-2">@group.Key</h6>
+                            <h6 class="mb-1">@group.Module</h6>
+                            @if (!string.IsNullOrWhiteSpace(group.ModuleDescription))
+                            {
+                                <p class="small text-muted mb-2">@group.ModuleDescription</p>
+                            }
                             <div class="d-flex flex-wrap gap-2">
-                                @foreach (var permission in group)
+                                @foreach (var permission in group.Permissions ?? Enumerable.Empty<PermissionVm>())
                                 {
-                                    <span class="badge bg-light text-dark border">@PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)</span>
+                                    <span class="badge bg-light text-dark border" title="@permission.Code">@PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)</span>
                                 }
                             </div>
                         </div>

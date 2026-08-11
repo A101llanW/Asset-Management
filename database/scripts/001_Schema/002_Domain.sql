@@ -93,6 +93,60 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'[AssetType]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [AssetType] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [AssetCategoryId] INT NOT NULL,
+        [Name] NVARCHAR(200) NOT NULL,
+        [Description] NVARCHAR(500) NULL,
+        [UsefulLifeMonths] INT NULL,
+        [CreatedAt] DATETIME NOT NULL,
+        [UpdatedAt] DATETIME NULL,
+        [IsActive] BIT NOT NULL CONSTRAINT DF_AssetType_IsActive DEFAULT(1),
+        CONSTRAINT FK_AssetType_AssetCategory FOREIGN KEY ([AssetCategoryId]) REFERENCES [AssetCategory]([Id])
+    );
+END
+GO
+
+IF OBJECT_ID(N'[AssetSubType]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [AssetSubType] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [OrganizationId] INT NULL,
+        [AssetTypeId] INT NOT NULL,
+        [Name] NVARCHAR(200) NOT NULL,
+        [Brand] NVARCHAR(100) NOT NULL CONSTRAINT DF_AssetSubType_Brand DEFAULT(N''),
+        [Model] NVARCHAR(100) NOT NULL CONSTRAINT DF_AssetSubType_Model DEFAULT(N''),
+        [Specifications] NVARCHAR(MAX) NULL,
+        [Sku] NVARCHAR(100) NULL,
+        [CreatedAt] DATETIME NOT NULL,
+        [UpdatedAt] DATETIME NULL,
+        [IsActive] BIT NOT NULL CONSTRAINT DF_AssetSubType_IsActive DEFAULT(1),
+        CONSTRAINT FK_AssetSubType_AssetType FOREIGN KEY ([AssetTypeId]) REFERENCES [AssetType]([Id])
+    );
+END
+GO
+
+IF OBJECT_ID(N'[Asset]', N'U') IS NOT NULL
+   AND COL_LENGTH(N'[Asset]', N'AssetSubTypeId') IS NULL
+BEGIN
+    ALTER TABLE [Asset] ADD [AssetSubTypeId] INT NULL;
+END
+GO
+
+IF OBJECT_ID(N'[Asset]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[AssetSubType]', N'U') IS NOT NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM sys.foreign_keys
+       WHERE [name] = N'FK_Asset_AssetSubType'
+         AND [parent_object_id] = OBJECT_ID(N'[Asset]'))
+BEGIN
+    ALTER TABLE [Asset]
+        ADD CONSTRAINT FK_Asset_AssetSubType FOREIGN KEY ([AssetSubTypeId]) REFERENCES [AssetSubType]([Id]);
+END
+GO
+
 IF OBJECT_ID(N'[SupplierCatalogItem]', N'U') IS NULL
 BEGIN
     CREATE TABLE [SupplierCatalogItem] (
@@ -116,24 +170,7 @@ BEGIN
         [UpdatedAt] DATETIME NULL,
         CONSTRAINT FK_SupplierCatalogItem_Supplier FOREIGN KEY ([SupplierId]) REFERENCES [Supplier]([Id]),
         CONSTRAINT FK_SupplierCatalogItem_AssetCategory FOREIGN KEY ([AssetCategoryId]) REFERENCES [AssetCategory]([Id]),
-        CONSTRAINT FK_SupplierCatalogItem_AssetType FOREIGN KEY ([AssetTypeId]) REFERENCES [AssetType]([Id]),
-        CONSTRAINT FK_SupplierCatalogItem_TaggedAsset FOREIGN KEY ([TaggedAssetId]) REFERENCES [Asset]([Id])
-    );
-END
-GO
-
-IF OBJECT_ID(N'[AssetType]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [AssetType] (
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [AssetCategoryId] INT NOT NULL,
-        [Name] NVARCHAR(200) NOT NULL,
-        [Description] NVARCHAR(500) NULL,
-        [UsefulLifeMonths] INT NULL,
-        [CreatedAt] DATETIME NOT NULL,
-        [UpdatedAt] DATETIME NULL,
-        [IsActive] BIT NOT NULL CONSTRAINT DF_AssetType_IsActive DEFAULT(1),
-        CONSTRAINT FK_AssetType_AssetCategory FOREIGN KEY ([AssetCategoryId]) REFERENCES [AssetCategory]([Id])
+        CONSTRAINT FK_SupplierCatalogItem_AssetType FOREIGN KEY ([AssetTypeId]) REFERENCES [AssetType]([Id])
     );
 END
 GO
@@ -188,6 +225,15 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'[Asset]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[SupplierCatalogItem]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'FK_SupplierCatalogItem_TaggedAsset', N'F') IS NULL
+BEGIN
+    ALTER TABLE [SupplierCatalogItem]
+        ADD CONSTRAINT FK_SupplierCatalogItem_TaggedAsset FOREIGN KEY ([TaggedAssetId]) REFERENCES [Asset]([Id]);
+END
+GO
+
 IF OBJECT_ID(N'[AssetRequest]', N'U') IS NULL
 BEGIN
     CREATE TABLE [AssetRequest] (
@@ -226,10 +272,34 @@ BEGIN
         [FileSizeBytes] BIGINT NOT NULL,
         [UploadedById] NVARCHAR(128) NULL,
         [UploadedAt] DATETIME NOT NULL,
+        [ProcessType] NVARCHAR(50) NULL,
+        [ProcessId] INT NULL,
+        [RequirementId] INT NULL,
         [CreatedAt] DATETIME NOT NULL,
         [UpdatedAt] DATETIME NULL,
         [IsActive] BIT NOT NULL CONSTRAINT DF_AssetDocument_IsActive DEFAULT(1),
         CONSTRAINT FK_AssetDocument_Asset FOREIGN KEY ([AssetId]) REFERENCES [Asset]([Id])
+    );
+END
+GO
+
+IF OBJECT_ID(N'[AssetDocumentRequirement]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [AssetDocumentRequirement] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [OrganizationId] INT NULL,
+        [AssetId] INT NOT NULL,
+        [ProcessType] NVARCHAR(50) NOT NULL,
+        [ProcessId] INT NOT NULL,
+        [DocumentType] NVARCHAR(100) NOT NULL,
+        [Label] NVARCHAR(200) NULL,
+        [DocumentId] INT NULL,
+        [CreatedAt] DATETIME NOT NULL,
+        [FulfilledAt] DATETIME NULL,
+        [UpdatedAt] DATETIME NULL,
+        [IsActive] BIT NOT NULL CONSTRAINT DF_AssetDocumentRequirement_IsActive DEFAULT(1),
+        CONSTRAINT FK_AssetDocumentRequirement_Asset FOREIGN KEY ([AssetId]) REFERENCES [Asset]([Id]),
+        CONSTRAINT FK_AssetDocumentRequirement_Document FOREIGN KEY ([DocumentId]) REFERENCES [AssetDocument]([Id])
     );
 END
 GO
@@ -246,7 +316,6 @@ BEGIN
         [ApprovalStageRoleIds] NVARCHAR(200) NULL,
         [DepartmentId] INT NOT NULL,
         [Justification] NVARCHAR(MAX) NULL,
-        [EstimatedUnitCost] DECIMAL(18,2) NOT NULL,
         [Quantity] INT NOT NULL,
         [Currency] NVARCHAR(10) NULL,
         [Notes] NVARCHAR(MAX) NULL,
@@ -673,6 +742,22 @@ BEGIN
         [UpdatedAt] DATETIME NULL,
         [IsActive] BIT NOT NULL CONSTRAINT DF_Organization_IsActive DEFAULT(1)
     );
+END
+GO
+
+IF OBJECT_ID(N'[dbo].[TemporaryCredentials]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TemporaryCredentials] (
+        [Id] INT IDENTITY(1, 1) NOT NULL CONSTRAINT [PK_TemporaryCredentials] PRIMARY KEY,
+        [Token] NVARCHAR(100) NOT NULL,
+        [EncryptedData] NVARCHAR(MAX) NOT NULL,
+        [ExpiryDate] DATETIME NOT NULL,
+        [IsUsed] BIT NOT NULL CONSTRAINT [DF_TemporaryCredentials_IsUsed] DEFAULT (0),
+        [CreatedDate] DATETIME NOT NULL CONSTRAINT [DF_TemporaryCredentials_CreatedDate] DEFAULT (GETUTCDATE()),
+        [CredentialType] NVARCHAR(50) NULL
+    );
+
+    CREATE UNIQUE INDEX [IX_TemporaryCredentials_Token] ON [dbo].[TemporaryCredentials] ([Token]);
 END
 GO
 

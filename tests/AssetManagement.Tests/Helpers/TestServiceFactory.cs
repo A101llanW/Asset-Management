@@ -1,6 +1,7 @@
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.Services.Organizations;
+using AssetManagement.Application.ViewModels;
 using AssetManagement.Application.ViewModels.Organizations;
 
 namespace AssetManagement.Tests.Helpers
@@ -27,7 +28,9 @@ namespace AssetManagement.Tests.Helpers
             FakeUnitOfWork unitOfWork,
             IDepartmentScopeService departmentScope = null,
             FakeUserService users = null,
-            IApprovalWorkflowEngine approvalEngine = null)
+            IApprovalWorkflowEngine approvalEngine = null,
+            IAssetSubTypeService assetSubTypeService = null,
+            IAuthorizationService authorization = null)
         {
             return new AssetService(
                 unitOfWork,
@@ -42,7 +45,10 @@ namespace AssetManagement.Tests.Helpers
                 approvalEngine ?? new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
                 new NoOpOutboxWriter(),
                 new NoOpWebhookService(),
-                new FakeReferenceDataCache());
+                new FakeReferenceDataCache(),
+                assetSubTypeService ?? CreateAssetSubTypeService(unitOfWork),
+                new FakeOperationsQueryRepository(),
+                authorization ?? new NoOpAuthorizationService());
         }
 
         public static TransferService CreateTransferService(
@@ -115,6 +121,27 @@ namespace AssetManagement.Tests.Helpers
                 unitOfWork,
                 new FakeOperationsQueryRepository(),
                 new FakeOrganizationScopeService());
+        }
+
+        public static AssetStockService CreateAssetStockService(FakeUnitOfWork unitOfWork)
+        {
+            return new AssetStockService(unitOfWork);
+        }
+
+        public static AssetSubTypeService CreateAssetSubTypeService(FakeUnitOfWork unitOfWork)
+        {
+            return new AssetSubTypeService(unitOfWork, CreateAssetStockService(unitOfWork));
+        }
+
+        public static ReceivingService CreateReceivingService(FakeUnitOfWork unitOfWork, FakeOrganizationScopeService organizationScope = null)
+        {
+            var subTypeService = CreateAssetSubTypeService(unitOfWork);
+            return new ReceivingService(
+                unitOfWork,
+                subTypeService,
+                CreateAssetService(unitOfWork, assetSubTypeService: subTypeService),
+                new NoOpOutboxWriter(),
+                organizationScope ?? new FakeOrganizationScopeService());
         }
 
         public static WebhookService CreateWebhookService(FakeUnitOfWork unitOfWork, IAuditWriter auditWriter = null)
@@ -190,6 +217,30 @@ namespace AssetManagement.Tests.Helpers
                 new NoOpAuditWriter(),
                 new FakeOrganizationScopeService(platformAdmin: true));
         }
+    }
+
+    internal class NoOpAssetSubTypeService : IAssetSubTypeService
+    {
+        public AssetSubTypeVm GetById(int id) => null;
+
+        public System.Collections.Generic.IEnumerable<AssetSubTypeListItemVm> GetByAssetTypeId(int assetTypeId, bool activeOnly = true)
+        {
+            return new AssetSubTypeListItemVm[0];
+        }
+
+        public AssetSubTypeVm Lookup(int assetTypeId, string brand, string model) => null;
+
+        public int Create(AssetSubTypeEditVm model) => 0;
+
+        public void Update(AssetSubTypeEditVm model)
+        {
+        }
+
+        public int CreateFromAsset(AssetSubTypeCreateFromAssetVm model) => 0;
+
+        public int CountAssets(int subTypeId) => 0;
+
+        public int GetTotalQuantityOnHand(int subTypeId) => 0;
     }
 
     internal class FakeOrganizationLicenseQueryRepository : Application.Contracts.Organizations.IOrganizationLicenseQueryRepository

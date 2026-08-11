@@ -44,6 +44,8 @@ namespace AssetManagement.Application.Services
                 throw new InvalidOperationException("Organization context is required for dashboard queries.");
             }
 
+            DepreciationCalculator.RefreshOrganization(_unitOfWork, organizationId.Value, DateTime.UtcNow);
+
             var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope;
             int? departmentId = null;
             var denyDepartmentScope = false;
@@ -62,15 +64,23 @@ namespace AssetManagement.Application.Services
             var insuranceThresholdDays = _metricsService.GetInsuranceThresholdDays();
             var activeCount = kpis.TotalAssets;
             var lostDamageCount = kpis.LostDamagedStolenAssets;
+            var depreciationToDatePercent = kpis.TotalAcquisitionValue <= 0m
+                ? 0m
+                : Math.Round(kpis.TotalAccumulatedDepreciation * 100m / kpis.TotalAcquisitionValue, 1);
 
             return new DashboardVm
             {
                 TotalAssets = activeCount,
                 AssignedAssets = kpis.AssignedAssets,
                 UnassignedAssets = kpis.UnassignedAssets,
-                AssetsUnderMaintenance = kpis.AssetsUnderMaintenance,
+                MaintenanceAndDamagedAssets = kpis.MaintenanceAndDamagedAssets,
+                LostAssets = kpis.LostAssets,
                 LostDamagedStolenAssets = lostDamageCount,
                 TotalAcquisitionValue = kpis.TotalAcquisitionValue,
+                TotalCurrentBookValue = kpis.TotalCurrentBookValue,
+                TotalAccumulatedDepreciation = kpis.TotalAccumulatedDepreciation,
+                AverageAnnualDepreciationRatePercent = Math.Round(kpis.AverageAnnualDepreciationRatePercent, 1),
+                DepreciationToDatePercent = depreciationToDatePercent,
                 ExpiringWarrantyCount = _metricsService.CountExpiringWarranties(warrantyThresholdDays),
                 ExpiringInsuranceCount = _metricsService.CountExpiringInsurance(insuranceThresholdDays),
                 AssignmentsPerMonth = kpis.AssignmentsPerMonth,
@@ -132,7 +142,7 @@ namespace AssetManagement.Application.Services
                 {
                     Key = "custody-movement",
                     Title = "Custody Movement",
-                    Description = "Transfers and assignments — ideal for weekly department custody reviews.",
+                    Description = "Transfers and assignments. Ideal for weekly department custody reviews.",
                     Section = "Asset & custody",
                     ThemeColor = "#198754",
                     SupportsDepartmentFilter = true,
@@ -162,6 +172,20 @@ namespace AssetManagement.Application.Services
                 },
                 new ReportDefinitionVm
                 {
+                    Key = "asset-depreciation",
+                    Title = "Asset Depreciation",
+                    Description = "Depreciation expense and book values for assets across a custom period. Compare opening and closing positions.",
+                    Section = "Financial",
+                    ThemeColor = "#0dcaf0",
+                    SupportsDepartmentFilter = true,
+                    SupportsCategoryFilter = true,
+                    SupportsStatusFilter = true,
+                    SupportsDateRange = true,
+                    DefaultPeriodPreset = "this-year",
+                    RequiredPermission = "Depreciation.View"
+                },
+                new ReportDefinitionVm
+                {
                     Key = "pending-approvals",
                     Title = "Pending Approvals Aging",
                     Description = "Open workflow items with aging bands for operational follow-up.",
@@ -175,7 +199,7 @@ namespace AssetManagement.Application.Services
                 {
                     Key = "warranty-expiry",
                     Title = "Warranty Expiry",
-                    Description = "Assets with warranties expiring in the selected window — plan renewals before coverage lapses.",
+                    Description = "Assets with warranties expiring in the selected window. Plan renewals before coverage lapses.",
                     Section = "Risk & compliance",
                     ThemeColor = "#dc3545",
                     SupportsDepartmentFilter = true,

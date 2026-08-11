@@ -63,6 +63,14 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="card card-kpi am-platform-stat-card h-100">
+                <div class="card-body text-center">
+                    <p class="am-platform-stat-card__value mb-0">@Model.InactiveOrganizations</p>
+                    <p class="am-platform-stat-card__label mb-0">Inactive Tenants</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="card card-kpi am-platform-companies-table-card">
@@ -155,6 +163,10 @@
                                     <div class="am-platform-companies-usage">
                                         <span class="small" title="Users">Users @org.UserCount</span>
                                         <span class="small" title="Assets">Assets @org.AssetCount</span>
+                                        @if (org.PendingApprovalCount > 0)
+                                        {
+                                            <span class="small text-warning" title="Pending approvals">Pending @org.PendingApprovalCount</span>
+                                        }
                                     </div>
                                 </td>
                                 <td class="text-end">

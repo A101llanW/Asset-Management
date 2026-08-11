@@ -24,9 +24,11 @@ namespace AssetManagement.Web.Controllers
         {
             var userId = User.GetUserId();
             var auth = BuildAuthorizationService();
-            if (!auth.HasPermission(userId, "Assets.View")
-                && !auth.HasPermission(userId, "Purchases.View")
-                && !auth.HasPermission(userId, "Assets.Request.Approve"))
+            if (!auth.HasPermission(userId, "Purchases.Approve")
+                && !auth.HasPermission(userId, "Assets.Request.Approve")
+                && !auth.HasPermission(userId, "Assets.ApproveDisposal")
+                && !auth.HasPermission(userId, "Purchases.Create")
+                && !auth.HasPermission(userId, "Assets.Request"))
             {
                 return new HttpStatusCodeResult(403, "You do not have permission to access this action.");
             }

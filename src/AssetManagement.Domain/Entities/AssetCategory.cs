@@ -15,6 +15,10 @@ namespace AssetManagement.Domain.Entities
 
         public int? DefaultUsefulLifeMonths { get; set; }
 
+        public int? DefaultDepreciationLifeMonths { get; set; }
+
+        public decimal? DefaultDepreciationRatePercent { get; set; }
+
         public virtual ICollection<AssetType> AssetTypes { get; set; } = new HashSet<AssetType>();
     }
 }

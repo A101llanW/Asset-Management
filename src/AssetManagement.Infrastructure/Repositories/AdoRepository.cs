@@ -51,9 +51,11 @@ namespace AssetManagement.Infrastructure.Repositories
                 return ApplyTenantFilterSingle((T)tracked.Entity);
             }
 
-            var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
             var applyOrgFilter = typeof(ITenantEntity).IsAssignableFrom(typeof(T));
-            var entity = EntitySqlReader.ReadById<T>(_session.Connection, map, id, organizationId, applyOrgFilter, _session.Transaction);
+            var tenantOrganizationId = _organizationScope == null || !applyOrgFilter
+                ? null
+                : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
+            var entity = EntitySqlReader.ReadById<T>(_session.Connection, map, id, tenantOrganizationId, applyOrgFilter, _session.Transaction);
             if (entity == null)
             {
                 return null;
@@ -90,6 +92,11 @@ namespace AssetManagement.Infrastructure.Repositories
             _session.Track(entity, TrackedEntityState.Deleted);
         }
 
+        internal void ResetQueryCache()
+        {
+            _loaded = false;
+        }
+
         private void EnsureLoaded()
         {
             if (_loaded)
@@ -100,7 +107,11 @@ namespace AssetManagement.Infrastructure.Repositories
             BlockApplicationUserFullTableLoad();
 
             var map = EntityMapRegistry.GetMap<T>();
-            var entities = EntitySqlReader.ReadAll<T>(_session.Connection, map, _session.Transaction);
+            var applyOrgFilter = typeof(ITenantEntity).IsAssignableFrom(typeof(T));
+            var tenantOrganizationId = _organizationScope == null || !applyOrgFilter
+                ? null
+                : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
+            var entities = EntitySqlReader.ReadAll<T>(_session.Connection, map, tenantOrganizationId, applyOrgFilter, _session.Transaction);
             var tracked = _session.GetTrackedEntities(typeof(T));
             foreach (var entity in entities)
             {

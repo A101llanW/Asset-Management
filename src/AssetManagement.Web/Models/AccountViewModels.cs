@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AssetManagement.Web.Validation;
 
 namespace AssetManagement.Web.Models
 {
@@ -6,7 +7,7 @@ namespace AssetManagement.Web.Models
     {
         [Required]
         [Display(Name = "Email")]
-        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
+        [LoginIdentity]
         public string Email { get; set; }
 
         [Required]
@@ -66,7 +67,6 @@ namespace AssetManagement.Web.Models
 
         [Required]
         [StringLength(100)]
-        [RegularExpression(@".{6,}", ErrorMessage = "The password must be at least 6 characters long.")]
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
         public string Password { get; set; }

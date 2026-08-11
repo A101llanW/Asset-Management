@@ -11,6 +11,17 @@ namespace AssetManagement.Application.Contracts.Queries
             bool bypassDepartmentScope,
             bool denyDepartmentScope);
 
+        PagedListVm<PurchaseRequestListItemVm> GetPurchaseRequestListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
         AssetRequestListPageVm GetAssetRequestListPage(
             AssetRequestFilterVm filter,
             string sort,
@@ -36,8 +47,35 @@ namespace AssetManagement.Application.Contracts.Queries
 
         IList<PurchaseRecordVm> GetPurchaseRecordList(int organizationId);
 
-        bool ExistsActiveAssetTag(int organizationId, string assetTag);
+        PagedListVm<PurchaseRecordVm> GetPurchaseRecordListPage(
+            int organizationId,
+            string search,
+            int? supplierId,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
 
-        bool ExistsActiveSerialNumber(int organizationId, string serialNumber);
+        PagedListVm<IncidentListVm> GetIncidentListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int page,
+            int pageSize);
+
+        PagedListVm<ClaimListVm> GetClaimListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int page,
+            int pageSize);
+
+        bool ExistsActiveSerialNumber(int organizationId, string serialNumber, int? excludeAssetId = null);
     }
 }

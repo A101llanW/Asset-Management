@@ -26,6 +26,14 @@ namespace AssetManagement.Web.Helpers
                         return "Edit requisitions and purchase orders";
                     case "Purchases.Approve":
                         return "Approve requisitions";
+                    case "Users.ViewDepartment":
+                        return "View department users";
+                    case "Reports.Export":
+                        return "Export reports";
+                    case "Permissions.Assign":
+                        return "Assign role permissions";
+                    case "Settings.Manage":
+                        return "Manage settings";
                 }
             }
 

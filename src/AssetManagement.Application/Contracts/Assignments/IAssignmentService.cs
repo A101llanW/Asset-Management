@@ -13,5 +13,7 @@ namespace AssetManagement.Application.Contracts
         void Assign(AssetAssignmentVm model);
 
         AssetAssignment AssignWithoutSave(AssetAssignmentVm model);
+
+        void RecordAssignmentAudit(AssetAssignment assignment, int assetId);
     }
 }

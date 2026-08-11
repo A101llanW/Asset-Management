@@ -40,7 +40,6 @@ namespace AssetManagement.Web.Helpers
                 { "Settings", "Settings.Manage" },
                 { "Reports", "Reports.View" },
                 { "Notifications", "Reports.View" },
-                { "Depreciation", "Depreciation.View" },
                 { "Custodian", "Assets.View" },
                 { "AssetScan", "Assets.View" },
                 { "AssetRequests", "Assets.Request" },

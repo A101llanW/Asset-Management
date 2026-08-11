@@ -146,6 +146,11 @@ namespace AssetManagement.Web.Helpers
 
             var token = tenantSlug.Trim();
 
+            if (TenantReservedSegments.IsReserved(token))
+            {
+                return false;
+            }
+
             foreach (var reserved in ReservedTenantSegments)
 
             {
@@ -182,6 +187,13 @@ namespace AssetManagement.Web.Helpers
 
             return normalized.Length > 0 && (normalized[0] < '0' || normalized[0] > '9');
 
+        }
+
+
+
+        public static bool IsPlausibleTenantToken(string tenantToken)
+        {
+            return TenantRouteConstraint.IsPlausibleTenantToken(tenantToken);
         }
 
 

@@ -3,10 +3,6 @@
 @model AssetManagement.Application.ViewModels.AssetEditVm
 @{
     ViewBag.Title = "Edit Asset";
-    var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>();
-    var departments = ViewBag.Departments as SelectList;
-    var suppliers = ViewBag.Suppliers as SelectList;
     var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
     var acquisitionCostDisplay = Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"));
 }
@@ -48,29 +44,20 @@
             @Html.LabelFor(m => m.Model, new { @class = "form-label" })
             @Html.TextBoxFor(m => m.Model, new { @class = "form-control" })
         </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.CategoryId, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.CategoryId, categories, "-- Select category --", new { @class = "form-select", id = "CategoryId" })
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
         </div>
-        <div class="col-md-2">
-            @Html.LabelFor(m => m.AssetTypeId, new { @class = "form-label" })
-            <select class="form-select" id="AssetTypeId" name="AssetTypeId">
-                <option value="">-- Select asset type --</option>
-                @foreach (var assetType in assetTypeOptions)
-                {
-                    <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId" @(Model.AssetTypeId == (int)assetType.Id ? "selected" : null)>@assetType.Name</option>
-                }
-            </select>
-            @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger" })
+    </div>
+
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">Classification</h6>
+            @Html.Partial("_AssetClassificationFields", Model)
         </div>
-        <div class="col-md-2">
-            <label class="form-label" for="DepartmentId">Department <span class="text-muted fw-normal">(optional)</span></label>
-            @Html.DropDownListFor(m => m.DepartmentId, departments, "-- No department (organization custody) --", new { @class = "form-select" })
-        </div>
-        <div class="col-md-2">
-            <label class="form-label" for="SupplierId">Supplier <span class="text-muted fw-normal">(optional)</span></label>
-            @Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select" })
-        </div>
+    </div>
+
+    <div class="row g-3">
         <div class="col-md-3">
             @Html.LabelFor(m => m.PurchaseDate, new { @class = "form-label" })
             @Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
@@ -87,16 +74,14 @@
             @Html.ValidationMessageFor(m => m.AcquisitionCost, "", new { @class = "text-danger small" })
         </div>
         @Html.Partial("_AssetTaxAmountFields", Model)
-        <div class="col-md-12">
-            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
-            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
-        </div>
     </div>
+
+    @Html.Partial("_AssetDepreciationFields", Model)
 
     <div class="card card-kpi mb-3">
         <div class="card-header">Request Approval Paths</div>
         <div class="card-body">
-            <p class="text-muted mb-3">Configure how transfer and disposal requests for this asset move through approval. For each stage, open the approver dropdown, choose a title, then select the specific person who must approve that stage. Changes apply to new requests submitted after you save.</p>
+            <p class="text-muted mb-3">Configure how transfer and disposal requests for this asset move through approval. Assign an approver role for each stage — any user with that role can act on pending requests. Changes apply to new requests submitted after you save.</p>
             @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
         </div>
     </div>
@@ -109,6 +94,9 @@
     })
 }
 
+@Html.Partial("_AssetSubTypePickerModal")
+
 <script src="@Url.Content("~/Scripts/app/asset-monetary-input.js")"></script>
 <script src="@Url.Content("~/Scripts/app/asset-category-type.js")"></script>
 <script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>

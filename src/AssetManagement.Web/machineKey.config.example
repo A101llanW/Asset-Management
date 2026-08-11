@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copy to machineKey.config (gitignored) before Release deployment.
+
+  Forms auth cookies are encrypted with FormsAuthentication.Encrypt/Decrypt in
+  CurrentUserExtensions and Global.asax.cs — both depend on this machineKey.
+
+  Generate unique keys (run twice; do not reuse the same value):
+
+    powershell -NoProfile -Command ^
+      "$b = New-Object byte[] 64; (New-Object Security.Cryptography.RNGCryptoServiceProvider).GetBytes($b); [BitConverter]::ToString($b).Replace('-','').ToLower()"
+
+    powershell -NoProfile -Command ^
+      "$b = New-Object byte[] 32; (New-Object Security.Cryptography.RNGCryptoServiceProvider).GetBytes($b); [BitConverter]::ToString($b).Replace('-','').ToLower()"
+
+  First command → validationKey (128 hex chars). Second → decryptionKey (64 hex chars).
+  Store machineKey.config outside source control; use the same file on every web-farm node.
+-->
+<machineKey
+  validationKey="REPLACE_WITH_128_CHARACTER_HEX_VALIDATION_KEY"
+  decryptionKey="REPLACE_WITH_64_CHARACTER_HEX_DECRYPTION_KEY"
+  validation="HMACSHA256"
+  decryption="AES"
+  compatibilityMode="Framework45" />

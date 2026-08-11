@@ -19,7 +19,7 @@ namespace AssetManagement.Infrastructure.Persistence
 
     public static class EntitySqlReader
     {
-        public static IList<T> ReadAll<T>(SqlConnection connection, EntityMap map, SqlTransaction transaction = null) where T : class, new()
+        public static IList<T> ReadAll<T>(SqlConnection connection, EntityMap map, int? tenantOrganizationId, bool applyOrganizationFilter, SqlTransaction transaction = null) where T : class, new()
         {
             var results = new List<T>();
             using (var command = connection.CreateCommand())
@@ -29,7 +29,11 @@ namespace AssetManagement.Infrastructure.Persistence
                     command.Transaction = transaction;
                 }
 
-                command.CommandText = "SELECT * FROM [" + map.TableName + "]";
+                var sql = "SELECT * FROM [" + map.TableName + "]";
+                AppendOrganizationFilter(ref sql, applyOrganizationFilter, tenantOrganizationId);
+                command.CommandText = sql;
+                AppendOrganizationFilterParameters(command, applyOrganizationFilter, tenantOrganizationId);
+
                 using (var reader = command.ExecuteReader())
                 {
                     while (reader.Read())
@@ -42,7 +46,7 @@ namespace AssetManagement.Infrastructure.Persistence
             return results;
         }
 
-        public static T ReadById<T>(SqlConnection connection, EntityMap map, object id, int? organizationId, bool applyOrganizationFilter, SqlTransaction transaction = null) where T : class, new()
+        public static T ReadById<T>(SqlConnection connection, EntityMap map, object id, int? tenantOrganizationId, bool applyOrganizationFilter, SqlTransaction transaction = null) where T : class, new()
         {
             using (var command = connection.CreateCommand())
             {
@@ -52,23 +56,49 @@ namespace AssetManagement.Infrastructure.Persistence
                 }
 
                 var sql = "SELECT * FROM [" + map.TableName + "] WHERE [" + map.PrimaryKey + "]=@Id";
-                if (applyOrganizationFilter && organizationId.HasValue)
-                {
-                    sql += " AND [OrganizationId]=@OrganizationId";
-                }
-
+                AppendOrganizationFilter(ref sql, applyOrganizationFilter, tenantOrganizationId);
                 command.CommandText = sql;
                 AddReadParameter(command, "@Id", id);
-                if (applyOrganizationFilter && organizationId.HasValue)
-                {
-                    AddReadParameter(command, "@OrganizationId", organizationId.Value);
-                }
+                AppendOrganizationFilterParameters(command, applyOrganizationFilter, tenantOrganizationId);
 
                 using (var reader = command.ExecuteReader())
                 {
                     return reader.Read() ? ReadRow<T>(reader, map) : null;
                 }
             }
+        }
+
+        private static void AppendOrganizationFilter(ref string sql, bool applyOrganizationFilter, int? tenantOrganizationId)
+        {
+            if (!applyOrganizationFilter)
+            {
+                return;
+            }
+
+            if (!tenantOrganizationId.HasValue)
+            {
+                return;
+            }
+
+            if (tenantOrganizationId.Value < 0)
+            {
+                SqlClauseBuilder.AppendCondition(ref sql, "1=0");
+                return;
+            }
+
+            SqlClauseBuilder.AppendCondition(ref sql, "[OrganizationId]=@OrganizationId");
+        }
+
+        private static void AppendOrganizationFilterParameters(IDbCommand command, bool applyOrganizationFilter, int? tenantOrganizationId)
+        {
+            if (!applyOrganizationFilter
+                || !tenantOrganizationId.HasValue
+                || tenantOrganizationId.Value < 0)
+            {
+                return;
+            }
+
+            AddReadParameter(command, "@OrganizationId", tenantOrganizationId.Value);
         }
 
         private static void AddReadParameter(IDbCommand command, string name, object value)

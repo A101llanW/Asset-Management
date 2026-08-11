@@ -12,6 +12,7 @@
     var defaultCurrency = ViewBag.DefaultCurrency as string ?? "KES";
     var assetTypesUrl = ViewBag.AssetTypesUrl as string ?? Url.Action("AvailableAssetTypes");
     var taggedAssetsUrl = ViewBag.TaggedAssetsUrl as string ?? Url.Action("AvailableTaggedAssets");
+    var catalogAssetsSearchUrl = ViewBag.CatalogAssetsSearchUrl as string ?? Url.Action("SearchCatalogAssets");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -88,7 +89,13 @@
         </div>
 
         <div class="card card-kpi">
-            <div class="card-header">Price catalog</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Price catalog</span>
+                @if (canEditCatalog)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="show-supplier-catalog-add">Add item</button>
+                }
+            </div>
             <div class="card-body p-0">
                 <table class="table mb-0">
                     <thead class="table-light">
@@ -165,24 +172,29 @@
             </div>
             @if (canEditCatalog)
             {
-                <div class="card-body border-top">
+                <div class="card-body border-top d-none" id="supplier-catalog-add-panel" hidden="hidden">
                     <h6 class="mb-3">Add catalog item</h6>
                     @using (Html.BeginForm("SaveCatalogItem", "Suppliers", FormMethod.Post, new
                     {
                         id = "supplier-catalog-add-form",
                         data_am_supplier_catalog_add = "true",
                         data_am_asset_types_url = assetTypesUrl,
-                        data_am_tagged_assets_url = taggedAssetsUrl
+                        data_am_tagged_assets_url = taggedAssetsUrl,
+                        data_am_catalog_assets_search_url = catalogAssetsSearchUrl
                     }))
                     {
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
                         <input type="hidden" name="SupplierId" value="@Model.Id" />
                         <input type="hidden" name="IsActive" value="true" />
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary catalog-pick-asset">Pick from asset register</button>
+                            <span class="text-muted small ms-2">Pre-fills name, category, type, SKU, and unit price from an existing asset.</span>
+                        </div>
                         <div class="row g-2">
                             <div class="col-md-3">
                                 <label class="form-label small">Item name</label>
-                                <input class="form-control" name="ItemName" placeholder="Required" required />
+                                <input class="form-control catalog-item-name" name="ItemName" placeholder="Required" required />
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small">Category</label>
@@ -228,8 +240,9 @@
                                 <label class="form-label small">Match text</label>
                                 <input class="form-control" name="ItemDescription" placeholder="Extra keywords to match requisitions (optional)" />
                             </div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <button type="submit" class="btn btn-primary w-100">Add item</button>
+                            <div class="col-md-2 d-flex align-items-end gap-2">
+                                <button type="button" class="btn btn-outline-secondary" id="cancel-supplier-catalog-add">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save item</button>
                             </div>
                         </div>
                     }
@@ -238,6 +251,8 @@
         </div>
     </div>
 </div>
+
+@Html.Partial("_CatalogAssetPickerModal")
 
 @section scripts {
     <script src="@Url.Content("~/Scripts/app/supplier-create.js")"></script>

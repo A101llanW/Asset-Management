@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Infrastructure.Persistence;
 
@@ -155,8 +156,12 @@ WHERE (@OrganizationId IS NULL OR [OrganizationId] = @OrganizationId)
             AddParameter(command, "@Username", NormalizeFilter(filter == null ? null : filter.Username));
             AddParameter(command, "@IpAddress", NormalizeFilter(filter == null ? null : filter.IpAddress));
             AddParameter(command, "@WasSuccessful", filter == null || !filter.WasSuccessful.HasValue ? (object)DBNull.Value : filter.WasSuccessful.Value);
-            AddParameter(command, "@StartDate", filter == null || !filter.StartDate.HasValue ? (object)DBNull.Value : filter.StartDate.Value);
-            AddParameter(command, "@EndDate", filter == null || !filter.EndDate.HasValue ? (object)DBNull.Value : filter.EndDate.Value.Date.AddDays(1));
+            AddParameter(command, "@StartDate", filter == null || !filter.StartDate.HasValue
+                ? (object)DBNull.Value
+                : KenyaTimeHelper.StartOfLocalDayToUtc(filter.StartDate.Value));
+            AddParameter(command, "@EndDate", filter == null || !filter.EndDate.HasValue
+                ? (object)DBNull.Value
+                : KenyaTimeHelper.ExclusiveEndOfLocalDayToUtc(filter.EndDate.Value));
         }
 
         private static void AddSecurityEventFilterParameters(IDbCommand command, SecurityLogFilterVm filter, int? organizationId)
@@ -165,8 +170,12 @@ WHERE (@OrganizationId IS NULL OR [OrganizationId] = @OrganizationId)
             AddParameter(command, "@Username", NormalizeFilter(filter == null ? null : filter.Username));
             AddParameter(command, "@IpAddress", NormalizeFilter(filter == null ? null : filter.IpAddress));
             AddParameter(command, "@EventType", NormalizeFilter(filter == null ? null : filter.EventType));
-            AddParameter(command, "@StartDate", filter == null || !filter.StartDate.HasValue ? (object)DBNull.Value : filter.StartDate.Value);
-            AddParameter(command, "@EndDate", filter == null || !filter.EndDate.HasValue ? (object)DBNull.Value : filter.EndDate.Value.Date.AddDays(1));
+            AddParameter(command, "@StartDate", filter == null || !filter.StartDate.HasValue
+                ? (object)DBNull.Value
+                : KenyaTimeHelper.StartOfLocalDayToUtc(filter.StartDate.Value));
+            AddParameter(command, "@EndDate", filter == null || !filter.EndDate.HasValue
+                ? (object)DBNull.Value
+                : KenyaTimeHelper.ExclusiveEndOfLocalDayToUtc(filter.EndDate.Value));
         }
 
         private static LoginAttemptLogVm ReadLoginAttempt(IDataRecord reader)

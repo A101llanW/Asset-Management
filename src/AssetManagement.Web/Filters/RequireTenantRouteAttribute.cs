@@ -22,7 +22,7 @@ namespace AssetManagement.Web.Filters
             }
 
             var tenantToken = TenantUrlHelper.GetTenantToken(filterContext.RouteData);
-            if (!TenantUrlHelper.IsValidTenantSlug(tenantToken))
+            if (!TenantUrlHelper.IsPlausibleTenantToken(tenantToken))
             {
                 filterContext.Result = BuildDeniedResult(filterContext, "Use your organization portal URL (for example /nanosoft/AssetScan/Lookup).");
                 return;

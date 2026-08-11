@@ -23,5 +23,7 @@ namespace AssetManagement.Web.ViewModels
         public string LookupJsonUrl { get; set; }
 
         public string InitialCode { get; set; }
+
+        public GlobalSearchResultVm SearchResults { get; set; }
     }
 }

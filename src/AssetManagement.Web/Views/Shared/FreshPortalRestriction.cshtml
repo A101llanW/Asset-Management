@@ -1,0 +1,11 @@
+@{
+    ViewBag.Title = "Fresh Portal Restriction";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container py-5">
+    <div class="alert alert-warning">
+        <h4 class="alert-heading">Restricted area</h4>
+        <p>This fresh portal session cannot access platform administration features. Sign in through the standard platform login to continue.</p>
+        <a class="btn btn-primary" href="@Url.Action("Login", "Account")">Go to login</a>
+    </div>
+</div>

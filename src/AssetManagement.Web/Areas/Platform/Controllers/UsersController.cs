@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
@@ -25,6 +26,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         private readonly IUserService _userService;
         private readonly IReferenceDataCache _referenceDataCache;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IOrganizationService _organizationService;
 
         public UsersController()
         {
@@ -34,6 +36,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             _userService = DependencyResolver.Current.GetService<IUserService>();
             _referenceDataCache = DependencyResolver.Current.GetService<IReferenceDataCache>();
             _unitOfWork = DependencyResolver.Current.GetService<IUnitOfWork>();
+            _organizationService = DependencyResolver.Current.GetService<IOrganizationService>();
         }
 
         public ActionResult Index(
@@ -50,73 +53,18 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             EnsurePlatformAccess();
 
             var organizations = LoadOrganizations();
-            var items = _userAccountQuery.GetAllUsersForPlatformAdmin().AsEnumerable();
-
-            if (string.Equals(userScope, "system", StringComparison.OrdinalIgnoreCase))
+            var filter = new PlatformUserListFilterVm
             {
-                items = items.Where(x => x.IsSystemUser);
-            }
-            else if (string.Equals(userScope, "company", StringComparison.OrdinalIgnoreCase))
-            {
-                items = items.Where(x => !x.IsSystemUser);
-            }
+                Search = search,
+                OrganizationId = organizationId,
+                UserScope = userScope,
+                RoleId = roleId,
+                IsActive = isActive
+            };
+            var category = ResolveCategory(userScope, Request.QueryString["category"]);
+            var viewModel = _userAccountQuery.GetPlatformUserIndexPage(filter, sort, direction, category, page, pageSize);
 
-            if (organizationId.HasValue)
-            {
-                items = items.Where(x => x.OrganizationId == organizationId.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim().ToLowerInvariant();
-                items = items.Where(x =>
-                    ((x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty)).Trim().ToLowerInvariant().Contains(term)
-                    || (x.Email ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.EmployeeNumber ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.OrganizationName ?? string.Empty).ToLowerInvariant().Contains(term));
-            }
-
-            if (roleId.HasValue)
-            {
-                items = items.Where(x => x.RoleId == roleId);
-            }
-
-            if (isActive.HasValue)
-            {
-                items = items.Where(x => x.IsActive == isActive.Value);
-            }
-
-            switch ((sort ?? string.Empty).ToLowerInvariant())
-            {
-                case "email":
-                    items = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.Email)
-                        : items.OrderBy(x => x.Email);
-                    break;
-                case "organization":
-                    items = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.OrganizationName ?? string.Empty)
-                        : items.OrderBy(x => x.OrganizationName ?? string.Empty);
-                    break;
-                case "role":
-                    items = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.RoleName)
-                        : items.OrderBy(x => x.RoleName);
-                    break;
-                case "status":
-                    items = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => x.IsActive)
-                        : items.OrderBy(x => x.IsActive);
-                    break;
-                default:
-                    items = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase)
-                        ? items.OrderByDescending(x => (x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty))
-                        : items.OrderBy(x => (x.FirstName ?? string.Empty) + " " + (x.LastName ?? string.Empty));
-                    sort = "name";
-                    break;
-            }
-
-            var roles = BuildRoleFilterOptions(items);
+            var roles = _userAccountQuery.GetPlatformRoles();
             ViewBag.Organizations = new SelectList(organizations, "Id", "Name", organizationId);
             ViewBag.RoleFilter = new SelectList(roles, "Id", "Name", roleId);
             ViewBag.UserScope = userScope;
@@ -129,9 +77,6 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
             ViewBag.CanManage = HtmlHasPermission("Platform.Users.Manage");
-
-            var category = ResolveCategory(userScope, Request.QueryString["category"]);
-            var viewModel = BuildIndexViewModel(items, search, organizationId, userScope, roleId, isActive, sort, direction, category, page, pageSize);
             ViewBag.Category = viewModel.Category;
 
             return View(viewModel);
@@ -205,8 +150,14 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 return View(model);
             }
 
+            if (!model.RoleId.HasValue)
+            {
+                ModelState.AddModelError("RoleId", "Role is required.");
+                return View(model);
+            }
+
             string roleError;
-            if (!ValidateRoleForTargetOrganization(model.RoleId, model.OrganizationId, out roleError))
+            if (!ValidateRoleForTargetOrganization(model.RoleId.Value, model.OrganizationId, out roleError))
             {
                 ModelState.AddModelError("RoleId", roleError);
                 return View(model);
@@ -245,6 +196,12 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
 
             if (organizationId.HasValue)
             {
+                if (_organizationService != null)
+                {
+                    _organizationService.EnsureTenantRoles(organizationId.Value);
+                    _referenceDataCache.InvalidateRoles(organizationId.Value);
+                }
+
                 ViewBag.Roles = _referenceDataCache.GetRoles(organizationId.Value);
             }
             else
@@ -268,6 +225,12 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             if (!user.OrganizationId.HasValue)
             {
                 return new List<RoleVm>();
+            }
+
+            if (_organizationService != null)
+            {
+                _organizationService.EnsureTenantRoles(user.OrganizationId.Value);
+                _referenceDataCache.InvalidateRoles(user.OrganizationId.Value);
             }
 
             return _referenceDataCache.GetRoles(user.OrganizationId.Value);

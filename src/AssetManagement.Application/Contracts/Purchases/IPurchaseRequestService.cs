@@ -7,6 +7,13 @@ namespace AssetManagement.Application.Contracts
     {
         IEnumerable<PurchaseRequestListItemVm> GetAll();
 
+        PagedListVm<PurchaseRequestListItemVm> GetListPage(
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
         PurchaseRequestDetailVm GetById(int id);
 
         int Submit(PurchaseRequestCreateVm model, string requestedByUserId);

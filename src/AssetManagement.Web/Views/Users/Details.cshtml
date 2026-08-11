@@ -47,14 +47,7 @@
                 @if (canEditUser)
                 {
                     <hr class="my-3" />
-                    using (Html.BeginForm("UnlockAccount", "Users", FormMethod.Post, new { @class = "mb-0" }))
-                    {
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="userId" value="@Model.Id" />
-                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
-                        <button class="btn btn-outline-warning w-100" type="submit">Unlock account (clear failed logins)</button>
-                    }
-                    <hr class="my-3" />
+                    <p class="text-muted small mb-3">Assign department before setting the Department Head role. Each department may have only one head.</p>
                     using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "row g-2 align-items-end" }))
                     {
                         @Html.AntiForgeryToken()
@@ -76,6 +69,14 @@
                         <div class="col-md-4">
                             <button class="btn btn-primary w-100" type="submit">Save Department</button>
                         </div>
+                    }
+                    <hr class="my-3" />
+                    using (Html.BeginForm("UnlockAccount", "Users", FormMethod.Post, new { @class = "mb-0" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                        <button class="btn btn-outline-warning w-100" type="submit">Unlock account (clear failed logins)</button>
                     }
                 }
             </div>

@@ -21,6 +21,8 @@ namespace AssetManagement.Application.Contracts
         public int? RoleId { get; set; }
 
         public int? OrganizationId { get; set; }
+
+        public bool RequirePasswordChange { get; set; }
     }
 
     public class UserAccountCreateResult
@@ -38,6 +40,11 @@ namespace AssetManagement.Application.Contracts
 
         bool ValidateCredentials(string email, string password, string organizationSlug, out string userId);
 
+        /// <summary>
+        /// Re-hashes the password to the current algorithm after a successful legacy-format verification.
+        /// </summary>
+        void RehashPasswordOnLogin(string userId, string plainPassword);
+
         string FindUserIdByEmail(string email);
 
         UserAccountCreateResult CreateUser(UserAccountCreateRequest request, string password);
@@ -49,6 +56,10 @@ namespace AssetManagement.Application.Contracts
         string RequestPasswordReset(string email, string organizationSlug);
 
         bool ResetPasswordWithToken(string email, string token, string newPassword);
+
+        bool ResetPasswordWithToken(string email, string token, string newPassword, string organizationSlug);
+
+        PasswordResetResult ResetPasswordWithTokenDetailed(string email, string token, string newPassword, string organizationSlug);
 
         System.Collections.Generic.IEnumerable<string> GetPasswordPolicyErrors(string password);
 

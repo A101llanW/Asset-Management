@@ -25,6 +25,6 @@ try {
     exit $LASTEXITCODE
 }
 finally {
-    & (Join-Path $PSScriptRoot "restore-e2e-webconfig.ps1")
+    & (Join-Path $repoRoot "tools\database\Restore-E2eWebConfig.ps1")
     Pop-Location
 }

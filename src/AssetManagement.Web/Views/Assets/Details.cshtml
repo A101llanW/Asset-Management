@@ -1,4 +1,5 @@
 @model AssetManagement.Application.ViewModels.AssetDetailsVm
+@using AssetManagement.Application
 @using AssetManagement.Application.Services
 @using AssetManagement.Web.Helpers
 @using AssetManagement.Web.ViewModels
@@ -29,8 +30,9 @@
     var openMaintenanceTicket = Model.MaintenanceRecords == null
         ? null
         : Model.MaintenanceRecords.FirstOrDefault(x => x.Status == MaintenanceStatus.Open || x.Status == MaintenanceStatus.InProgress);
-    var departmentDisplay = string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Organization custody" : Model.DepartmentName;
+    var departmentDisplay = string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Company custody" : Model.DepartmentName;
     var supplierDisplay = string.IsNullOrWhiteSpace(Model.SupplierName) ? "Not specified" : Model.SupplierName;
+    var brandModelDisplay = DisplayText.FormatBrandModel(Model.Brand, Model.Model);
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -183,7 +185,7 @@
                 <div class="col-md-4"><strong>Department:</strong> @departmentDisplay</div>
                 <div class="col-md-4"><strong>Supplier:</strong> @supplierDisplay</div>
                 <div class="col-md-4"><strong>Serial:</strong> @Model.SerialNumber</div>
-                <div class="col-md-4"><strong>Brand/Model:</strong> @Model.Brand @Model.Model</div>
+                <div class="col-md-4"><strong>Brand/Model:</strong> @(string.IsNullOrWhiteSpace(brandModelDisplay) ? DisplayText.Empty : brandModelDisplay)</div>
                 <div class="col-md-4"><strong>Status:</strong> <span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.CurrentStatus) badge-status">@Model.CurrentStatus</span></div>
             </div>
         </div></div>
@@ -206,6 +208,24 @@
                 <div class="col-md-3"><strong>Total (incl. tax):</strong><br />@Html.FormatCurrency(Model.AcquisitionCost + Model.TaxAmount)</div>
                 <div class="col-md-3"><strong>Purchase Date:</strong><br />@Model.PurchaseDate.ToString("yyyy-MM-dd")</div>
                 <div class="col-md-3"><strong>Expected Useful Life:</strong><br />@(Model.UsefulLifeMonths > 0 ? string.Format("{0} months", Model.UsefulLifeMonths) : "Not set")</div>
+                @if (Model.DepreciationSettings != null && Model.DepreciationSettings.EffectiveLifeMonths > 0)
+                {
+                    <div class="col-md-3"><strong>Depreciation life:</strong><br />@string.Format("{0} months ({1})", Model.DepreciationSettings.EffectiveLifeMonths, Model.DepreciationSettings.LifeSource)</div>
+                    <div class="col-md-3"><strong>Annual rate:</strong><br />@string.Format("{0:N2}% ({1})", Model.DepreciationSettings.EffectiveRatePercent, Model.DepreciationSettings.RateSource)</div>
+                    <div class="col-md-3"><strong>Method:</strong><br />@Model.DepreciationMethod</div>
+                    <div class="col-md-3"><strong>Current book value:</strong><br />@Html.FormatCurrency(Model.CurrentBookValue)</div>
+                    <div class="col-md-3"><strong>Accumulated depreciation:</strong><br />@Html.FormatCurrency(Model.AccumulatedDepreciation)</div>
+                    <div class="col-md-3"><strong>Salvage value:</strong><br />@Html.FormatCurrency(Model.SalvageValue)</div>
+                    <div class="col-md-12">
+                        <p class="text-muted small mb-0 mt-2">
+                            Book value and accumulated depreciation are calculated from the effective life, annual rate, and depreciation start date.
+                            @if (Model.DepreciationElapsedMonths > 0)
+                            {
+                                <span>@string.Format(" {0} month(s) elapsed.", Model.DepreciationElapsedMonths)</span>
+                            }
+                        </p>
+                    </div>
+                }
             </div>
             <p class="text-muted small mb-0 mt-3">Useful life is set from asset type or category rules for operational planning.</p>
         </div></div>
@@ -319,6 +339,7 @@
 @section scripts {
     <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-details-tabs.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-documents-tab.js")"></script>
 }

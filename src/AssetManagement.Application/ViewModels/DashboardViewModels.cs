@@ -12,11 +12,21 @@ namespace AssetManagement.Application.ViewModels
 
         public int UnassignedAssets { get; set; }
 
-        public int AssetsUnderMaintenance { get; set; }
+        public int MaintenanceAndDamagedAssets { get; set; }
+
+        public int LostAssets { get; set; }
 
         public int LostDamagedStolenAssets { get; set; }
 
         public decimal TotalAcquisitionValue { get; set; }
+
+        public decimal TotalCurrentBookValue { get; set; }
+
+        public decimal TotalAccumulatedDepreciation { get; set; }
+
+        public decimal AverageAnnualDepreciationRatePercent { get; set; }
+
+        public decimal DepreciationToDatePercent { get; set; }
 
         public int ExpiringWarrantyCount { get; set; }
 
@@ -63,6 +73,12 @@ namespace AssetManagement.Application.ViewModels
         /// When set, returns audit rows for the asset and related custody/incident/maintenance entities.
         /// </summary>
         public int? RelatedAssetId { get; set; }
+
+        /// <summary>
+        /// When true, excludes HTTP controller hits and other non-lifecycle audit noise.
+        /// Intended for asset detail audit tabs; admin audit log views should leave this false.
+        /// </summary>
+        public bool BusinessEventsOnly { get; set; }
 
         public string Action { get; set; }
 

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
@@ -16,24 +17,28 @@ namespace AssetManagement.Web.Controllers
     public class AssetScanController : Controller
     {
         private const string ScanRateLimitMessage = "Too many scan requests. Please wait and try again.";
+        private const int MaxSearchResults = 50;
 
         private readonly IAssetService _assetService;
         private readonly IAuthorizationService _authorizationService;
+        private readonly ISearchService _searchService;
 
         public AssetScanController()
         {
             _assetService = DependencyResolver.Current.GetService<IAssetService>();
             _authorizationService = DependencyResolver.Current.GetService<IAuthorizationService>();
+            _searchService = DependencyResolver.Current.GetService<ISearchService>();
         }
 
-        public ActionResult Lookup(string code)
+        public ActionResult Lookup(string code, string q)
         {
+            var term = ResolveLookupTerm(code, q);
             if (!TryAcquireScanLookup())
             {
-                return View(CreateRateLimitedPageModel(code));
+                return View(CreateRateLimitedPageModel(term));
             }
 
-            return View(BuildPageModel(code));
+            return View(BuildPageModel(term));
         }
 
         [HttpPost]
@@ -49,14 +54,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [HttpGet]
-        public JsonResult LookupJson(string code)
+        public JsonResult LookupJson(string code, string q)
         {
+            var term = ResolveLookupTerm(code, q);
             if (!TryAcquireScanLookup())
             {
                 return Json(new { Found = false, Message = ScanRateLimitMessage }, JsonRequestBehavior.AllowGet);
             }
 
-            var pageModel = BuildPageModel(code);
+            var pageModel = BuildPageModel(term);
             return Json(ToJsonPayload(pageModel), JsonRequestBehavior.AllowGet);
         }
 
@@ -105,6 +111,16 @@ namespace AssetManagement.Web.Controllers
             return View(model);
         }
 
+        private static string ResolveLookupTerm(string code, string q)
+        {
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                return code.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+        }
+
         private bool TryAcquireScanLookup()
         {
             if (ScanLookupRateLimiter.TryAcquire(HttpContext))
@@ -134,7 +150,7 @@ namespace AssetManagement.Web.Controllers
             };
         }
 
-        private AssetScanLookupPageVm BuildPageModel(string code)
+        private AssetScanLookupPageVm BuildPageModel(string term)
         {
             var isAuthenticated = User.Identity.IsAuthenticated;
             var userId = User.GetUserId();
@@ -155,32 +171,47 @@ namespace AssetManagement.Web.Controllers
                 && _authorizationService.HasPermission(userId, "Incidents.Create");
 
             AssetScanLookupVm lookup;
-            if (string.IsNullOrWhiteSpace(code))
+            GlobalSearchResultVm searchResults = null;
+
+            if (string.IsNullOrWhiteSpace(term))
             {
                 lookup = new AssetScanLookupVm
                 {
                     Found = false,
-                    Message = "Enter or scan an asset tag, barcode, or serial number."
+                    Message = "Enter or scan an asset tag, barcode, serial number, custodian, or department."
                 };
             }
             else
             {
-                try
+                lookup = TryScanLookup(term, canViewDetails);
+
+                if (!lookup.Found && canViewDetails)
                 {
-                    lookup = _assetService.LookupByScanCode(
-                        code,
-                        applyDepartmentScope: canViewDetails,
-                        includeDetails: canViewDetails);
-                }
-                catch (BusinessException ex)
-                {
-                    lookup = new AssetScanLookupVm { Found = false, Message = ex.Message };
+                    searchResults = _searchService.Search(term, MaxSearchResults);
+                    if (searchResults.TotalCount == 1)
+                    {
+                        var promoted = TryScanLookup(searchResults.Assets[0].AssetTag, canViewDetails);
+                        if (promoted.Found)
+                        {
+                            lookup = promoted;
+                            searchResults = null;
+                        }
+                    }
+                    else if (searchResults.TotalCount == 0)
+                    {
+                        lookup.Message = "No assets matched \"" + term + "\".";
+                    }
+                    else
+                    {
+                        lookup = new AssetScanLookupVm { Found = false };
+                    }
                 }
             }
 
             var pageModel = new AssetScanLookupPageVm
             {
                 Lookup = lookup,
+                SearchResults = searchResults,
                 IsPublicScan = !canViewDetails,
                 CanViewAssetDetails = lookup.Found && canViewDetails,
                 CanOpenQuickActions = lookup.Found
@@ -190,7 +221,7 @@ namespace AssetManagement.Web.Controllers
                         canTransfer,
                         canReturn,
                         canReportIncident),
-                InitialCode = code,
+                InitialCode = term,
                 LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan")
             };
 
@@ -209,7 +240,22 @@ namespace AssetManagement.Web.Controllers
             return pageModel;
         }
 
-        private static object ToJsonPayload(AssetScanLookupPageVm page)
+        private AssetScanLookupVm TryScanLookup(string term, bool canViewDetails)
+        {
+            try
+            {
+                return _assetService.LookupByScanCode(
+                    term,
+                    applyDepartmentScope: canViewDetails,
+                    includeDetails: canViewDetails);
+            }
+            catch (BusinessException ex)
+            {
+                return new AssetScanLookupVm { Found = false, Message = ex.Message };
+            }
+        }
+
+        private object ToJsonPayload(AssetScanLookupPageVm page)
         {
             var lookup = page.Lookup;
             if (page.IsPublicScan)
@@ -218,6 +264,33 @@ namespace AssetManagement.Web.Controllers
                 {
                     Found = lookup.Found,
                     Message = lookup.Message
+                };
+            }
+
+            if (page.SearchResults != null && page.SearchResults.Assets != null && page.SearchResults.Assets.Any())
+            {
+                return new
+                {
+                    Found = false,
+                    Message = (string)null,
+                    SearchResults = new
+                    {
+                        Query = page.SearchResults.Query,
+                        TotalCount = page.SearchResults.TotalCount,
+                        Assets = page.SearchResults.Assets.Select(hit => new
+                        {
+                            hit.AssetId,
+                            hit.AssetTag,
+                            hit.AssetName,
+                            hit.SerialNumber,
+                            hit.DepartmentName,
+                            hit.CustodianName,
+                            hit.Status,
+                            hit.MatchReason,
+                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId })
+                        }).ToArray()
+                    },
+                    EmptyDisplay = DisplayText.Empty
                 };
             }
 

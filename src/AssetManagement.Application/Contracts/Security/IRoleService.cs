@@ -7,7 +7,17 @@ namespace AssetManagement.Application.Contracts
     {
         IEnumerable<RoleVm> GetRoles();
 
+        PagedListVm<RoleVm> GetListPage(
+            string search,
+            bool? isActive,
+            string sort,
+            string direction,
+            int page,
+            int pageSize);
+
         RoleVm GetById(int id);
+
+        IList<int> GetPermissionIds(int roleId);
 
         int Create(RoleCreateEditVm model);
 

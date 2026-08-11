@@ -12,6 +12,10 @@
     <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
+    @if (Request.IsAuthenticated)
+    {
+        <link rel="stylesheet" href="@Url.Content("~/Content/css/am-animations.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-animations.css")).Ticks" />
+    }
     @if (ViewBag.ShowLoginBackground == true)
     {
         <link rel="stylesheet" href="@Url.Content("~/Content/css/auth-portal.css")" />
@@ -66,14 +70,33 @@
 
     @if (ViewBag.ShowLoginBackground == true)
     {
+        var isTenantAuthPortal = ViewBag.IsTenantPortal == true;
+        var tenantOrgName = ViewBag.OrganizationName as string;
+        var tenantLogoUrl = ViewBag.OrganizationLogoUrl as string;
+        var showTenantLogo = isTenantAuthPortal && !string.IsNullOrWhiteSpace(tenantLogoUrl);
+        var showTenantNameFallback = isTenantAuthPortal && !showTenantLogo && !string.IsNullOrWhiteSpace(tenantOrgName);
+        var defaultLogoUrl = Url.Content("~/Content/images/nanosoft-logo-transparent.png");
         <header class="am-shell-header am-auth-page-header">
             <div class="am-header-inner am-auth-header-inner">
                 <a class="am-auth-header-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">
-                    <img src="@Url.Content("~/Content/images/nanosoft-logo-transparent.png")"
-                         alt="Nanosoft"
-                         class="am-auth-header-logo" />
+                    @if (showTenantLogo)
+                    {
+                        <img src="@tenantLogoUrl"
+                             alt="@tenantOrgName"
+                             class="am-auth-header-logo am-auth-header-logo--tenant" />
+                    }
+                    else if (showTenantNameFallback)
+                    {
+                        <span class="am-auth-header-org-name">@tenantOrgName</span>
+                    }
+                    else
+                    {
+                        <img src="@defaultLogoUrl"
+                             alt="Nanosoft"
+                             class="am-auth-header-logo" />
+                    }
                     <span class="am-auth-header-copy">
-                        <small class="am-auth-header-kicker">Nanosoft Asset Suite</small>
+                        <small class="am-auth-header-kicker">@(isTenantAuthPortal && !string.IsNullOrWhiteSpace(tenantOrgName) ? tenantOrgName : "Nanosoft Asset Suite")</small>
                         <span class="am-auth-header-title">Asset Management Module</span>
                     </span>
                 </a>
@@ -116,7 +139,7 @@
                 <div class="am-header-actions d-flex align-items-center gap-3">
                     @if (Html.HasPermission("Assets.View"))
                     {
-                        <form class="am-global-search" method="get" action="@Url.RouteUrl("Default", new { controller = "Search", action = "Index" })" role="search">
+                        <form class="am-global-search" method="get" action="@TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetScan")" role="search">
                             <input type="search" class="form-control form-control-sm" name="q" placeholder="Search assets..." aria-label="Search assets" />
                         </form>
                     }
@@ -154,7 +177,7 @@
         </aside>
     }
 
-    <main class="container-fluid px-4 py-3 am-main-content">
+    <main class="container-fluid px-4 py-3 am-main-content@(Request.IsAuthenticated ? " am-page-enter" : null)">
         @Html.Partial("_Alerts")
         @RenderBody()
     </main>
@@ -170,15 +193,15 @@
     {
         <div class="modal fade" id="elevationRequestModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-warning">
-                    <div class="modal-header bg-warning">
+                <div class="modal-content border-danger">
+                    <div class="modal-header bg-danger text-white">
                         <h5 class="modal-title">Elevation request</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <p>A platform administrator is requesting temporary access to your organization context.</p>
                         <p class="small text-muted mb-2">Choose how long the approved support session may remain active.</p>
-                        <div id="elevationRequestDetails" class="p-3 bg-light border-start border-warning border-4"></div>
+                        <div id="elevationRequestDetails" class="p-3 bg-light border-start border-danger border-4"></div>
                     </div>
                     <div class="modal-footer d-flex justify-content-between">
                         @using (Html.BeginForm("HandleImpersonationRequest", "Dashboard", FormMethod.Post, new { id = "denyElevationForm" }))
@@ -216,8 +239,17 @@
         <script src="@Url.Content("~/Scripts/app/help-bot.js")"></script>
     }
     <script src="@Url.Content("~/Scripts/app/site-interactive.js")"></script>
+    @if (Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/am-animations.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/am-animations.js")).Ticks"></script>
+    }
     <script src="@Url.Content("~/Scripts/app/password-toggle.js")"></script>
     @if (ViewBag.ShowLoginBackground == true || Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/vendor/three.min.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/vendor/three.min.js")).Ticks"></script>
+        <script src="@Url.Content("~/Scripts/app/antigravity-three.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/antigravity-three.js")).Ticks"></script>
+    }
+    @if (ViewBag.ShowLoginBackground == true)
     {
         <script src="@Url.Content("~/Scripts/app/anti-gravity-bubbles.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/anti-gravity-bubbles.js")).Ticks"></script>
     }

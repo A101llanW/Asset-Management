@@ -8,6 +8,7 @@ using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Infrastructure.Identity;
+using AssetManagement.Infrastructure.Persistence;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 
@@ -42,6 +43,13 @@ namespace AssetManagement.Web.Filters
                 return;
             }
 
+            var emailVerificationBlock = BuildEmailVerificationBlock(filterContext);
+            if (emailVerificationBlock != null)
+            {
+                filterContext.Result = emailVerificationBlock;
+                return;
+            }
+
             var licenseBlock = BuildLicenseBlock(filterContext);
             if (licenseBlock != null)
             {
@@ -72,21 +80,49 @@ namespace AssetManagement.Web.Filters
                 return;
             }
 
-            var organization = unitOfWork.Repository<Organization>().Query()
-                .FirstOrDefault(o => o.IsActive
-                    && o.Slug != null
-                    && o.Slug.Equals(tenantToken, StringComparison.OrdinalIgnoreCase));
+            var connectionFactory = DependencyResolver.Current.GetService<ISqlConnectionFactory>();
+            var organizationId = TenantResolutionHelper.ResolveOrganizationId(unitOfWork, connectionFactory, tenantToken);
+            if (!organizationId.HasValue)
+            {
+                return;
+            }
 
-            if (organization == null)
+            var organization = unitOfWork.Repository<Organization>().GetById(organizationId.Value);
+            if (organization == null || !organization.IsActive)
             {
                 return;
             }
 
             filterContext.HttpContext.Items[TenantContextKeys.OrganizationId] = organization.Id;
-            filterContext.HttpContext.Items[TenantContextKeys.TenantToken] = tenantToken;
+            filterContext.HttpContext.Items[TenantContextKeys.TenantToken] = organization.Slug ?? tenantToken;
             filterContext.Controller.ViewBag.TenantContext = organization;
-            filterContext.Controller.ViewBag.TenantToken = tenantToken;
+            filterContext.Controller.ViewBag.TenantToken = organization.Slug ?? tenantToken;
             filterContext.Controller.ViewBag.IsTenantPortal = true;
+        }
+
+        private static ActionResult BuildEmailVerificationBlock(ActionExecutingContext filterContext)
+        {
+            var controllerName = filterContext.ActionDescriptor.ControllerDescriptor.ControllerName;
+            var actionName = filterContext.ActionDescriptor.ActionName;
+            if (IsWhitelisted(controllerName, actionName))
+            {
+                return null;
+            }
+
+            var accountSecurity = DependencyResolver.Current.GetService<IAccountSecurityService>();
+            if (accountSecurity == null || !accountSecurity.IsEmailVerificationRequired())
+            {
+                return null;
+            }
+
+            var userId = filterContext.HttpContext.User.GetUserId();
+            if (string.IsNullOrWhiteSpace(userId) || !accountSecurity.UserNeedsEmailVerification(userId))
+            {
+                return null;
+            }
+
+            var tenantSlug = TenantUrlHelper.GetTenantToken(filterContext.RouteData);
+            return TenantUrlHelper.CreateTenantRedirect(tenantSlug, "Account", "VerifyEmail");
         }
 
         private static ActionResult BuildLicenseBlock(ActionExecutingContext filterContext)
@@ -273,6 +309,10 @@ namespace AssetManagement.Web.Filters
                 return string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "Landing", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "Profile", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "VerifyEmail", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "VerifyEmailSubmit", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "ResendEmailVerificationCode", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "ChangePassword", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "LogOff", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "Register", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ForgotPassword", StringComparison.OrdinalIgnoreCase)

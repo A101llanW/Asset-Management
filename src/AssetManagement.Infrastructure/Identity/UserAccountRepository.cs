@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Data.SqlClient;
 using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Infrastructure.Identity
@@ -14,6 +15,11 @@ namespace AssetManagement.Infrastructure.Identity
         }
 
         public void Insert(ApplicationUser user)
+        {
+            Insert(user, null, null);
+        }
+
+        public void Insert(ApplicationUser user, SqlConnection connection, SqlTransaction transaction)
         {
             if (user == null)
             {
@@ -32,25 +38,47 @@ namespace AssetManagement.Infrastructure.Identity
 
             user.IsActive = true;
 
-            using (var connection = _connectionFactory.CreateConnection())
+            var ownsConnection = connection == null;
+            if (ownsConnection)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var localConnection = _connectionFactory.CreateConnection())
                 {
-                    command.CommandText = @"
+                    localConnection.Open();
+                    ExecuteInsert(localConnection, null, user);
+                }
+
+                return;
+            }
+
+            ExecuteInsert(connection, transaction, user);
+        }
+
+        private void ExecuteInsert(SqlConnection connection, SqlTransaction transaction, ApplicationUser user)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                if (transaction != null)
+                {
+                    command.Transaction = transaction;
+                }
+
+                command.CommandText = @"
 INSERT INTO [Users]
     ([Id],[Email],[EmailConfirmed],[PasswordHash],[SecurityStamp],[PhoneNumber],[PhoneNumberConfirmed],[TwoFactorEnabled],[MfaMethod],[TwoFactorCode],[TwoFactorExpiryUtc],
      [PrivacyAcceptedAt],[TermsAcceptedAt],[PrivacyVersion],[TermsVersion],
      [LockoutEndDateUtc],[LockoutEnabled],[AccessFailedCount],[UserName],
-     [EmployeeNumber],[FirstName],[LastName],[Phone],[DepartmentId],[PositionTitle],[IsActive],[RoleId],[OrganizationId],[CreatedAt],[UpdatedAt])
+     [EmployeeNumber],[FirstName],[LastName],[Phone],[DepartmentId],[PositionTitle],[IsActive],[RoleId],[OrganizationId],
+     [AccessToken],[RequirePasswordChange],[LastPasswordChange],[IsEmailVerified],[EmailVerificationCode],[EmailVerificationExpiryUtc],
+     [CreatedAt],[UpdatedAt])
 VALUES
     (@Id,@Email,@EmailConfirmed,@PasswordHash,@SecurityStamp,@PhoneNumber,@PhoneNumberConfirmed,@TwoFactorEnabled,@MfaMethod,@TwoFactorCode,@TwoFactorExpiryUtc,
      @PrivacyAcceptedAt,@TermsAcceptedAt,@PrivacyVersion,@TermsVersion,
      @LockoutEndDateUtc,@LockoutEnabled,@AccessFailedCount,@UserName,
-     @EmployeeNumber,@FirstName,@LastName,@Phone,@DepartmentId,@PositionTitle,@IsActive,@RoleId,@OrganizationId,@CreatedAt,@UpdatedAt)";
-                    AddUserParameters(command, user);
-                    command.ExecuteNonQuery();
-                }
+     @EmployeeNumber,@FirstName,@LastName,@Phone,@DepartmentId,@PositionTitle,@IsActive,@RoleId,@OrganizationId,
+     @AccessToken,@RequirePasswordChange,@LastPasswordChange,@IsEmailVerified,@EmailVerificationCode,@EmailVerificationExpiryUtc,
+     @CreatedAt,@UpdatedAt)";
+                AddUserParameters(command, user);
+                command.ExecuteNonQuery();
             }
         }
 
@@ -75,10 +103,106 @@ UPDATE [Users] SET
     [PrivacyAcceptedAt]=@PrivacyAcceptedAt,[TermsAcceptedAt]=@TermsAcceptedAt,[PrivacyVersion]=@PrivacyVersion,[TermsVersion]=@TermsVersion,
     [LockoutEndDateUtc]=@LockoutEndDateUtc,[LockoutEnabled]=@LockoutEnabled,[AccessFailedCount]=@AccessFailedCount,[UserName]=@UserName,
     [EmployeeNumber]=@EmployeeNumber,[FirstName]=@FirstName,[LastName]=@LastName,[Phone]=@Phone,[DepartmentId]=@DepartmentId,[PositionTitle]=@PositionTitle,
-    [IsActive]=@IsActive,[RoleId]=@RoleId,[OrganizationId]=@OrganizationId,[UpdatedAt]=@UpdatedAt
+    [IsActive]=@IsActive,[RoleId]=@RoleId,[OrganizationId]=@OrganizationId,
+    [AccessToken]=@AccessToken,[RequirePasswordChange]=@RequirePasswordChange,[LastPasswordChange]=@LastPasswordChange,
+    [IsEmailVerified]=@IsEmailVerified,[EmailVerificationCode]=@EmailVerificationCode,[EmailVerificationExpiryUtc]=@EmailVerificationExpiryUtc,
+    [UpdatedAt]=@UpdatedAt
 WHERE [Id]=@Id";
                     AddUserParameters(command, user);
                     command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public System.Collections.Generic.IList<ApplicationUser> FindActiveByEmail(string email, int? organizationId)
+        {
+            var results = new System.Collections.Generic.List<ApplicationUser>();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return results;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = organizationId.HasValue
+                        ? "SELECT * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [OrganizationId]=@OrganizationId AND [IsActive]=1 ORDER BY [Id]"
+                        : "SELECT * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [IsActive]=1 ORDER BY [Id]";
+                    AddParameter(command, "@Email", email);
+                    if (organizationId.HasValue)
+                    {
+                        AddParameter(command, "@OrganizationId", organizationId.Value);
+                    }
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapUser(reader));
+                        }
+                    }
+                }
+            }
+
+            return results;
+        }
+
+        public bool ValidateAccessToken(string userId, int? organizationId, string accessToken)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(accessToken))
+            {
+                return false;
+            }
+
+            var user = FindById(userId);
+            if (user == null || !user.IsActive || string.IsNullOrWhiteSpace(user.AccessToken))
+            {
+                return false;
+            }
+
+            if (organizationId.HasValue)
+            {
+                if (!user.OrganizationId.HasValue || user.OrganizationId.Value != organizationId.Value)
+                {
+                    return false;
+                }
+            }
+            else if (user.OrganizationId.HasValue)
+            {
+                return false;
+            }
+
+            return string.Equals(user.AccessToken, accessToken, StringComparison.Ordinal);
+        }
+
+        public string FindOrganizationSlugById(int organizationId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT TOP 1 [Slug] FROM [Organization] WHERE [Id]=@Id AND [IsActive]=1";
+                    AddParameter(command, "@Id", organizationId);
+                    var result = command.ExecuteScalar();
+                    return result == null || result == DBNull.Value ? null : result.ToString();
+                }
+            }
+        }
+
+        public string FindOrganizationNameById(int organizationId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT TOP 1 [Name] FROM [Organization] WHERE [Id]=@Id";
+                    AddParameter(command, "@Id", organizationId);
+                    var result = command.ExecuteScalar();
+                    return result == null || result == DBNull.Value ? null : result.ToString();
                 }
             }
         }
@@ -146,6 +270,47 @@ WHERE [Id]=@Id";
             }
         }
 
+        public int RotateAllAccessTokens(int? organizationId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+UPDATE [Users]
+SET [AccessToken] = LOWER(REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', ''))
+                    + LOWER(REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')),
+    [UpdatedAt] = GETUTCDATE()
+WHERE [IsActive] = 1
+  AND (@OrganizationId IS NULL OR [OrganizationId] = @OrganizationId)";
+                    AddParameter(command, "@OrganizationId", organizationId.HasValue ? (object)organizationId.Value : DBNull.Value);
+                    return command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public int ExpireActiveImpersonationRequests(int? organizationId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    // ImpersonationRequestStatus: Approved = 1, Active = 5
+                    command.CommandText = @"
+UPDATE [ImpersonationRequest]
+SET [Status] = 4,
+    [UpdatedAt] = GETUTCDATE()
+WHERE [IsActive] = 1
+  AND [Status] IN (1, 5)
+  AND (@OrganizationId IS NULL OR [OrganizationId] = @OrganizationId)";
+                    AddParameter(command, "@OrganizationId", organizationId.HasValue ? (object)organizationId.Value : DBNull.Value);
+                    return command.ExecuteNonQuery();
+                }
+            }
+        }
+
         public ApplicationUser FindPlatformAdminByEmail(string email)
         {
             using (var connection = _connectionFactory.CreateConnection())
@@ -191,7 +356,12 @@ WHERE u.[Id]=@Id";
 
         public int? FindOrganizationIdBySlug(string slug)
         {
-            if (string.IsNullOrWhiteSpace(slug))
+            return FindOrganizationIdByTenantToken(slug);
+        }
+
+        public int? FindOrganizationIdByTenantToken(string tenantToken)
+        {
+            if (string.IsNullOrWhiteSpace(tenantToken))
             {
                 return null;
             }
@@ -201,9 +371,17 @@ WHERE u.[Id]=@Id";
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText =
-                        "SELECT TOP 1 [Id] FROM [Organization] WHERE LOWER(LTRIM(RTRIM([Slug])))=LOWER(LTRIM(RTRIM(@Slug))) AND [IsActive]=1 ORDER BY [Id]";
-                    AddParameter(command, "@Slug", slug.Trim());
+                    command.CommandText = @"
+SELECT TOP 1 [Id]
+FROM [Organization]
+WHERE [IsActive] = 1
+  AND (
+        LOWER(LTRIM(RTRIM([Slug]))) = LOWER(LTRIM(RTRIM(@Token)))
+     OR UPPER(LTRIM(RTRIM([AccessToken]))) = UPPER(LTRIM(RTRIM(@Token)))
+     OR UPPER(LTRIM(RTRIM([Code]))) = UPPER(LTRIM(RTRIM(@Token)))
+  )
+ORDER BY [Id]";
+                    AddParameter(command, "@Token", tenantToken.Trim());
                     var result = command.ExecuteScalar();
                     return result == null || result == DBNull.Value ? (int?)null : Convert.ToInt32(result);
                 }
@@ -283,6 +461,12 @@ WHERE u.[Id]=@Id";
                 IsActive = GetBool(record, "IsActive"),
                 RoleId = GetNullableInt(record, "RoleId"),
                 OrganizationId = GetNullableInt(record, "OrganizationId"),
+                AccessToken = GetString(record, "AccessToken"),
+                RequirePasswordChange = GetBool(record, "RequirePasswordChange"),
+                LastPasswordChange = GetNullableDateTime(record, "LastPasswordChange"),
+                IsEmailVerified = GetBool(record, "IsEmailVerified"),
+                EmailVerificationCode = GetString(record, "EmailVerificationCode"),
+                EmailVerificationExpiryUtc = GetNullableDateTime(record, "EmailVerificationExpiryUtc"),
                 CreatedAt = GetDateTime(record, "CreatedAt"),
                 UpdatedAt = GetNullableDateTime(record, "UpdatedAt")
             };
@@ -318,6 +502,12 @@ WHERE u.[Id]=@Id";
             AddParameter(command, "@IsActive", user.IsActive);
             AddParameter(command, "@RoleId", user.RoleId);
             AddParameter(command, "@OrganizationId", user.OrganizationId);
+            AddParameter(command, "@AccessToken", user.AccessToken);
+            AddParameter(command, "@RequirePasswordChange", user.RequirePasswordChange);
+            AddParameter(command, "@LastPasswordChange", user.LastPasswordChange);
+            AddParameter(command, "@IsEmailVerified", user.IsEmailVerified);
+            AddParameter(command, "@EmailVerificationCode", user.EmailVerificationCode);
+            AddParameter(command, "@EmailVerificationExpiryUtc", user.EmailVerificationExpiryUtc);
             AddParameter(command, "@CreatedAt", user.CreatedAt);
             AddParameter(command, "@UpdatedAt", user.UpdatedAt);
         }

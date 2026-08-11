@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using AssetManagement.Domain.Entities;
 
@@ -8,6 +9,9 @@ namespace AssetManagement.Application.Helpers
 {
     public static class AssetTagHelper
     {
+        public const int DefaultRandomTagLength = 10;
+
+        private const string RandomTagAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         private static readonly Dictionary<string, string> KnownTypeAbbreviations =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -64,6 +68,36 @@ namespace AssetManagement.Application.Helpers
             var prefix = BuildTagPrefix(departmentCode, assetTypeName) + "-";
             var nextSequence = GetNextSequence(activeAssets, prefix);
             return prefix + nextSequence.ToString("000");
+        }
+
+        /// <summary>
+        /// Generates a unique random tag that is not derived from department, type, or asset name.
+        /// </summary>
+        public static string GenerateUniqueRandomTag(
+            IEnumerable<string> takenTags,
+            ISet<string> reservedTags = null,
+            int length = DefaultRandomTagLength,
+            int maxAttempts = 100)
+        {
+            if (length < 6)
+            {
+                length = 6;
+            }
+
+            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddTakenTags(taken, takenTags);
+            AddTakenTags(taken, reservedTags);
+
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                var candidate = GenerateRandomToken(length);
+                if (taken.Add(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            throw new InvalidOperationException("Unable to generate a unique random asset tag.");
         }
 
         public static int GetNextSequence(IQueryable<Asset> activeAssets, string tagPrefix)
@@ -130,6 +164,38 @@ namespace AssetManagement.Application.Helpers
             }
 
             return cleaned.Length <= maxLength ? cleaned : cleaned.Substring(0, maxLength);
+        }
+
+        private static void AddTakenTags(ISet<string> taken, IEnumerable<string> tags)
+        {
+            if (taken == null || tags == null)
+            {
+                return;
+            }
+
+            foreach (var tag in tags)
+            {
+                if (!string.IsNullOrWhiteSpace(tag))
+                {
+                    taken.Add(tag.Trim());
+                }
+            }
+        }
+
+        private static string GenerateRandomToken(int length)
+        {
+            var chars = new char[length];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                var bytes = new byte[length];
+                rng.GetBytes(bytes);
+                for (var i = 0; i < length; i++)
+                {
+                    chars[i] = RandomTagAlphabet[bytes[i] % RandomTagAlphabet.Length];
+                }
+            }
+
+            return new string(chars);
         }
     }
 }

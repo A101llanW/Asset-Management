@@ -5,11 +5,11 @@ namespace AssetManagement.Application.Contracts
 {
     public interface IReceivingService
     {
-        PurchaseReceiveDetailVm GetReceiveDetail(int purchaseRecordId);
+        PurchaseReceiveDetailVm GetReceiveDetail(int purchaseRecordId, bool applyCatalogMatch = false);
 
-        ReceiveAssetLookupVm GetReceiveAssetLookup(int purchaseRecordId, int? preferredAssetId);
+        ReceiveAssetLookupVm GetReceiveAssetLookup(int purchaseRecordId, int? preferredAssetId, bool applyCatalogMatch = false);
 
-        int Receive(AssetReceiveVm model, string receivedById);
+        ReceiveResultVm Receive(AssetReceiveVm model, string receivedById);
 
         IEnumerable<AssetReceivingListVm> GetReceivingsForPurchase(int purchaseRecordId);
     }

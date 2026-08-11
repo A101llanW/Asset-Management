@@ -96,7 +96,7 @@
         </div>
         <div class="col-md-6">
             @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user --", new { @class = "form-select", data_am_user_placeholder = "-- Select user --" })
+            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user (optional) --", new { @class = "form-select", data_am_user_placeholder = "-- Select user (optional) --" })
             @Html.ValidationMessageFor(m => m.ReceivedById, "", new { @class = "text-danger" })
         </div>
         <div class="col-md-12">

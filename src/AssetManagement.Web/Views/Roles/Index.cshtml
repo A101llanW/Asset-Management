@@ -13,7 +13,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Roles",
-    Subtitle = "Access profiles for approvers and submitters. Roles selected here appear as approval stages under Settings.",
+    Subtitle = "Access profiles grouped by module. Roles selected here appear as approval stages under Settings.",
     PrimaryActionUrl = canCreateRole ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateRole ? "Create Role" : null
 })

@@ -79,16 +79,28 @@
             </select>
         </div>
     }
-    @if (Model.Key == "asset-register")
+    @if (Model.Key == "asset-register" || Model.Key == "asset-depreciation")
     {
         <div class="col-md-4">
             <label class="form-label small mb-1" for="sort-@key">Sort by</label>
             <select class="form-select form-select-sm am-report-sort" id="sort-@key" data-report-key="@key">
-                <option value="tag">Asset tag</option>
-                <option value="name">Name</option>
-                <option value="department">Department</option>
-                <option value="cost">Acquisition cost</option>
-                <option value="date">Purchase date</option>
+                @if (Model.Key == "asset-depreciation")
+                {
+                    <option value="tag">Asset tag</option>
+                    <option value="name">Name</option>
+                    <option value="department">Department</option>
+                    <option value="period-dep">Period depreciation</option>
+                    <option value="closing-book">Closing book value</option>
+                    <option value="cost">Acquisition cost</option>
+                }
+                else
+                {
+                    <option value="tag">Asset tag</option>
+                    <option value="name">Name</option>
+                    <option value="department">Department</option>
+                    <option value="cost">Acquisition cost</option>
+                    <option value="date">Purchase date</option>
+                }
             </select>
         </div>
         <div class="col-md-4">

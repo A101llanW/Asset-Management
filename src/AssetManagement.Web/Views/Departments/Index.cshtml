@@ -1,27 +1,30 @@
-@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.DepartmentVm>
+@model IList<AssetManagement.Application.ViewModels.DepartmentVm>
+@using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Departments";
     var canCreateDepartment = Html.HasPermission("Departments.Create");
     var canEditDepartment = Html.HasPermission("Departments.Edit");
-    var currentSort = ViewBag.Sort as string;
-    var currentDirection = ViewBag.Direction as string;
     var statusFilter = ViewBag.StatusFilter as string ?? "active";
+    var viewMode = ViewBag.ViewMode as string ?? "tree";
+    var search = ViewBag.Search as string;
+    var treeSections = ViewBag.TreeSections as IList<AssetManagement.Application.ViewModels.DepartmentTreeSectionVm>
+        ?? new List<AssetManagement.Application.ViewModels.DepartmentTreeSectionVm>();
     var statusLabel = statusFilter == "all" ? "departments" : statusFilter == "inactive" ? "inactive departments" : "active departments";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Departments",
-    Subtitle = "Maintain the business units that own and receive assets. Showing " + statusLabel + ".",
+    Subtitle = "Maintain business units and school class structure. Showing " + statusLabel + ".",
     PrimaryActionUrl = canCreateDepartment ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateDepartment ? "Create Department" : null
 })
 <form class="am-list-toolbar" method="get">
-    <div class="row g-2">
-        <div class="col-md-5">
-            <input type="text" class="form-control" name="search" placeholder="Search by code, name, or description" value="@Model.Search" />
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <input type="text" class="form-control" name="search" placeholder="Search by code, name, or description" value="@search" />
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <select class="form-select" name="status">
                 <option value="active" selected="@(statusFilter == "active")">Active only</option>
                 <option value="inactive" selected="@(statusFilter == "inactive")">Inactive only</option>
@@ -29,11 +32,9 @@
             </select>
         </div>
         <div class="col-md-2">
-            <select class="form-select" name="pageSize">
-                @foreach (var size in new[] { 10, 25, 50 })
-                {
-                    <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
-                }
+            <select class="form-select" name="view">
+                <option value="tree" selected="@(viewMode == "tree")">Tree view</option>
+                <option value="list" selected="@(viewMode == "list")">Flat list</option>
             </select>
         </div>
         <div class="col-md-2 d-grid">
@@ -41,7 +42,7 @@
         </div>
     </div>
 </form>
-@if (!Model.Items.Any())
+@if (!Model.Any())
 {
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
@@ -54,18 +55,75 @@
         </div>
     </div>
 }
+else if (viewMode == "tree")
+{
+    foreach (var section in treeSections)
+    {
+        <div class="card card-kpi mb-3">
+            <div class="card-header bg-light fw-semibold">@section.Title</div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Kind</th>
+                            <th>Requisition</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var parent in section.Items)
+                    {
+                        <tr class="table-secondary">
+                            <td>@parent.Code</td>
+                            <td>@parent.Name</td>
+                            <td>@parent.DepartmentKind</td>
+                            <td>@(parent.IsRequisitionTarget ? "Yes" : "No")</td>
+                            <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(parent.IsActive) badge-status">@(parent.IsActive ? "Active" : "Inactive")</span></td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = parent.Id, returnUrl = Request.RawUrl })">Details</a>
+                            </td>
+                        </tr>
+                        foreach (var child in parent.Children)
+                        {
+                            <tr>
+                                <td class="ps-4">@child.Code</td>
+                                <td class="ps-4">@child.Name</td>
+                                <td>@child.DepartmentKind</td>
+                                <td>@(child.IsRequisitionTarget ? "Yes" : "No")</td>
+                                <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(child.IsActive) badge-status">@(child.IsActive ? "Active" : "Inactive")</span></td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = child.Id, returnUrl = Request.RawUrl })">Details</a>
+                                    @if (canEditDepartment)
+                                    {
+                                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = child.Id, returnUrl = Request.RawUrl })">Edit</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
 else
 {
     <div class="card card-kpi">
         <div class="card-body p-0">
             <table class="table mb-0">
-                <thead class="table-light"><tr><th>@Html.SortLink("Code", "code", currentSort, currentDirection)</th><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>Description</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Kind</th><th>Requisition</th><th>Description</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                @foreach (var item in Model.Items)
+                @foreach (var item in Model)
                 {
                     <tr>
                         <td>@item.Code</td>
                         <td>@item.Name</td>
+                        <td>@item.DepartmentKind</td>
+                        <td>@(item.IsRequisitionTarget ? "Yes" : "No")</td>
                         <td>@item.Description</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                         <td class="text-end">
@@ -81,6 +139,4 @@ else
             </table>
         </div>
     </div>
-    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
-    <p class="small text-muted mt-2 mb-0">Showing @Model.StartItem-@Model.EndItem of @Model.TotalCount @statusLabel.</p>
 }

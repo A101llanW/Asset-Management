@@ -14,7 +14,8 @@
         return pdfRoot;
     }
 
-    function getPdfOptions(fileName) {
+    function getPdfOptions(fileName, landscape) {
+        var useLandscape = !!landscape;
         return {
             margin: [0.35, 0.35, 0.35, 0.35],
             filename: fileName,
@@ -26,9 +27,9 @@
                 scrollX: 0,
                 backgroundColor: '#ffffff',
                 logging: false,
-                width: 794
+                width: useLandscape ? 1122 : 794
             },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+            jsPDF: { unit: 'in', format: 'a4', orientation: useLandscape ? 'landscape' : 'portrait' },
             pagebreak: { mode: ['css', 'legacy'] }
         };
     }
@@ -71,17 +72,28 @@
         pdfRoot.innerHTML = html;
         var styleClone = attachEmbeddedStyles(pdfRoot);
         var target = pdfRoot.querySelector('.report-frame') || pdfRoot;
+        var isWide = pdfRoot.querySelector('.report-table--wide') !== null;
+        pdfRoot.style.width = isWide ? '1122px' : '794px';
+        if (isWide) {
+            var frame = pdfRoot.querySelector('.report-frame');
+            if (frame) {
+                frame.style.width = '1122px';
+                frame.style.maxWidth = '1122px';
+            }
+        }
 
         return waitForPaint()
             .then(function () {
-                return window.html2pdf().set(getPdfOptions(fileName)).from(target).save();
+                return window.html2pdf().set(getPdfOptions(fileName, isWide)).from(target).save();
             })
             .then(function () {
                 pdfRoot.innerHTML = '';
+                pdfRoot.style.width = '';
                 detachEmbeddedStyles(styleClone);
             })
             .catch(function (err) {
                 pdfRoot.innerHTML = '';
+                pdfRoot.style.width = '';
                 detachEmbeddedStyles(styleClone);
                 throw err;
             });

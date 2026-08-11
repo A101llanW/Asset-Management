@@ -5,6 +5,7 @@ using System.Data;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Infrastructure.Persistence;
@@ -20,9 +21,17 @@ SELECT
     a.[Id],
     a.[AssetTag],
     a.[AssetName],
+    a.[CategoryId],
+    a.[SerialNumber],
     a.[CurrentCustodianId],
     a.[CurrentStatus],
     a.[AcquisitionCost],
+    a.[DepartmentId],
+    a.[AssetTypeId],
+    a.[AssetSubTypeId],
+    a.[Brand],
+    a.[Model],
+    st.[Name] AS AssetSubTypeName,
     c.[Name] AS CategoryName,
     d.[Name] AS DepartmentName";
 
@@ -41,7 +50,8 @@ SELECT
         private const string FromClause = @"
 FROM [Asset] a
 LEFT JOIN [AssetCategory] c ON c.[Id] = a.[CategoryId]
-LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
+LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]
+LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
 
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly IOrganizationScopeService _organizationScope;
@@ -102,6 +112,217 @@ LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
                 Page = safePage,
                 PageSize = safePageSize
             };
+        }
+
+        public AssetGroupListPageVm GetGroupedListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
+        {
+            var scope = ResolveScope(filter);
+            var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
+            var whereClause = BuildWhereClause(filter);
+            var orderBy = BuildGroupedOrderBy(sort, direction);
+            var countSql = @"
+SELECT COUNT(*) FROM (
+    SELECT 1 AS grp
+    " + FromClause + whereClause + @"
+    GROUP BY a.[AssetName], a.[AssetSubTypeId], a.[DepartmentId], a.[CurrentStatus], a.[AssetTypeId]
+) grouped";
+
+            var totalCount = 0;
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var countCommand = connection.CreateCommand())
+                {
+                    countCommand.CommandText = countSql;
+                    scope.AddScopeParameters(countCommand);
+                    AddFilterParameters(countCommand, filter);
+                    totalCount = Convert.ToInt32(countCommand.ExecuteScalar());
+                }
+
+                var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
+                var safePage = Math.Min(Math.Max(page, 1), totalPages);
+                var skip = (safePage - 1) * safePageSize;
+                var sql = @"
+SELECT
+    MIN(a.[Id]) AS RepresentativeId,
+    a.[AssetName],
+    a.[AssetSubTypeId],
+    a.[DepartmentId],
+    a.[CurrentStatus],
+    a.[AssetTypeId],
+    COUNT(*) AS UnitCount,
+    SUM(a.[AcquisitionCost]) AS TotalAcquisitionCost,
+    MAX(c.[Name]) AS CategoryName,
+    MAX(d.[Name]) AS DepartmentName,
+    MAX(st.[Name]) AS AssetSubTypeName
+" + FromClause + whereClause + @"
+GROUP BY a.[AssetName], a.[AssetSubTypeId], a.[DepartmentId], a.[CurrentStatus], a.[AssetTypeId]
+ORDER BY " + orderBy + @"
+OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+                var items = new List<AssetGroupListVm>();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    scope.AddScopeParameters(command);
+                    AddFilterParameters(command, filter);
+                    SqlQueryHelper.AddParameter(command, "@Skip", skip);
+                    SqlQueryHelper.AddParameter(command, "@Take", safePageSize);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var subTypeId = reader["AssetSubTypeId"] == DBNull.Value
+                                ? (int?)null
+                                : Convert.ToInt32(reader["AssetSubTypeId"]);
+                            var departmentId = reader["DepartmentId"] == DBNull.Value
+                                ? (int?)null
+                                : Convert.ToInt32(reader["DepartmentId"]);
+                            var status = (AssetStatus)Convert.ToInt32(reader["CurrentStatus"]);
+                            var assetName = SqlQueryHelper.GetString(reader, "AssetName");
+                            items.Add(new AssetGroupListVm
+                            {
+                                GroupKey = BuildGroupKey(assetName, subTypeId, departmentId, status),
+                                AssetName = assetName,
+                                AssetSubTypeId = subTypeId,
+                                DepartmentId = departmentId,
+                                CurrentStatus = status,
+                                Count = Convert.ToInt32(reader["UnitCount"]),
+                                TotalAcquisitionCost = Convert.ToDecimal(reader["TotalAcquisitionCost"]),
+                                CategoryName = SqlQueryHelper.GetString(reader, "CategoryName"),
+                                DepartmentName = SqlQueryHelper.GetString(reader, "DepartmentName"),
+                                AssetSubTypeName = AssetSubTypeNormalizer.NormalizeName(SqlQueryHelper.GetString(reader, "AssetSubTypeName"))
+                            });
+                        }
+                    }
+                }
+
+                return new AssetGroupListPageVm
+                {
+                    Items = items,
+                    TotalCount = totalCount,
+                    Search = filter == null ? null : filter.Search,
+                    Sort = sort,
+                    Direction = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc",
+                    Page = safePage,
+                    PageSize = safePageSize
+                };
+            }
+        }
+
+        public AssetGroupMembersPageVm GetGroupMembers(
+            AssetFilterVm filter,
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int skip,
+            int take)
+        {
+            var scope = ResolveScope(filter);
+            var safeTake = take <= 0 ? 10 : Math.Min(take, 100);
+            var safeSkip = Math.Max(skip, 0);
+            var groupMemberClause = BuildGroupMemberWhereClause();
+
+            var whereClause = BuildWhereClause(filter) + groupMemberClause;
+            var countSql = "SELECT COUNT(*)" + FromClause + whereClause;
+
+            var totalCount = 0;
+            var members = new List<AssetListVm>();
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var countCommand = connection.CreateCommand())
+                {
+                    countCommand.CommandText = countSql;
+                    scope.AddScopeParameters(countCommand);
+                    AddFilterParameters(countCommand, filter);
+                    AddGroupMemberParameters(countCommand, assetName, assetSubTypeId, groupDepartmentId, groupStatus);
+                    totalCount = Convert.ToInt32(countCommand.ExecuteScalar());
+                }
+
+                if (totalCount > 0 && safeSkip < totalCount)
+                {
+                    var sql = SelectColumns + FromClause + whereClause
+                        + " ORDER BY a.[AssetTag] ASC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = sql;
+                        scope.AddScopeParameters(command);
+                        AddFilterParameters(command, filter);
+                        AddGroupMemberParameters(command, assetName, assetSubTypeId, groupDepartmentId, groupStatus);
+                        SqlQueryHelper.AddParameter(command, "@Skip", safeSkip);
+                        SqlQueryHelper.AddParameter(command, "@Take", safeTake);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                members.Add(MapAssetListItem(reader));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new AssetGroupMembersPageVm
+            {
+                Items = members,
+                TotalCount = totalCount,
+                Skip = safeSkip,
+                Take = safeTake
+            };
+        }
+
+        private static string BuildGroupMemberWhereClause()
+        {
+            return @" AND a.[AssetName] = @GroupAssetName
+ AND ((@GroupAssetSubTypeId IS NULL AND a.[AssetSubTypeId] IS NULL) OR a.[AssetSubTypeId] = @GroupAssetSubTypeId)
+ AND ((@GroupDepartmentId IS NULL AND a.[DepartmentId] IS NULL) OR a.[DepartmentId] = @GroupDepartmentId)
+ AND a.[CurrentStatus] = @GroupCurrentStatus";
+        }
+
+        private static void AddGroupMemberParameters(
+            IDbCommand command,
+            string assetName,
+            int? assetSubTypeId,
+            int? departmentId,
+            AssetStatus status)
+        {
+            SqlQueryHelper.AddParameter(command, "@GroupAssetName", assetName);
+            SqlQueryHelper.AddParameter(command, "@GroupAssetSubTypeId",
+                assetSubTypeId.HasValue ? (object)assetSubTypeId.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@GroupDepartmentId",
+                departmentId.HasValue ? (object)departmentId.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@GroupCurrentStatus", (int)status);
+        }
+
+        private static string BuildGroupKey(string assetName, int? assetSubTypeId, int? departmentId, AssetStatus status)
+        {
+            return (assetName ?? string.Empty) + "|"
+                + (assetSubTypeId.HasValue ? assetSubTypeId.Value.ToString() : "0") + "|"
+                + (departmentId.HasValue ? departmentId.Value.ToString() : "0") + "|"
+                + ((int)status).ToString();
+        }
+
+        private static string BuildGroupedOrderBy(string sort, string direction)
+        {
+            var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+            switch ((sort ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "name":
+                    return desc ? "a.[AssetName] DESC" : "a.[AssetName] ASC";
+                case "department":
+                    return desc ? "MAX(d.[Name]) DESC" : "MAX(d.[Name]) ASC";
+                case "status":
+                    return desc ? "a.[CurrentStatus] DESC" : "a.[CurrentStatus] ASC";
+                case "acquisition":
+                    return desc ? "SUM(a.[AcquisitionCost]) DESC" : "SUM(a.[AcquisitionCost]) ASC";
+                default:
+                    return desc ? "COUNT(*) DESC, a.[AssetName] DESC" : "COUNT(*) ASC, a.[AssetName] ASC";
+            }
         }
 
         public int Count(AssetFilterVm filter)
@@ -243,6 +464,11 @@ LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
                     clauses.Add("a.[AssetTypeId] = @AssetTypeId");
                 }
 
+                if (filter.AssetSubTypeId.HasValue)
+                {
+                    clauses.Add("a.[AssetSubTypeId] = @AssetSubTypeId");
+                }
+
                 if (filter.SupplierId.HasValue)
                 {
                     clauses.Add("a.[SupplierId] = @SupplierId");
@@ -280,6 +506,8 @@ LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
                 filter.CategoryId.HasValue ? (object)filter.CategoryId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@AssetTypeId",
                 filter.AssetTypeId.HasValue ? (object)filter.AssetTypeId.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@AssetSubTypeId",
+                filter.AssetSubTypeId.HasValue ? (object)filter.AssetSubTypeId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@SupplierId",
                 filter.SupplierId.HasValue ? (object)filter.SupplierId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@Status",
@@ -328,8 +556,16 @@ LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]";
                 Id = Convert.ToInt32(record["Id"]),
                 AssetTag = SqlQueryHelper.GetString(record, "AssetTag"),
                 AssetName = SqlQueryHelper.GetString(record, "AssetName"),
+                CategoryId = Convert.ToInt32(record["CategoryId"]),
                 CategoryName = SqlQueryHelper.GetString(record, "CategoryName"),
+                SerialNumber = SqlQueryHelper.GetString(record, "SerialNumber"),
                 DepartmentName = SqlQueryHelper.GetString(record, "DepartmentName"),
+                DepartmentId = record["DepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(record["DepartmentId"]),
+                AssetTypeId = Convert.ToInt32(record["AssetTypeId"]),
+                AssetSubTypeId = record["AssetSubTypeId"] == DBNull.Value ? (int?)null : Convert.ToInt32(record["AssetSubTypeId"]),
+                Brand = SqlQueryHelper.GetString(record, "Brand"),
+                Model = SqlQueryHelper.GetString(record, "Model"),
+                AssetSubTypeName = AssetSubTypeNormalizer.NormalizeName(SqlQueryHelper.GetString(record, "AssetSubTypeName")),
                 CurrentCustodianId = SqlQueryHelper.GetString(record, "CurrentCustodianId"),
                 CurrentStatus = (AssetStatus)Convert.ToInt32(record["CurrentStatus"]),
                 AcquisitionCost = Convert.ToDecimal(record["AcquisitionCost"])

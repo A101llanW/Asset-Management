@@ -1,18 +1,31 @@
 param(
-    [string]$Port = $(if ($env:E2E_PORT) { $env:E2E_PORT.Trim() } else { "51901" })
+    [string]$Port = $(if ($env:E2E_PORT) { $env:E2E_PORT.Trim() } else { "51901" }),
+    [switch]$ResetDatabase
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $webPath = Join-Path $root "src\AssetManagement.Web"
 $iisExpressPath = Join-Path ${env:ProgramFiles} "IIS Express\iisexpress.exe"
+$configPath = Join-Path $root ".build\iis-remote\applicationhost.config"
+$ensureConfigScript = Join-Path $root ".build\ensure-iis-config.ps1"
 
 if (-not (Test-Path $iisExpressPath)) {
     throw "IIS Express not found at $iisExpressPath"
 }
+if (-not (Test-Path $configPath)) {
+    throw "IIS Express config not found at $configPath"
+}
 
-Write-Host "Preparing E2E database..."
-& (Join-Path $PSScriptRoot "prepare-e2e-db.ps1")
+if ($ResetDatabase) {
+    Write-Host "Resetting E2E database (destructive)..."
+    & (Join-Path $root "tools\database\Reset-E2eDatabase.ps1") -ConfirmDestructive
+    if ($LASTEXITCODE -ne 0) { throw "E2E database reset failed." }
+}
+else {
+    Write-Host "Skipping E2E database reset (pass -ResetDatabase to drop/recreate AssetManagementModuleDb_E2E)."
+    Write-Host "See tools/database/README.md for database operational scripts."
+}
 
 Write-Host "Restoring NuGet packages..."
 & (Join-Path $root "restore.ps1")
@@ -31,7 +44,12 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Starting IIS Express on port $Port..."
 Get-Process iisexpress -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
-$arguments = "/path:`"$webPath`" /port:$Port"
+
+& $ensureConfigScript -WebPath $webPath -Port ([int]$Port) -ConfigPath $configPath | Out-Null
+Get-ChildItem (Join-Path $env:TEMP 'iisexpress') -Filter 'applicationhost*.config' -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
+$arguments = "/config:`"$configPath`" /site:AssetManagementRemote"
 Start-Process -FilePath $iisExpressPath -ArgumentList $arguments -WindowStyle Hidden | Out-Null
 
 $deadline = (Get-Date).AddSeconds(120)

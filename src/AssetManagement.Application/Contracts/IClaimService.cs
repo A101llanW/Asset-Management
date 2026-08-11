@@ -10,6 +10,8 @@ namespace AssetManagement.Application.Contracts
 
         IEnumerable<ClaimListVm> GetClaims(string search, int? assetId);
 
+        PagedListVm<ClaimListVm> GetListPage(string search, int? assetId, int page, int pageSize);
+
         ClaimDetailsVm GetById(int id);
 
         void UpdateStatus(int id, ClaimStatus status, decimal? approvedAmount, string settlementNotes);

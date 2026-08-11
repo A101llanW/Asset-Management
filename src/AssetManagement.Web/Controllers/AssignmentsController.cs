@@ -63,9 +63,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.Assign")]
-        public ActionResult Create(int assetId)
+        public ActionResult Create(int? assetId)
         {
-            var asset = UnitOfWork.Repository<Asset>().GetById(assetId);
+            if (!assetId.HasValue)
+            {
+                TempData["Error"] = "Select an asset to assign.";
+                return RedirectToAction("Index", "Assets");
+            }
+
+            var asset = UnitOfWork.Repository<Asset>().GetById(assetId.Value);
             if (asset == null)
             {
                 return HttpNotFound();
@@ -75,18 +81,18 @@ namespace AssetManagement.Web.Controllers
             if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
             {
                 TempData["Error"] = scopeError;
-                return RedirectToAssetDetails(assetId);
+                return RedirectToAssetDetails(assetId.Value);
             }
 
             if (!AssetCustodyRules.CanAssign(asset.CurrentStatus))
             {
                 TempData["Error"] = AssetCustodyRules.GetAssignBlockedMessage(asset.CurrentStatus);
-                return RedirectToAssetDetails(assetId);
+                return RedirectToAssetDetails(assetId.Value);
             }
 
             var model = new AssetAssignmentVm
             {
-                AssetId = assetId,
+                AssetId = assetId.Value,
                 AssignedDate = DateTime.UtcNow,
                 AssignmentType = AssignmentType.Permanent.ToString(),
                 HandedOverById = CurrentUserContext.UserId,
@@ -95,7 +101,7 @@ namespace AssetManagement.Web.Controllers
 
             ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId => model.ToDepartmentId = deptId);
             PopulateLookups(model);
-            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId);
+            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
             return View(model);
         }
 
@@ -127,6 +133,11 @@ namespace AssetManagement.Web.Controllers
             if (!string.IsNullOrWhiteSpace(viewModel.ToUserId) && !ValidateUserBelongsToDepartment(viewModel.ToUserId, viewModel.ToDepartmentId))
             {
                 ModelState.AddModelError("ToUserId", "Selected user does not belong to the target department.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(viewModel.ReceivedById) && !ValidateUserBelongsToDepartment(viewModel.ReceivedById, viewModel.ToDepartmentId))
+            {
+                ModelState.AddModelError("ReceivedById", "Received-by user must belong to the target department.");
             }
 
             PopulateLookups(viewModel);

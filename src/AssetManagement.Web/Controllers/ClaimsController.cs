@@ -34,9 +34,9 @@ namespace AssetManagement.Web.Controllers
 
         public ActionResult Index(string search, int? assetId, int page = 1, int pageSize = 10)
         {
-            var items = _claimService.GetClaims(search, assetId);
+            var pageResult = _claimService.GetListPage(search, assetId, page, pageSize);
             ViewBag.AssetId = assetId;
-            return View(BuildListPage(items, search, null, null, page, pageSize));
+            return View(ToListPage(pageResult));
         }
 
         public ActionResult Details(int id)
@@ -77,17 +77,23 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Claims.Create")]
-        public ActionResult Create(int assetId)
+        public ActionResult Create(int? assetId)
         {
+            if (!assetId.HasValue)
+            {
+                TempData["Error"] = "Select an asset to file a claim against.";
+                return RedirectToAction("Index", "Assets");
+            }
+
             var model = new InsuranceClaimVm
             {
-                AssetId = assetId,
+                AssetId = assetId.Value,
                 ClaimDate = System.DateTime.UtcNow,
                 ClaimType = "Damage"
             };
 
             PopulateLookups(model);
-            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId);
+            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
             return View(model);
         }
 

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using AssetManagement.Domain.Common;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Domain.Entities
 {
@@ -15,6 +16,13 @@ namespace AssetManagement.Domain.Entities
 
         public string Description { get; set; }
 
+        public int? ParentDepartmentId { get; set; }
+
+        public DepartmentKind DepartmentKind { get; set; }
+
+        public bool IsRequisitionTarget { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }
+

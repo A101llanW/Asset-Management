@@ -36,6 +36,17 @@ namespace AssetManagement.Application.ViewModels
         public IEnumerable<PermissionGroupVm> PermissionGroups { get; set; } = new List<PermissionGroupVm>();
 
         public IEnumerable<RoleTemplateVm> RoleTemplates { get; set; } = new List<RoleTemplateVm>();
+
+        public IEnumerable<RolePermissionCopyVm> CopySourceRoles { get; set; } = new List<RolePermissionCopyVm>();
+    }
+
+    public class RolePermissionCopyVm
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public int PermissionCount { get; set; }
     }
 
     public class RoleTemplateVm
@@ -76,6 +87,8 @@ namespace AssetManagement.Application.ViewModels
     public class PermissionGroupVm
     {
         public string Module { get; set; }
+
+        public string ModuleDescription { get; set; }
 
         public IEnumerable<PermissionVm> Permissions { get; set; } = new List<PermissionVm>();
     }

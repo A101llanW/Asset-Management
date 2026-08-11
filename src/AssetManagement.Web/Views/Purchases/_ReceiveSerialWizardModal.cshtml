@@ -1,0 +1,50 @@
+@{
+    var detail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
+}
+<div class="modal fade" id="receiveSerialWizardModal" tabindex="-1" aria-labelledby="receiveSerialWizardTitle" aria-hidden="true"
+     data-am-po="@(detail != null ? detail.PurchaseOrderNumber ?? detail.PurchaseRecordId.ToString() : "")"
+     data-am-supplier="@(detail != null ? detail.SupplierName : "")"
+     data-am-item="@(detail != null ? detail.ItemDescription : "")"
+     data-am-asset-name="@(detail != null ? detail.SuggestedAssetName : "")"
+     data-am-brand="@(detail != null ? detail.ContextBrand : "")"
+     data-am-model="@(detail != null ? detail.ContextModel : "")"
+     data-am-subtype="@(detail != null ? detail.AssetSubTypeName : "")"
+     data-am-unit-cost="@(detail != null ? detail.UnitCost.ToString("0.##") : "")"
+     data-am-currency="@(detail != null ? detail.Currency : "")"
+     data-am-remaining="@(detail != null ? detail.RemainingQuantity.ToString() : "1")">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="receiveSerialWizardTitle">Enter serial number</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2" id="receive-serial-step-label">Unit 1 of 1</p>
+                <div class="card border bg-light mb-3">
+                    <div class="card-body py-3 small">
+                        <div class="row g-2">
+                            <div class="col-6"><span class="text-muted">PO</span><div class="fw-medium" id="receive-serial-po"></div></div>
+                            <div class="col-6"><span class="text-muted">Supplier</span><div class="fw-medium" id="receive-serial-supplier"></div></div>
+                            <div class="col-12"><span class="text-muted">Item</span><div class="fw-medium" id="receive-serial-item"></div></div>
+                            <div class="col-6"><span class="text-muted">Brand</span><div id="receive-serial-brand"></div></div>
+                            <div class="col-6"><span class="text-muted">Model</span><div id="receive-serial-model"></div></div>
+                            <div class="col-6"><span class="text-muted">Sub-type</span><div id="receive-serial-subtype"></div></div>
+                            <div class="col-6"><span class="text-muted">Unit cost</span><div id="receive-serial-cost"></div></div>
+                        </div>
+                    </div>
+                </div>
+                <label class="form-label" for="receive-serial-input">Serial number <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="receive-serial-input" maxlength="120" autocomplete="off" placeholder="Enter serial from device label" />
+                <div class="invalid-feedback" id="receive-serial-error"></div>
+                <p class="form-text mt-2 mb-0">Asset tags are generated automatically when you complete this wizard. QR labels will use the new tag.</p>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" id="receive-serial-back" disabled>Back</button>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="receive-serial-next">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

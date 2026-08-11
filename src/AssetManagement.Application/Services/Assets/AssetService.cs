@@ -27,6 +27,9 @@ namespace AssetManagement.Application.Services
         private readonly IOutboxWriter _outboxWriter;
         private readonly IWebhookService _webhookService;
         private readonly IReferenceDataCache _referenceDataCache;
+        private readonly IAssetSubTypeService _assetSubTypeService;
+        private readonly IOperationsQueryRepository _operationsQueryRepository;
+        private readonly IAuthorizationService _authorizationService;
 
         public AssetService(
             IUnitOfWork unitOfWork,
@@ -41,7 +44,10 @@ namespace AssetManagement.Application.Services
             IApprovalWorkflowEngine approvalEngine,
             IOutboxWriter outboxWriter,
             IWebhookService webhookService,
-            IReferenceDataCache referenceDataCache)
+            IReferenceDataCache referenceDataCache,
+            IAssetSubTypeService assetSubTypeService,
+            IOperationsQueryRepository operationsQueryRepository,
+            IAuthorizationService authorizationService)
         {
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
@@ -56,6 +62,9 @@ namespace AssetManagement.Application.Services
             _outboxWriter = outboxWriter;
             _webhookService = webhookService;
             _referenceDataCache = referenceDataCache;
+            _assetSubTypeService = assetSubTypeService;
+            _operationsQueryRepository = operationsQueryRepository;
+            _authorizationService = authorizationService;
         }
 
         public IEnumerable<AssetListVm> GetAssets(AssetFilterVm filter)
@@ -80,6 +89,23 @@ namespace AssetManagement.Application.Services
         public AssetListPageVm GetAssetListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
         {
             return _assetQueryService.GetListPage(filter, sort, direction, page, pageSize);
+        }
+
+        public AssetGroupListPageVm GetAssetGroupListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
+        {
+            return _assetQueryService.GetGroupedListPage(filter, sort, direction, page, pageSize);
+        }
+
+        public AssetGroupMembersPageVm GetAssetGroupMembers(
+            AssetFilterVm filter,
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int skip,
+            int take)
+        {
+            return _assetQueryService.GetGroupMembers(filter, assetName, assetSubTypeId, groupDepartmentId, groupStatus, skip, take);
         }
 
         public int CountAssets(AssetFilterVm filter)
@@ -249,6 +275,11 @@ namespace AssetManagement.Application.Services
                 : _unitOfWork.Repository<DisposalApprovalAction>().Find(x => x.DisposalRecordId == pendingDisposal.Id)
                     .OrderBy(x => x.StageNumber).ThenBy(x => x.DecisionDate).ToList();
 
+            var assetType = _unitOfWork.Repository<AssetType>().GetById(asset.AssetTypeId);
+            var category = _unitOfWork.Repository<AssetCategory>().GetById(asset.CategoryId);
+            var depreciationSettings = DepreciationSettingsResolver.Resolve(asset, assetType, category);
+            var depreciationPosition = DepreciationCalculator.Compute(asset, depreciationSettings, DateTime.UtcNow);
+
             return new AssetDetailsVm
             {
                 Id = asset.Id,
@@ -269,7 +300,14 @@ namespace AssetManagement.Application.Services
                 CurrentStatus = asset.CurrentStatus,
                 AcquisitionCost = asset.AcquisitionCost,
                 TaxAmount = asset.TaxAmount,
+                SalvageValue = asset.SalvageValue,
+                DepreciationMethod = asset.DepreciationMethod,
                 UsefulLifeMonths = asset.UsefulLifeMonths,
+                DepreciationStartDate = asset.DepreciationStartDate,
+                CurrentBookValue = depreciationPosition.CurrentBookValue,
+                AccumulatedDepreciation = depreciationPosition.AccumulatedDepreciation,
+                DepreciationSettings = DepreciationSettingsHelper.ToViewModel(depreciationSettings),
+                DepreciationElapsedMonths = depreciationPosition.ElapsedMonths,
                 PurchaseDate = asset.PurchaseDate,
                 PolicyReference = asset.PolicyReference,
                 WarrantyEndDate = asset.WarrantyEndDate,
@@ -394,12 +432,139 @@ namespace AssetManagement.Application.Services
                 IsActive = true
             };
 
+            DepreciationSettingsHelper.ApplyAssetOverrides(entity, model, model.CanManageDepreciationSettings);
+            ApplyCalculatedDepreciation(entity);
+
             AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
+            ApplySubType(entity, model);
 
             _unitOfWork.Repository<Asset>().Add(entity);
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Assets.Create", nameof(Asset), entity.Id.ToString(), null, entity.AssetTag);
             return entity.Id;
+        }
+
+        public void RelocateToClassDepartment(int assetId, int targetDepartmentId, string actorUserId)
+        {
+            if (string.IsNullOrWhiteSpace(actorUserId))
+            {
+                throw new BusinessException("Current user is required to relocate an asset.");
+            }
+
+            if (targetDepartmentId <= 0)
+            {
+                throw new BusinessException("Target class is required.");
+            }
+
+            if (!_authorizationService.HasPermission(actorUserId, "Assets.Edit")
+                && !_authorizationService.HasPermission(actorUserId, "Assets.Transfer"))
+            {
+                throw new BusinessException("You do not have permission to move assets between classes.");
+            }
+
+            var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+            if (asset == null || !asset.IsActive)
+            {
+                throw new BusinessException("Asset not found.");
+            }
+
+            var targetDepartment = _unitOfWork.Repository<Department>().GetById(targetDepartmentId);
+            if (targetDepartment == null || !targetDepartment.IsActive)
+            {
+                throw new BusinessException("Target class was not found or is inactive.");
+            }
+
+            if (targetDepartment.DepartmentKind != DepartmentKind.Class)
+            {
+                throw new BusinessException("Target department must be a class.");
+            }
+
+            EnsureRelocateScope(asset, targetDepartment, actorUserId);
+            EnsureRelocatableAssetState(asset);
+            _workflowGuard.EnsureNoBlockingWorkflow(assetId);
+
+            var fromDepartmentId = NormalizeOptionalId(asset.DepartmentId);
+            if (fromDepartmentId.HasValue && fromDepartmentId.Value == targetDepartmentId)
+            {
+                throw new BusinessException("Asset is already registered to the selected class.");
+            }
+
+            var now = DateTime.UtcNow;
+            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+            {
+                AssetId = asset.Id,
+                ActionType = CustodyActionType.Transferred,
+                ActionDate = now,
+                FromDepartmentId = fromDepartmentId,
+                ToDepartmentId = targetDepartmentId,
+                Reason = "Relocated between classes",
+                CreatedAt = now,
+                IsActive = true
+            });
+
+            asset.DepartmentId = targetDepartmentId;
+            asset.UpdatedAt = now;
+            _unitOfWork.Repository<Asset>().Update(asset);
+            _unitOfWork.SaveChanges();
+            _auditWriter.Write(
+                "Assets.RelocateClass",
+                nameof(Asset),
+                asset.Id.ToString(),
+                fromDepartmentId.HasValue ? fromDepartmentId.Value.ToString() : null,
+                targetDepartmentId.ToString());
+        }
+
+        public AssetBulkActionResultVm RelocateGroupToClassDepartment(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus status,
+            int targetDepartmentId,
+            string actorUserId)
+        {
+            if (string.IsNullOrWhiteSpace(assetName))
+            {
+                throw new BusinessException("Asset group name is required.");
+            }
+
+            var assets = _unitOfWork.Repository<Asset>().GetAll()
+                .Where(x => x.IsActive
+                    && x.AssetName == assetName.Trim()
+                    && x.CurrentStatus == status
+                    && MatchesOptionalId(x.AssetSubTypeId, assetSubTypeId)
+                    && MatchesOptionalId(x.DepartmentId, groupDepartmentId))
+                .OrderBy(x => x.AssetTag)
+                .ToList();
+
+            if (assets.Count == 0)
+            {
+                throw new BusinessException("No assets found for this group.");
+            }
+
+            var messages = new List<string>();
+            var processed = 0;
+            var skipped = 0;
+
+            foreach (var asset in assets)
+            {
+                try
+                {
+                    RelocateToClassDepartment(asset.Id, targetDepartmentId, actorUserId);
+                    processed++;
+                }
+                catch (BusinessException ex)
+                {
+                    skipped++;
+                    messages.Add(asset.AssetTag + ": " + ex.Message);
+                }
+            }
+
+            return new AssetBulkActionResultVm
+            {
+                ProcessedCount = processed,
+                SkippedCount = skipped,
+                Messages = messages
+            };
         }
 
         public void UpdateStatus(int id, AssetStatus status)
@@ -481,7 +646,11 @@ namespace AssetManagement.Application.Services
             }
             entity.UpdatedAt = DateTime.UtcNow;
 
+            DepreciationSettingsHelper.ApplyAssetOverrides(entity, model, model.CanManageDepreciationSettings);
+            ApplyCalculatedDepreciation(entity);
+
             AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
+            ApplySubType(entity, model);
 
             _unitOfWork.Repository<Asset>().Update(entity);
             _unitOfWork.SaveChanges();
@@ -969,39 +1138,23 @@ namespace AssetManagement.Application.Services
                 return model.AssetTag;
             }
 
-            Department department = null;
-            if (model.DepartmentId.HasValue && model.DepartmentId.Value > 0)
+            var takenTags = _unitOfWork.Repository<Asset>().Query()
+                .Where(x => x.IsActive && x.AssetTag != null)
+                .Select(x => x.AssetTag);
+            return AssetTagHelper.GenerateUniqueRandomTag(takenTags);
+        }
+
+        private void ApplyCalculatedDepreciation(Asset entity)
+        {
+            if (entity == null)
             {
-                department = _unitOfWork.Repository<Department>().GetById(model.DepartmentId.Value);
-                if (department == null)
-                {
-                    throw new BusinessException("Department was not found.");
-                }
+                return;
             }
 
-            var assetType = _unitOfWork.Repository<AssetType>().GetById(model.AssetTypeId);
-            if (assetType == null)
-            {
-                throw new BusinessException("Asset type was not found.");
-            }
-
-            var departmentCode = AssetTagHelper.ResolveDepartmentCode(department);
-            var activeAssets = _unitOfWork.Repository<Asset>().Query().Where(x => x.IsActive);
-            var prefix = AssetTagHelper.BuildTagPrefix(departmentCode, assetType.Name) + "-";
-            var sequence = AssetTagHelper.GetNextSequence(activeAssets, prefix);
-
-            for (var attempt = 0; attempt < 10; attempt++)
-            {
-                var candidate = prefix + sequence.ToString("000");
-                if (!activeAssets.Any(x => x.AssetTag == candidate))
-                {
-                    return candidate;
-                }
-
-                sequence++;
-            }
-
-            throw new BusinessException("Unable to generate a unique asset tag. Please try again.");
+            var assetType = _unitOfWork.Repository<AssetType>().GetById(entity.AssetTypeId);
+            var category = _unitOfWork.Repository<AssetCategory>().GetById(entity.CategoryId);
+            var settings = DepreciationSettingsResolver.Resolve(entity, assetType, category);
+            DepreciationCalculator.ApplyToAsset(entity, settings, DateTime.UtcNow);
         }
 
         private void ValidateUniqueness(string assetTag, string serialNumber, int? ignoreId)
@@ -1020,16 +1173,18 @@ namespace AssetManagement.Application.Services
 
             if (!string.IsNullOrWhiteSpace(serialNumber))
             {
-                var serialQuery = _unitOfWork.Repository<Asset>().Query()
-                    .Where(x => x.IsActive && x.SerialNumber == serialNumber);
-                if (ignoreId.HasValue)
+                var organizationId = _organizationScope.GetCurrentOrganizationId();
+                if (!organizationId.HasValue)
                 {
-                    serialQuery = serialQuery.Where(x => x.Id != ignoreId.Value);
+                    throw new BusinessException("Organization context is required.");
                 }
 
-                if (serialQuery.Any())
+                if (_operationsQueryRepository.ExistsActiveSerialNumber(
+                    organizationId.Value,
+                    serialNumber.Trim(),
+                    ignoreId))
                 {
-                    throw new BusinessException("SerialNumber must be unique when provided.");
+                    throw new BusinessException("Serial number '" + serialNumber.Trim() + "' already exists.");
                 }
             }
         }
@@ -1086,6 +1241,42 @@ namespace AssetManagement.Application.Services
             return null;
         }
 
+        private void ApplySubType(Asset entity, AssetCreateVm model)
+        {
+            if (entity == null || model == null)
+            {
+                return;
+            }
+
+            var resolver = new AssetSubTypeResolver(_assetSubTypeService);
+            var resolution = resolver.Resolve(model.AssetTypeId, model.Brand, model.Model, model.AssetSubTypeId);
+            if (resolution.IsMatched)
+            {
+                resolver.ApplyToAsset(entity, resolution.SubType);
+                return;
+            }
+
+            if (!resolution.RequiresAssignment)
+            {
+                entity.AssetSubTypeId = null;
+                return;
+            }
+
+            if (model.AssetSubTypeId.HasValue && model.AssetSubTypeId.Value > 0)
+            {
+                var assigned = _assetSubTypeService.GetById(model.AssetSubTypeId.Value);
+                if (assigned == null)
+                {
+                    throw new BusinessException("Selected asset sub-type was not found.");
+                }
+
+                resolver.ApplyToAsset(entity, assigned);
+                return;
+            }
+
+            throw new BusinessException("Assign an asset sub-type for this brand and model before saving.");
+        }
+
         private static string NormalizeText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -1099,6 +1290,18 @@ namespace AssetManagement.Application.Services
         private static int? NormalizeOptionalId(int? value)
         {
             return value.HasValue && value.Value > 0 ? value : null;
+        }
+
+        private static bool MatchesOptionalId(int? actual, int? expected)
+        {
+            var normalizedActual = NormalizeOptionalId(actual);
+            var normalizedExpected = NormalizeOptionalId(expected);
+            if (!normalizedExpected.HasValue)
+            {
+                return !normalizedActual.HasValue;
+            }
+
+            return normalizedActual.HasValue && normalizedActual.Value == normalizedExpected.Value;
         }
 
         private bool CanViewAssetForPendingTransferApproval(Asset asset)
@@ -1115,6 +1318,40 @@ namespace AssetManagement.Application.Services
                 userId,
                 asset,
                 _departmentScope.BypassesDepartmentScope);
+        }
+
+        private void EnsureRelocateScope(Asset asset, Department targetDepartment, string actorUserId)
+        {
+            var canRelocateAcrossDepartments = _departmentScope.BypassesDepartmentScope
+                || _authorizationService.HasPermission(actorUserId, "Assets.Transfer");
+
+            if (canRelocateAcrossDepartments)
+            {
+                return;
+            }
+
+            _departmentScope.EnsureCanAccessAsset(asset);
+            _departmentScope.EnsureCanAccessDepartment(targetDepartment);
+        }
+
+        private static void EnsureRelocatableAssetState(Asset asset)
+        {
+            if (AssetCustodyRules.BlocksCustodyChange(asset.CurrentStatus))
+            {
+                throw new BusinessException("This asset cannot be moved between classes in its current status.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+            {
+                throw new BusinessException("This asset is assigned to a custodian. Use Transfer to move custody first.");
+            }
+
+            if (asset.CurrentStatus != AssetStatus.InStore
+                && asset.CurrentStatus != AssetStatus.Received
+                && asset.CurrentStatus != AssetStatus.Returned)
+            {
+                throw new BusinessException("Only in-store assets without a custodian can be moved between classes.");
+            }
         }
 
     }

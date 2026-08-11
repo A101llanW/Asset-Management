@@ -4,6 +4,7 @@ using System.Configuration;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace AssetManagement.Infrastructure.Persistence
@@ -29,7 +30,7 @@ namespace AssetManagement.Infrastructure.Persistence
 
                 var connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
                 EnsureDatabaseExists(connectionString);
-                ApplyScripts(connectionString, ResolveScriptsRoot(), null);
+                ApplyScripts(connectionString, ResolveScriptsRoot(), null, trackMigrationHistory: false);
                 _initialized = true;
             }
         }
@@ -37,9 +38,20 @@ namespace AssetManagement.Infrastructure.Persistence
         /// <summary>Applies only database/scripts/004_Migrations (idempotent ALTER scripts).</summary>
         public static void ApplyMigrations(string connectionStringName, bool continueOnError = true)
         {
+            var setting = ConfigurationManager.ConnectionStrings[connectionStringName];
+            if (setting == null || string.IsNullOrWhiteSpace(setting.ConnectionString))
+            {
+                throw new InvalidOperationException("Connection string not found: " + connectionStringName);
+            }
+
+            ApplyMigrationsToConnection(setting.ConnectionString, continueOnError);
+        }
+
+        /// <summary>Applies 004_Migrations to an explicit connection string (e.g. test runners).</summary>
+        public static void ApplyMigrationsToConnection(string connectionString, bool continueOnError = true)
+        {
             lock (SyncRoot)
             {
-                var connectionString = ConfigurationManager.ConnectionStrings[connectionStringName].ConnectionString;
                 EnsureDatabaseExists(connectionString);
                 var migrationsRoot = Path.Combine(ResolveScriptsRoot(), "004_Migrations");
                 if (!Directory.Exists(migrationsRoot))
@@ -47,8 +59,19 @@ namespace AssetManagement.Infrastructure.Persistence
                     throw new InvalidOperationException("Migrations folder not found: " + migrationsRoot);
                 }
 
-                ApplyScripts(connectionString, migrationsRoot, continueOnError);
+                ApplyScripts(connectionString, migrationsRoot, continueOnError, trackMigrationHistory: true);
             }
+        }
+
+        public static bool ResolveMigrationContinueOnError()
+        {
+            var setting = ConfigurationManager.AppSettings["MigrationContinueOnError"];
+            if (string.IsNullOrWhiteSpace(setting))
+            {
+                return true;
+            }
+
+            return !setting.Equals("false", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static void ResetForTesting()
@@ -83,7 +106,7 @@ namespace AssetManagement.Infrastructure.Persistence
             }
         }
 
-        private static void ApplyScripts(string connectionString, string scriptsRoot, bool? continueOnError)
+        private static void ApplyScripts(string connectionString, string scriptsRoot, bool? continueOnError, bool trackMigrationHistory)
         {
             var largeDatasetSuffix = Path.DirectorySeparatorChar + "002_Seed" + Path.DirectorySeparatorChar + "003_LargeDataset.sql";
             List<string> scriptFiles;
@@ -113,21 +136,240 @@ namespace AssetManagement.Infrastructure.Persistence
 
             using (var connection = OpenConnectionWithRetry(builder.ConnectionString))
             {
+                if (trackMigrationHistory)
+                {
+                    EnsureMigrationHistoryTable(connection);
+                    BootstrapLegacyMigrationHistory(connection, scriptFiles);
+                    RepairFalsePositiveMigrationHistory(connection);
+                }
+
                 foreach (var scriptFile in scriptFiles)
                 {
+                    var scriptName = Path.GetFileName(scriptFile);
+                    if (trackMigrationHistory && IsMigrationApplied(connection, scriptName))
+                    {
+                        Console.WriteLine("  SKIP (applied) " + scriptName);
+                        continue;
+                    }
+
                     try
                     {
                         ExecuteScriptFile(connection, scriptFile);
+                        if (trackMigrationHistory)
+                        {
+                            RecordMigrationApplied(connection, scriptFile, scriptName);
+                        }
+
                         if (continueOnError.HasValue)
                         {
-                            Console.WriteLine("  OK  " + Path.GetFileName(scriptFile));
+                            Console.WriteLine("  OK  " + scriptName);
                         }
                     }
                     catch (SqlException ex) when (continueOnError == true)
                     {
-                        Console.WriteLine("  SKIP " + Path.GetFileName(scriptFile) + ": " + ex.Message);
+                        Console.WriteLine("  SKIP " + scriptName + ": " + ex.Message);
                     }
                 }
+            }
+        }
+
+        private const string MigrationHistoryTable = "SchemaMigrationHistory";
+        private const int LegacyBootstrapMaxMigrationNumber = 58;
+
+        private static void EnsureMigrationHistoryTable(SqlConnection connection)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+IF OBJECT_ID(N'[dbo].[SchemaMigrationHistory]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[SchemaMigrationHistory] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ScriptName] NVARCHAR(260) NOT NULL,
+        [Checksum] NVARCHAR(64) NULL,
+        [AppliedAt] DATETIME2 NOT NULL CONSTRAINT [DF_SchemaMigrationHistory_AppliedAt] DEFAULT (SYSUTCDATETIME()),
+        [AppliedBy] NVARCHAR(128) NOT NULL CONSTRAINT [DF_SchemaMigrationHistory_AppliedBy] DEFAULT (SUSER_SNAME()),
+        CONSTRAINT [UQ_SchemaMigrationHistory_ScriptName] UNIQUE ([ScriptName])
+    );
+END";
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static void BootstrapLegacyMigrationHistory(SqlConnection connection, IList<string> scriptFiles)
+        {
+            if (GetAppliedMigrationCount(connection) > 0)
+            {
+                return;
+            }
+
+            if (!TableExists(connection, "Organization"))
+            {
+                return;
+            }
+
+            var legacyCount = 0;
+            foreach (var scriptFile in scriptFiles)
+            {
+                var scriptName = Path.GetFileName(scriptFile);
+                int migrationNumber;
+                if (!TryGetMigrationNumber(scriptName, out migrationNumber)
+                    || migrationNumber > LegacyBootstrapMaxMigrationNumber)
+                {
+                    continue;
+                }
+
+                RecordMigrationApplied(connection, scriptFile, scriptName, "legacy-bootstrap");
+                legacyCount++;
+            }
+
+            Console.WriteLine("  INFO legacy database detected; recorded " + legacyCount + " migration(s) without re-running.");
+        }
+
+        private static void RepairFalsePositiveMigrationHistory(SqlConnection connection)
+        {
+            RepairIfSchemaMissing(
+                connection,
+                "059_DepartmentHierarchy.sql",
+                () => ColumnExists(connection, "Department", "ParentDepartmentId")
+                    && ColumnExists(connection, "Department", "DepartmentKind")
+                    && ColumnExists(connection, "Department", "IsRequisitionTarget"));
+
+            RepairIfSchemaMissing(
+                connection,
+                "060_SchoolRolesAndPermissions.sql",
+                () => PermissionExists(connection, "Purchases.CreateForAnyDepartment"));
+        }
+
+        private static void RepairIfSchemaMissing(SqlConnection connection, string scriptName, Func<bool> schemaSatisfied)
+        {
+            if (!IsMigrationApplied(connection, scriptName) || schemaSatisfied())
+            {
+                return;
+            }
+
+            DeleteMigrationHistoryEntry(connection, scriptName);
+            Console.WriteLine("  REPAIR removed false-positive history for " + scriptName);
+        }
+
+        private static void DeleteMigrationHistoryEntry(SqlConnection connection, string scriptName)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "DELETE FROM [SchemaMigrationHistory] WHERE [ScriptName]=@ScriptName";
+                command.Parameters.AddWithValue("@ScriptName", scriptName);
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static bool TryGetMigrationNumber(string scriptName, out int migrationNumber)
+        {
+            migrationNumber = 0;
+            if (string.IsNullOrWhiteSpace(scriptName))
+            {
+                return false;
+            }
+
+            var underscoreIndex = scriptName.IndexOf('_');
+            if (underscoreIndex <= 0)
+            {
+                return false;
+            }
+
+            return int.TryParse(scriptName.Substring(0, underscoreIndex), out migrationNumber);
+        }
+
+        private static bool ColumnExists(SqlConnection connection, string tableName, string columnName)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT CASE WHEN COL_LENGTH(@TableName, @ColumnName) IS NULL THEN 0 ELSE 1 END";
+                command.Parameters.AddWithValue("@TableName", tableName);
+                command.Parameters.AddWithValue("@ColumnName", columnName);
+                return Convert.ToInt32(command.ExecuteScalar()) == 1;
+            }
+        }
+
+        private static bool PermissionExists(SqlConnection connection, string permissionCode)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT COUNT(1) FROM [Permission] WHERE [Code]=@Code";
+                command.Parameters.AddWithValue("@Code", permissionCode);
+                return Convert.ToInt32(command.ExecuteScalar()) > 0;
+            }
+        }
+
+        private static bool TableExists(SqlConnection connection, string tableName)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT CASE WHEN OBJECT_ID(@tableName, 'U') IS NULL THEN 0 ELSE 1 END";
+                command.Parameters.AddWithValue("@tableName", "dbo." + tableName);
+                return Convert.ToInt32(command.ExecuteScalar()) == 1;
+            }
+        }
+
+        private static int GetAppliedMigrationCount(SqlConnection connection)
+        {
+            if (!TableExists(connection, MigrationHistoryTable))
+            {
+                return 0;
+            }
+
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT COUNT(1) FROM [SchemaMigrationHistory]";
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+
+        private static bool IsMigrationApplied(SqlConnection connection, string scriptName)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT COUNT(1) FROM [SchemaMigrationHistory] WHERE [ScriptName]=@ScriptName";
+                command.Parameters.AddWithValue("@ScriptName", scriptName);
+                return Convert.ToInt32(command.ExecuteScalar()) > 0;
+            }
+        }
+
+        private static void RecordMigrationApplied(SqlConnection connection, string scriptFile, string scriptName, string appliedByOverride = null)
+        {
+            var checksum = ComputeFileChecksum(scriptFile);
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+IF NOT EXISTS (SELECT 1 FROM [SchemaMigrationHistory] WHERE [ScriptName]=@ScriptName)
+BEGIN
+    INSERT INTO [SchemaMigrationHistory] ([ScriptName], [Checksum], [AppliedBy])
+    VALUES (@ScriptName, @Checksum, @AppliedBy);
+END";
+                command.Parameters.AddWithValue("@ScriptName", scriptName);
+                command.Parameters.AddWithValue("@Checksum", (object)checksum ?? DBNull.Value);
+                command.Parameters.AddWithValue("@AppliedBy", appliedByOverride ?? Environment.UserName);
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static string ComputeFileChecksum(string scriptFile)
+        {
+            if (string.IsNullOrWhiteSpace(scriptFile) || !File.Exists(scriptFile))
+            {
+                return null;
+            }
+
+            using (var sha = SHA256.Create())
+            using (var stream = File.OpenRead(scriptFile))
+            {
+                var hash = sha.ComputeHash(stream);
+                var builder = new StringBuilder(hash.Length * 2);
+                foreach (var b in hash)
+                {
+                    builder.Append(b.ToString("x2"));
+                }
+
+                return builder.ToString();
             }
         }
 

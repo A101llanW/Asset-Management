@@ -14,15 +14,18 @@
     var additionalTypes = AssetDocumentTypeCatalog.GetAllSuggestedTypes(existingTypes)
         .Where(x => !catalogGroups.SelectMany(g => g.Types).Contains(x, StringComparer.OrdinalIgnoreCase))
         .ToList();
-    var documents = Model.Documents == null ? Enumerable.Empty<AssetManagement.Application.ViewModels.AssetDocumentVm>() : Model.Documents;
+    var documentRows = Model.DocumentRows == null
+        ? Enumerable.Empty<AssetManagement.Application.ViewModels.AssetDocumentStatusRowVm>()
+        : Model.DocumentRows;
+    var pendingRequirementId = ViewBag.PendingDocumentRequirementId as string;
 }
 
-<div class="card card-kpi">
+<div class="card card-kpi" data-am-documents-tab data-am-pending-requirement-id="@pendingRequirementId">
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <div>
                 <h6 class="mb-0 fw-semibold">Asset documents</h6>
-                <p class="text-muted small mb-0">Supporting files such as invoices, warranties, condition photos, and compliance certificates.</p>
+                <p class="text-muted small mb-0">Process-linked photos and supporting files. Pending items show documents still required by workflows such as incidents.</p>
             </div>
             @if (canUpload)
             {
@@ -34,7 +37,9 @@
             <table class="table table-striped mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Document type</th>
+                        <th>Process</th>
+                        <th>Document</th>
+                        <th>Status</th>
                         <th>File</th>
                         <th>Size</th>
                         <th>Uploaded</th>
@@ -43,35 +48,75 @@
                     </tr>
                 </thead>
                 <tbody>
-                @if (!documents.Any())
+                @if (!documentRows.Any())
                 {
                     <tr>
-                        <td colspan="6" class="text-muted">No documents uploaded for this asset yet.</td>
+                        <td colspan="8" class="text-muted">No documents uploaded for this asset yet.</td>
                     </tr>
                 }
                 else
                 {
-                    foreach (var doc in documents)
+                    foreach (var row in documentRows)
                     {
-                        <tr>
-                            <td>@(doc.DocumentType ?? "General")</td>
-                            <td>@doc.FileName</td>
-                            <td>@((doc.FileSizeBytes / 1024.0).ToString("N0")) KB</td>
-                            <td>@doc.UploadedAt.ToString("yyyy-MM-dd")</td>
-                            <td>@(doc.UploadedByName ?? DisplayText.Empty)</td>
-                            <td class="text-end text-nowrap">
-                                @if (canDownload)
+                        var processUrl = string.IsNullOrWhiteSpace(row.ProcessType) || !row.ProcessId.HasValue
+                            ? null
+                            : string.Equals(row.ProcessType, AssetDocumentProcessCodes.Incident, StringComparison.OrdinalIgnoreCase)
+                                ? Url.Action("Details", "Incidents", new { id = row.ProcessId.Value })
+                                : null;
+                        <tr class="@(row.IsPending ? "table-warning" : "")">
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(processUrl))
                                 {
-                                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Documents", new { id = doc.Id })">Download</a>
+                                    <a href="@processUrl">@(row.ProcessReference ?? DisplayText.Empty)</a>
                                 }
-                                @if (canDelete)
+                                else
                                 {
-                                    <form action="@Url.Action("Delete", "Documents")" method="post" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@doc.Id" />
-                                        <input type="hidden" name="assetId" value="@Model.Id" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this document?');">Delete</button>
-                                    </form>
+                                    @(row.ProcessReference ?? DisplayText.Empty)
+                                }
+                            </td>
+                            <td>@(row.DocumentType ?? "General")</td>
+                            <td>
+                                @if (row.IsPending)
+                                {
+                                    <span class="badge bg-warning text-dark">Pending upload</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">Uploaded</span>
+                                }
+                            </td>
+                            <td>@(string.IsNullOrWhiteSpace(row.FileName) ? DisplayText.Empty : row.FileName)</td>
+                            <td>@(row.FileSizeBytes.HasValue ? ((row.FileSizeBytes.Value / 1024.0).ToString("N0") + " KB") : DisplayText.Empty)</td>
+                            <td>@(row.UploadedAt.HasValue ? row.UploadedAt.Value.ToString("yyyy-MM-dd") : DisplayText.Empty)</td>
+                            <td>@(row.UploadedByName ?? DisplayText.Empty)</td>
+                            <td class="text-end text-nowrap">
+                                @if (row.IsPending && canUpload && row.RequirementId.HasValue)
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm btn-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#assetDocumentRequirementUploadModal"
+                                            data-am-requirement-id="@row.RequirementId.Value"
+                                            data-am-document-type="@row.DocumentType"
+                                            data-am-process-label="@row.ProcessReference">
+                                        Upload photo
+                                    </button>
+                                }
+                                else if (!row.IsPending && row.DocumentId.HasValue)
+                                {
+                                    if (canDownload)
+                                    {
+                                        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Documents", new { id = row.DocumentId.Value })">Download</a>
+                                    }
+                                    if (canDelete)
+                                    {
+                                        <form action="@Url.Action("Delete", "Documents")" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@row.DocumentId.Value" />
+                                            <input type="hidden" name="assetId" value="@Model.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this document?');">Delete</button>
+                                        </form>
+                                    }
                                 }
                             </td>
                         </tr>
@@ -85,6 +130,34 @@
 
 @if (canUpload)
 {
+    <div class="modal fade" id="assetDocumentRequirementUploadModal" tabindex="-1" aria-labelledby="assetDocumentRequirementUploadModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="@Url.Action("Upload", "Documents")" method="post" enctype="multipart/form-data" data-am-requirement-upload-form>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="assetId" value="@Model.Id" />
+                    <input type="hidden" name="requirementId" id="RequirementId" value="" />
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="assetDocumentRequirementUploadModalLabel">Upload process photo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small" id="RequirementUploadSummary"></p>
+                        <div class="mb-0">
+                            <label class="form-label" for="RequirementAttachment">Photo</label>
+                            <input type="file" class="form-control" id="RequirementAttachment" name="attachment" accept=".jpg,.jpeg,.png,.gif,image/*" required="required" />
+                            <div class="form-text">JPG, PNG, or GIF up to 10 MB.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Upload photo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="assetDocumentUploadModal" tabindex="-1" aria-labelledby="assetDocumentUploadModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">

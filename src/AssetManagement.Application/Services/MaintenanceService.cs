@@ -208,6 +208,7 @@ namespace AssetManagement.Application.Services
                 }
             }
 
+            AssetAssignment postCompletionAssignment = null;
             _unitOfWork.ExecuteInTransaction(() =>
             {
                 var record = _unitOfWork.Repository<AssetMaintenanceRecord>().GetById(model.Id);
@@ -249,10 +250,10 @@ namespace AssetManagement.Application.Services
                         ApplyKeepInStore(asset, record, model);
                         break;
                     case MaintenanceDisposition.ReturnToPreviousOwner:
-                        ApplyReturnToPreviousOwner(asset, record, model, completionDate);
+                        postCompletionAssignment = ApplyReturnToPreviousOwner(asset, record, model, completionDate);
                         break;
                     case MaintenanceDisposition.AssignToUser:
-                        ApplyAssignToUser(asset, record, model, completionDate);
+                        postCompletionAssignment = ApplyAssignToUser(asset, record, model, completionDate);
                         break;
                     default:
                         throw new BusinessException("Select what should happen after repair.");
@@ -260,6 +261,11 @@ namespace AssetManagement.Application.Services
 
                 _unitOfWork.Repository<Asset>().Update(asset);
             });
+
+            if (postCompletionAssignment != null)
+            {
+                _assignmentService?.RecordAssignmentAudit(postCompletionAssignment, model.AssetId);
+            }
 
             _auditWriter?.Write("Maintenance.Complete", nameof(AssetMaintenanceRecord), model.Id.ToString(), model.Disposition, model.AssetId.ToString());
         }
@@ -306,7 +312,7 @@ namespace AssetManagement.Application.Services
             AddMaintenanceCompleteCustodyEvent(asset, record, model, fromUserId, null, null, "Returned from maintenance to store.");
         }
 
-        private void ApplyReturnToPreviousOwner(Asset asset, AssetMaintenanceRecord record, MaintenanceCompleteVm model, DateTime completionDate)
+        private AssetAssignment ApplyReturnToPreviousOwner(Asset asset, AssetMaintenanceRecord record, MaintenanceCompleteVm model, DateTime completionDate)
         {
             var previousOwnerId = ResolvePreviousCustodianId(asset, record.ServiceDate);
             if (string.IsNullOrWhiteSpace(previousOwnerId))
@@ -334,7 +340,7 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Assignment service is not available.");
             }
 
-            _assignmentService.AssignWithoutSave(new AssetAssignmentVm
+            return _assignmentService.AssignWithoutSave(new AssetAssignmentVm
             {
                 AssetId = asset.Id,
                 ToUserId = previousOwnerId,
@@ -347,7 +353,7 @@ namespace AssetManagement.Application.Services
             });
         }
 
-        private void ApplyAssignToUser(Asset asset, AssetMaintenanceRecord record, MaintenanceCompleteVm model, DateTime completionDate)
+        private AssetAssignment ApplyAssignToUser(Asset asset, AssetMaintenanceRecord record, MaintenanceCompleteVm model, DateTime completionDate)
         {
             if (string.IsNullOrWhiteSpace(model.ToUserId))
             {
@@ -368,7 +374,7 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Assignment service is not available.");
             }
 
-            _assignmentService.AssignWithoutSave(new AssetAssignmentVm
+            return _assignmentService.AssignWithoutSave(new AssetAssignmentVm
             {
                 AssetId = asset.Id,
                 ToUserId = model.ToUserId,

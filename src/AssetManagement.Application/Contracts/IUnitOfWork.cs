@@ -23,5 +23,7 @@ namespace AssetManagement.Application.Contracts
         void PersistConditionalApprovalUpdate(object entity, int expectedStage);
 
         int GetRemainingPurchaseQuantity(int purchaseRecordId);
+
+        void ClearTracking();
     }
 }

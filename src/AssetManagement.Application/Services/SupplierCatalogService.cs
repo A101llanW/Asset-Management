@@ -13,11 +13,16 @@ namespace AssetManagement.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOrganizationScopeService _organizationScope;
+        private readonly IAuditWriter _auditWriter;
 
-        public SupplierCatalogService(IUnitOfWork unitOfWork, IOrganizationScopeService organizationScope)
+        public SupplierCatalogService(
+            IUnitOfWork unitOfWork,
+            IOrganizationScopeService organizationScope,
+            IAuditWriter auditWriter = null)
         {
             _unitOfWork = unitOfWork;
             _organizationScope = organizationScope;
+            _auditWriter = auditWriter;
         }
 
         public IEnumerable<SupplierCatalogItemVm> GetBySupplier(int supplierId)
@@ -61,6 +66,7 @@ namespace AssetManagement.Application.Services
             };
             _unitOfWork.Repository<SupplierCatalogItem>().Add(entity);
             _unitOfWork.SaveChanges();
+            _auditWriter?.Write("Suppliers.Catalog.Create", nameof(SupplierCatalogItem), entity.Id.ToString(), null, entity.ItemName);
             return entity.Id;
         }
 
@@ -89,6 +95,7 @@ namespace AssetManagement.Application.Services
             entity.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<SupplierCatalogItem>().Update(entity);
             _unitOfWork.SaveChanges();
+            _auditWriter?.Write("Suppliers.Catalog.Edit", nameof(SupplierCatalogItem), entity.Id.ToString(), null, entity.ItemName);
         }
 
         public void Deactivate(int id)
@@ -103,6 +110,7 @@ namespace AssetManagement.Application.Services
             entity.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<SupplierCatalogItem>().Update(entity);
             _unitOfWork.SaveChanges();
+            _auditWriter?.Write("Suppliers.Catalog.Deactivate", nameof(SupplierCatalogItem), entity.Id.ToString(), entity.ItemName, "Inactive");
         }
 
         public void AddItemsForSupplier(int supplierId, IEnumerable<SupplierCatalogItemVm> items)
@@ -148,7 +156,6 @@ namespace AssetManagement.Application.Services
                 request = _unitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId.Value);
                 if (request != null)
                 {
-                    result.RequisitionEstimatedUnitCost = request.EstimatedUnitCost;
                     result.Currency = request.Currency;
                     if (string.IsNullOrWhiteSpace(itemDescription))
                     {

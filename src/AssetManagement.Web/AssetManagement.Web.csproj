@@ -119,6 +119,10 @@
       <HintPath>$(NuGetPackageRoot)webgrease\1.6.0\lib\WebGrease.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>$(NuGetPackageRoot)sharpziplib\0.86.0\lib\20\ICSharpCode.SharpZipLib.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AssetManagement.Application\AssetManagement.Application.csproj">
@@ -146,13 +150,18 @@
     <Compile Include="App_Start\ProcessAssistantConfig.cs" />
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
+    <Compile Include="Security\MachineKeyDeploymentValidator.cs" />
     <Compile Include="Security\CurrentUserExtensions.cs" />
+    <Compile Include="Security\AuthTicketHelper.cs" />
     <Compile Include="Security\AuthFlowRateLimiter.cs" />
+    <Compile Include="Security\AuthSessionHelper.cs" />
     <Compile Include="Security\CaptchaRateLimiter.cs" />
     <Compile Include="Security\ScanLookupRateLimiter.cs" />
+    <Compile Include="Security\HttpsRedirectHelper.cs" />
     <Compile Include="Controllers\CaptchaController.cs" />
     <Compile Include="Controllers\AccountController.cs" />
     <Compile Include="Controllers\AssetCategoriesController.cs" />
+    <Compile Include="Controllers\AssetSubTypesController.cs" />
     <Compile Include="Controllers\AssetTypesController.cs" />
     <Compile Include="Controllers\AssetRequestsController.cs" />
     <Compile Include="Controllers\AssetScanController.cs" />
@@ -198,7 +207,19 @@
     <Compile Include="Filters\PermissionAuthorizeAttribute.cs" />
     <Compile Include="Filters\AnyPermissionAuthorizeAttribute.cs" />
     <Compile Include="Filters\BusinessExceptionFilter.cs" />
+    <Compile Include="Filters\AuditLogAttribute.cs" />
+    <Compile Include="Filters\AntiForgeryExceptionFilterAttribute.cs" />
+    <Compile Include="Filters\NoCacheAttribute.cs" />
+    <Compile Include="Filters\FreshPortalSecurityAttribute.cs" />
+    <Compile Include="Filters\ModuleAccessAttribute.cs" />
+    <Compile Include="Filters\RequireMfaEnforcementFilterAttribute.cs" />
+    <Compile Include="Helpers\EncryptionHelper.cs" />
+    <Compile Include="Helpers\ExternalUrlHelper.cs" />
+    <Compile Include="Helpers\UserAgentFingerprint.cs" />
+    <Compile Include="Helpers\OrganizationLogoHelper.cs" />
     <Compile Include="Helpers\CaptchaSessionHelper.cs" />
+    <Compile Include="Helpers\AuthenticationErrorMessages.cs" />
+    <Compile Include="Helpers\AuthFlowClientAddressHelper.cs" />
     <Compile Include="Helpers\CaptchaSettings.cs" />
     <Compile Include="Helpers\ImpersonationDurationOptions.cs" />
     <Compile Include="Helpers\ImpersonationSessionHelper.cs" />
@@ -208,6 +229,8 @@
     <Compile Include="Helpers\PlatformAdminHelper.cs" />
     <Compile Include="Helpers\PasswordFieldExtensions.cs" />
     <Compile Include="Helpers\TenantContextKeys.cs" />
+    <Compile Include="Helpers\TenantReservedSegments.cs" />
+    <Compile Include="Helpers\TenantResolutionHelper.cs" />
     <Compile Include="Helpers\TenantRouteConstraint.cs" />
     <Compile Include="Helpers\TenantUrlHelper.cs" />
     <Compile Include="Helpers\Mvc3HtmlHelpers.cs" />
@@ -215,15 +238,19 @@
     <Compile Include="Helpers\ListRoleDefaultsHelper.cs" />
     <Compile Include="Helpers\PermissionHtmlHelpers.cs" />
     <Compile Include="Helpers\CurrencyHtmlHelpers.cs" />
+    <Compile Include="Helpers\KenyaTimeHtmlHelpers.cs" />
     <Compile Include="Helpers\SidebarNavHtmlHelpers.cs" />
     <Compile Include="Helpers\StatusHtmlHelpers.cs" />
     <Compile Include="Helpers\ApproverPickerHelper.cs" />
     <Compile Include="Helpers\DepartmentUserWorkflowHelper.cs" />
     <Compile Include="Helpers\AssetQrUrlHelper.cs" />
     <Compile Include="Helpers\AssetLabelPrintHelper.cs" />
+    <Compile Include="Validation\LoginIdentityAttribute.cs" />
     <Compile Include="Models\AccountViewModels.cs" />
+    <Compile Include="Models\LoginPortalCandidate.cs" />
     <Compile Include="Models\CaptchaModels.cs" />
     <Compile Include="Services\RealisticCaptchaService.cs" />
+    <Compile Include="ViewModels\AdminCredentialsViewModel.cs" />
     <Compile Include="ViewModels\AssetTaxonomyViewModels.cs" />
     <Compile Include="ViewModels\ListPageViewModels.cs" />
     <Compile Include="ViewModels\PendingApprovalsViewModels.cs" />
@@ -242,11 +269,13 @@
       <DependentUpon>Web.config</DependentUpon>
     </Content>
     <Content Include="connectionStrings.config.example" />
+    <Content Include="machineKey.config.example" />
     <Content Include="Content\bootstrap.min.css" />
     <Content Include="Content\images\nanosoft-logo-transparent.png" />
     <Content Include="Content\images\nanosoft-logo.jpg" />
     <Content Include="Content\css\auth-portal.css" />
     <Content Include="Content\css\site.css" />
+    <Content Include="Content\css\am-animations.css" />
     <Content Include="Content\css\am-modules.css" />
     <Content Include="Scripts\bootstrap.bundle.min.js" />
     <Content Include="Scripts\jquery-3.7.1.min.js" />
@@ -255,20 +284,26 @@
     <Content Include="Scripts\app\role-template-save-modal.js" />
     <Content Include="Scripts\app\role-templates.js" />
     <Content Include="Scripts\app\list-bulk.js" />
+    <Content Include="Scripts\app\assets-grouped.js" />
     <Content Include="Scripts\app\approval-approver-picker.js" />
     <Content Include="Scripts\app\approval-process-matrix.js" />
     <Content Include="Scripts\app\anti-gravity-bubbles.js" />
+    <Content Include="Scripts\app\antigravity-three.js" />
     <Content Include="Scripts\app\auth-theme.js" />
     <Content Include="Scripts\app\impersonation-ui.js" />
     <Content Include="Scripts\app\password-toggle.js" />
+    <Content Include="Scripts\app\password-policy-indicator.js" />
+    <Content Include="Scripts\app\am-animations.js" />
     <Content Include="Scripts\app\site-interactive.js" />
     <Content Include="Scripts\app\sidebar-nav.js" />
     <Content Include="Scripts\app\document-pdf.js" />
     <Content Include="Scripts\app\reports.js" />
     <Content Include="Scripts\app\asset-scan-camera.js" />
     <Content Include="Scripts\app\asset-label.js" />
+    <Content Include="Scripts\app\asset-label-zebra.js" />
     <Content Include="Scripts\app\asset-details-tabs.js" />
     <Content Include="Scripts\app\asset-documents-tab.js" />
+    <Content Include="Scripts\app\incident-create.js" />
     <Content Include="Scripts\app\asset-request-create.js" />
     <Content Include="Scripts\app\supplier-create.js" />
     <Content Include="Scripts\app\purchase-request-details.js" />
@@ -278,8 +313,11 @@
     <Content Include="Scripts\app\asset-tax-amount.js" />
     <Content Include="Scripts\app\asset-monetary-input.js" />
     <Content Include="Scripts\app\assignment-return-date.js" />
+    <Content Include="Scripts\app\asset-subtype-picker.js" />
+    <Content Include="Scripts\app\receive-serial-wizard.js" />
     <Content Include="Scripts\app\asset-category-type.js" />
     <Content Include="Scripts\vendor\qrcode.min.js" />
+    <Content Include="Scripts\vendor\three.min.js" />
     <Content Include="Scripts\vendor\html5-qrcode.min.js" />
     <Content Include="Scripts\app\workflow-forms.js" />
     <Content Include="Scripts\app\workflow-wizard.js" />
@@ -287,6 +325,7 @@
     <Content Include="Views\_ViewStart.cshtml" />
     <Content Include="Views\Account\ForgotPassword.cshtml" />
     <Content Include="Views\Account\Login.cshtml" />
+    <Content Include="Views\Account\OrganizationNotFound.cshtml" />
     <Content Include="Views\Account\Register.cshtml" />
     <Content Include="Views\Account\ResetPassword.cshtml" />
     <Content Include="Views\Account\SetupMfa.cshtml" />
@@ -295,21 +334,26 @@
     <Content Include="Views\AssetCategories\Details.cshtml" />
     <Content Include="Views\AssetCategories\Edit.cshtml" />
     <Content Include="Views\AssetCategories\Index.cshtml" />
+    <Content Include="Views\AssetSubTypes\Create.cshtml" />
+    <Content Include="Views\AssetSubTypes\Edit.cshtml" />
     <Content Include="Views\AssetTypes\Create.cshtml" />
     <Content Include="Views\AssetTypes\Details.cshtml" />
     <Content Include="Views\AssetTypes\Edit.cshtml" />
     <Content Include="Views\AssetTypes\Index.cshtml" />
     <Content Include="Views\Assets\Import.cshtml" />
     <Content Include="Views\Assets\Create.cshtml" />
+    <Content Include="Views\Assets\_AssetClassificationFields.cshtml" />
     <Content Include="Views\Assets\Details.cshtml" />
     <Content Include="Views\Assets\PrintLabel.cshtml" />
     <Content Include="Views\Assets\_AssetLabelContent.cshtml" />
+    <Content Include="Views\Assets\_AssetLabelPrinterStatus.cshtml" />
     <Content Include="Views\Assets\_AssetQrLabelModal.cshtml" />
     <Content Include="Views\Assets\Edit.cshtml" />
     <Content Include="Views\Assets\CustodyList.cshtml" />
     <Content Include="Views\Assets\Index.cshtml" />
     <Content Include="Views\AssetScan\Lookup.cshtml" />
     <Content Include="Views\AssetScan\_ScanLookupResult.cshtml" />
+    <Content Include="Views\AssetScan\_ScanSearchResults.cshtml" />
     <Content Include="Views\AssetScan\QuickActions.cshtml" />
     <Content Include="Views\InsurancePolicies\Create.cshtml" />
     <Content Include="Views\InsurancePolicies\Edit.cshtml" />
@@ -345,8 +389,10 @@
     <Content Include="Views\Purchases\Create.cshtml" />
     <Content Include="Views\Purchases\Details.cshtml" />
     <Content Include="Views\Purchases\Receive.cshtml" />
+    <Content Include="Views\Purchases\_ReceiveSerialWizardModal.cshtml" />
     <Content Include="Views\Purchases\Index.cshtml" />
     <Content Include="Views\PurchaseRequests\Create.cshtml" />
+    <Content Include="Views\PurchaseRequests\_TargetAssetPickerModal.cshtml" />
     <Content Include="Views\PurchaseRequests\Details.cshtml" />
     <Content Include="Views\PurchaseRequests\Index.cshtml" />
     <Content Include="Views\Reports\Index.cshtml" />
@@ -354,13 +400,14 @@
     <Content Include="Views\Returns\Create.cshtml" />
     <Content Include="Views\Returns\Wizard.cshtml" />
     <Content Include="Views\Search\Index.cshtml" />
-    <Content Include="Views\Roles\Create.cshtml" />
+    <Content Include="Views\Roles\_RolePermissionMatrix.cshtml" />
     <Content Include="Views\Roles\Details.cshtml" />
     <Content Include="Views\Search\Index.cshtml" />
     <Content Include="Views\Search\Index.cshtml" />
     <Content Include="Views\Roles\Edit.cshtml" />
     <Content Include="Views\Roles\Index.cshtml" />
     <Content Include="Views\Settings\Index.cshtml" />
+    <Content Include="Views\Shared\_AssetSubTypePickerModal.cshtml" />
     <Content Include="Views\Shared\_CaptchaPartial.cshtml" />
     <Content Include="Views\Shared\Error.cshtml" />
     <Content Include="Views\Shared\_HelpBot.cshtml" />
@@ -379,6 +426,8 @@
     <Content Include="Views\Shared\_AssetDisposalTab.cshtml" />
     <Content Include="Views\Shared\_AssetAuditTab.cshtml" />
     <Content Include="Views\Shared\_AssetLifecyclePanel.cshtml" />
+    <Content Include="Views\Shared\_AssetDepreciationFields.cshtml" />
+    <Content Include="Views\Shared\_TaxonomyDepreciationFields.cshtml" />
     <Content Include="Views\Shared\_TaxonomyUsefulLifeFields.cshtml" />
     <Content Include="Views\Shared\_FormActions.cshtml" />
     <Content Include="Views\Shared\_GlobalSearch.cshtml" />
@@ -405,8 +454,10 @@
     <Content Include="Views\Shared\_ApprovalActions.cshtml" />
     <Content Include="Views\Shared\_ApprovalHistory.cshtml" />
     <Content Include="Views\Shared\_ApprovalProcessMatrix.cshtml" />
+    <Content Include="Views\Shared\_PasswordPolicyRequirements.cshtml" />
     <Content Include="Views\Shared\_Pagination.cshtml" />
     <Content Include="Views\Shared\_PageHeader.cshtml" />
+    <Content Include="Views\Suppliers\_CatalogAssetPickerModal.cshtml" />
     <Content Include="Views\Suppliers\Create.cshtml" />
     <Content Include="Views\Suppliers\Details.cshtml" />
     <Content Include="Views\Suppliers\Edit.cshtml" />
@@ -416,7 +467,7 @@
     <Content Include="Views\Users\Create.cshtml" />
     <Content Include="Views\Users\Details.cshtml" />
     <Content Include="Views\Users\Index.cshtml" />
-    <None Include="Global.asax" />
+    <Content Include="Global.asax" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(NuGetPackageRoot)microsoft.netframework.referenceassemblies.net40\1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net40.targets" Condition="Exists('$(NuGetPackageRoot)microsoft.netframework.referenceassemblies.net40\1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net40.targets')" />

@@ -111,7 +111,18 @@ namespace AssetManagement.Tests
                 Name = "Information Technology",
                 Code = "IT",
                 CreatedAt = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                IsRequisitionTarget = true
+            });
+            unitOfWork.Seed(new AssetSubType
+            {
+                Id = 7,
+                AssetTypeId = 1,
+                Name = "Dell - Latitude",
+                Brand = "Dell",
+                Model = "Latitude",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
             });
             unitOfWork.Seed(new AssetType
             {
@@ -149,6 +160,7 @@ namespace AssetManagement.Tests
                 AssetTypeId = 1,
                 Brand = "Dell",
                 Model = "Latitude",
+                AssetSubTypeId = 7,
                 PurchaseDate = DateTime.UtcNow,
                 AcquisitionCost = 800,
                 Currency = "USD",
@@ -159,7 +171,10 @@ namespace AssetManagement.Tests
             });
 
             var created = unitOfWork.Repository<Asset>().GetById(assetId);
-            Assert.AreEqual("IT-LTP-002", created.AssetTag);
+            Assert.AreEqual(AssetTagHelper.DefaultRandomTagLength, created.AssetTag.Length);
+            const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            Assert.IsTrue(created.AssetTag.All(ch => alphabet.IndexOf(ch) >= 0));
+            Assert.AreNotEqual("IT-LTP-001", created.AssetTag);
             Assert.IsNull(created.UsefulLifeMonths);
         }
 
@@ -190,8 +205,6 @@ namespace AssetManagement.Tests
                 AssetTag = "ORG-001",
                 CategoryId = 1,
                 AssetTypeId = 1,
-                Brand = "Generic",
-                Model = "Model",
                 PurchaseDate = DateTime.UtcNow,
                 AcquisitionCost = 500,
                 Currency = "USD",
@@ -380,6 +393,47 @@ namespace AssetManagement.Tests
         }
 
         [Test]
+        public void ReturnService_AllowsReturnWithoutReceivedBy()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(BuildAsset(id: 32, assetTag: "AST-032", status: AssetStatus.Assigned, custodianId: "custodian-1", departmentId: 1));
+
+            var service = TestServiceFactory.CreateReturnService(unitOfWork);
+            service.ReturnAsset(new AssetReturnVm
+            {
+                AssetId = 32,
+                ReturnDate = DateTime.UtcNow,
+                ReturnCondition = "Good"
+            });
+
+            var returnRecord = unitOfWork.Repository<AssetReturn>().Find(x => x.AssetId == 32).Single();
+            Assert.AreEqual("custodian-1", returnRecord.ReturnedById);
+            Assert.IsTrue(string.IsNullOrWhiteSpace(returnRecord.ReceivedById));
+        }
+
+        [Test]
+        public void AssignmentService_AllowsAssignWithoutReceivedBy()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(BuildAsset(id: 12, assetTag: "AST-012", status: AssetStatus.InStore, departmentId: 4));
+            var users = new FakeUserService();
+            users.Seed(new UserVm { Id = "user-new", DepartmentId = 4, IsActive = true, FirstName = "New", LastName = "Custodian" });
+
+            var service = TestServiceFactory.CreateAssignmentService(unitOfWork, users);
+            service.Assign(new AssetAssignmentVm
+            {
+                AssetId = 12,
+                ToUserId = "user-new",
+                ToDepartmentId = 4,
+                AssignmentType = "Permanent",
+                AssignedDate = DateTime.UtcNow
+            });
+
+            var assignment = unitOfWork.Repository<AssetAssignment>().Find(x => x.AssetId == 12).Single();
+            Assert.IsTrue(string.IsNullOrWhiteSpace(assignment.ReceivedById));
+        }
+
+        [Test]
         public void MaintenanceService_RejectsWhenOpenTicketExists()
         {
             var unitOfWork = new FakeUnitOfWork();
@@ -559,6 +613,26 @@ namespace AssetManagement.Tests
             Assert.AreEqual("Maintenance ticket opened", AuditDisplayLabelHelper.FormatAction("Maintenance.Create"));
             Assert.AreEqual("Insurance claim filed", AuditDisplayLabelHelper.FormatAction("Claims.Create"));
             Assert.AreEqual("Incident", AuditDisplayLabelHelper.FormatEntityType("AssetIncident"));
+        }
+
+        [Test]
+        public void AssetAuditTrailFilterHelper_ExcludesHttpAndLowValueUpdates()
+        {
+            Assert.IsFalse(AssetAuditTrailFilterHelper.IsBusinessEvent("HTTP.Assets.Details"));
+            Assert.IsFalse(AssetAuditTrailFilterHelper.IsBusinessEvent("HTTP.Assets.LabelPrintConfig"));
+            Assert.IsFalse(AssetAuditTrailFilterHelper.IsBusinessEvent("HTTP.Assets.Edit"));
+            Assert.IsFalse(AssetAuditTrailFilterHelper.IsBusinessEvent("Incidents.Edit"));
+            Assert.IsFalse(AssetAuditTrailFilterHelper.IsBusinessEvent("Claims.Edit"));
+        }
+
+        [Test]
+        public void AssetAuditTrailFilterHelper_IncludesLifecycleEvents()
+        {
+            Assert.IsTrue(AssetAuditTrailFilterHelper.IsBusinessEvent("Assets.Assign"));
+            Assert.IsTrue(AssetAuditTrailFilterHelper.IsBusinessEvent("Assets.Transfer"));
+            Assert.IsTrue(AssetAuditTrailFilterHelper.IsBusinessEvent("Incidents.Create"));
+            Assert.IsTrue(AssetAuditTrailFilterHelper.IsBusinessEvent("Claims.Create"));
+            Assert.IsTrue(AssetAuditTrailFilterHelper.IsBusinessEvent("Maintenance.Complete"));
         }
 
         [Test]
@@ -894,7 +968,11 @@ namespace AssetManagement.Tests
         public void DepartmentService_CreateReturnsCreatedId()
         {
             var unitOfWork = new FakeUnitOfWork();
-            var service = new DepartmentService(unitOfWork, new PermissiveDepartmentScopeService());
+            var service = new DepartmentService(
+                unitOfWork,
+                new PermissiveDepartmentScopeService(),
+                new FakeReferenceDataCache(),
+                new FakeOrganizationScopeService());
 
             var id = service.Create(new DepartmentVm
             {
@@ -969,6 +1047,8 @@ namespace AssetManagement.Tests
         {
             var unitOfWork = new FakeUnitOfWork();
             unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Acme", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new AssetCategory { Id = 1, Name = "IT", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new AssetType { Id = 1, Name = "Laptop", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
             unitOfWork.Seed(new Asset
             {
                 Id = 40,
@@ -976,6 +1056,8 @@ namespace AssetManagement.Tests
                 AssetName = "Monitor",
                 CategoryId = 1,
                 AssetTypeId = 1,
+                Brand = "Dell",
+                Model = "Latitude",
                 SupplierId = 1,
                 DepartmentId = 1,
                 Currency = "USD",
@@ -988,9 +1070,21 @@ namespace AssetManagement.Tests
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             });
+            unitOfWork.Seed(new PurchaseRequest
+            {
+                Id = 1,
+                DepartmentId = 1,
+                TargetAssetId = 40,
+                ItemDescription = "Monitor",
+                Quantity = 2,
+                Currency = "USD",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
             unitOfWork.Seed(new PurchaseRecord
             {
                 Id = 10,
+                PurchaseRequestId = 1,
                 PurchaseOrderNumber = "PO-10",
                 SupplierId = 1,
                 Quantity = 2,
@@ -1012,93 +1106,49 @@ namespace AssetManagement.Tests
                 IsActive = true
             });
 
-            var service = new ReceivingService(unitOfWork);
+            var service = TestServiceFactory.CreateReceivingService(unitOfWork);
             Assert.Throws<BusinessException>(() => service.Receive(new AssetReceiveVm
             {
                 PurchaseRecordId = 10,
-                AssetId = 40,
                 ReceivedDate = DateTime.UtcNow,
-                QuantityReceived = 2
+                QuantityReceived = 2,
+                ConditionOnReceipt = "New",
+                NewAssetUnits = new List<ReceiveAssetUnitVm>
+                {
+                    new ReceiveAssetUnitVm { SerialNumber = "SN-001" },
+                    new ReceiveAssetUnitVm { SerialNumber = "SN-002" }
+                }
             }, "receiver-1"));
         }
 
         [Test]
-        public void ReceivingService_GetReceiveAssetLookup_SelectsPreferredAssetId()
+        public void ReceivingService_CreateUnitAssetsAtReceipt()
         {
             var unitOfWork = new FakeUnitOfWork();
             unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Acme", CreatedAt = DateTime.UtcNow, IsActive = true });
-            unitOfWork.Seed(new Asset
+            unitOfWork.Seed(new AssetCategory { Id = 1, Name = "IT", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new AssetType { Id = 1, Name = "Laptop", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new Department { Id = 1, Name = "IT", Code = "IT", CreatedAt = DateTime.UtcNow, IsActive = true, IsRequisitionTarget = true });
+            unitOfWork.Seed(new AssetSubType
             {
-                Id = 41,
-                AssetTag = "AST-041",
-                AssetName = "Chair",
-                CategoryId = 1,
+                Id = 10,
                 AssetTypeId = 1,
-                SupplierId = 1,
-                DepartmentId = 1,
-                Currency = "USD",
-                AcquisitionCost = 100,
-                CurrentStatus = AssetStatus.InStore,
-                PurchaseDate = DateTime.UtcNow,
-                DepreciationMethod = DepreciationMethod.StraightLine,
-                DepreciationStartDate = DateTime.UtcNow,
-                UsefulLifeMonths = 36,
+                Name = "Dell Latitude 5440",
+                Brand = "Dell",
+                Model = "Latitude 5440",
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             });
             unitOfWork.Seed(new Asset
             {
-                Id = 42,
-                AssetTag = "AST-042",
-                AssetName = "Desk",
+                Id = 40,
+                AssetTag = "IT-LTP-001",
+                AssetName = "Dell Latitude template",
                 CategoryId = 1,
                 AssetTypeId = 1,
-                SupplierId = 2,
-                DepartmentId = 1,
-                Currency = "USD",
-                AcquisitionCost = 200,
-                CurrentStatus = AssetStatus.InStore,
-                PurchaseDate = DateTime.UtcNow,
-                DepreciationMethod = DepreciationMethod.StraightLine,
-                DepreciationStartDate = DateTime.UtcNow,
-                UsefulLifeMonths = 36,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            });
-            unitOfWork.Seed(new PurchaseRecord
-            {
-                Id = 11,
-                PurchaseOrderNumber = "PO-11",
-                SupplierId = 1,
-                Quantity = 1,
-                UnitCost = 100,
-                TotalCost = 100,
-                PurchaseDate = DateTime.UtcNow,
-                Currency = "USD",
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true
-            });
-
-            var service = new ReceivingService(unitOfWork);
-            var lookup = service.GetReceiveAssetLookup(11, 42);
-
-            Assert.AreEqual(42, lookup.SelectedAssetId);
-            Assert.IsTrue(lookup.Assets.Any(x => x.Id == 41));
-            Assert.IsTrue(lookup.Assets.Any(x => x.Id == 42));
-        }
-
-        [Test]
-        public void ReceivingService_GetReceiveAssetLookup_AutoSelectsSingleSupplierMatch()
-        {
-            var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Acme", CreatedAt = DateTime.UtcNow, IsActive = true });
-            unitOfWork.Seed(new Asset
-            {
-                Id = 43,
-                AssetTag = "AST-043",
-                AssetName = "Monitor",
-                CategoryId = 1,
-                AssetTypeId = 1,
+                AssetSubTypeId = 10,
+                Brand = "Dell",
+                Model = "Latitude 5440",
                 SupplierId = 1,
                 DepartmentId = 1,
                 Currency = "USD",
@@ -1111,17 +1161,73 @@ namespace AssetManagement.Tests
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             });
+            unitOfWork.Seed(new PurchaseRequest
+            {
+                Id = 1,
+                DepartmentId = 1,
+                TargetAssetId = 40,
+                ItemDescription = "Dell Latitude laptop",
+                Quantity = 2,
+                Currency = "USD",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            unitOfWork.Seed(new PurchaseRecord
+            {
+                Id = 10,
+                PurchaseRequestId = 1,
+                PurchaseOrderNumber = "PO-10",
+                SupplierId = 1,
+                Quantity = 2,
+                UnitCost = 200,
+                TotalCost = 400,
+                PurchaseDate = DateTime.UtcNow,
+                Currency = "USD",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+
+            var service = TestServiceFactory.CreateReceivingService(unitOfWork);
+            var result = service.Receive(new AssetReceiveVm
+            {
+                PurchaseRecordId = 10,
+                ReceivePlacementChoice = ReceivingService.PlacementCompanyCustody,
+                ReceivedDate = DateTime.UtcNow,
+                QuantityReceived = 2,
+                ConditionOnReceipt = "New",
+                NewAssetUnits = new List<ReceiveAssetUnitVm>
+                {
+                    new ReceiveAssetUnitVm { SerialNumber = "SN-1001" },
+                    new ReceiveAssetUnitVm { SerialNumber = "SN-1002" }
+                }
+            }, "receiver-1");
+
+            Assert.AreEqual(2, result.CreatedAssets.Count);
+            Assert.IsTrue(result.CreatedAssets.All(x => !string.IsNullOrWhiteSpace(x.AssetTag)));
+            Assert.AreEqual(2, unitOfWork.Repository<AssetReceiving>().GetAll().Count(x => x.PurchaseRecordId == 10));
+            var created = unitOfWork.Repository<Asset>().GetAll().Where(x => x.Id != 40).ToList();
+            Assert.AreEqual(2, created.Count);
+            Assert.IsTrue(created.All(x => x.SerialNumber.StartsWith("SN-")));
+        }
+
+        [Test]
+        public void ReceivingService_GetReceiveAssetLookup_ReturnsEmpty()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Acme", CreatedAt = DateTime.UtcNow, IsActive = true });
             unitOfWork.Seed(new Asset
             {
-                Id = 44,
-                AssetTag = "AST-044",
-                AssetName = "Printer",
+                Id = 41,
+                AssetTag = "AST-041",
+                AssetName = "Chair",
                 CategoryId = 1,
                 AssetTypeId = 1,
-                SupplierId = 2,
+                Brand = "Herman",
+                Model = "Aeron",
+                SupplierId = 1,
                 DepartmentId = 1,
                 Currency = "USD",
-                AcquisitionCost = 500,
+                AcquisitionCost = 100,
                 CurrentStatus = AssetStatus.InStore,
                 PurchaseDate = DateTime.UtcNow,
                 DepreciationMethod = DepreciationMethod.StraightLine,
@@ -1130,33 +1236,44 @@ namespace AssetManagement.Tests
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             });
+            unitOfWork.Seed(new PurchaseRequest
+            {
+                Id = 1,
+                DepartmentId = 1,
+                TargetAssetId = 41,
+                ItemDescription = "Chair",
+                Quantity = 1,
+                Currency = "USD",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
             unitOfWork.Seed(new PurchaseRecord
             {
-                Id = 12,
-                PurchaseOrderNumber = "PO-12",
+                Id = 11,
+                PurchaseRequestId = 1,
+                PurchaseOrderNumber = "PO-11",
                 SupplierId = 1,
                 Quantity = 1,
-                UnitCost = 400,
-                TotalCost = 400,
+                UnitCost = 100,
+                TotalCost = 100,
                 PurchaseDate = DateTime.UtcNow,
                 Currency = "USD",
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             });
 
-            var service = new ReceivingService(unitOfWork);
-            var lookup = service.GetReceiveAssetLookup(12, null);
+            var service = TestServiceFactory.CreateReceivingService(unitOfWork);
+            var lookup = service.GetReceiveAssetLookup(11, 42);
 
-            Assert.AreEqual(43, lookup.SelectedAssetId);
-            Assert.AreEqual(1, lookup.Assets.Count);
-            Assert.AreEqual("AST-043 - Monitor", lookup.Assets[0].Label);
+            Assert.IsFalse(lookup.Assets.Any());
+            Assert.IsFalse(lookup.SelectedAssetId.HasValue);
         }
 
         [Test]
         public void ReportService_ExportDepartmentSummaryCsvIncludesDepartmentTotals()
         {
             var unitOfWork = new FakeUnitOfWork();
-            unitOfWork.Seed(new Department { Id = 1, Name = "IT", Code = "IT", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new Department { Id = 1, Name = "IT", Code = "IT", CreatedAt = DateTime.UtcNow, IsActive = true, IsRequisitionTarget = true });
             unitOfWork.Seed(BuildAsset(id: 41, assetTag: "AST-041", status: AssetStatus.InStore, departmentId: 1));
             var asset = unitOfWork.Repository<Asset>().GetById(41);
             asset.AcquisitionCost = 500;

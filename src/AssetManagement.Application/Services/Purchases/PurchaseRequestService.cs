@@ -80,6 +80,45 @@ namespace AssetManagement.Application.Services
                 denyDepartmentScope);
         }
 
+        public PagedListVm<PurchaseRequestListItemVm> GetListPage(
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            if (IsDepartmentScopeDenied())
+            {
+                return new PagedListVm<PurchaseRequestListItemVm>();
+            }
+
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new PagedListVm<PurchaseRequestListItemVm>();
+            }
+
+            var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope || CanApprovePurchases();
+            int? departmentId = null;
+            var denyDepartmentScope = false;
+            if (!bypassDepartmentScope)
+            {
+                departmentId = _departmentScope.ScopedDepartmentId;
+                denyDepartmentScope = !departmentId.HasValue;
+            }
+
+            return _operationsQueryRepository.GetPurchaseRequestListPage(
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                search,
+                sort,
+                direction,
+                page,
+                pageSize);
+        }
+
         public PurchaseRequestDetailVm GetById(int id)
         {
             var entity = _unitOfWork.Repository<PurchaseRequest>().GetById(id);
@@ -129,7 +168,6 @@ namespace AssetManagement.Application.Services
                 QuantityInStock = entity.QuantityInStock,
                 RequiredDate = entity.RequiredDate,
                 OrderByUserId = entity.OrderByUserId,
-                EstimatedUnitCost = entity.EstimatedUnitCost,
                 Quantity = entity.Quantity,
                 Currency = entity.Currency,
                 Notes = entity.Notes,
@@ -169,15 +207,15 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Current user is required.");
             }
 
-            if (!model.EstimatedUnitCost.HasValue || model.EstimatedUnitCost.Value <= 0)
-            {
-                throw new BusinessException("Estimated unit cost must be greater than zero.");
-            }
-
             var department = _unitOfWork.Repository<Department>().GetById(model.DepartmentId);
             if (department == null)
             {
                 throw new BusinessException("Department not found.");
+            }
+
+            if (!department.IsRequisitionTarget)
+            {
+                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
             }
 
             _departmentScope.EnsureCanAccessDepartment(department);
@@ -215,7 +253,6 @@ namespace AssetManagement.Application.Services
                 QuantityInStock = model.QuantityInStock,
                 RequiredDate = model.RequiredDate,
                 OrderByUserId = string.IsNullOrWhiteSpace(model.OrderByUserId) ? null : model.OrderByUserId.Trim(),
-                EstimatedUnitCost = model.EstimatedUnitCost.Value,
                 Quantity = model.Quantity,
                 Currency = string.IsNullOrWhiteSpace(model.Currency)
                     ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())

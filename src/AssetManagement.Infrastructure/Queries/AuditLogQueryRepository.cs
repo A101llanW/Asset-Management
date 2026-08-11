@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using AssetManagement.Application.Contracts.Queries;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Infrastructure.Persistence;
 
@@ -23,12 +24,18 @@ WHERE al.[OrganizationId] = @OrganizationId
   AND (@EntityType IS NULL OR al.[EntityType] = @EntityType)
   AND (@Action IS NULL OR al.[Action] = @Action)
   AND (@FromDate IS NULL OR al.[Timestamp] >= @FromDate)
-  AND (@ToDate IS NULL OR al.[Timestamp] <= @ToDate)
+  AND (@ToDate IS NULL OR al.[Timestamp] < @ToDate)
   AND (
         @RelatedAssetId IS NULL
         OR (
-            (al.[EntityType] = N'Asset' AND al.[EntityId] = CAST(@RelatedAssetId AS nvarchar(50)))
+            (al.[EntityType] IN (N'Asset', N'Assets') AND (
+                al.[EntityId] = CAST(@RelatedAssetId AS nvarchar(50))
+                OR al.[EntityId] LIKE CAST(@RelatedAssetId AS nvarchar(50)) + N',%'
+                OR al.[EntityId] LIKE N'%,' + CAST(@RelatedAssetId AS nvarchar(50)) + N',%'
+                OR al.[EntityId] LIKE N'%,' + CAST(@RelatedAssetId AS nvarchar(50))))
             OR al.[NewValues] = CAST(@RelatedAssetId AS nvarchar(50))
+            OR al.[NewValues] LIKE CAST(@RelatedAssetId AS nvarchar(50)) + N'|%'
+            OR al.[NewValues] LIKE N'%|' + CAST(@RelatedAssetId AS nvarchar(50))
             OR (al.[EntityType] = N'AssetAssignment' AND EXISTS (
                 SELECT 1 FROM [AssetAssignment] aa
                 WHERE aa.[OrganizationId] = @OrganizationId
@@ -70,6 +77,28 @@ WHERE al.[OrganizationId] = @OrganizationId
                 WHERE dr.[OrganizationId] = @OrganizationId
                   AND CAST(dr.[Id] AS nvarchar(50)) = al.[EntityId]
                   AND dr.[AssetId] = @RelatedAssetId))
+            OR (al.[EntityType] = N'InsurancePolicy' AND EXISTS (
+                SELECT 1 FROM [InsurancePolicy] ip
+                WHERE ip.[OrganizationId] = @OrganizationId
+                  AND CAST(ip.[Id] AS nvarchar(50)) = al.[EntityId]
+                  AND ip.[AssetId] = @RelatedAssetId))
+            OR (al.[EntityType] = N'AssetRequest' AND EXISTS (
+                SELECT 1 FROM [AssetRequest] ar
+                WHERE ar.[OrganizationId] = @OrganizationId
+                  AND CAST(ar.[Id] AS nvarchar(50)) = al.[EntityId]
+                  AND (ar.[FulfilledAssetId] = @RelatedAssetId OR ar.[RequestedAssetId] = @RelatedAssetId)))
+            OR (al.[EntityType] = N'AssetReceiving' AND EXISTS (
+                SELECT 1 FROM [AssetReceiving] rcv
+                INNER JOIN [Asset] a ON a.[Id] = rcv.[AssetId]
+                WHERE a.[OrganizationId] = @OrganizationId
+                  AND CAST(rcv.[Id] AS nvarchar(50)) = al.[EntityId]
+                  AND rcv.[AssetId] = @RelatedAssetId))
+            OR (al.[EntityType] = N'AssetDocumentRequirement' AND EXISTS (
+                SELECT 1 FROM [AssetDocumentRequirement] req
+                INNER JOIN [Asset] a ON a.[Id] = req.[AssetId]
+                WHERE a.[OrganizationId] = @OrganizationId
+                  AND CAST(req.[Id] AS nvarchar(50)) = al.[EntityId]
+                  AND req.[AssetId] = @RelatedAssetId))
         )
       )
   AND (
@@ -163,9 +192,13 @@ ORDER BY al.[Timestamp] DESC, al.[Id] DESC";
             SqlQueryHelper.AddParameter(command, "@Action",
                 filter == null || string.IsNullOrWhiteSpace(filter.Action) ? (object)DBNull.Value : filter.Action.Trim());
             SqlQueryHelper.AddParameter(command, "@FromDate",
-                filter == null || !filter.FromDate.HasValue ? (object)DBNull.Value : filter.FromDate.Value);
+                filter == null || !filter.FromDate.HasValue
+                    ? (object)DBNull.Value
+                    : KenyaTimeHelper.StartOfLocalDayToUtc(filter.FromDate.Value));
             SqlQueryHelper.AddParameter(command, "@ToDate",
-                filter == null || !filter.ToDate.HasValue ? (object)DBNull.Value : filter.ToDate.Value);
+                filter == null || !filter.ToDate.HasValue
+                    ? (object)DBNull.Value
+                    : KenyaTimeHelper.ExclusiveEndOfLocalDayToUtc(filter.ToDate.Value));
             SqlQueryHelper.AddParameter(command, "@RelatedAssetId",
                 filter == null || !filter.RelatedAssetId.HasValue ? (object)DBNull.Value : filter.RelatedAssetId.Value);
         }

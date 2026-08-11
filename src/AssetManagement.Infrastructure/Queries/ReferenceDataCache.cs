@@ -6,6 +6,7 @@ using System.Web;
 using System.Web.Caching;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Enums;
 using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Infrastructure.Queries
@@ -17,7 +18,7 @@ namespace AssetManagement.Infrastructure.Queries
         private static readonly TimeSpan SettingsTtl = TimeSpan.FromMinutes(10);
 
         private const string DepartmentsSql = @"
-SELECT [Id], [Name], [Code], [Description], [IsActive]
+SELECT [Id], [Name], [Code], [Description], [ParentDepartmentId], [DepartmentKind], [IsRequisitionTarget], [IsActive]
 FROM [Department]
 WHERE [OrganizationId] = @OrganizationId
   AND (@ActiveOnly = 0 OR [IsActive] = 1)
@@ -251,6 +252,14 @@ WHERE u.[OrganizationId] = @OrganizationId
                                 Name = SqlQueryHelper.GetString(reader, "Name"),
                                 Code = SqlQueryHelper.GetString(reader, "Code"),
                                 Description = SqlQueryHelper.GetString(reader, "Description"),
+                                ParentDepartmentId = reader["ParentDepartmentId"] == DBNull.Value
+                                    ? (int?)null
+                                    : Convert.ToInt32(reader["ParentDepartmentId"]),
+                                DepartmentKind = reader["DepartmentKind"] == DBNull.Value
+                                    ? DepartmentKind.Administrative
+                                    : (DepartmentKind)Convert.ToInt32(reader["DepartmentKind"]),
+                                IsRequisitionTarget = reader["IsRequisitionTarget"] == DBNull.Value
+                                    || Convert.ToBoolean(reader["IsRequisitionTarget"]),
                                 IsActive = Convert.ToBoolean(reader["IsActive"])
                             });
                         }

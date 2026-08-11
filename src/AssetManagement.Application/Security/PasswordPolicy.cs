@@ -4,10 +4,33 @@ using System.Text.RegularExpressions;
 
 namespace AssetManagement.Application.Security
 {
+    public sealed class PasswordPolicyRuleDefinition
+    {
+        public string Id { get; set; }
+
+        public string Label { get; set; }
+    }
+
     public static class PasswordPolicy
     {
         public const int MinLength = 8;
         public const int MaxLength = 128;
+
+        private static readonly PasswordPolicyRuleDefinition[] RuleDefinitions =
+        {
+            new PasswordPolicyRuleDefinition { Id = "minLength", Label = "At least 8 characters" },
+            new PasswordPolicyRuleDefinition { Id = "maxLength", Label = "At most 128 characters" },
+            new PasswordPolicyRuleDefinition { Id = "uppercase", Label = "At least one uppercase letter (A-Z)" },
+            new PasswordPolicyRuleDefinition { Id = "lowercase", Label = "At least one lowercase letter (a-z)" },
+            new PasswordPolicyRuleDefinition { Id = "digit", Label = "At least one digit (0-9)" },
+            new PasswordPolicyRuleDefinition { Id = "special", Label = "At least one special character" },
+            new PasswordPolicyRuleDefinition { Id = "noSequential", Label = "No sequential characters (e.g. abc, 123)" }
+        };
+
+        public static IList<PasswordPolicyRuleDefinition> GetRuleDefinitions()
+        {
+            return RuleDefinitions;
+        }
 
         public static IEnumerable<string> Validate(string password)
         {

@@ -1,14 +1,12 @@
 @model AssetManagement.Web.ViewModels.UserCreateViewModel
 @{
     ViewBag.Title = "Create User";
-    var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
-    var departments = ViewBag.Departments as IEnumerable<AssetManagement.Application.ViewModels.DepartmentVm>;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Create User",
-    Subtitle = "Set up a person, assign their department and role, and then review their profile.",
+    Subtitle = "Set up a person, then open their profile to assign department and role.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -25,24 +23,6 @@
     <div class="row g-3">
         <div class="col-md-4"><label class="form-label">Email</label>@Html.TextBoxFor(m => m.Email, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Employee Number</label>@Html.TextBoxFor(m => m.EmployeeNumber, new { @class = "form-control" })</div>
-        <div class="col-md-2"><label class="form-label">Department</label>
-            @Html.DropDownListFor(
-                m => m.DepartmentId,
-                new SelectList(departments ?? System.Linq.Enumerable.Empty<AssetManagement.Application.ViewModels.DepartmentVm>(), "Id", "Name", Model.DepartmentId),
-                "-- Select department --",
-                new { @class = "form-select" })
-        </div>
-        <div class="col-md-3"><label class="form-label">Role</label>
-            <select class="form-select" name="RoleId">
-                @if (roles != null)
-                {
-                    foreach (var role in roles)
-                    {
-                        <option value="@role.Id" @(Model.RoleId == role.Id ? "selected" : null)>@role.Name</option>
-                    }
-                }
-            </select>
-        </div>
         <div class="col-md-3"><label class="form-label">First Name</label>@Html.TextBoxFor(m => m.FirstName, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Last Name</label>@Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Phone</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>

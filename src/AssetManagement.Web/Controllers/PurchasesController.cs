@@ -6,6 +6,7 @@ using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
+using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
@@ -31,38 +32,12 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Index(string search = null, int? supplierId = null, string sort = "date", string direction = "desc", int page = 1, int pageSize = 10)
         {
             var suppliers = _supplierService.GetAll().ToList();
-            var items = _purchaseService.GetAll();
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim().ToLowerInvariant();
-                items = items.Where(x => (x.PurchaseOrderNumber ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.InvoiceNumber ?? string.Empty).ToLowerInvariant().Contains(term)
-                    || (x.SupplierName ?? string.Empty).ToLowerInvariant().Contains(term));
-            }
-
-            if (supplierId.HasValue)
-            {
-                items = items.Where(x => x.SupplierId == supplierId.Value);
-            }
-
-            switch ((sort ?? string.Empty).ToLowerInvariant())
-            {
-                case "supplier":
-                    items = string.Equals(direction, "asc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderBy(x => x.SupplierName) : items.OrderByDescending(x => x.SupplierName);
-                    break;
-                case "total":
-                    items = string.Equals(direction, "asc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderBy(x => x.TotalCost) : items.OrderByDescending(x => x.TotalCost);
-                    break;
-                default:
-                    items = string.Equals(direction, "asc", System.StringComparison.OrdinalIgnoreCase) ? items.OrderBy(x => x.PurchaseDate) : items.OrderByDescending(x => x.PurchaseDate);
-                    sort = "date";
-                    break;
-            }
+            var pageResult = _purchaseService.GetListPage(search, supplierId, sort, direction, page, pageSize);
 
             ViewBag.SupplierFilter = new SelectList(suppliers, "Id", "SupplierName", supplierId);
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
-            return View(BuildListPage(items, search, sort, direction, page, pageSize));
+            return View(ToListPage(pageResult));
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -79,9 +54,9 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.Receive")]
-        public ActionResult Receive(int id, int? assetId = null, string returnUrl = null)
+        public ActionResult Receive(int id, int? assetId = null, string returnUrl = null, bool catalogConfirmed = false)
         {
-            var detail = _receivingService.GetReceiveDetail(id);
+            var detail = _receivingService.GetReceiveDetail(id, catalogConfirmed);
             if (detail == null)
             {
                 return HttpNotFound();
@@ -93,16 +68,18 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToAction("Details", new { id, returnUrl });
             }
 
-            var lookup = _receivingService.GetReceiveAssetLookup(id, assetId);
+            var lookup = _receivingService.GetReceiveAssetLookup(id, assetId, catalogConfirmed);
             var model = new AssetReceiveVm
             {
                 PurchaseRecordId = id,
                 AssetId = lookup.SelectedAssetId ?? 0,
+                AssetSubTypeId = detail.AssetSubTypeId,
+                CatalogMatchConfirmed = catalogConfirmed,
                 ReceivedDate = System.DateTime.UtcNow,
-                QuantityReceived = 1
+                QuantityReceived = detail.RemainingQuantity
             };
 
-            PopulateReceiveLookups(model, lookup);
+            PopulateReceiveLookups(model, lookup, detail);
             ViewBag.ReceiveDetail = detail;
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id });
             return View(model);
@@ -113,15 +90,26 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.Receive")]
         public ActionResult Receive(AssetReceiveVm model, string returnUrl = null)
         {
-            var detail = _receivingService.GetReceiveDetail(model.PurchaseRecordId);
+            var detail = _receivingService.GetReceiveDetail(model.PurchaseRecordId, model.CatalogMatchConfirmed);
             if (detail == null)
             {
                 return HttpNotFound();
             }
 
-            PopulateReceiveLookups(model, _receivingService.GetReceiveAssetLookup(model.PurchaseRecordId, model.AssetId > 0 ? model.AssetId : (int?)null));
-            ViewBag.ReceiveDetail = detail;
+            PopulateReceiveLookups(model, _receivingService.GetReceiveAssetLookup(model.PurchaseRecordId, model.AssetId > 0 ? model.AssetId : (int?)null, model.CatalogMatchConfirmed), detail);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id = model.PurchaseRecordId });
+
+            ModelState.Remove("AssetId");
+            if (detail.RequisitionDepartmentId.HasValue && detail.RequisitionDepartmentId.Value > 0
+                && string.IsNullOrWhiteSpace(model.ReceivePlacementChoice))
+            {
+                ModelState.AddModelError("ReceivePlacementChoice", "Choose whether received goods go to the requisition department or company custody.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.ConditionOnReceipt))
+            {
+                ModelState.AddModelError("ConditionOnReceipt", "Condition on receipt is required when creating new assets.");
+            }
 
             if (!ModelState.IsValid)
             {
@@ -130,8 +118,20 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
-                _receivingService.Receive(model, User.GetUserId());
-                TempData["Message"] = "Asset received against purchase record.";
+                var result = _receivingService.Receive(model, User.GetUserId());
+                if (result.CreatedAssets != null && result.CreatedAssets.Any())
+                {
+                    var tags = string.Join(", ", result.CreatedAssets.Select(x => x.AssetTag).Where(x => !string.IsNullOrWhiteSpace(x)));
+                    TempData["Message"] = result.CreatedAssets.Count == 1
+                        ? "Asset " + tags + " created and received."
+                        : result.CreatedAssets.Count + " assets created and received: " + tags + ".";
+                    TempData["CreatedAssetIds"] = string.Join(",", result.CreatedAssets.Select(x => x.AssetId));
+                }
+                else
+                {
+                    TempData["Message"] = "Assets received against purchase record.";
+                }
+
                 return RedirectToAction("Details", new { id = model.PurchaseRecordId, returnUrl = ViewBag.ReturnUrl });
             }
             catch (BusinessException ex)
@@ -141,7 +141,7 @@ namespace AssetManagement.Web.Controllers
             }
         }
 
-        [PermissionAuthorize("Purchases.Create")]
+        [PermissionAuthorize("Purchases.Edit")]
         public ActionResult Create(string returnUrl = null, int? purchaseRequestId = null)
         {
             var model = new PurchaseRecordVm
@@ -157,9 +157,10 @@ namespace AssetManagement.Web.Controllers
                 if (req != null && req.ApprovalStatus == ApprovalStatus.Approved)
                 {
                     model.Currency = req.Currency ?? model.Currency;
-                    model.Quantity = req.Quantity;
-                    model.UnitCost = req.EstimatedUnitCost;
-                    model.TotalCost = req.EstimatedUnitCost * req.Quantity;
+                    if (req.Quantity > 0)
+                    {
+                        model.Quantity = req.Quantity;
+                    }
                 }
             }
 
@@ -180,7 +181,7 @@ namespace AssetManagement.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [PermissionAuthorize("Purchases.Create")]
+        [PermissionAuthorize("Purchases.Edit")]
         public ActionResult Create(PurchaseRecordVm model, string returnUrl = null)
         {
             PopulateLookups(model);
@@ -213,14 +214,33 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId);
         }
 
-        private void PopulateReceiveLookups(AssetReceiveVm model, ReceiveAssetLookupVm lookup)
+        private void PopulateReceiveLookups(AssetReceiveVm model, ReceiveAssetLookupVm lookup, PurchaseReceiveDetailVm detail)
         {
+            ViewBag.ConditionOptions = BuildAssetConditionSelectList(model?.ConditionOnReceipt);
+
             var selectedAssetId = model.AssetId > 0 ? model.AssetId : lookup?.SelectedAssetId;
             ViewBag.Assets = new SelectList(lookup?.Assets ?? new System.Collections.Generic.List<ReceiveAssetOptionVm>(), "Id", "Label", selectedAssetId);
             if (selectedAssetId.HasValue && selectedAssetId.Value > 0)
             {
                 model.AssetId = selectedAssetId.Value;
             }
+
+            ViewBag.ReceiveDetail = detail ?? _receivingService.GetReceiveDetail(model.PurchaseRecordId, model.CatalogMatchConfirmed);
+            int? categoryId = null;
+            if (detail != null && detail.ContextAssetTypeId.HasValue)
+            {
+                var assetType = UnitOfWork.Repository<AssetType>().GetById(detail.ContextAssetTypeId.Value);
+                categoryId = assetType?.AssetCategoryId;
+            }
+            ViewBag.Categories = BuildCategorySelectList(categoryId);
+            ViewBag.AssetTypeOptions = UnitOfWork.Repository<AssetType>()
+                .GetAll()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Name)
+                .ToList();
+            ViewBag.SubTypeLookupUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
+            ViewBag.SubTypeByTypeUrl = TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
+            ViewBag.SubTypeCreateUrl = TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
         }
     }
 }

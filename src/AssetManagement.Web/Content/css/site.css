@@ -14,9 +14,9 @@
     --am-sidebar-link-active: hsla(200, 85%, 52%, 0.22);
     --am-module-bg: hsl(204, 64%, 28%);
     --am-module-text: hsl(0, 0%, 100%);
-    --am-module-accent: hsl(42, 87%, 55%);
+    --am-module-accent: hsl(200, 85%, 62%);
     --am-submodule-bg-light: hsl(206, 33%, 95%);
-    --am-submodule-border-light: hsla(42, 87%, 55%, 0.45);
+    --am-submodule-border-light: hsla(200, 85%, 62%, 0.45);
     --am-nav-module-label: hsl(198, 81%, 90%);
     --am-nav-submodule-bg: hsla(210, 70%, 8%, 0.75);
     --am-nav-submodule-text: hsla(205, 60%, 90%, 0.82);
@@ -283,7 +283,7 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     padding: 0.7rem 0.55rem 0.7rem 0.85rem;
     border-radius: 0.65rem;
     background: var(--am-module-bg);
-    border-left: 3px solid var(--am-module-accent);
+    border-top: 3px solid var(--am-module-accent);
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
@@ -301,7 +301,7 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
 .am-nav-module.is-expanded .am-nav-module-header,
 .am-nav-module:not(.is-click-collapsed):hover .am-nav-module-header {
     background: #21618c;
-    border-left-color: #ffffff;
+    border-top-color: #ffffff;
     box-shadow: 0 0 0 1px rgba(111, 184, 220, 0.4);
 }
 
@@ -355,7 +355,7 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     padding: 0.4rem 0.5rem 0.5rem 0.65rem;
     display: none;
     background: var(--am-nav-submodule-bg);
-    border-left: 2px solid rgba(240, 180, 41, 0.45);
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
     border-radius: 0 0 0.5rem 0.5rem;
 }
 
@@ -495,6 +495,15 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     border: 0;
     border-radius: 0.9rem;
     box-shadow: var(--am-shadow);
+}
+
+/* Keep Bootstrap modals above the body-appended backdrop when main uses transform animations. */
+body.modal-open .am-main-content.am-page-enter {
+    transform: none !important;
+}
+
+#targetAssetPickerModal.modal.show {
+    z-index: 1060;
 }
 
 .card-kpi {
@@ -1048,6 +1057,51 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
 .am-tag-pill--sm {
     font-size: 0.75rem;
     padding: 0.12rem 0.5rem;
+}
+
+.am-group-detail-row > td {
+    padding: 0;
+    border-top: none;
+}
+
+.am-group-detail-row[hidden] {
+    display: none !important;
+}
+
+.am-group-summary-row .btn-outline-primary {
+    display: none;
+}
+
+.am-group-members-table .am-group-member-row td {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
+.am-group-members-table thead th {
+    padding-top: 0;
+    padding-bottom: 0.35rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.am-group-expand-toolbar {
+    background: rgba(248, 249, 250, 0.85);
+}
+
+.am-group-members-table .am-bulk-col {
+    width: 2.25rem;
+    padding-right: 0;
+}
+
+.am-empty-custodian {
+    color: var(--bs-secondary-color, #6c757d);
+    font-style: italic;
+}
+
+.am-group-member-empty td {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
 }
 
 .am-status-banner {
@@ -1787,6 +1841,63 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     justify-content: center;
 }
 
+.am-zebra-printer-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.am-asset-label-sheet--modal .am-zebra-printer-status {
+    margin-top: 0.75rem;
+}
+
+.am-zebra-printer-status__dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: currentColor;
+}
+
+.am-zebra-printer-status--checking {
+    color: #856404;
+    background: #fff8e6;
+    border-color: #ffe08a;
+}
+
+.am-zebra-printer-status--ready {
+    color: #155724;
+    background: #e8f6ec;
+    border-color: #b7e0c2;
+}
+
+.am-zebra-printer-status--warning {
+    color: #856404;
+    background: #fff8e6;
+    border-color: #ffe08a;
+}
+
+.am-zebra-printer-status--error {
+    color: #842029;
+    background: #fdebec;
+    border-color: #f1b0b7;
+}
+
+.am-zebra-printer-status--checking .am-zebra-printer-status__dot {
+    animation: am-zebra-printer-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes am-zebra-printer-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+}
+
 @media print {
     .no-print {
         display: none !important;
@@ -1953,7 +2064,7 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
 }
 
 .am-platform-stat-card--warning {
-    border-top-color: var(--am-warning);
+    border-top-color: #fd7e14;
 }
 
 .am-platform-stat-card--success {
@@ -2587,7 +2698,7 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     min-width: 4.5rem;
 }
 
-/* Anti-gravity login background (Antigravity bubble animation) */
+/* React Bits Antigravity login background (Three.js particle field) */
 body.am-login-page {
     background: #0b0f1a;
 }
@@ -2731,6 +2842,23 @@ body.am-login-page .am-main-content {
     border: 1px solid rgba(243, 156, 18, 0.24);
     border-radius: 0.35rem;
     padding: 0.1rem 0.35rem;
+}
+
+.am-auth-form .am-auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.am-auth-form .am-field-validation-error,
+.am-auth-form .field-validation-error {
+    display: block;
+    margin-top: 0.15rem;
+    line-height: 1.35;
+}
+
+.am-auth-form-summary.validation-summary-valid {
+    display: none !important;
 }
 
 .am-auth-links {
@@ -2922,6 +3050,7 @@ body.am-login-page .am-shell-header .am-brand-title {
 
 .am-support-session-overlay.is-visible {
     display: flex;
+    pointer-events: auto;
 }
 
 .am-support-session-canvas {
@@ -2929,6 +3058,8 @@ body.am-login-page .am-shell-header .am-brand-title {
 }
 
 .am-support-session-panel {
+    z-index: 2;
+    pointer-events: none;
     width: min(100%, 34rem);
 }
 
@@ -3289,4 +3420,91 @@ body.am-login-page .am-shell-header .am-brand-title {
     width: 3.5rem;
     height: 3.5rem;
     flex-shrink: 0;
+}
+
+.am-password-policy {
+    margin-top: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(0, 200, 255, 0.14);
+}
+
+.am-password-policy__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.am-password-policy__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    padding: 0.2rem 0;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.am-password-policy__icon {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    position: relative;
+}
+
+.am-password-policy__item--pending .am-password-policy__icon {
+    background: transparent;
+}
+
+.am-password-policy__item--met {
+    color: #8ef0c0;
+}
+
+.am-password-policy__item--met .am-password-policy__icon {
+    border-color: #4ade80;
+    background: #4ade80;
+}
+
+.am-password-policy__item--met .am-password-policy__icon::after {
+    content: "";
+    position: absolute;
+    left: 0.28rem;
+    top: 0.12rem;
+    width: 0.28rem;
+    height: 0.55rem;
+    border: solid #0f172a;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.am-password-policy__item--unmet {
+    color: #ffb4b4;
+}
+
+.am-password-policy__item--unmet .am-password-policy__icon {
+    border-color: #f87171;
+    background: rgba(248, 113, 113, 0.18);
+}
+
+.am-password-policy__item--unmet .am-password-policy__icon::after {
+    content: "!";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fecaca;
+}
+
+.am-password-policy--match {
+    padding-top: 0;
+    padding-bottom: 0.75rem;
+    border: 0;
+    background: transparent;
 }

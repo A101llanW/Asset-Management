@@ -1,9 +1,7 @@
-import path from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { login, fillAndSubmitAssetRequest, selectDropdownOptionContaining } from '../fixtures/auth';
 import {
-  buildAssetImportCsv,
+  buildSchoolImportXlsx,
   expectHeading,
   openCreateFromIndex,
   openFirstDetails,
@@ -53,7 +51,6 @@ test.describe('Tenant admin CRUD screens', () => {
     const suffix = uniqueSuffix();
     await page.locator('#Email').fill(`e2e.user.${suffix}@asset.local`);
     await page.locator('#EmployeeNumber').fill(`E2E-${suffix.slice(-6)}`);
-    await selectDropdownOptionContaining(page, 'DepartmentId', 'Information Technology');
     await page.locator('#FirstName').fill('E2E');
     await page.locator('#LastName').fill(`User${suffix.slice(-4)}`);
     await page.locator('#Phone').fill('+254700999999');
@@ -61,11 +58,8 @@ test.describe('Tenant admin CRUD screens', () => {
     await page.locator('#Password').fill('P@ssw0rd!');
     await page.getByRole('button', { name: 'Create User' }).click();
     await expect(page.getByText('User created successfully.')).toBeVisible();
+    await expect(page.getByText('Open the user profile to assign their department and role')).toBeVisible();
 
-    await page.goto('/Users/Index');
-    await page.locator('input[name="search"]').fill(`e2e.user.${suffix}@asset.local`);
-    await page.getByRole('button', { name: 'Apply' }).click();
-    await openFirstDetails(page);
     await selectDropdownOptionContaining(page, 'departmentId', 'Human Resources');
     await page.getByRole('button', { name: 'Save Department' }).click();
     await expect(page.getByText('User department updated.')).toBeVisible();
@@ -175,26 +169,22 @@ test.describe('Tenant admin CRUD screens', () => {
     await page.getByRole('link', { name: 'Back to Asset' }).first().click();
   });
 
-  test('assets — import from Excel uploads CSV and creates asset', async ({ page }) => {
+  test('assets — import from Excel uploads school template and creates asset', async ({ page }) => {
     const suffix = uniqueSuffix();
-    const importTag = `E2E-IMP-${suffix}`;
+    const { filePath, importName, importSerial } = buildSchoolImportXlsx(suffix, test.info().outputDir);
 
     await openIndex(page, '/Assets/Index', 'Asset Register');
     await page.getByRole('link', { name: 'Import from Excel' }).click();
     await expectHeading(page, 'Import Assets');
     await expect(page.getByRole('link', { name: 'Download template' })).toBeVisible();
 
-    const csvPath = path.join(test.info().outputDir, `asset-import-${suffix}.csv`);
-    mkdirSync(test.info().outputDir, { recursive: true });
-    writeFileSync(csvPath, buildAssetImportCsv(suffix), 'utf8');
-
-    await page.locator('#importFile').setInputFiles(csvPath);
+    await page.locator('#importFile').setInputFiles(filePath);
     await page.getByRole('button', { name: 'Import assets' }).click();
 
     await expect(page.getByText(/Import completed: 1 assets created/i)).toBeVisible();
-    await page.locator('input[name="Search"]').fill(importTag);
+    await page.locator('input[name="Search"]').fill(importSerial);
     await page.locator('.am-list-toolbar button[type="submit"]').click();
-    await expect(page.getByText(importTag)).toBeVisible();
+    await expect(page.getByText(importName)).toBeVisible();
   });
 
   test('asset requests — index and create', async ({ page }) => {
@@ -225,7 +215,6 @@ test.describe('Tenant admin CRUD screens', () => {
     await selectDropdownOptionContaining(page, 'DepartmentId', 'Information Technology');
     await page.locator('#ItemDescription').fill('E2E CRUD requisition item');
     await page.locator('#Quantity').fill('2');
-    await page.locator('#EstimatedUnitCost').fill('15000');
     await page.locator('#Justification').fill('E2E CRUD requisition');
     await page.getByRole('button', { name: 'Submit requisition' }).click();
     await expect(page.getByText('Requisition submitted.')).toBeVisible();
@@ -251,7 +240,7 @@ test.describe('Tenant admin CRUD screens', () => {
     await openIndex(page, '/PendingApprovals/Index', 'Pending Approvals');
     await openIndex(page, '/Claims/Index', 'Insurance Claims');
     await openIndex(page, '/Incidents/Index', 'Incidents');
-    await openIndex(page, '/Search/Index', 'Global Search');
+    await openIndex(page, '/AssetScan/Lookup', 'Scan & Search');
     await openIndex(page, '/Permissions/Index', 'Permissions Catalog');
 
     await page.goto('/Settings/Index');

@@ -15,11 +15,17 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Insurance.Manage")]
-        public ActionResult Create(int assetId)
+        public ActionResult Create(int? assetId)
         {
+            if (!assetId.HasValue)
+            {
+                TempData["Error"] = "Select an asset to add an insurance policy for.";
+                return RedirectToAction("Index", "Assets");
+            }
+
             return View(new InsurancePolicyEditVm
             {
-                AssetId = assetId,
+                AssetId = assetId.Value,
                 PolicyStartDate = System.DateTime.UtcNow.Date,
                 PolicyEndDate = System.DateTime.UtcNow.Date.AddYears(1),
                 ClaimEligibility = true

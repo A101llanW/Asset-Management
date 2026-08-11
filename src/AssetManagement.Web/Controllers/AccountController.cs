@@ -11,9 +11,13 @@ using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Infrastructure.Identity;
+using AssetManagement.Infrastructure.Security;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Models;
 using AssetManagement.Web.Security;
+using AssetManagement.Web.ViewModels;
+using Newtonsoft.Json;
+using System.Text;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -21,27 +25,44 @@ namespace AssetManagement.Web.Controllers
     {
         private readonly IUserAccountService _userAccountService;
         private readonly IAuthorizationService _authorizationService;
-        private readonly ISsoAuthenticationProvider _ssoProvider;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuditWriter _auditWriter;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IOrganizationLicenseService _licenseService;
         private readonly IAccountSecurityService _accountSecurityService;
+        private readonly IAuthFlowRateLimiter _authFlowRateLimiter;
 
         public AccountController()
         {
             _userAccountService = DependencyResolver.Current.GetService<IUserAccountService>();
             _authorizationService = DependencyResolver.Current.GetService<IAuthorizationService>();
-            _ssoProvider = DependencyResolver.Current.GetService<ISsoAuthenticationProvider>();
             _unitOfWork = DependencyResolver.Current.GetService<IUnitOfWork>();
             _auditWriter = DependencyResolver.Current.GetService<IAuditWriter>();
             _organizationScope = DependencyResolver.Current.GetService<IOrganizationScopeService>();
             _licenseService = DependencyResolver.Current.GetService<IOrganizationLicenseService>();
             _accountSecurityService = DependencyResolver.Current.GetService<IAccountSecurityService>();
+            _authFlowRateLimiter = DependencyResolver.Current.GetService<IAuthFlowRateLimiter>();
         }
 
         public ActionResult Login(string returnUrl)
         {
+            var tenantToken = TenantUrlHelper.GetTenantToken(RouteData);
+            if (!string.IsNullOrWhiteSpace(tenantToken) && TenantUrlHelper.IsPlausibleTenantToken(tenantToken))
+            {
+                var organization = TenantResolutionHelper.ResolveOrganization(_unitOfWork, tenantToken);
+                if (organization == null)
+                {
+                    ViewBag.TenantToken = tenantToken;
+                    return View("OrganizationNotFound");
+                }
+
+                if (organization.Slug != null
+                    && !organization.Slug.Equals(tenantToken, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return Redirect(TenantUrlHelper.BuildTenantLoginPath(organization.Slug, returnUrl));
+                }
+            }
+
             ViewBag.ReturnUrl = ParseReturnPathOrNull(returnUrl);
             ConfigureLoginViewBag();
             return View();
@@ -57,31 +78,6 @@ namespace AssetManagement.Web.Controllers
             }
 
             return RedirectToLocal(null, userId, TenantUrlHelper.GetTenantToken(RouteData));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public ActionResult ExternalLogin(string token, string returnUrl)
-        {
-            if (_ssoProvider == null || !_ssoProvider.IsEnabled)
-            {
-                var message = _ssoProvider == null
-                    ? "SSO is not available."
-                    : _ssoProvider.TryAuthenticate(token).Message;
-                TempData["Error"] = message;
-                return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
-            }
-
-            var result = _ssoProvider.TryAuthenticate(token);
-            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.UserId))
-            {
-                TempData["Error"] = result.Message ?? "SSO sign-in failed.";
-                return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
-            }
-
-            var ticketUser = new ApplicationUser { Id = result.UserId };
-            CurrentUserExtensions.SetAuthCookie(Response, ticketUser, false);
-            return RedirectToLocal(ParseReturnPathOrNull(returnUrl), result.UserId, TenantUrlHelper.GetTenantToken(RouteData));
         }
 
         [HttpPost]
@@ -114,7 +110,7 @@ namespace AssetManagement.Web.Controllers
 
             if (_accountSecurityService.IsLoginIpRateLimited(clientIp))
             {
-                ModelState.AddModelError("", "Too many failed login attempts from your location. Please wait 15 minutes before trying again.");
+                ModelState.AddModelError("", AuthenticationErrorMessages.LoginIpRateLimited());
                 return View(model);
             }
 
@@ -130,16 +126,42 @@ namespace AssetManagement.Web.Controllers
                 }
 
                 _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Account locked");
-                ModelState.AddModelError("", "Account is locked. Please try again in " + minutesRemaining + " minutes.");
+                ModelState.AddModelError("", AuthenticationErrorMessages.LoginAccountLocked(minutesRemaining));
                 return View(model);
             }
 
+            var resolvedEmail = DemoLoginEmailHelper.ResolveLoginEmail(model.Email, tenantSlug);
+            var candidates = DiscoverLoginCandidates(resolvedEmail, organizationId);
+            var disambiguationResult = HandleLoginDisambiguation(model, candidates, organizationId, tenantSlug);
+            if (disambiguationResult != null)
+            {
+                return disambiguationResult;
+            }
+
+            var primaryUser = candidates.Count == 1 ? candidates[0] : null;
             string userId;
-            if (!_userAccountService.ValidateCredentials(model.Email, model.Password, tenantSlug, out userId))
+            if (primaryUser != null)
+            {
+                var verifyResult = PasswordHasher.VerifyHashedPassword(primaryUser.PasswordHash, model.Password);
+                if (verifyResult == PasswordVerificationResult.Failed)
+                {
+                    _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Invalid credentials");
+                    var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, organizationId);
+                    ModelState.AddModelError("", AuthenticationErrorMessages.LoginFailure(model.Email, tenantSlug, remaining));
+                    return View(model);
+                }
+
+                userId = primaryUser.Id;
+                if (verifyResult == PasswordVerificationResult.SuccessRehashNeeded && _userAccountService != null)
+                {
+                    _userAccountService.RehashPasswordOnLogin(userId, model.Password);
+                }
+            }
+            else if (!_userAccountService.ValidateCredentials(model.Email, model.Password, tenantSlug, out userId))
             {
                 _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Invalid credentials");
                 var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, organizationId);
-                ModelState.AddModelError("", BuildLoginFailureMessage(model.Email, tenantSlug, remaining));
+                ModelState.AddModelError("", AuthenticationErrorMessages.LoginFailure(model.Email, tenantSlug, remaining));
                 return View(model);
             }
 
@@ -252,12 +274,182 @@ namespace AssetManagement.Web.Controllers
 
             if (!_userAccountService.ChangePassword(userId, model.CurrentPassword, model.NewPassword))
             {
-                ModelState.AddModelError("", "Current password is incorrect or the new password could not be saved.");
+                ModelState.AddModelError("", AuthenticationErrorMessages.ChangePasswordFailure());
                 return View(model);
+            }
+
+            if (_accountSecurityService != null)
+            {
+                _accountSecurityService.RotateUserAccessToken(userId);
+            }
+
+            var updatedUser = FindUserById(userId);
+            if (updatedUser != null)
+            {
+                updatedUser.RequirePasswordChange = false;
+                var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+                if (connectionFactory != null)
+                {
+                    new UserAccountRepository(connectionFactory).Update(updatedUser);
+                }
+
+                CurrentUserExtensions.SetAuthCookie(Response, updatedUser, false, Request.UserAgent, false);
             }
 
             TempData["Message"] = "Your password has been updated successfully.";
             return RedirectToAction("Profile");
+        }
+
+        [HttpGet]
+        public ActionResult VerifyEmail()
+        {
+            var userId = Session["PendingEmailVerificationUserId"] as string ?? User.GetUserId();
+            var user = FindUserById(userId);
+            if (user == null)
+            {
+                return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
+            }
+
+            ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
+            ViewBag.EmailHint = _accountSecurityService != null ? _accountSecurityService.MaskEmail(user.Email) : user.Email;
+            return View("VerifyEmail");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult VerifyEmailSubmit(string code)
+        {
+            return VerifyEmail(code);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult VerifyEmail(string code)
+        {
+            var userId = Session["PendingEmailVerificationUserId"] as string ?? User.GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
+            }
+
+            if (_accountSecurityService == null || !_accountSecurityService.ValidateEmailVerificationCode(userId, code))
+            {
+                ModelState.AddModelError("", "Invalid or expired verification code.");
+                return VerifyEmail();
+            }
+
+            _accountSecurityService.MarkEmailVerified(userId);
+            Session.Remove("PendingEmailVerificationUserId");
+            var rememberMe = Session["PendingEmailVerificationRememberMe"] as bool? ?? false;
+            var returnUrl = Session["PendingEmailVerificationReturnUrl"] as string;
+            Session.Remove("PendingEmailVerificationRememberMe");
+            Session.Remove("PendingEmailVerificationReturnUrl");
+            var tenantSlug = TenantUrlHelper.GetTenantToken(RouteData);
+            var user = FindUserById(userId);
+            if (user != null && user.RequirePasswordChange)
+            {
+                CurrentUserExtensions.SetAuthCookie(Response, user, rememberMe, Request.UserAgent, true);
+                return RedirectToAction("ChangePassword", new { tenant = tenantSlug });
+            }
+
+            return IssueAuthCookieAndRedirect(userId, user != null ? user.Email : null, rememberMe, returnUrl, tenantSlug);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public JsonResult ResendEmailVerificationCode()
+        {
+            var userId = Session["PendingEmailVerificationUserId"] as string ?? User.GetUserId();
+            if (string.IsNullOrWhiteSpace(userId) || _accountSecurityService == null)
+            {
+                return Json(new { success = false, message = "Session expired." });
+            }
+
+            return Json(new
+            {
+                success = _accountSecurityService.SendEmailVerificationCode(userId),
+                message = "If email delivery is configured, a new verification code has been sent."
+            });
+        }
+
+        private System.Collections.Generic.IList<ApplicationUser> DiscoverLoginCandidates(string email, int? organizationId)
+        {
+            var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+            if (connectionFactory == null)
+            {
+                return new System.Collections.Generic.List<ApplicationUser>();
+            }
+
+            return new UserAccountRepository(connectionFactory).FindActiveByEmail(email, organizationId);
+        }
+
+        private ActionResult HandleLoginDisambiguation(
+            LoginViewModel model,
+            System.Collections.Generic.IList<ApplicationUser> candidates,
+            int? organizationId,
+            string tenantSlug)
+        {
+            if (candidates == null || candidates.Count <= 1)
+            {
+                if (organizationId.HasValue && candidates != null && candidates.Count == 0)
+                {
+                    var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+                    if (connectionFactory != null)
+                    {
+                        var elsewhere = new UserAccountRepository(connectionFactory).FindActiveByEmail(model.Email, null)
+                            .Where(u => u.OrganizationId.HasValue && u.OrganizationId.Value != organizationId.Value)
+                            .ToList();
+                        if (elsewhere.Count > 0)
+                        {
+                            ViewBag.MultiCandidates = BuildPortalCandidates(elsewhere, connectionFactory);
+                            ModelState.AddModelError("", "No account for this email in this organization portal. Select your organization below.");
+                            return View(model);
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            if (!organizationId.HasValue)
+            {
+                var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+                ViewBag.MultiCandidates = BuildPortalCandidates(candidates, connectionFactory);
+                ModelState.AddModelError("", "We found multiple accounts for this email. Select the correct portal below.");
+                return View(model);
+            }
+
+            return null;
+        }
+
+        private static System.Collections.Generic.IList<LoginPortalCandidate> BuildPortalCandidates(
+            System.Collections.Generic.IEnumerable<ApplicationUser> users,
+            Infrastructure.Persistence.ISqlConnectionFactory connectionFactory)
+        {
+            var repository = new UserAccountRepository(connectionFactory);
+            return users.Select(u => new LoginPortalCandidate
+            {
+                UserId = u.Id,
+                Email = u.Email,
+                OrganizationId = u.OrganizationId,
+                OrganizationName = u.OrganizationId.HasValue ? repository.FindOrganizationNameById(u.OrganizationId.Value) : "Platform",
+                OrganizationSlug = u.OrganizationId.HasValue ? repository.FindOrganizationSlugById(u.OrganizationId.Value) : null
+            }).ToList();
+        }
+
+        private void EnsureLoginAccessToken(ApplicationUser user)
+        {
+            if (user == null || !string.IsNullOrWhiteSpace(user.AccessToken))
+            {
+                return;
+            }
+
+            user.AccessToken = SecurePasswordGenerator.GenerateAccessToken();
+            var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+            if (connectionFactory != null)
+            {
+                new UserAccountRepository(connectionFactory).Update(user);
+            }
         }
 
         [HttpPost]
@@ -325,9 +517,9 @@ namespace AssetManagement.Web.Controllers
             }
 
             int minutesRemaining;
-            if (!AuthFlowRateLimiter.IsMfaVerifyAllowed(userId, out minutesRemaining))
+            if (!_authFlowRateLimiter.IsMfaVerifyAllowed(userId, out minutesRemaining))
             {
-                ModelState.AddModelError("", string.Format(AuthFlowRateLimiter.MfaVerifyLockoutMessage, minutesRemaining));
+                ModelState.AddModelError("", AuthenticationErrorMessages.MfaVerifyLockout(minutesRemaining));
                 ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
                 ViewBag.Email = FindUserById(userId) != null ? FindUserById(userId).Email : null;
                 ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
@@ -336,15 +528,15 @@ namespace AssetManagement.Web.Controllers
 
             if (!_accountSecurityService.ValidateMfaCode(userId, code))
             {
-                AuthFlowRateLimiter.RecordMfaVerifyFailure(userId);
-                ModelState.AddModelError("", "Invalid verification code. Please try again.");
+                _authFlowRateLimiter.RecordMfaVerifyFailure(userId);
+                ModelState.AddModelError("", AuthenticationErrorMessages.MfaSetupInvalidCode());
                 ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
                 ViewBag.Email = FindUserById(userId) != null ? FindUserById(userId).Email : null;
                 ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
                 return View("SetupMfa");
             }
 
-            AuthFlowRateLimiter.ClearMfaVerifyFailures(userId);
+            _authFlowRateLimiter.ClearMfaVerifyFailures(userId);
             _accountSecurityService.EnableMfa(userId, method);
             Session.Remove("ForcedMfaSetupUserId");
             return IssueAuthCookieAndRedirect(
@@ -365,19 +557,20 @@ namespace AssetManagement.Web.Controllers
                 return Json(new { success = false, message = "Session expired." });
             }
 
-            if (!AuthFlowRateLimiter.TryAcquireMfaSend(userId))
+            if (!_authFlowRateLimiter.TryAcquireMfaSend(userId))
             {
                 Response.StatusCode = 429;
                 Response.TrySkipIisCustomErrors = true;
-                return Json(new { success = false, message = AuthFlowRateLimiter.MfaSendLimitMessage });
+                return Json(new { success = false, message = AuthenticationErrorMessages.MfaSendRateLimited() });
             }
 
             if (!_accountSecurityService.SendMfaCode(userId))
             {
-                return Json(new { success = false, message = "Could not send verification code." });
+                return Json(new { success = false, message = AuthenticationErrorMessages.MfaSendServiceFailure() });
             }
 
-            return Json(new { success = true, message = "Verification code sent. In development, check debug/trace output." });
+            var devMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
+            return Json(new { success = true, message = AuthenticationErrorMessages.MfaSendSuccess(devMode) });
         }
 
         [HttpGet]
@@ -397,13 +590,13 @@ namespace AssetManagement.Web.Controllers
 
             ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
             ViewBag.EmailHint = _accountSecurityService.MaskEmail(user.Email);
-            if (!AuthFlowRateLimiter.TryAcquireMfaSend(userId))
+            if (!_authFlowRateLimiter.TryAcquireMfaSend(userId))
             {
-                ViewBag.MfaSendError = AuthFlowRateLimiter.MfaSendLimitMessage;
+                ViewBag.MfaSendError = AuthenticationErrorMessages.MfaSendRateLimited();
             }
             else if (!_accountSecurityService.SendMfaCode(userId))
             {
-                ViewBag.MfaSendError = "Could not send a verification code. Use Resend below or check SMTP configuration.";
+                ViewBag.MfaSendError = AuthenticationErrorMessages.MfaSendFailure();
             }
 
             ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
@@ -421,9 +614,9 @@ namespace AssetManagement.Web.Controllers
             }
 
             int minutesRemaining;
-            if (!AuthFlowRateLimiter.IsMfaVerifyAllowed(userId, out minutesRemaining))
+            if (!_authFlowRateLimiter.IsMfaVerifyAllowed(userId, out minutesRemaining))
             {
-                ModelState.AddModelError("", string.Format(AuthFlowRateLimiter.MfaVerifyLockoutMessage, minutesRemaining));
+                ModelState.AddModelError("", AuthenticationErrorMessages.MfaVerifyLockout(minutesRemaining));
                 ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
                 ViewBag.EmailHint = _accountSecurityService.MaskEmail(FindUserById(userId) != null ? FindUserById(userId).Email : null);
                 ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
@@ -432,15 +625,15 @@ namespace AssetManagement.Web.Controllers
 
             if (!_accountSecurityService.ValidateMfaCode(userId, code))
             {
-                AuthFlowRateLimiter.RecordMfaVerifyFailure(userId);
-                ModelState.AddModelError("", "Invalid or expired verification code.");
+                _authFlowRateLimiter.RecordMfaVerifyFailure(userId);
+                ModelState.AddModelError("", AuthenticationErrorMessages.MfaInvalidCode());
                 ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
                 ViewBag.EmailHint = _accountSecurityService.MaskEmail(FindUserById(userId) != null ? FindUserById(userId).Email : null);
                 ViewBag.MfaDevMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
                 return View("VerifyMfa");
             }
 
-            AuthFlowRateLimiter.ClearMfaVerifyFailures(userId);
+            _authFlowRateLimiter.ClearMfaVerifyFailures(userId);
             _accountSecurityService.ClearMfaCode(userId);
             Session.Remove("PendingMfaUserId");
             return IssueAuthCookieAndRedirect(
@@ -461,19 +654,20 @@ namespace AssetManagement.Web.Controllers
                 return Json(new { success = false, message = "Session expired." });
             }
 
-            if (!AuthFlowRateLimiter.TryAcquireMfaSend(userId))
+            if (!_authFlowRateLimiter.TryAcquireMfaSend(userId))
             {
                 Response.StatusCode = 429;
                 Response.TrySkipIisCustomErrors = true;
-                return Json(new { success = false, message = AuthFlowRateLimiter.MfaSendLimitMessage });
+                return Json(new { success = false, message = AuthenticationErrorMessages.MfaSendRateLimited() });
             }
 
             if (!_accountSecurityService.SendMfaCode(userId))
             {
-                return Json(new { success = false, message = "Could not resend verification code." });
+                return Json(new { success = false, message = AuthenticationErrorMessages.MfaResendServiceFailure() });
             }
 
-            return Json(new { success = true, message = "Verification code resent." });
+            var devMode = _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed();
+            return Json(new { success = true, message = AuthenticationErrorMessages.MfaResendSuccess(devMode) });
         }
 
         [Authorize]
@@ -505,7 +699,7 @@ namespace AssetManagement.Web.Controllers
             var actorName = User != null && User.Identity != null ? User.Identity.Name : null;
             ImpersonationSessionHelper.TryEndActiveImpersonation(Session, _unitOfWork, _auditWriter, actorName);
 
-            System.Web.Security.FormsAuthentication.SignOut();
+            AuthSessionHelper.SignOut(HttpContext);
             return RedirectToLogin(tenantSlug);
         }
 
@@ -579,9 +773,9 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
-            if (!AuthFlowRateLimiter.TryAcquireRegistration(HttpContext))
+            if (!_authFlowRateLimiter.TryAcquireRegistration(TenantUrlHelper.GetTenantToken(RouteData), AuthFlowClientAddressHelper.Resolve(HttpContext)))
             {
-                ModelState.AddModelError("", AuthFlowRateLimiter.RegistrationLimitMessage);
+                ModelState.AddModelError("", AuthenticationErrorMessages.RegistrationRateLimited());
                 return View(model);
             }
 
@@ -599,7 +793,11 @@ namespace AssetManagement.Web.Controllers
             var staffRoleId = ResolveStaffRoleId(organization.Id);
             if (!staffRoleId.HasValue)
             {
-                ModelState.AddModelError("", "Registration is unavailable because the Staff role is not configured.");
+                ModelState.AddModelError(
+                    "",
+                    AuthenticationErrorMessages.IsGenericAuthMessagesEnabled()
+                        ? AuthenticationErrorMessages.RegistrationFailure()
+                        : "Registration is unavailable because the Staff role is not configured.");
                 return View(model);
             }
 
@@ -616,9 +814,16 @@ namespace AssetManagement.Web.Controllers
             var result = _userAccountService.CreateUser(createRequest, model.Password);
             if (!result.Succeeded)
             {
-                foreach (var error in result.Errors)
+                if (AuthenticationErrorMessages.IsGenericAuthMessagesEnabled())
                 {
-                    ModelState.AddModelError("", error);
+                    ModelState.AddModelError("", AuthenticationErrorMessages.RegistrationFailure());
+                }
+                else
+                {
+                    foreach (var error in result.Errors)
+                    {
+                        ModelState.AddModelError("", error);
+                    }
                 }
 
                 return View(model);
@@ -653,7 +858,8 @@ namespace AssetManagement.Web.Controllers
 
             if (_accountSecurityService != null && _accountSecurityService.IsForgotPasswordRateLimited(clientIp))
             {
-                TempData["Message"] = "If that email is registered, a reset link has been sent.";
+                TempData["Message"] = AuthenticationErrorMessages.ForgotPasswordSuccess(
+                    _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed());
                 return RedirectToLogin(tenantSlug);
             }
 
@@ -663,13 +869,15 @@ namespace AssetManagement.Web.Controllers
             }
 
             _userAccountService.RequestPasswordReset(model.Email, tenantSlug);
-            TempData["Message"] = "If that email is registered, a reset link has been sent.";
+            TempData["Message"] = AuthenticationErrorMessages.ForgotPasswordSuccess(
+                _accountSecurityService != null && _accountSecurityService.IsMfaCodeValidationRelaxed());
 
             return RedirectToLogin(tenantSlug);
         }
 
         public ActionResult ResetPassword(string code, string email)
         {
+            ConfigureResetPasswordViewBag();
             return View(new ResetPasswordViewModel { Code = code, Email = email });
         }
 
@@ -677,6 +885,7 @@ namespace AssetManagement.Web.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult ResetPassword(ResetPasswordViewModel model)
         {
+            ConfigureResetPasswordViewBag();
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -688,28 +897,65 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
-            if (!AuthFlowRateLimiter.TryAcquireResetPasswordSubmit(HttpContext))
+            var policyErrors = _userAccountService.GetPasswordPolicyErrors(model.Password).ToList();
+            if (policyErrors.Count > 0)
             {
-                ModelState.AddModelError("", AuthFlowRateLimiter.ResetPasswordSubmitLimitMessage);
+                foreach (var error in policyErrors)
+                {
+                    ModelState.AddModelError("Password", error);
+                }
+
+                return View(model);
+            }
+
+            if (!_authFlowRateLimiter.TryAcquireResetPasswordSubmit(AuthFlowClientAddressHelper.Resolve(HttpContext)))
+            {
+                ModelState.AddModelError("", AuthenticationErrorMessages.ResetPasswordRateLimited());
                 return View(model);
             }
 
             int minutesRemaining;
-            if (!AuthFlowRateLimiter.IsResetPasswordAllowed(model.Email, model.Code, out minutesRemaining))
+            if (!_authFlowRateLimiter.IsResetPasswordAllowed(model.Email, model.Code, out minutesRemaining))
             {
-                ModelState.AddModelError("", string.Format(AuthFlowRateLimiter.ResetPasswordFailureLockoutMessage, minutesRemaining));
+                ModelState.AddModelError("", AuthenticationErrorMessages.ResetPasswordTokenLockout(minutesRemaining));
                 return View(model);
             }
 
-            if (_userAccountService.ResetPasswordWithToken(model.Email, model.Code, model.Password))
+            var tenantSlug = TenantUrlHelper.GetTenantToken(RouteData);
+            var resetResult = _userAccountService.ResetPasswordWithTokenDetailed(
+                model.Email,
+                model.Code,
+                model.Password,
+                tenantSlug);
+
+            if (resetResult.Succeeded)
             {
-                AuthFlowRateLimiter.ClearResetPasswordFailures(model.Email, model.Code);
+                _authFlowRateLimiter.ClearResetPasswordFailures(model.Email, model.Code);
                 TempData["Message"] = "Password reset successful.";
-                return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
+                return RedirectToLogin(tenantSlug);
             }
 
-            AuthFlowRateLimiter.RecordResetPasswordFailure(model.Email, model.Code);
-            ModelState.AddModelError("", "Password reset failed. Ensure the password meets complexity requirements.");
+            if (resetResult.FailureReason == PasswordResetFailureReason.PolicyViolation
+                && resetResult.PolicyErrors != null)
+            {
+                foreach (var error in resetResult.PolicyErrors)
+                {
+                    ModelState.AddModelError("Password", error);
+                }
+
+                _authFlowRateLimiter.RecordResetPasswordFailure(model.Email, model.Code);
+                return View(model);
+            }
+
+            if (resetResult.FailureReason == PasswordResetFailureReason.InvalidOrExpiredToken
+                || resetResult.FailureReason == PasswordResetFailureReason.UserNotFound)
+            {
+                ModelState.AddModelError("", AuthenticationErrorMessages.ResetPasswordInvalidToken());
+                return View(model);
+            }
+
+            _authFlowRateLimiter.RecordResetPasswordFailure(model.Email, model.Code);
+            ModelState.AddModelError("", AuthenticationErrorMessages.ResetPasswordFailure());
             return View(model);
         }
 
@@ -736,7 +982,7 @@ namespace AssetManagement.Web.Controllers
         {
             var safeReturnUrl = ParseReturnPathOrNull(returnUrl);
 
-            if (_accountSecurityService != null && _accountSecurityService.RequiresPrivilegedMfa(userId))
+            if (_accountSecurityService != null && _accountSecurityService.RequiresMfa(userId))
             {
                 var user = FindUserById(userId);
                 if (user != null && !user.TwoFactorEnabled)
@@ -760,8 +1006,31 @@ namespace AssetManagement.Web.Controllers
 
         private ActionResult IssueAuthCookieAndRedirect(string userId, string email, bool rememberMe, string returnUrl, string tenantSlug)
         {
-            var ticketUser = new ApplicationUser { Id = userId, Email = email };
-            CurrentUserExtensions.SetAuthCookie(Response, ticketUser, rememberMe);
+            var user = FindUserById(userId);
+            if (user == null)
+            {
+                TempData["Error"] = "Your account could not be loaded. Please sign in again.";
+                return RedirectToLogin(tenantSlug);
+            }
+
+            EnsureLoginAccessToken(user);
+
+            if (_accountSecurityService != null && _accountSecurityService.UserNeedsEmailVerification(userId))
+            {
+                _accountSecurityService.SendEmailVerificationCode(userId);
+                Session["PendingEmailVerificationUserId"] = userId;
+                Session["PendingEmailVerificationRememberMe"] = rememberMe;
+                Session["PendingEmailVerificationReturnUrl"] = returnUrl;
+                return RedirectToAction("VerifyEmail", new { tenant = tenantSlug });
+            }
+
+            if (user.RequirePasswordChange)
+            {
+                CurrentUserExtensions.SetAuthCookie(Response, user, rememberMe, Request.UserAgent, true);
+                return RedirectToAction("ChangePassword", new { tenant = tenantSlug });
+            }
+
+            CurrentUserExtensions.SetAuthCookie(Response, user, rememberMe, Request.UserAgent);
 
             if (string.IsNullOrWhiteSpace(tenantSlug))
             {
@@ -903,11 +1172,10 @@ namespace AssetManagement.Web.Controllers
                 return;
             }
 
-            var organization = _unitOfWork.Repository<Organization>().Query()
-                .FirstOrDefault(o => o.Slug != null && o.Slug.Equals(tenantSlug, System.StringComparison.OrdinalIgnoreCase));
+            var organization = TenantResolutionHelper.ResolveOrganization(_unitOfWork, tenantSlug);
             if (organization != null)
             {
-                ViewBag.OrganizationName = organization.Name;
+                ApplyTenantBrandingViewBag(organization);
                 ConfigureLicenseBanner(organization.Id);
             }
         }
@@ -946,8 +1214,19 @@ namespace AssetManagement.Web.Controllers
 
             if (organization != null)
             {
-                ViewBag.OrganizationName = organization.Name;
+                ApplyTenantBrandingViewBag(organization);
             }
+        }
+
+        private void ApplyTenantBrandingViewBag(Organization organization)
+        {
+            if (organization == null)
+            {
+                return;
+            }
+
+            ViewBag.OrganizationName = organization.Name;
+            ViewBag.OrganizationLogoUrl = OrganizationLogoHelper.GetLogoUrl(Url, organization.LogoPath);
         }
 
         private void ConfigureLicenseBanner(int organizationId)
@@ -971,22 +1250,14 @@ namespace AssetManagement.Web.Controllers
 
         private Organization ResolveTenantOrganization(string tenantSlug)
         {
-            if (string.IsNullOrWhiteSpace(tenantSlug))
-            {
-                return null;
-            }
-
-            return _unitOfWork.Repository<Organization>().Query()
-                .FirstOrDefault(o => o.IsActive
-                    && o.Slug != null
-                    && o.Slug.Equals(tenantSlug.Trim(), System.StringComparison.OrdinalIgnoreCase));
+            return TenantResolutionHelper.ResolveOrganization(_unitOfWork, tenantSlug);
         }
 
         private void ConfigureRegisterViewBag(Organization organization, string tenantSlug)
         {
             ViewBag.TenantToken = tenantSlug;
             ViewBag.IsTenantPortal = true;
-            ViewBag.OrganizationName = organization == null ? null : organization.Name;
+            ApplyTenantBrandingViewBag(organization);
             ViewBag.PasswordPolicyMessage = PasswordPolicy.GetPolicyMessage();
         }
 
@@ -1004,7 +1275,26 @@ namespace AssetManagement.Web.Controllers
             var organization = ResolveTenantOrganization(tenantSlug);
             if (organization != null)
             {
-                ViewBag.OrganizationName = organization.Name;
+                ApplyTenantBrandingViewBag(organization);
+            }
+        }
+
+        private void ConfigureResetPasswordViewBag()
+        {
+            var tenantSlug = TenantUrlHelper.GetTenantToken(RouteData);
+            ViewBag.TenantToken = tenantSlug;
+            ViewBag.IsTenantPortal = !string.IsNullOrWhiteSpace(tenantSlug);
+            ViewBag.PasswordPolicyMessage = PasswordPolicy.GetPolicyMessage();
+
+            if (string.IsNullOrWhiteSpace(tenantSlug))
+            {
+                return;
+            }
+
+            var organization = ResolveTenantOrganization(tenantSlug);
+            if (organization != null)
+            {
+                ApplyTenantBrandingViewBag(organization);
             }
         }
 
@@ -1036,51 +1326,6 @@ namespace AssetManagement.Web.Controllers
             return PlatformAdminHelper.IsPlatformAdmin(userId);
         }
 
-        private static string BuildInvalidLoginMessage(int remainingAttempts)
-        {
-            if (remainingAttempts > 1)
-            {
-                return "Invalid login attempt. " + remainingAttempts + " attempts remaining.";
-            }
-
-            if (remainingAttempts == 1)
-            {
-                return "Invalid login attempt. 1 attempt remaining before account lockout.";
-            }
-
-            return "Invalid login attempt. Account is now locked for 30 minutes.";
-        }
-
-        private string BuildLoginFailureMessage(string email, string tenantSlug, int remainingAttempts)
-        {
-            var message = BuildInvalidLoginMessage(remainingAttempts);
-            if (!string.IsNullOrWhiteSpace(tenantSlug) || string.IsNullOrWhiteSpace(email))
-            {
-                return message;
-            }
-
-            if (!DemoLoginEmailHelper.IsPlatformAdminEmail(email))
-            {
-                return message;
-            }
-
-            var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
-            if (connectionFactory == null)
-            {
-                return message;
-            }
-
-            var users = new UserAccountRepository(connectionFactory);
-            if (users.FindPlatformAdminByEmail(email.Trim()) != null)
-            {
-                return message + " Check that the password is P@ssw0rd! for demo accounts.";
-            }
-
-            return message
-                + " No platform administrator account exists yet. Run .\\unlock-logins.ps1 (or .\\initialize-database.ps1), then use superadmin@asset.local / P@ssw0rd! here."
-                + " Company admins must use their organization portal (for example /nanosoft/Account/Login with nanosoft@asset.local).";
-        }
-
         private int? ResolveOrganizationId(string tenantSlug)
         {
             if (string.IsNullOrWhiteSpace(tenantSlug))
@@ -1088,9 +1333,8 @@ namespace AssetManagement.Web.Controllers
                 return null;
             }
 
-            var org = _unitOfWork.Repository<Organization>().Query()
-                .FirstOrDefault(o => o.Slug != null && o.Slug.Equals(tenantSlug, System.StringComparison.OrdinalIgnoreCase));
-            return org == null ? (int?)null : org.Id;
+            var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+            return TenantResolutionHelper.ResolveOrganizationId(_unitOfWork, connectionFactory, tenantSlug);
         }
 
         private string GetClientIpAddress()
@@ -1131,6 +1375,94 @@ namespace AssetManagement.Web.Controllers
             {
                 model.OrganizationName = "Platform";
             }
+        }
+
+        [HttpGet]
+        public ActionResult DownloadAdminCredentials(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return new HttpStatusCodeResult(400, "Invalid token.");
+            }
+
+            var credential = _unitOfWork.Repository<TemporaryCredential>()
+                .Query()
+                .FirstOrDefault(x => x.Token == token);
+
+            if (credential == null)
+            {
+                return HttpNotFound();
+            }
+
+            if (credential.IsUsed)
+            {
+                return new HttpStatusCodeResult(410, "This security file has already been downloaded.");
+            }
+
+            if (credential.ExpiryDate < DateTime.UtcNow)
+            {
+                return new HttpStatusCodeResult(410, "This security file has expired.");
+            }
+
+            AdminCredentialsViewModel package;
+            try
+            {
+                var decrypted = EncryptionHelper.Decrypt(credential.EncryptedData);
+                package = JsonConvert.DeserializeObject<AdminCredentialsViewModel>(decrypted);
+            }
+            catch (Exception)
+            {
+                return new HttpStatusCodeResult(500, "Unable to decrypt credential package.");
+            }
+
+            if (package == null || string.IsNullOrWhiteSpace(package.AdminPassword))
+            {
+                return new HttpStatusCodeResult(500, "Invalid credential package.");
+            }
+
+            credential.IsUsed = true;
+            _unitOfWork.Repository<TemporaryCredential>().Update(credential);
+            _unitOfWork.SaveChanges();
+
+            var content = BuildAdminCredentialFileContent(package);
+            var bytes = Encoding.UTF8.GetBytes(content);
+            var fileName = SanitizeCredentialFileName(package.CompanyName) + "_Admin_Credentials.txt";
+            return File(bytes, "text/plain", fileName);
+        }
+
+        private static string BuildAdminCredentialFileContent(AdminCredentialsViewModel package)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("==============================================================");
+            sb.AppendLine("ASSET MANAGEMENT - SECURE ADMIN CREDENTIALS");
+            sb.AppendLine("==============================================================");
+            sb.AppendLine();
+            sb.AppendLine("Company Name      : " + (package.CompanyName ?? string.Empty));
+            sb.AppendLine("Login URL         : " + (package.CompanyUrl ?? string.Empty));
+            sb.AppendLine("Admin Username    : " + (package.AdminUsername ?? string.Empty));
+            sb.AppendLine("Temporary Password: " + (package.AdminPassword ?? string.Empty));
+            sb.AppendLine();
+            sb.AppendLine("IMPORTANT");
+            sb.AppendLine("- Store this file securely and do not share it broadly.");
+            sb.AppendLine("- The company admin must change this password on first sign-in.");
+            sb.AppendLine("- This download link is single-use and expires after one hour.");
+            sb.AppendLine("- Delete this file after the admin has signed in successfully.");
+            sb.AppendLine();
+            sb.AppendLine("Generated (UTC)   : " + DateTime.UtcNow.ToString("u"));
+            sb.AppendLine("==============================================================");
+            return sb.ToString();
+        }
+
+        private static string SanitizeCredentialFileName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return "Organization";
+            }
+
+            var invalid = System.IO.Path.GetInvalidFileNameChars();
+            var cleaned = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+            return string.IsNullOrWhiteSpace(cleaned) ? "Organization" : cleaned.Trim();
         }
     }
 }

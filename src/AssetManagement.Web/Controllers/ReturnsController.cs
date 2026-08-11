@@ -21,8 +21,13 @@ namespace AssetManagement.Web.Controllers
             _returnService = BuildReturnService();
         }
 
-        public ActionResult Wizard(int assetId)
+        public ActionResult Wizard(int? assetId)
         {
+            if (!assetId.HasValue)
+            {
+                return RedirectToMissingAsset();
+            }
+
             var result = Create(assetId);
             if (result is ViewResult)
             {
@@ -32,9 +37,14 @@ namespace AssetManagement.Web.Controllers
             return result;
         }
 
-        public ActionResult Create(int assetId)
+        public ActionResult Create(int? assetId)
         {
-            var asset = UnitOfWork.Repository<Asset>().GetById(assetId);
+            if (!assetId.HasValue)
+            {
+                return RedirectToMissingAsset();
+            }
+
+            var asset = UnitOfWork.Repository<Asset>().GetById(assetId.Value);
             if (asset == null)
             {
                 return HttpNotFound();
@@ -44,20 +54,26 @@ namespace AssetManagement.Web.Controllers
             if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
             {
                 TempData["Error"] = scopeError;
-                return RedirectToAssetDetails(assetId);
+                return RedirectToAssetDetails(assetId.Value);
             }
 
             var model = new AssetReturnVm
             {
-                AssetId = assetId,
+                AssetId = assetId.Value,
                 ReturnedById = ResolveReturningUserId(asset, null),
                 ReturnDate = DateTime.UtcNow,
                 ReturnCondition = asset.Condition.ToString()
             };
 
             PopulateLookups(model, asset);
-            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId);
+            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
             return View(model);
+        }
+
+        private ActionResult RedirectToMissingAsset()
+        {
+            TempData["Error"] = "Select an asset to return.";
+            return RedirectToAction("Index", "Assets");
         }
 
         [HttpPost]
@@ -88,7 +104,8 @@ namespace AssetManagement.Web.Controllers
             }
 
             var receiveDepartmentId = asset.DepartmentId > 0 ? (int?)asset.DepartmentId : null;
-            if (!ValidateUserBelongsToDepartment(viewModel.ReceivedById, receiveDepartmentId))
+            if (!string.IsNullOrWhiteSpace(viewModel.ReceivedById)
+                && !ValidateUserBelongsToDepartment(viewModel.ReceivedById, receiveDepartmentId))
             {
                 ModelState.AddModelError("ReceivedById", "Receiving user must belong to the asset's department.");
             }

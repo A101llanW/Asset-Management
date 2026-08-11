@@ -7,7 +7,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Edit Role",
-    Subtitle = "Update permissions so users can submit or approve requisitions and asset requests as intended. Stage roles are configured under Settings &rarr; Approval Matrix.",
+    Subtitle = "Update module permissions so users can submit or approve requisitions and asset requests as intended.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -40,38 +40,7 @@
         </div>
     </div>
 
-    <div class="card card-kpi mb-3">
-        <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <h5 class="mb-0">Permission Matrix</h5>
-                <button type="button" class="btn btn-outline-secondary btn-sm js-select-all-permissions">Select all</button>
-            </div>
-            <p class="text-muted small mb-3">For requisitions: <strong>Department Head</strong> needs <code>Purchases.Create</code>; the approval stage role (typically <strong>Procurement Officer</strong>) needs <code>Purchases.Approve</code>. In-store requests use <code>Assets.Request</code> and <code>Assets.Request.Approve</code> instead of the approval matrix.</p>
-            @foreach (var group in Model.PermissionGroups)
-            {
-                <div class="border rounded p-3 mb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <strong>@group.Module</strong>
-                        <label class="form-check-label small">
-                            <input type="checkbox" class="form-check-input js-select-all-module" data-module="@group.Module" /> Select all
-                        </label>
-                    </div>
-                    <div class="row mt-2">
-                        @foreach (var permission in group.Permissions)
-                        {
-                            var isChecked = Model.SelectedPermissionIds.Contains(permission.Id);
-                            <div class="col-md-4">
-                                <label class="form-check-label" title="@permission.Code">
-                                    <input type="checkbox" name="SelectedPermissionIds" value="@permission.Id" data-module-item="@group.Module" class="form-check-input js-permission-checkbox" @(isChecked ? "checked=\"checked\"" : null) />
-                                    @PermissionHtmlHelpers.ToFriendlyPermissionLabel(permission.Code, permission.Name)
-                                </label>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
+    @Html.Partial("_RolePermissionMatrix", Model)
 
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {

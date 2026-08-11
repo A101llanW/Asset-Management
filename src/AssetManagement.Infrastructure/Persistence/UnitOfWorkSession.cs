@@ -532,6 +532,32 @@ namespace AssetManagement.Infrastructure.Persistence
 
 
 
+        public void ClearTracking()
+
+        {
+
+            _trackedByType.Clear();
+
+            foreach (var repository in _repositories.Values)
+
+            {
+
+                var resetMethod = repository.GetType().GetMethod("ResetQueryCache");
+
+                if (resetMethod != null)
+
+                {
+
+                    resetMethod.Invoke(repository, null);
+
+                }
+
+            }
+
+        }
+
+
+
         private void ApplyAuditFields(object entity, TrackedEntityState state, DateTime utcNow)
 
         {

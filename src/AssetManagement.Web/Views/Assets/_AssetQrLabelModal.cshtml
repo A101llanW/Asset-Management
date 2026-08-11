@@ -10,8 +10,10 @@
                 <div class="am-asset-label-sheet am-asset-label-sheet--modal">
                     @Html.Partial("_AssetLabelContent", Model)
                 </div>
+                @Html.Partial("_AssetLabelPrinterStatus")
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-success d-none" data-am-asset-label-zebra-print="true" data-asset-id="@Model.AssetId" data-config-url="@Url.Action("LabelPrintConfig", new { id = Model.AssetId })">Print to Zebra</button>
                 <button type="button" class="btn btn-primary" data-am-asset-label-print="true">Print label</button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
             </div>

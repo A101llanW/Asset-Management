@@ -10,6 +10,10 @@ namespace AssetManagement.Application.Contracts.Security
 
         void SetOrganizationFilterOverride(int? organizationId);
 
+        void SetPlatformAdminOverride(bool isPlatformAdmin);
+
+        void SetCompanyAdminOverride(bool isCompanyAdmin);
+
         bool IsImpersonating();
 
         bool IsPlatformAdmin();

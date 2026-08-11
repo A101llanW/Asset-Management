@@ -7,9 +7,15 @@ namespace AssetManagement.Application.Contracts
     {
         IEnumerable<DepartmentVm> GetAll();
 
+        IEnumerable<DepartmentVm> GetRequisitionTargets();
+
+        IEnumerable<DepartmentTreeSectionVm> GetTreeSections();
+
         DepartmentVm GetById(int id);
 
         int Create(DepartmentVm model);
+
+        int CreateFromWizard(DepartmentCreateVm model);
 
         void Update(DepartmentVm model);
     }

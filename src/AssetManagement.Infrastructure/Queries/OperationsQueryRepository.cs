@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using AssetManagement.Application.Contracts.Queries;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Infrastructure.Persistence;
@@ -19,7 +20,6 @@ SELECT
     p.[RequestedById],
     p.[ApprovalStatus],
     p.[CreatedAt],
-    p.[EstimatedUnitCost],
     p.[Quantity],
     p.[Currency],
     p.[ItemDescription]
@@ -84,7 +84,6 @@ ORDER BY pr.[PurchaseDate] DESC, pr.[Id] DESC";
                                 RequestedById = SqlQueryHelper.GetString(reader, "RequestedById"),
                                 ApprovalStatus = ((ApprovalStatus)Convert.ToInt32(reader["ApprovalStatus"])).ToString(),
                                 CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
-                                EstimatedUnitCost = Convert.ToDecimal(reader["EstimatedUnitCost"]),
                                 Quantity = Convert.ToInt32(reader["Quantity"]),
                                 Currency = SqlQueryHelper.GetString(reader, "Currency"),
                                 ItemDescription = SqlQueryHelper.GetString(reader, "ItemDescription")
@@ -336,36 +335,30 @@ WHERE aa.[OrganizationId] = @OrganizationId
             return items;
         }
 
-        public bool ExistsActiveAssetTag(int organizationId, string assetTag)
-        {
-            if (string.IsNullOrWhiteSpace(assetTag))
-            {
-                return false;
-            }
-
-            return ExistsActiveAssetField(organizationId, "AssetTag", assetTag.Trim());
-        }
-
-        public bool ExistsActiveSerialNumber(int organizationId, string serialNumber)
+        public bool ExistsActiveSerialNumber(int organizationId, string serialNumber, int? excludeAssetId = null)
         {
             if (string.IsNullOrWhiteSpace(serialNumber))
             {
                 return false;
             }
 
-            return ExistsActiveAssetField(organizationId, "SerialNumber", serialNumber.Trim());
-        }
-
-        private bool ExistsActiveAssetField(int organizationId, string columnName, string value)
-        {
             using (var connection = _connectionFactory.CreateConnection())
             {
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = "SELECT COUNT(*) FROM [Asset] WHERE [OrganizationId]=@OrganizationId AND [IsActive]=1 AND [" + columnName + "]=@Value";
+                    command.CommandText = @"
+SELECT COUNT(*) FROM [Asset]
+WHERE [OrganizationId]=@OrganizationId
+  AND [IsActive]=1
+  AND [SerialNumber]=@Value
+  AND (@ExcludeAssetId IS NULL OR [Id]<>@ExcludeAssetId)";
                     SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
-                    SqlQueryHelper.AddParameter(command, "@Value", value);
+                    SqlQueryHelper.AddParameter(command, "@Value", serialNumber.Trim());
+                    SqlQueryHelper.AddParameter(
+                        command,
+                        "@ExcludeAssetId",
+                        excludeAssetId.HasValue ? (object)excludeAssetId.Value : DBNull.Value);
                     return Convert.ToInt32(command.ExecuteScalar()) > 0;
                 }
             }
@@ -563,6 +556,504 @@ WHERE aa.[OrganizationId] = @OrganizationId
                 default:
                     return desc ? "aa.[AssignedDate] DESC, aa.[Id] DESC" : "aa.[AssignedDate] ASC, aa.[Id] ASC";
             }
+        }
+
+        public PagedListVm<PurchaseRequestListItemVm> GetPurchaseRequestListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var safePageSize = ListPageHelper.NormalizePageSize(pageSize);
+            var whereClause = BuildPurchaseRequestWhereClause(search);
+            var orderBy = BuildPurchaseRequestOrderBy(sort, direction);
+            var fromClause = @"
+FROM [PurchaseRequest] p
+LEFT JOIN [Department] d ON d.[Id] = p.[DepartmentId]
+WHERE p.[OrganizationId] = @OrganizationId
+  AND p.[IsActive] = 1
+  AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND p.[DepartmentId] = @DepartmentId))";
+
+            var totalCount = CountPurchaseRequests(fromClause + whereClause, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search);
+            int safePage;
+            var skip = ListPageHelper.ComputeSkip(page, safePageSize, totalCount, out safePage);
+
+            var items = new List<PurchaseRequestListItemVm>();
+            var sql = @"
+SELECT
+    p.[Id],
+    p.[RequestNumber],
+    p.[DepartmentId],
+    d.[Name] AS DepartmentName,
+    p.[RequestedById],
+    p.[ApprovalStatus],
+    p.[CreatedAt],
+    p.[Quantity],
+    p.[Currency],
+    p.[ItemDescription]"
+                + fromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    AddPurchaseRequestScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search);
+                    SqlQueryHelper.AddParameter(command, "@Skip", skip);
+                    SqlQueryHelper.AddParameter(command, "@Take", safePageSize);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            items.Add(MapPurchaseRequest(reader));
+                        }
+                    }
+                }
+            }
+
+            return BuildPagedResult(items, totalCount, search, sort, direction, safePage, safePageSize);
+        }
+
+        public PagedListVm<PurchaseRecordVm> GetPurchaseRecordListPage(
+            int organizationId,
+            string search,
+            int? supplierId,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            var safePageSize = ListPageHelper.NormalizePageSize(pageSize);
+            var whereClause = BuildPurchaseRecordWhereClause(search, supplierId);
+            var orderBy = BuildPurchaseRecordOrderBy(sort, direction);
+            var fromClause = @"
+FROM [PurchaseRecord] pr
+INNER JOIN [Supplier] s ON s.[Id] = pr.[SupplierId]
+WHERE pr.[OrganizationId] = @OrganizationId
+  AND pr.[IsActive] = 1";
+
+            var totalCount = CountPurchaseRecords(fromClause + whereClause, organizationId, search, supplierId);
+            int safePage;
+            var skip = ListPageHelper.ComputeSkip(page, safePageSize, totalCount, out safePage);
+
+            var items = new List<PurchaseRecordVm>();
+            var sql = @"
+SELECT
+    pr.[Id],
+    pr.[PurchaseRequestId],
+    pr.[PurchaseOrderNumber],
+    pr.[SupplierId],
+    s.[SupplierName],
+    pr.[InvoiceNumber],
+    pr.[PurchaseDate],
+    pr.[Quantity],
+    pr.[UnitCost],
+    pr.[TotalCost],
+    pr.[Currency]"
+                + fromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    AddPurchaseRecordFilterParameters(command, organizationId, search, supplierId);
+                    SqlQueryHelper.AddParameter(command, "@Skip", skip);
+                    SqlQueryHelper.AddParameter(command, "@Take", safePageSize);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            items.Add(new PurchaseRecordVm
+                            {
+                                Id = Convert.ToInt32(reader["Id"]),
+                                PurchaseRequestId = reader["PurchaseRequestId"] == DBNull.Value
+                                    ? (int?)null
+                                    : Convert.ToInt32(reader["PurchaseRequestId"]),
+                                PurchaseOrderNumber = SqlQueryHelper.GetString(reader, "PurchaseOrderNumber"),
+                                SupplierId = Convert.ToInt32(reader["SupplierId"]),
+                                SupplierName = SqlQueryHelper.GetString(reader, "SupplierName"),
+                                InvoiceNumber = SqlQueryHelper.GetString(reader, "InvoiceNumber"),
+                                PurchaseDate = Convert.ToDateTime(reader["PurchaseDate"]),
+                                Quantity = Convert.ToInt32(reader["Quantity"]),
+                                UnitCost = Convert.ToDecimal(reader["UnitCost"]),
+                                TotalCost = Convert.ToDecimal(reader["TotalCost"]),
+                                Currency = SqlQueryHelper.GetString(reader, "Currency")
+                            });
+                        }
+                    }
+                }
+            }
+
+            return BuildPagedResult(items, totalCount, search, sort, direction, safePage, safePageSize);
+        }
+
+        public PagedListVm<IncidentListVm> GetIncidentListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int page,
+            int pageSize)
+        {
+            var safePageSize = ListPageHelper.NormalizePageSize(pageSize);
+            var whereClause = BuildAssetLinkedWhereClause(true, search, assetId);
+            var fromClause = @"
+FROM [AssetIncident] i
+INNER JOIN [Asset] a ON a.[Id] = i.[AssetId]
+WHERE a.[OrganizationId] = @OrganizationId
+  AND a.[IsActive] = 1
+  AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a");
+
+            var totalCount = CountAssetLinked(fromClause + whereClause, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search, assetId);
+            int safePage;
+            var skip = ListPageHelper.ComputeSkip(page, safePageSize, totalCount, out safePage);
+
+            var sql = @"
+SELECT
+    i.[Id],
+    i.[IncidentNumber],
+    i.[AssetId],
+    a.[AssetTag],
+    a.[AssetName],
+    i.[IncidentType],
+    i.[Severity],
+    i.[IncidentDate],
+    i.[ResolutionStatus]"
+                + fromClause + whereClause + " ORDER BY i.[IncidentDate] DESC, i.[Id] DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+            var items = new List<IncidentListVm>();
+            ExecuteAssetLinkedQuery(sql, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search, assetId, skip, safePageSize, reader =>
+            {
+                while (reader.Read())
+                {
+                    items.Add(new IncidentListVm
+                    {
+                        Id = Convert.ToInt32(reader["Id"]),
+                        IncidentNumber = SqlQueryHelper.GetString(reader, "IncidentNumber"),
+                        AssetId = Convert.ToInt32(reader["AssetId"]),
+                        AssetTag = SqlQueryHelper.GetString(reader, "AssetTag"),
+                        AssetName = SqlQueryHelper.GetString(reader, "AssetName"),
+                        IncidentType = ((IncidentType)Convert.ToInt32(reader["IncidentType"])).ToString(),
+                        Severity = (IncidentSeverity)Convert.ToInt32(reader["Severity"]),
+                        IncidentDate = Convert.ToDateTime(reader["IncidentDate"]),
+                        ResolutionStatus = SqlQueryHelper.GetString(reader, "ResolutionStatus")
+                    });
+                }
+            });
+
+            return BuildPagedResult(items, totalCount, search, null, "desc", safePage, safePageSize);
+        }
+
+        public PagedListVm<ClaimListVm> GetClaimListPage(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int page,
+            int pageSize)
+        {
+            var safePageSize = ListPageHelper.NormalizePageSize(pageSize);
+            var whereClause = BuildAssetLinkedWhereClause(false, search, assetId);
+            var fromClause = @"
+FROM [InsuranceClaim] c
+INNER JOIN [Asset] a ON a.[Id] = c.[AssetId]
+WHERE a.[OrganizationId] = @OrganizationId
+  AND a.[IsActive] = 1
+  AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a");
+
+            var totalCount = CountAssetLinked(fromClause + whereClause, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search, assetId);
+            int safePage;
+            var skip = ListPageHelper.ComputeSkip(page, safePageSize, totalCount, out safePage);
+
+            var sql = @"
+SELECT
+    c.[Id],
+    c.[ClaimNumber],
+    c.[AssetId],
+    a.[AssetTag],
+    a.[AssetName],
+    c.[ClaimType],
+    c.[Insurer],
+    c.[ClaimStatus],
+    c.[ClaimDate]"
+                + fromClause + whereClause + " ORDER BY c.[ClaimDate] DESC, c.[Id] DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+            var claims = new List<ClaimListVm>();
+            ExecuteAssetLinkedQuery(sql, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search, assetId, skip, safePageSize, reader =>
+            {
+                while (reader.Read())
+                {
+                    claims.Add(new ClaimListVm
+                    {
+                        Id = Convert.ToInt32(reader["Id"]),
+                        ClaimNumber = SqlQueryHelper.GetString(reader, "ClaimNumber"),
+                        AssetId = Convert.ToInt32(reader["AssetId"]),
+                        AssetTag = SqlQueryHelper.GetString(reader, "AssetTag"),
+                        AssetName = SqlQueryHelper.GetString(reader, "AssetName"),
+                        ClaimType = SqlQueryHelper.GetString(reader, "ClaimType"),
+                        Insurer = SqlQueryHelper.GetString(reader, "Insurer"),
+                        ClaimStatus = (ClaimStatus)Convert.ToInt32(reader["ClaimStatus"]),
+                        ClaimDate = Convert.ToDateTime(reader["ClaimDate"])
+                    });
+                }
+            });
+
+            return BuildPagedResult(claims, totalCount, search, null, "desc", safePage, safePageSize);
+        }
+
+        private static string BuildPurchaseRequestWhereClause(string search)
+        {
+            return string.IsNullOrWhiteSpace(search)
+                ? string.Empty
+                : " AND (LOWER(p.[RequestNumber]) LIKE LOWER(@SearchPattern)"
+                  + " OR LOWER(ISNULL(p.[ItemDescription], N'')) LIKE LOWER(@SearchPattern)"
+                  + " OR LOWER(ISNULL(d.[Name], N'')) LIKE LOWER(@SearchPattern))";
+        }
+
+        private static string BuildPurchaseRequestOrderBy(string sort, string direction)
+        {
+            var desc = ListPageHelper.NormalizeDirection(direction) == "desc";
+            switch ((sort ?? string.Empty).ToLowerInvariant())
+            {
+                case "department":
+                    return desc ? "d.[Name] DESC, p.[Id] DESC" : "d.[Name] ASC, p.[Id] ASC";
+                case "status":
+                    return desc ? "p.[ApprovalStatus] DESC, p.[Id] DESC" : "p.[ApprovalStatus] ASC, p.[Id] ASC";
+                default:
+                    return desc ? "p.[CreatedAt] DESC, p.[Id] DESC" : "p.[CreatedAt] ASC, p.[Id] ASC";
+            }
+        }
+
+        private static string BuildPurchaseRecordWhereClause(string search, int? supplierId)
+        {
+            var clauses = string.Empty;
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                clauses += " AND (LOWER(pr.[PurchaseOrderNumber]) LIKE LOWER(@SearchPattern)"
+                    + " OR LOWER(ISNULL(pr.[InvoiceNumber], N'')) LIKE LOWER(@SearchPattern)"
+                    + " OR LOWER(ISNULL(s.[SupplierName], N'')) LIKE LOWER(@SearchPattern))";
+            }
+
+            if (supplierId.HasValue)
+            {
+                clauses += " AND pr.[SupplierId] = @SupplierId";
+            }
+
+            return clauses;
+        }
+
+        private static string BuildPurchaseRecordOrderBy(string sort, string direction)
+        {
+            var desc = ListPageHelper.NormalizeDirection(direction) == "desc";
+            switch ((sort ?? string.Empty).ToLowerInvariant())
+            {
+                case "supplier":
+                    return desc ? "s.[SupplierName] DESC, pr.[Id] DESC" : "s.[SupplierName] ASC, pr.[Id] ASC";
+                case "total":
+                    return desc ? "pr.[TotalCost] DESC, pr.[Id] DESC" : "pr.[TotalCost] ASC, pr.[Id] ASC";
+                default:
+                    return desc ? "pr.[PurchaseDate] DESC, pr.[Id] DESC" : "pr.[PurchaseDate] ASC, pr.[Id] ASC";
+            }
+        }
+
+        private static string BuildAssetLinkedWhereClause(bool isIncident, string search, int? assetId)
+        {
+            var clauses = string.Empty;
+            if (assetId.HasValue)
+            {
+                clauses += " AND a.[Id] = @AssetId";
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                if (isIncident)
+                {
+                    clauses += " AND (LOWER(a.[AssetTag]) LIKE LOWER(@SearchPattern)"
+                        + " OR LOWER(ISNULL(a.[AssetName], N'')) LIKE LOWER(@SearchPattern)"
+                        + " OR LOWER(ISNULL(i.[IncidentNumber], N'')) LIKE LOWER(@SearchPattern)"
+                        + " OR LOWER(ISNULL(i.[Description], N'')) LIKE LOWER(@SearchPattern))";
+                }
+                else
+                {
+                    clauses += " AND (LOWER(a.[AssetTag]) LIKE LOWER(@SearchPattern)"
+                        + " OR LOWER(ISNULL(a.[AssetName], N'')) LIKE LOWER(@SearchPattern)"
+                        + " OR LOWER(ISNULL(c.[ClaimNumber], N'')) LIKE LOWER(@SearchPattern)"
+                        + " OR LOWER(ISNULL(c.[Insurer], N'')) LIKE LOWER(@SearchPattern))";
+                }
+            }
+
+            return clauses;
+        }
+
+        private int CountPurchaseRequests(
+            string sql,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT COUNT(*)" + sql;
+                    AddPurchaseRequestScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search);
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+        }
+
+        private int CountPurchaseRecords(string sql, int organizationId, string search, int? supplierId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT COUNT(*)" + sql;
+                    AddPurchaseRecordFilterParameters(command, organizationId, search, supplierId);
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+        }
+
+        private int CountAssetLinked(
+            string sql,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT COUNT(*)" + sql;
+                    AddAssetLinkedParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search, assetId);
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+        }
+
+        private void ExecuteAssetLinkedQuery(
+            string sql,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId,
+            int skip,
+            int take,
+            Action<IDataReader> read)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    AddAssetLinkedParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search, assetId);
+                    SqlQueryHelper.AddParameter(command, "@Skip", skip);
+                    SqlQueryHelper.AddParameter(command, "@Take", take);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        read(reader);
+                    }
+                }
+            }
+        }
+
+        private static void AddPurchaseRequestScopeParameters(
+            IDbCommand command,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search)
+        {
+            SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+            SqlQueryHelper.AddDepartmentScopeParameters(command, bypassDepartmentScope, denyDepartmentScope, departmentId);
+            SqlQueryHelper.AddParameter(command, "@SearchPattern",
+                string.IsNullOrWhiteSpace(search) ? DBNull.Value : (object)SqlQueryHelper.BuildContainsPattern(search));
+        }
+
+        private static void AddPurchaseRecordFilterParameters(IDbCommand command, int organizationId, string search, int? supplierId)
+        {
+            SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+            SqlQueryHelper.AddParameter(command, "@SearchPattern",
+                string.IsNullOrWhiteSpace(search) ? DBNull.Value : (object)SqlQueryHelper.BuildContainsPattern(search));
+            SqlQueryHelper.AddParameter(command, "@SupplierId", supplierId.HasValue ? (object)supplierId.Value : DBNull.Value);
+        }
+
+        private static void AddAssetLinkedParameters(
+            IDbCommand command,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string search,
+            int? assetId)
+        {
+            SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+            SqlQueryHelper.AddDepartmentScopeParameters(command, bypassDepartmentScope, denyDepartmentScope, departmentId);
+            SqlQueryHelper.AddParameter(command, "@SearchPattern",
+                string.IsNullOrWhiteSpace(search) ? DBNull.Value : (object)SqlQueryHelper.BuildContainsPattern(search));
+            SqlQueryHelper.AddParameter(command, "@AssetId", assetId.HasValue ? (object)assetId.Value : DBNull.Value);
+        }
+
+        private static PurchaseRequestListItemVm MapPurchaseRequest(IDataRecord reader)
+        {
+            return new PurchaseRequestListItemVm
+            {
+                Id = Convert.ToInt32(reader["Id"]),
+                RequestNumber = SqlQueryHelper.GetString(reader, "RequestNumber"),
+                DepartmentName = SqlQueryHelper.GetString(reader, "DepartmentName"),
+                RequestedById = SqlQueryHelper.GetString(reader, "RequestedById"),
+                ApprovalStatus = ((ApprovalStatus)Convert.ToInt32(reader["ApprovalStatus"])).ToString(),
+                CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
+                Quantity = Convert.ToInt32(reader["Quantity"]),
+                Currency = SqlQueryHelper.GetString(reader, "Currency"),
+                ItemDescription = SqlQueryHelper.GetString(reader, "ItemDescription")
+            };
+        }
+
+        private static PagedListVm<T> BuildPagedResult<T>(
+            IList<T> items,
+            int totalCount,
+            string search,
+            string sort,
+            string direction,
+            int page,
+            int pageSize)
+        {
+            return new PagedListVm<T>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Search = search,
+                Sort = sort,
+                Direction = ListPageHelper.NormalizeDirection(direction),
+                Page = page,
+                PageSize = pageSize
+            };
         }
     }
 }
