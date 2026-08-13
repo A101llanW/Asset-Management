@@ -1,0 +1,20 @@
+---
+description: Remove dev security diagnostics before production deployment
+alwaysApply: true
+---
+
+# Production — remove dev security diagnostics
+
+Before hosting for production (leaving local development), remove:
+
+1. **File:** `src/AssetManagement.Web/App_Data/dev-security-output.log` (and any copy on the server under `App_Data/`)
+2. **Related code:** `SecurityDiagnostics` and its call sites
+
+`SecurityDiagnostics` (`src/AssetManagement.Infrastructure/Security/SecurityDiagnostics.cs`) logs MFA codes, password-reset links, and MFA bypass notices to Trace/Debug and `App_Data/dev-security-output.log` when `MfaAllowAnyCode=true`. That is acceptable for local dev only; it must not ship to production.
+
+**Call sites to remove or gate off for Release:**
+
+- `AccountSecurityService.cs` — `LogOneTimeCode`, `LogMfaDevBypass`
+- `MembershipService.cs` — `LogPasswordResetLink`
+
+**Production checklist item:** After Release publish, confirm `dev-security-output.log` is absent and `SecurityDiagnostics` file logging is disabled or the class is removed entirely.

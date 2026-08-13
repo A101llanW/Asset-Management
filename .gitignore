@@ -47,10 +47,18 @@ e2e/.cache/
 src/AssetManagement.Web/Web.config.e2e-backup
 src/AssetManagement.Web/connectionStrings.config
 src/AssetManagement.Web/machineKey.config
+src/AssetManagement.Web/smtp.secrets.config
 
 
-#Ignore cursor AI rules
-.cursor\rules\codacy.mdc
+# Cursor — commit cloud agent config; keep local-only artifacts out of repo
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/environment.json
+!.cursor/skills/
+!.cursor/skills/**
+!.cursor/hooks.json
+.cursor/rules/codacy.mdc
+.cursor/plans/
 .codacy/
-.cursor/
 
