@@ -19,10 +19,10 @@ fi
 if ! locale -a 2>/dev/null | grep -qi 'en_KE'; then
   if [ -f /etc/locale.gen ] && grep -q '# en_KE.UTF-8' /etc/locale.gen; then
     sudo sed -i 's/# en_KE.UTF-8 UTF-8/en_KE.UTF-8 UTF-8/' /etc/locale.gen
-  else
+  elif [ -f /etc/locale.gen ] && ! grep -q 'en_KE.UTF-8' /etc/locale.gen; then
     echo 'en_KE.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
   fi
-  sudo locale-gen en_KE.UTF-8
+  sudo locale-gen en_KE.UTF-8 2>/dev/null || true
 fi
 
 NUNIT_DIR="$ROOT/.tools/nunit"

@@ -10,7 +10,15 @@ namespace AssetManagement.Application.Helpers
 
         private static CultureInfo CreateDisplayCulture()
         {
-            return (CultureInfo)CultureInfo.GetCultureInfo("en-KE").Clone();
+            try
+            {
+                return (CultureInfo)CultureInfo.GetCultureInfo("en-KE").Clone();
+            }
+            catch (CultureNotFoundException)
+            {
+                // Linux/Mono and minimal server images may not ship en-KE; number format matches for N2.
+                return (CultureInfo)CultureInfo.GetCultureInfo("en-US").Clone();
+            }
         }
 
         public static string Format(decimal amount)

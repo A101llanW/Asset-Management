@@ -15,7 +15,7 @@ if [ ! -f "$NUNIT_CONSOLE" ]; then
   exit 1
 fi
 
-export LC_ALL=en_KE.UTF-8
-export LANG=en_KE.UTF-8
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+export LANG="${LANG:-en_US.UTF-8}"
 
 mono "$NUNIT_CONSOLE" "$TEST_DLL" -labels
