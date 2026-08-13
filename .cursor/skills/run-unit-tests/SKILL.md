@@ -7,6 +7,14 @@ description: Run NUnit unit tests for CodexAsset after C# changes. Use when impl
 
 From repo root:
 
+**Linux (Cursor Cloud):**
+
+```bash
+bash tools/ci/run-cloud-unit-tests.sh
+```
+
+**Windows (local / CI):**
+
 ```bash
 dotnet restore tests/AssetManagement.Tests/AssetManagement.Tests.csproj
 dotnet build tests/AssetManagement.Tests/AssetManagement.Tests.csproj -c Release

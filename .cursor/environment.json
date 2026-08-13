@@ -1,6 +1,6 @@
 {
   "name": "codexasset-linux",
-  "install": "set -euo pipefail && curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb && sudo dpkg -i /tmp/packages-microsoft-prod.deb && sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0 && dotnet restore tests/AssetManagement.Tests/AssetManagement.Tests.csproj && dotnet build tests/AssetManagement.Tests/AssetManagement.Tests.csproj -c Release",
-  "start": "echo 'CodexAsset: Web/IIS not available on Linux; use dotnet test for verification.'",
+  "install": "bash tools/ci/setup-cloud-environment.sh",
+  "start": "echo 'CodexAsset: Web/IIS not available on Linux; run tools/ci/run-cloud-unit-tests.sh to verify C# changes.'",
   "terminals": []
 }

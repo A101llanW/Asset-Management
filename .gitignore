@@ -17,6 +17,7 @@ src/AssetManagement.Web/App_Data/Attachments/
 
 # Local build/publish scratch
 .build/
+.tools/
 
 # E2E temp artifacts
 e2e/.tmp/

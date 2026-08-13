@@ -14,12 +14,20 @@ Do **not** expect to build `AssetManagement.Web` or run Playwright E2E in the cl
 
 ### Verify changes (cloud)
 
+Cloud VMs run Ubuntu. Tests target **net40**, so `dotnet test` does not work on Linux — use Mono + NUnit 2.x instead.
+
 After C# changes in Domain, Application, Infrastructure, or Tests:
 
 ```bash
-dotnet restore tests/AssetManagement.Tests/AssetManagement.Tests.csproj
-dotnet build tests/AssetManagement.Tests/AssetManagement.Tests.csproj -c Release
-dotnet test tests/AssetManagement.Tests/AssetManagement.Tests.csproj -c Release --no-build
+bash tools/ci/run-cloud-unit-tests.sh
+```
+
+This restores, builds, and runs all unit tests via `mono` and the NUnit 2.6.4 console runner. The cloud environment install script (`tools/ci/setup-cloud-environment.sh`) installs .NET SDK 8, Mono, `en-KE` locale data, and the NUnit runner.
+
+On **Windows** (local or CI), use:
+
+```bash
+dotnet test tests/AssetManagement.Tests/AssetManagement.Tests.csproj -c Release
 ```
 
 Full solution build and web UI verification happen on **Windows CI** (`.github/workflows/build.yml`).
