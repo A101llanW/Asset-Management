@@ -96,7 +96,6 @@ namespace AssetManagement.Infrastructure.Services
             {
                 IsValid = true,
                 Email = invitation.Email,
-                EmailLocked = !string.IsNullOrWhiteSpace(invitation.Email),
                 OrganizationName = null
             };
         }
@@ -113,17 +112,6 @@ namespace AssetManagement.Infrastructure.Services
             if (invitation == null || invitation.OrganizationId != request.OrganizationId)
             {
                 return InvalidTokenResult();
-            }
-
-            if (!string.IsNullOrWhiteSpace(invitation.Email)
-                && !string.Equals(invitation.Email.Trim(), (request.Email ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase))
-            {
-                return new UserInvitationAcceptResult
-                {
-                    Succeeded = false,
-                    FailureReason = UserInvitationAcceptFailureReason.EmailMismatch,
-                    Errors = new[] { "This invitation is for a different email address." }
-                };
             }
 
             var policyErrors = _userAccountService.GetPasswordPolicyErrors(request.Password).ToList();

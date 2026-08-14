@@ -870,8 +870,7 @@ namespace AssetManagement.Web.Controllers
             return View(new AcceptInviteViewModel
             {
                 Code = code,
-                Email = validation.Email,
-                EmailLocked = validation.EmailLocked
+                Email = validation.Email
             });
         }
 
@@ -931,16 +930,6 @@ namespace AssetManagement.Web.Controllers
                 if (result.FailureReason == UserInvitationAcceptFailureReason.InvalidOrExpiredToken)
                 {
                     ModelState.AddModelError("", AuthenticationErrorMessages.InviteAcceptInvalidToken());
-                    return View(model);
-                }
-
-                if (result.FailureReason == UserInvitationAcceptFailureReason.EmailMismatch)
-                {
-                    foreach (var error in result.Errors ?? new string[0])
-                    {
-                        ModelState.AddModelError("", error);
-                    }
-
                     return View(model);
                 }
 

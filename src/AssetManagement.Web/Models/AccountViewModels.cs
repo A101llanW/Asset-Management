@@ -82,8 +82,6 @@ namespace AssetManagement.Web.Models
     {
         public string Code { get; set; }
 
-        public bool EmailLocked { get; set; }
-
         [Required]
         [StringLength(80)]
         [Display(Name = "First name")]

@@ -38,8 +38,6 @@ namespace AssetManagement.Application.Contracts
 
         public string Email { get; set; }
 
-        public bool EmailLocked { get; set; }
-
         public string OrganizationName { get; set; }
     }
 
@@ -64,7 +62,6 @@ namespace AssetManagement.Application.Contracts
     {
         None = 0,
         InvalidOrExpiredToken,
-        EmailMismatch,
         PolicyViolation,
         UserCreationFailed
     }
