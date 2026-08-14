@@ -87,6 +87,34 @@ namespace AssetManagement.Infrastructure.Services
             SendCore(to, subject, body, critical: true);
         }
 
+        public void SendUserInvitationEmail(string to, string inviteLink, string organizationName)
+        {
+            if (string.IsNullOrWhiteSpace(to))
+            {
+                return;
+            }
+
+            EnsureConfiguredForDelivery("user invitation");
+
+            var orgLabel = string.IsNullOrWhiteSpace(organizationName) ? ProductName : organizationName;
+            var subject = "You're invited to join " + orgLabel;
+            var body = string.Format(@"
+<p>Hello,</p>
+<p>You have been invited to create an account for <strong>{1}</strong> on {2}.</p>
+<p><strong>This invitation link expires in 7 days and can only be used once.</strong></p>
+<p><a href=""{0}"">Accept invitation and create your account</a></p>
+<p>If you were not expecting this invitation, you can ignore this email.</p>
+<p style=""word-break:break-all;"">{0}</p>
+<p>&copy; {3} {4}</p>",
+                inviteLink ?? string.Empty,
+                orgLabel,
+                ProductName,
+                DateTime.UtcNow.Year,
+                PublisherName);
+
+            SendCore(to, subject, body, critical: true);
+        }
+
         public void SendMfaCodeEmail(string to, string code)
         {
             if (string.IsNullOrWhiteSpace(to))

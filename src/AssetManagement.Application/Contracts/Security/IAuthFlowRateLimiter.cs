@@ -14,6 +14,8 @@ namespace AssetManagement.Application.Contracts.Security
 
         bool TryAcquireRegistration(string tenantToken, string clientAddress);
 
+        bool TryAcquireInviteAccept(string tenantToken, string clientAddress);
+
         bool TryAcquireResetPasswordSubmit(string clientAddress);
 
         bool IsResetPasswordAllowed(string email, string code, out int minutesRemaining);

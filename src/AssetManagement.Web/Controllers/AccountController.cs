@@ -31,6 +31,7 @@ namespace AssetManagement.Web.Controllers
         private readonly IOrganizationLicenseService _licenseService;
         private readonly IAccountSecurityService _accountSecurityService;
         private readonly IAuthFlowRateLimiter _authFlowRateLimiter;
+        private readonly IUserInvitationService _userInvitationService;
 
         public AccountController()
         {
@@ -42,6 +43,7 @@ namespace AssetManagement.Web.Controllers
             _licenseService = DependencyResolver.Current.GetService<IOrganizationLicenseService>();
             _accountSecurityService = DependencyResolver.Current.GetService<IAccountSecurityService>();
             _authFlowRateLimiter = DependencyResolver.Current.GetService<IAuthFlowRateLimiter>();
+            _userInvitationService = DependencyResolver.Current.GetService<IUserInvitationService>();
         }
 
         public ActionResult Login(string returnUrl)
@@ -833,6 +835,144 @@ namespace AssetManagement.Web.Controllers
             return RedirectToLogin(tenantSlug);
         }
 
+        public ActionResult AcceptInvite(string code)
+        {
+            var tenantSlug = TenantUrlHelper.GetTenantToken(RouteData);
+            if (string.IsNullOrWhiteSpace(tenantSlug))
+            {
+                TempData["Message"] = "Invitations are only available through your organization portal.";
+                return RedirectToAction("Login");
+            }
+
+            var organization = ResolveTenantOrganization(tenantSlug);
+            if (organization == null)
+            {
+                return HttpNotFound();
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                TempData["Message"] = AuthenticationErrorMessages.InviteAcceptInvalidToken();
+                return RedirectToLogin(tenantSlug);
+            }
+
+            var validation = _userInvitationService == null
+                ? new UserInvitationValidationResult { IsValid = false }
+                : _userInvitationService.ValidateInvitation(code, organization.Id);
+
+            if (!validation.IsValid)
+            {
+                TempData["Message"] = AuthenticationErrorMessages.InviteAcceptInvalidToken();
+                return RedirectToLogin(tenantSlug);
+            }
+
+            ConfigureAcceptInviteViewBag(organization, tenantSlug);
+            return View(new AcceptInviteViewModel
+            {
+                Code = code,
+                Email = validation.Email,
+                EmailLocked = validation.EmailLocked
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult AcceptInvite(AcceptInviteViewModel model)
+        {
+            var tenantSlug = ResolveLoginTenantSlug() ?? TenantUrlHelper.GetTenantToken(RouteData);
+            if (string.IsNullOrWhiteSpace(tenantSlug))
+            {
+                TempData["Message"] = "Invitations are only available through your organization portal.";
+                return RedirectToAction("Login");
+            }
+
+            var organization = ResolveTenantOrganization(tenantSlug);
+            if (organization == null)
+            {
+                return HttpNotFound();
+            }
+
+            ConfigureAcceptInviteViewBag(organization, tenantSlug);
+
+            if (!_authFlowRateLimiter.TryAcquireInviteAccept(tenantSlug, AuthFlowClientAddressHelper.Resolve(HttpContext)))
+            {
+                ModelState.AddModelError("", AuthenticationErrorMessages.InviteAcceptRateLimited());
+                return View(model);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            if (!string.Equals(model.Password, model.ConfirmPassword))
+            {
+                ModelState.AddModelError("ConfirmPassword", "The password and confirmation password do not match.");
+                return View(model);
+            }
+
+            var acceptRequest = new UserInvitationAcceptRequest
+            {
+                Token = model.Code,
+                OrganizationId = organization.Id,
+                FirstName = model.FirstName,
+                LastName = model.LastName,
+                Email = model.Email,
+                Phone = model.Phone,
+                Password = model.Password
+            };
+
+            var result = _userInvitationService == null
+                ? new UserInvitationAcceptResult { Succeeded = false }
+                : _userInvitationService.AcceptInvitation(acceptRequest);
+
+            if (!result.Succeeded)
+            {
+                if (result.FailureReason == UserInvitationAcceptFailureReason.InvalidOrExpiredToken)
+                {
+                    ModelState.AddModelError("", AuthenticationErrorMessages.InviteAcceptInvalidToken());
+                    return View(model);
+                }
+
+                if (result.FailureReason == UserInvitationAcceptFailureReason.EmailMismatch)
+                {
+                    foreach (var error in result.Errors ?? new string[0])
+                    {
+                        ModelState.AddModelError("", error);
+                    }
+
+                    return View(model);
+                }
+
+                if (result.FailureReason == UserInvitationAcceptFailureReason.PolicyViolation)
+                {
+                    foreach (var error in result.Errors ?? new string[0])
+                    {
+                        ModelState.AddModelError("Password", error);
+                    }
+
+                    return View(model);
+                }
+
+                if (AuthenticationErrorMessages.IsGenericAuthMessagesEnabled())
+                {
+                    ModelState.AddModelError("", AuthenticationErrorMessages.InviteAcceptFailure());
+                }
+                else
+                {
+                    foreach (var error in result.Errors ?? new string[0])
+                    {
+                        ModelState.AddModelError("", error);
+                    }
+                }
+
+                return View(model);
+            }
+
+            TempData["Message"] = "Your account was created. Sign in with your email and password.";
+            return RedirectToLogin(tenantSlug);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult ForgotPassword(ForgotPasswordViewModel model)
@@ -1259,6 +1399,15 @@ namespace AssetManagement.Web.Controllers
             ViewBag.IsTenantPortal = true;
             ApplyTenantBrandingViewBag(organization);
             ViewBag.PasswordPolicyMessage = PasswordPolicy.GetPolicyMessage();
+        }
+
+        private void ConfigureAcceptInviteViewBag(Organization organization, string tenantSlug)
+        {
+            ViewBag.TenantToken = tenantSlug;
+            ViewBag.IsTenantPortal = true;
+            ApplyTenantBrandingViewBag(organization);
+            ViewBag.PasswordPolicyMessage = PasswordPolicy.GetPolicyMessage();
+            ViewBag.OrganizationName = organization == null ? null : organization.Name;
         }
 
         private void ConfigureForgotPasswordViewBag()

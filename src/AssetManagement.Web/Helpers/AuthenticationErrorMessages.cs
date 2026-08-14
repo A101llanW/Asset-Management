@@ -148,6 +148,25 @@ namespace AssetManagement.Web.Helpers
             return GenericRegistrationFailure;
         }
 
+        public static string InviteAcceptRateLimited()
+        {
+            return IsGenericAuthMessagesEnabled()
+                ? GenericRegistrationFailure
+                : "Too many invitation acceptance attempts from your location. Please try again later.";
+        }
+
+        public static string InviteAcceptInvalidToken()
+        {
+            return IsGenericAuthMessagesEnabled()
+                ? GenericRegistrationFailure
+                : "This invitation link is invalid or has expired.";
+        }
+
+        public static string InviteAcceptFailure()
+        {
+            return GenericRegistrationFailure;
+        }
+
         public static string ResetPasswordRateLimited()
         {
             return IsGenericAuthMessagesEnabled()

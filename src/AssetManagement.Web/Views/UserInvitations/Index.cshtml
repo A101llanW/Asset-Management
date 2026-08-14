@@ -1,0 +1,79 @@
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.Contracts.UserInvitationListItemVm>
+@{
+    ViewBag.Title = "User Invitations";
+    var inviteLink = TempData["InviteLink"] as string;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "User Invitations",
+    Subtitle = "Track pending and completed invitations sent to new users.",
+    PrimaryActionUrl = Url.Action("Create"),
+    PrimaryActionLabel = "Invite User",
+    BackUrl = Url.Action("Index", "Users"),
+    BackLabel = "Users"
+})
+@if (!string.IsNullOrWhiteSpace(inviteLink))
+{
+    <div class="alert alert-info">
+        Invitation link (for manual sharing if needed):
+        <code class="user-select-all">@inviteLink</code>
+    </div>
+}
+@if (!Model.Items.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No invitations yet</h5>
+            <p class="text-muted mb-3">Invite someone by email so they can create their own account with a one-time link.</p>
+            <a class="btn btn-primary" href="@Url.Action("Create")">Invite User</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Department</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th>Sent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td>@(string.IsNullOrWhiteSpace(item.Email) ? "—" : item.Email)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.RoleName) ? "—" : item.RoleName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "—" : item.DepartmentName)</td>
+                                <td>
+                                    @if (string.Equals(item.Status, "Pending", System.StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <span class="badge bg-warning text-dark">Pending</span>
+                                    }
+                                    else if (string.Equals(item.Status, "Used", System.StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <span class="badge bg-success">Used</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Expired</span>
+                                    }
+                                </td>
+                                <td>@item.ExpiresAtUtc.ToString("dd MMM yyyy")</td>
+                                <td>@item.CreatedAtUtc.ToString("dd MMM yyyy")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
+}

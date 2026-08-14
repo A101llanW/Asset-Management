@@ -6,6 +6,7 @@
     var departments = ViewBag.Departments as SelectList;
     var statusFilter = ViewBag.StatusFilter as SelectList;
     var canCreateUser = Html.HasPermission("Users.Create");
+    var canInviteUser = Html.HasPermission("Users.Invite");
     var isDepartmentScoped = ViewBag.IsDepartmentScoped == true;
     var scopedDepartmentName = ViewBag.ScopedDepartmentName as string;
     var currentSort = ViewBag.Sort as string;
@@ -18,7 +19,9 @@
         ? "Employees registered in your department (including assignees without login access)."
         : "Manage people and their access. Assign department and role from each user's details page.",
     PrimaryActionUrl = canCreateUser ? Url.Action("Create") : null,
-    PrimaryActionLabel = canCreateUser ? "Create User" : null
+    PrimaryActionLabel = canCreateUser ? "Create User" : null,
+    SecondaryActionUrl = canInviteUser ? Url.Action("Index", "UserInvitations") : null,
+    SecondaryActionLabel = canInviteUser ? "Invitations" : null
 })
 <form class="am-list-toolbar" method="get">
     <div class="row g-2">

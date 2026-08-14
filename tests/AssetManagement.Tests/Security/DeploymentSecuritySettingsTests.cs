@@ -93,6 +93,10 @@ namespace AssetManagement.Tests.Security
             {
             }
 
+            public void SendUserInvitationEmail(string to, string inviteLink, string organizationName)
+            {
+            }
+
             public void SendMfaCodeEmail(string to, string code)
             {
             }

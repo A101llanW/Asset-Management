@@ -17,6 +17,9 @@ namespace AssetManagement.Infrastructure.Security
         private const int MaxRegistrationsPerWindow = 5;
         private static readonly TimeSpan RegistrationWindow = TimeSpan.FromHours(1);
 
+        private const int MaxInviteAcceptsPerWindow = 5;
+        private static readonly TimeSpan InviteAcceptWindow = TimeSpan.FromHours(1);
+
         private const int MaxResetPasswordSubmitsPerWindow = 10;
         private static readonly TimeSpan ResetPasswordSubmitWindow = TimeSpan.FromHours(1);
 
@@ -64,6 +67,11 @@ namespace AssetManagement.Infrastructure.Security
         public bool TryAcquireRegistration(string tenantToken, string clientAddress)
         {
             return TryAcquireCounter(BuildRegistrationKey(tenantToken, clientAddress), MaxRegistrationsPerWindow, RegistrationWindow);
+        }
+
+        public bool TryAcquireInviteAccept(string tenantToken, string clientAddress)
+        {
+            return TryAcquireCounter(BuildInviteAcceptKey(tenantToken, clientAddress), MaxInviteAcceptsPerWindow, InviteAcceptWindow);
         }
 
         public bool TryAcquireResetPasswordSubmit(string clientAddress)
@@ -286,6 +294,15 @@ namespace AssetManagement.Infrastructure.Security
             return string.IsNullOrWhiteSpace(tenant)
                 ? "register|" + address
                 : "register|" + tenant + "|" + address;
+        }
+
+        private static string BuildInviteAcceptKey(string tenantToken, string clientAddress)
+        {
+            var tenant = (tenantToken ?? string.Empty).Trim();
+            var address = NormalizeClientAddress(clientAddress);
+            return string.IsNullOrWhiteSpace(tenant)
+                ? "invite-accept|" + address
+                : "invite-accept|" + tenant + "|" + address;
         }
 
         private static string BuildResetSubmitKey(string clientAddress)

@@ -315,6 +315,7 @@ namespace AssetManagement.Web.Filters
                     || string.Equals(actionName, "ChangePassword", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "LogOff", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "Register", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "AcceptInvite", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ForgotPassword", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ResetPassword", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ConfirmLegalConsent", StringComparison.OrdinalIgnoreCase)
