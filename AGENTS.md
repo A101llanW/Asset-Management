@@ -9,28 +9,46 @@ Solution: `AssetManagementModule.sln`
 
 ## Cursor Cloud specific instructions
 
-Cloud agents run on **Ubuntu Linux**. This repo's web app targets **Windows (IIS + MSBuild)**.
-Do **not** expect to build `AssetManagement.Web` or run Playwright E2E in the cloud VM.
+Cloud agents for this repo should run on **Windows with IIS**, not Linux.
 
-### Verify changes (cloud)
+### Build and run (Windows + IIS)
 
-Cloud VMs run Ubuntu. Tests target **net40**, so `dotnet test` does not work on Linux — use Mono + NUnit 2.x instead.
+Prerequisites: IIS with ASP.NET 4.x, MSBuild/Visual Studio Build Tools, SQL Server LocalDB or Express.
 
-After C# changes in Domain, Application, Infrastructure, or Tests:
+One-time site setup (elevated PowerShell):
+
+```powershell
+.\tools\deploy\Setup-IisSite.ps1
+```
+
+Build, deploy, and verify on IIS:
+
+```powershell
+.\tools\deploy\Start-IisDev.ps1 -WaitForReady
+```
+
+Open `http://localhost:8080/nanosoft/Account/Login` (demo: `nanosoft@asset.local` / `P@ssw0rd!`).
+
+Alternative entry points:
+
+- `.\tools\deploy\Publish-To-Iis.ps1` — rebuild and mirror `src\AssetManagement.Web` to `C:\inetpub\AssetManagement`
+- `src\AssetManagement.Runner\bin\Release\net40\AssetManagement.Runner.exe` — invokes `Start-IisDev.ps1`
+- `.\e2e\scripts\start-app.ps1` — IIS by default; pass `-UseIisExpress` for legacy IIS Express
+
+Repository-managed cloud environment (`.cursor/environment.json`) uses:
+
+- `tools/ci/setup-windows-environment.ps1` on install
+- `tools/deploy/Start-IisDev.ps1 -WaitForReady` on start
+
+### Verify changes without IIS (Linux fallback)
+
+If a cloud agent boots on Linux, only library/unit-test verification is available:
 
 ```bash
 bash tools/ci/run-cloud-unit-tests.sh
 ```
 
-This restores, builds, and runs all unit tests via `mono` and the NUnit 2.6.4 console runner. The cloud environment install script (`tools/ci/setup-cloud-environment.sh`) installs .NET SDK 8, Mono, `en-KE` locale data, and the NUnit runner.
-
-On **Windows** (local or CI), use:
-
-```bash
-dotnet test tests/AssetManagement.Tests/AssetManagement.Tests.csproj -c Release
-```
-
-Full solution build and web UI verification happen on **Windows CI** (`.github/workflows/build.yml`).
+Do **not** expect to build `AssetManagement.Web` or run the MVC app on Linux.
 
 ### Web / Razor changes
 

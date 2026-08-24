@@ -4,11 +4,12 @@ param(
     [string]$SourceRoot = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "src"),
     [string]$PublishRoot = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) ".build\publish"),
     [string]$SitePath = "C:\inetpub\AssetManagement",
-    [string]$AppPoolName = "DefaultAppPool",
+    [string]$AppPoolName = "AssetManagement",
     [switch]$UsePublishFolder
 )
 
 $ErrorActionPreference = "Stop"
+. "$PSScriptRoot\_IisCommon.ps1"
 
 $sourceGlobal = if ($UsePublishFolder -and (Test-Path (Join-Path $PublishRoot "Global.asax"))) {
     Join-Path $PublishRoot "Global.asax"
@@ -35,4 +36,4 @@ finally {
     Start-WebAppPool -Name $AppPoolName
 }
 
-Write-Host "Retry: http://192.168.30.122:8080/nanosoft/PurchaseRequests/Index" -ForegroundColor Green
+Write-Host "Retry: $(Get-IisBaseUrl)/nanosoft/PurchaseRequests/Index" -ForegroundColor Green

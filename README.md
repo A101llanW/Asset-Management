@@ -5,7 +5,7 @@ Browser-based asset management built with **ASP.NET MVC** on **.NET Framework 4.
 ## Solution Structure
 
 - `AssetManagementModule.sln`
-- `src/AssetManagement.Web` — **ASP.NET MVC 3** web app (controllers, Razor views, Bootstrap UI, IIS Express)
+- `src/AssetManagement.Web` — **ASP.NET MVC 3** web app (controllers, Razor views, Bootstrap UI, IIS)
 - `src/AssetManagement.Application` — business services and view models
 - `src/AssetManagement.Domain` — entities and enums
 - `src/AssetManagement.Infrastructure` — SQL Server repositories, auth, file storage, audit
@@ -80,15 +80,19 @@ Platform admins manage organizations at `/Platform/Organizations`. Elevation int
 
 ## Local Setup
 
-1. Open `AssetManagementModule.sln` in Visual Studio.
+1. Open `AssetManagementModule.sln` in Visual Studio (or use MSBuild from a Developer PowerShell prompt).
 2. Ensure SQL Server LocalDB or SQL Express is available.
 3. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
-4. Set **AssetManagement.Web** as startup project and run (IIS Express).
-5. Database scripts run automatically when `AutoInitializeDatabase` is enabled.
+4. One-time IIS setup (elevated PowerShell): `.\tools\deploy\Setup-IisSite.ps1`
+5. Build and run on IIS: `.\tools\deploy\Start-IisDev.ps1 -WaitForReady`
+6. Open `http://localhost:8080/nanosoft/Account/Login`
+7. Database scripts run automatically when `AutoInitializeDatabase` is enabled (Debug).
+
+Visual Studio F5 / IIS Express still works, but **local IIS on port 8080** is the supported dev path (`C:\inetpub\AssetManagement`).
 
 ## Development vs Production
 
-The repo stays in **development mode** by default. Daily work uses `Web.config` as committed — no Release transforms are applied when you F5 / IIS Express with the **Debug** configuration.
+The repo stays in **development mode** by default. Daily work uses `Web.config` as committed — no Release transforms are applied when you build for local IIS with the **Debug** configuration.
 
 | Setting | Development (`Web.config` / Debug) | Production (Release publish only) |
 | ------- | ---------------------------------- | --------------------------------- |
@@ -161,9 +165,9 @@ Second demo tenant for isolation smoke tests: `/demo-b/Account/Login` (`demo@ass
 
 ### End-to-end tests (Playwright)
 
-Full-stack browser tests live in `e2e/` and exercise auth, custody workflows, disposal approvals, scan lookup, department scope, and validation rules against IIS Express + SQL Server.
+Full-stack browser tests live in `e2e/` and exercise auth, custody workflows, disposal approvals, scan lookup, department scope, and validation rules against **local IIS** + SQL Server.
 
-**Prerequisites:** Node.js 18+, IIS Express, SQL Server LocalDB (or Express).
+**Prerequisites:** Node.js 18+, IIS with ASP.NET 4.x, SQL Server LocalDB (or Express).
 
 ```powershell
 # From repo root — installs Playwright, resets an isolated E2E database, builds the web app, and runs the suite
@@ -172,7 +176,7 @@ Full-stack browser tests live in `e2e/` and exercise auth, custody workflows, di
 
 The E2E run uses database `AssetManagementModuleDb_E2E` and temporarily points `Web.config` at it. Demo credentials apply (`default@asset.local` / `P@ssw0rd!` for the default tenant company admin; `superadmin@asset.local` for platform admin).
 
-**CI:** Add a job that runs `.\e2e\scripts\run-e2e.ps1` on Windows agents with IIS Express, SQL Server LocalDB, and Node.js 18+. Unit tests (`dotnet test tests/AssetManagement.Tests`) can run on every PR; schedule E2E nightly if agent setup is heavy.
+**CI:** Add a job that runs `.\e2e\scripts\run-e2e.ps1` on Windows agents with IIS, SQL Server LocalDB, and Node.js 18+. Unit tests (`dotnet test tests/AssetManagement.Tests`) can run on every PR; schedule E2E nightly if agent setup is heavy.
 
 Build the web project with MSBuild / Visual Studio (MVC 3 Web Application targets).
 

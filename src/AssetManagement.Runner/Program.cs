@@ -4,7 +4,6 @@ using System.Configuration;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Xml.Linq;
 using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Infrastructure.Persistence;
 using AssetManagement.Infrastructure.Services;
@@ -272,39 +271,20 @@ namespace AssetManagement.Runner
 
         private static void RunWebHost(string[] args)
         {
-            var port = args.Length > 0 ? args[0] : "51901";
-            var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
-            var webPath = Path.GetFullPath(Path.Combine(repoRoot, "src", "AssetManagement.Web"));
-            var configPath = Path.Combine(repoRoot, ".build", "iis-remote", "applicationhost.config");
-            var iisExpressPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "IIS Express", "iisexpress.exe");
-            if (!File.Exists(iisExpressPath))
+            var port = args.Length > 0 ? args[0] : "8080";
+            var repoRoot = ResolveRepoRoot();
+            var startScript = Path.Combine(repoRoot, "tools", "deploy", "Start-IisDev.ps1");
+            if (!File.Exists(startScript))
             {
-                Console.Error.WriteLine("IIS Express not found. Install IIS Express to run the web module.");
+                Console.Error.WriteLine("IIS start script not found: " + startScript);
                 Environment.Exit(1);
                 return;
             }
-
-            if (!Directory.Exists(webPath))
-            {
-                Console.Error.WriteLine("Web project path not found: " + webPath);
-                Environment.Exit(1);
-                return;
-            }
-
-            if (!File.Exists(configPath))
-            {
-                Console.Error.WriteLine("IIS Express config not found: " + configPath);
-                Environment.Exit(1);
-                return;
-            }
-
-            EnsureIisConfig(webPath, port, configPath, bindAllInterfaces: false);
-            ClearStaleIisExpressTempConfigs();
 
             var startInfo = new ProcessStartInfo
             {
-                FileName = iisExpressPath,
-                Arguments = "/config:\"" + configPath + "\" /site:AssetManagementRemote",
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + startScript + "\" -Port " + port + " -WaitForReady",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -314,74 +294,33 @@ namespace AssetManagement.Runner
             var process = Process.Start(startInfo);
             if (process == null)
             {
-                Console.Error.WriteLine("Failed to start IIS Express.");
+                Console.Error.WriteLine("Failed to start IIS dev script.");
                 Environment.Exit(1);
                 return;
             }
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "http://localhost:" + port + "/",
-                UseShellExecute = true
-            });
 
             process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) Console.WriteLine(e.Data); };
             process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) Console.Error.WriteLine(e.Data); };
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+            process.WaitForExit();
 
-            Console.WriteLine("AssetManagement web app running on http://localhost:" + port + "/");
-            Console.WriteLine("Press ENTER to stop.");
-            Console.ReadLine();
-
-            if (!process.HasExited)
+            if (process.ExitCode != 0)
             {
-                process.Kill();
-                process.WaitForExit();
-            }
-        }
-
-        private static void EnsureIisConfig(string webPath, string port, string configPath, bool bindAllInterfaces)
-        {
-            var doc = XDocument.Load(configPath);
-            var site = doc.Root
-                .Element("system.applicationHost")
-                .Element("sites")
-                .Elements("site")
-                .FirstOrDefault(x => (string)x.Attribute("name") == "AssetManagementRemote");
-
-            if (site == null)
-            {
-                throw new InvalidOperationException("Site 'AssetManagementRemote' was not found in " + configPath);
-            }
-
-            var bindingHost = bindAllInterfaces ? "*" : "127.0.0.1";
-            site.Element("application").Element("virtualDirectory").SetAttributeValue("physicalPath", webPath);
-            site.Element("bindings").Element("binding").SetAttributeValue("bindingInformation", bindingHost + ":" + port + ":");
-            doc.Save(configPath);
-        }
-
-        private static void ClearStaleIisExpressTempConfigs()
-        {
-            var tempDir = Path.Combine(Path.GetTempPath(), "iisexpress");
-            if (!Directory.Exists(tempDir))
-            {
+                Environment.Exit(process.ExitCode);
                 return;
             }
 
-            foreach (var file in Directory.GetFiles(tempDir, "applicationhost*.config"))
+            var loginUrl = "http://localhost:" + port + "/nanosoft/Account/Login";
+            Process.Start(new ProcessStartInfo
             {
-                try
-                {
-                    File.Delete(file);
-                }
-                catch (IOException)
-                {
-                }
-                catch (UnauthorizedAccessException)
-                {
-                }
-            }
+                FileName = loginUrl,
+                UseShellExecute = true
+            });
+
+            Console.WriteLine("AssetManagement web app running on IIS at " + loginUrl);
+            Console.WriteLine("Press ENTER to stop (IIS site remains configured).");
+            Console.ReadLine();
         }
     }
 }
