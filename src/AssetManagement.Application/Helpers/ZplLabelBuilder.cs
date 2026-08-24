@@ -15,15 +15,31 @@ namespace AssetManagement.Application.Helpers
         public string SerialNumber { get; set; }
 
         public string ScanUrl { get; set; }
+
+        public string BarcodePayload { get; set; }
     }
 
     public static class ZplLabelBuilder
     {
         private const int DotsPerMm = 8;
+        private const int DefaultBarcodeHeightDots = 80;
 
-        public static string Build(ZplLabelData data, LabelPrinterSettingsVm settings)
+        public static string Build(ZplLabelData data, LabelPrinterSettingsVm settings, string codeType = null)
         {
-            if (data == null || settings == null || string.IsNullOrWhiteSpace(data.ScanUrl))
+            if (data == null || settings == null)
+            {
+                return string.Empty;
+            }
+
+            var resolvedCodeType = ResolveCodeType(codeType);
+            if (string.Equals(resolvedCodeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(data.BarcodePayload))
+                {
+                    return string.Empty;
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(data.ScanUrl))
             {
                 return string.Empty;
             }
@@ -34,6 +50,7 @@ namespace AssetManagement.Application.Helpers
             var preset = string.IsNullOrWhiteSpace(settings.LayoutPreset)
                 ? LabelPrinterSettingsHelper.LayoutQrWithMeta
                 : settings.LayoutPreset;
+            var useBarcode = string.Equals(resolvedCodeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase);
 
             var sb = new StringBuilder();
             sb.AppendLine("^XA");
@@ -43,19 +60,50 @@ namespace AssetManagement.Application.Helpers
 
             if (string.Equals(preset, LabelPrinterSettingsHelper.LayoutQrOnly, StringComparison.OrdinalIgnoreCase))
             {
-                AppendQrOnly(sb, data, widthDots, heightDots, magnification);
+                if (useBarcode)
+                {
+                    AppendBarcodeOnly(sb, data, widthDots, heightDots);
+                }
+                else
+                {
+                    AppendQrOnly(sb, data, widthDots, heightDots, magnification);
+                }
             }
             else if (string.Equals(preset, LabelPrinterSettingsHelper.LayoutQrCompact, StringComparison.OrdinalIgnoreCase))
             {
-                AppendQrCompact(sb, data, widthDots, heightDots, magnification);
+                if (useBarcode)
+                {
+                    AppendBarcodeCompact(sb, data, widthDots, heightDots);
+                }
+                else
+                {
+                    AppendQrCompact(sb, data, widthDots, heightDots, magnification);
+                }
             }
             else
             {
-                AppendQrWithMeta(sb, data, widthDots, heightDots, magnification);
+                if (useBarcode)
+                {
+                    AppendBarcodeWithMeta(sb, data, widthDots, heightDots);
+                }
+                else
+                {
+                    AppendQrWithMeta(sb, data, widthDots, heightDots, magnification);
+                }
             }
 
             sb.AppendLine("^XZ");
             return sb.ToString();
+        }
+
+        public static string ResolveCodeType(string codeType)
+        {
+            if (string.Equals(codeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase))
+            {
+                return LabelPrinterSettingsHelper.CodeTypeBarcode;
+            }
+
+            return LabelPrinterSettingsHelper.CodeTypeQr;
         }
 
         private static void AppendQrOnly(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, int magnification)
@@ -64,6 +112,14 @@ namespace AssetManagement.Application.Helpers
             var x = Math.Max(10, (widthDots - qrSize) / 2);
             var y = Math.Max(10, (heightDots - qrSize) / 2);
             AppendQr(sb, x, y, data.ScanUrl, magnification);
+        }
+
+        private static void AppendBarcodeOnly(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots)
+        {
+            var barcodeWidth = Math.Min(widthDots - 20, 520);
+            var x = Math.Max(10, (widthDots - barcodeWidth) / 2);
+            var y = Math.Max(10, (heightDots - DefaultBarcodeHeightDots) / 2);
+            AppendBarcode(sb, x, y, data.BarcodePayload, barcodeWidth, DefaultBarcodeHeightDots);
         }
 
         private static void AppendQrCompact(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, int magnification)
@@ -90,6 +146,28 @@ namespace AssetManagement.Application.Helpers
             }
         }
 
+        private static void AppendBarcodeCompact(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots)
+        {
+            var barcodeX = 10;
+            var barcodeY = 8;
+            var barcodeWidth = Math.Min(widthDots - 20, 320);
+            var barcodeHeight = 60;
+            AppendBarcode(sb, barcodeX, barcodeY, data.BarcodePayload, barcodeWidth, barcodeHeight);
+
+            var textX = barcodeX + barcodeWidth + 12;
+            if (textX + 40 > widthDots)
+            {
+                AppendText(sb, 10, barcodeY + barcodeHeight + 8, data.AssetTag, 24, 24);
+                return;
+            }
+
+            AppendText(sb, textX, barcodeY, data.AssetTag, 24, 24);
+            if (!string.IsNullOrWhiteSpace(data.AssetName))
+            {
+                AppendText(sb, textX, barcodeY + 30, Truncate(data.AssetName, 24), 18, 18);
+            }
+        }
+
         private static void AppendQrWithMeta(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, int magnification)
         {
             var qrX = 15;
@@ -97,8 +175,22 @@ namespace AssetManagement.Application.Helpers
             var qrSize = EstimateQrSizeDots(magnification);
             AppendQr(sb, qrX, qrY, data.ScanUrl, magnification);
 
-            var textX = qrX + qrSize + 20;
-            var textY = qrY;
+            AppendMetaText(sb, qrX + qrSize + 20, qrY, data);
+        }
+
+        private static void AppendBarcodeWithMeta(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots)
+        {
+            var barcodeX = 15;
+            var barcodeY = 15;
+            var barcodeWidth = Math.Min(widthDots / 2, 280);
+            var barcodeHeight = DefaultBarcodeHeightDots;
+            AppendBarcode(sb, barcodeX, barcodeY, data.BarcodePayload, barcodeWidth, barcodeHeight);
+
+            AppendMetaText(sb, barcodeX + barcodeWidth + 20, barcodeY, data);
+        }
+
+        private static void AppendMetaText(StringBuilder sb, int textX, int textY, ZplLabelData data)
+        {
             AppendText(sb, textX, textY, data.AssetTag, 30, 30);
             textY += 36;
 
@@ -123,6 +215,11 @@ namespace AssetManagement.Application.Helpers
         private static void AppendQr(StringBuilder sb, int x, int y, string payload, int magnification)
         {
             sb.AppendLine("^FO" + x + "," + y + "^BQN,2," + magnification + "^FDMA," + EscapeZplField(payload) + "^FS");
+        }
+
+        private static void AppendBarcode(StringBuilder sb, int x, int y, string payload, int widthDots, int heightDots)
+        {
+            sb.AppendLine("^FO" + x + "," + y + "^BY2,3," + Math.Max(40, heightDots) + "^BCN," + Math.Max(40, heightDots) + ",Y,N,N^FD" + EscapeZplField(payload) + "^FS");
         }
 
         private static void AppendText(StringBuilder sb, int x, int y, string text, int height, int width)

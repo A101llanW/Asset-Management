@@ -42,7 +42,7 @@
     BackUrl = Url.Action("Index"),
     BackLabel = "Back to Assets",
     PrimaryActionModalTarget = "assetQrLabelModal",
-    PrimaryActionLabel = "QR label"
+    PrimaryActionLabel = "Print label"
 })
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusGuidance))
@@ -338,6 +338,7 @@
 
 @section scripts {
     <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/vendor/jsbarcode.all.min.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-details-tabs.js")"></script>

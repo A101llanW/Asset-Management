@@ -23,6 +23,9 @@ namespace AssetManagement.Application.Helpers
         public const string LayoutQrCompact = "QrCompact";
         public const string LayoutQrOnly = "QrOnly";
 
+        public const string CodeTypeQr = "Qr";
+        public const string CodeTypeBarcode = "Barcode";
+
         public const int DefaultWidthMm = 100;
         public const int DefaultHeightMm = 50;
         public const int DefaultQrMagnification = 5;

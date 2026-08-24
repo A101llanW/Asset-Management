@@ -15,5 +15,7 @@ namespace AssetManagement.Web.ViewModels
         public string CurrentStatus { get; set; }
 
         public string ScanUrl { get; set; }
+
+        public string BarcodePayload { get; set; }
     }
 }

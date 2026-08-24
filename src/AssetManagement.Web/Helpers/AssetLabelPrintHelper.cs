@@ -39,7 +39,8 @@ namespace AssetManagement.Web.Helpers
                 DepartmentName = asset.DepartmentName,
                 SerialNumber = asset.SerialNumber,
                 CurrentStatus = asset.CurrentStatus.ToString(),
-                ScanUrl = AssetQrUrlHelper.BuildScanUrl(request, urlHelper, asset.AssetTag, externalBaseUrl: externalBaseUrl)
+                ScanUrl = AssetQrUrlHelper.BuildScanUrl(request, urlHelper, asset.AssetTag, externalBaseUrl: externalBaseUrl),
+                BarcodePayload = asset.AssetTag
             };
         }
     }

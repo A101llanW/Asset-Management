@@ -360,7 +360,7 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.View")]
-        public ActionResult LabelZpl(int id)
+        public ActionResult LabelZpl(int id, string codeType = null)
         {
             var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
             if (model == null)
@@ -369,7 +369,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var settings = GetLabelPrinterSettings();
-            var zpl = ZplLabelBuilder.Build(ToZplLabelData(model), settings);
+            var zpl = ZplLabelBuilder.Build(ToZplLabelData(model), settings, codeType);
             return Content(zpl, "text/plain");
         }
 
@@ -391,7 +391,13 @@ namespace AssetManagement.Web.Controllers
                 zplUrl = Url.Action("LabelZpl", new { id = model.AssetId }),
                 labelWidthMm = settings.WidthMm,
                 labelHeightMm = settings.HeightMm,
-                assetId = model.AssetId
+                assetId = model.AssetId,
+                defaultCodeType = LabelPrinterSettingsHelper.CodeTypeQr,
+                codeTypes = new[]
+                {
+                    new { value = LabelPrinterSettingsHelper.CodeTypeQr, text = "QR code" },
+                    new { value = LabelPrinterSettingsHelper.CodeTypeBarcode, text = "Barcode" }
+                }
             }, JsonRequestBehavior.AllowGet);
         }
 
@@ -415,7 +421,8 @@ namespace AssetManagement.Web.Controllers
                 AssetName = model.AssetName,
                 DepartmentName = model.DepartmentName,
                 SerialNumber = model.SerialNumber,
-                ScanUrl = model.ScanUrl
+                ScanUrl = model.ScanUrl,
+                BarcodePayload = model.BarcodePayload
             };
         }
 

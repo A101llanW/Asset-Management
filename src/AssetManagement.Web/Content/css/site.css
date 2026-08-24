@@ -1793,17 +1793,39 @@ body.modal-open .am-main-content.am-page-enter {
     background: #ffffff;
 }
 
-.am-asset-label-qr {
+.am-asset-label-code {
     width: 280px;
-    height: 280px;
+    min-height: 120px;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.am-asset-label-qr img,
-.am-asset-label-qr canvas {
+.am-asset-label-code--qr {
+    height: 280px;
+}
+
+.am-asset-label-code--barcode {
+    height: 120px;
+}
+
+.am-asset-label-code img,
+.am-asset-label-code canvas {
     display: block;
     width: 100% !important;
     height: 100% !important;
+}
+
+.am-asset-label-barcode-svg {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    height: auto;
+}
+
+.am-asset-label-code-type .form-text {
+    margin-bottom: 0;
 }
 
 .am-asset-label-tag {
@@ -1915,9 +1937,14 @@ body.modal-open .am-main-content.am-page-enter {
         border-width: 1px;
     }
 
-    .am-asset-label-qr {
+    .am-asset-label-code--qr {
         width: 300px;
         height: 300px;
+    }
+
+    .am-asset-label-code--barcode {
+        width: 300px;
+        height: 130px;
     }
 
     body.am-printing-asset-label .am-shell-header,
@@ -1948,7 +1975,8 @@ body.modal-open .am-main-content.am-page-enter {
     }
 
     body.am-printing-asset-label #assetQrLabelModal .modal-header,
-    body.am-printing-asset-label #assetQrLabelModal .modal-footer {
+    body.am-printing-asset-label #assetQrLabelModal .modal-footer,
+    body.am-printing-asset-label .am-asset-label-code-type {
         display: none !important;
     }
 

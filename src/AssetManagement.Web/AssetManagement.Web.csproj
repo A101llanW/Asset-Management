@@ -319,6 +319,7 @@
     <Content Include="Scripts\app\receive-serial-wizard.js" />
     <Content Include="Scripts\app\asset-category-type.js" />
     <Content Include="Scripts\vendor\qrcode.min.js" />
+    <Content Include="Scripts\vendor\jsbarcode.all.min.js" />
     <Content Include="Scripts\vendor\three.min.js" />
     <Content Include="Scripts\vendor\html5-qrcode.min.js" />
     <Content Include="Scripts\app\workflow-forms.js" />
