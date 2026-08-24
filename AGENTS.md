@@ -24,7 +24,13 @@ One-time site setup (elevated PowerShell):
 Build, deploy, and verify on IIS:
 
 ```powershell
-.\tools\deploy\Start-IisDev.ps1 -WaitForReady
+& "C:\path\to\Asset-Management\Start-Dev.ps1"
+```
+
+Or from the repo root:
+
+```powershell
+.\Start-Dev.ps1
 ```
 
 Open `http://localhost:8080/nanosoft/Account/Login` (demo: `nanosoft@asset.local` / `P@ssw0rd!`).

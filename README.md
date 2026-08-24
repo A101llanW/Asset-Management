@@ -80,6 +80,16 @@ Platform admins manage organizations at `/Platform/Organizations`. Elevation int
 
 ## Local Setup
 
+From **any** PowerShell window (use your clone path):
+
+```powershell
+& "C:\path\to\Asset-Management\Start-Dev.ps1"
+```
+
+Or double-click `Start-Dev.cmd` in the repo root. The script restores packages, creates the IIS site if needed (`-SetupSite` on first run may require an elevated PowerShell), builds, deploys to `C:\inetpub\AssetManagement`, and waits for the app.
+
+Manual steps (same result):
+
 1. Open `AssetManagementModule.sln` in Visual Studio (or use MSBuild from a Developer PowerShell prompt).
 2. Ensure SQL Server LocalDB or SQL Express is available.
 3. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
