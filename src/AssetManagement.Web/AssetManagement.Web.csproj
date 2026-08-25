@@ -191,6 +191,7 @@
     <Compile Include="Controllers\SettingsController.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />
+    <Compile Include="Controllers\UserInvitationsController.cs" />
     <Compile Include="Controllers\UsersController.cs" />
     <Compile Include="Areas\Platform\PlatformAreaRegistration.cs" />
     <Compile Include="Areas\Platform\Controllers\OrganizationsController.cs" />
@@ -257,6 +258,7 @@
     <Compile Include="ViewModels\UiChromeViewModels.cs" />
     <Compile Include="ViewModels\WorkflowFormViewModels.cs" />
     <Compile Include="ViewModels\UserCreateViewModel.cs" />
+    <Compile Include="ViewModels\UserInvitationViewModels.cs" />
     <Compile Include="ViewModels\PlatformUserCreateViewModel.cs" />
     <Compile Include="ViewModels\PlatformEmailSettingsViewModel.cs" />
     <Compile Include="ViewModels\AssetLabelPrintVm.cs" />
@@ -317,12 +319,14 @@
     <Content Include="Scripts\app\receive-serial-wizard.js" />
     <Content Include="Scripts\app\asset-category-type.js" />
     <Content Include="Scripts\vendor\qrcode.min.js" />
+    <Content Include="Scripts\vendor\jsbarcode.all.min.js" />
     <Content Include="Scripts\vendor\three.min.js" />
     <Content Include="Scripts\vendor\html5-qrcode.min.js" />
     <Content Include="Scripts\app\workflow-forms.js" />
     <Content Include="Scripts\app\workflow-wizard.js" />
     <Content Include="Views\web.config" />
     <Content Include="Views\_ViewStart.cshtml" />
+    <Content Include="Views\Account\AcceptInvite.cshtml" />
     <Content Include="Views\Account\ForgotPassword.cshtml" />
     <Content Include="Views\Account\Login.cshtml" />
     <Content Include="Views\Account\OrganizationNotFound.cshtml" />
@@ -466,6 +470,8 @@
     <Content Include="Views\Suppliers\Index.cshtml" />
     <Content Include="Views\Transfers\Create.cshtml" />
     <Content Include="Views\Transfers\Wizard.cshtml" />
+    <Content Include="Views\UserInvitations\Create.cshtml" />
+    <Content Include="Views\UserInvitations\Index.cshtml" />
     <Content Include="Views\Users\Create.cshtml" />
     <Content Include="Views\Users\Details.cshtml" />
     <Content Include="Views\Users\Index.cshtml" />

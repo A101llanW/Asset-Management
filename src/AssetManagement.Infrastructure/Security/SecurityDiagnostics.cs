@@ -42,6 +42,20 @@ namespace AssetManagement.Infrastructure.Security
                 resetLink));
         }
 
+        public static void LogInvitationLink(string email, string inviteLink)
+        {
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(inviteLink))
+            {
+                return;
+            }
+
+            WriteOutput(string.Format(
+                "[{0}] USER INVITATION link for {1}: {2}",
+                KenyaTimeHelper.FormatLogTimestamp(DateTime.UtcNow),
+                email,
+                inviteLink));
+        }
+
         public static void LogMfaDevBypass(string userId)
         {
             WriteOutput(string.Format(

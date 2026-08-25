@@ -10,6 +10,8 @@ namespace AssetManagement.Application.Contracts
 
         void SendPasswordResetEmail(string to, string resetLink);
 
+        void SendUserInvitationEmail(string to, string inviteLink, string organizationName);
+
         void SendMfaCodeEmail(string to, string code);
 
         bool SendTestEmail(string to, out string errorMessage);

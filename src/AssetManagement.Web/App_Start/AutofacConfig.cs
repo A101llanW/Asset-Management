@@ -52,6 +52,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<MembershipService>().As<IUserAccountService>().InstancePerHttpRequest();
+            builder.RegisterType<UserInvitationService>().As<IUserInvitationService>().InstancePerHttpRequest();
             builder.RegisterType<AccountSecurityService>().As<IAccountSecurityService>().InstancePerHttpRequest();
             builder.RegisterType<AuthFlowRateLimiterService>().As<IAuthFlowRateLimiter>().InstancePerHttpRequest();
             builder.RegisterType<SqlDistributedRateLimiter>().As<IDistributedRateLimiter>().InstancePerHttpRequest();

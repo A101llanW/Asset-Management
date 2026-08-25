@@ -9,6 +9,7 @@ FROM (VALUES
     (N'View Users', N'Users.View', N'Users', N'Can view users'),
     (N'View Department Users', N'Users.ViewDepartment', N'Users', N'Can view users registered in the signed-in user''s department'),
     (N'Create Users', N'Users.Create', N'Users', N'Can create users'),
+    (N'Invite Users', N'Users.Invite', N'Users', N'Can invite users to register via email link'),
     (N'Edit Users', N'Users.Edit', N'Users', N'Can edit users'),
     (N'Delete Users', N'Users.Delete', N'Users', N'Can delete users'),
     (N'View Roles', N'Roles.View', N'Roles', N'Can view roles'),

@@ -77,4 +77,39 @@ namespace AssetManagement.Web.Models
 
         public string Code { get; set; }
     }
+
+    public class AcceptInviteViewModel
+    {
+        public string Code { get; set; }
+
+        [Required]
+        [StringLength(80)]
+        [Display(Name = "First name")]
+        public string FirstName { get; set; }
+
+        [Required]
+        [StringLength(80)]
+        [Display(Name = "Last name")]
+        public string LastName { get; set; }
+
+        [Required]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
+        [Display(Name = "Email")]
+        public string Email { get; set; }
+
+        [StringLength(60)]
+        [Display(Name = "Phone")]
+        public string Phone { get; set; }
+
+        [Required]
+        [DataType(DataType.Password)]
+        [StringLength(100)]
+        [Display(Name = "Password")]
+        public string Password { get; set; }
+
+        [Required]
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        public string ConfirmPassword { get; set; }
+    }
 }

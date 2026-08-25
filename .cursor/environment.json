@@ -1,6 +1,6 @@
 {
-  "name": "codexasset-linux",
-  "install": "bash tools/ci/setup-cloud-environment.sh",
-  "start": "echo 'CodexAsset: Web/IIS not available on Linux; run tools/ci/run-cloud-unit-tests.sh to verify C# changes.'",
+  "name": "codexasset-iis",
+  "install": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/setup-windows-environment.ps1",
+  "start": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/deploy/Start-IisDev.ps1 -WaitForReady",
   "terminals": []
 }

@@ -10,6 +10,8 @@
 
 <div class="am-asset-label-sheet">
 
+    @Html.Partial("_AssetLabelCodeTypeSelector", Model)
+
     @Html.Partial("_AssetLabelContent", Model)
 
     @Html.Partial("_AssetLabelPrinterStatus")
@@ -30,6 +32,7 @@
 @section scripts {
 
     <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/vendor/jsbarcode.all.min.js")"></script>
 
     <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")"></script>
@@ -55,4 +58,3 @@
     </script>
 
 }
-

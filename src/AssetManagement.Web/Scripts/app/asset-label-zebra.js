@@ -14,6 +14,23 @@
         return node ? node.getAttribute('data-config-url') : null;
     }
 
+    function getSelectedCodeType(root) {
+        if (window.AssetLabel && typeof window.AssetLabel.getSelectedCodeType === 'function') {
+            return window.AssetLabel.getSelectedCodeType(root);
+        }
+
+        return 'Qr';
+    }
+
+    function buildZplUrl(baseUrl, codeType) {
+        if (!baseUrl) {
+            return baseUrl;
+        }
+
+        var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+        return baseUrl + separator + 'codeType=' + encodeURIComponent(codeType || 'Qr');
+    }
+
     function getStatusBadges(root) {
         return (root || document).querySelectorAll('[data-am-zebra-printer-status]');
     }
@@ -212,9 +229,10 @@
         }
 
         button.disabled = true;
+        var zplUrl = buildZplUrl(config.zplUrl, getSelectedCodeType(root));
         loadScript(BROWSER_PRINT_SDK)
             .then(function (browserPrint) {
-                return fetchText(config.zplUrl).then(function (zpl) {
+                return fetchText(zplUrl).then(function (zpl) {
                     return selectDevice(browserPrint, config.deviceName).then(function (device) {
                         return sendToPrinter(device, zpl);
                     });

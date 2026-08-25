@@ -1,0 +1,47 @@
+@model AssetManagement.Web.ViewModels.UserInvitationCreateViewModel
+@{
+    ViewBag.Title = "Invite User";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var roles = ViewBag.Roles as SelectList;
+    var departments = ViewBag.Departments as SelectList;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Invite User",
+    Subtitle = "Send a one-time registration link by email. Each link can only be used to create one account.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Invitations", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Invite User" }
+    }
+})
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="row g-3">
+        <div class="col-md-5">
+            <label class="form-label">Email</label>
+            @Html.TextBoxFor(m => m.Email, new { @class = "form-control", autocomplete = "email", placeholder = "name@example.com" })
+            @Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger small" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Role</label>
+            @Html.DropDownListFor(m => m.RoleId, roles, "Select role", new { @class = "form-select" })
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Department (optional)</label>
+            @Html.DropDownListFor(m => m.DepartmentId, departments, "No department", new { @class = "form-select" })
+        </div>
+    </div>
+    <p class="text-muted small mt-3 mb-0">The invitee will set their name and password when they open the link. The link expires after 7 days.</p>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Send Invitation",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}
