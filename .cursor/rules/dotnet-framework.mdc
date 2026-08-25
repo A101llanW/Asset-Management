@@ -1,0 +1,18 @@
+---
+description: .NET Framework targeting for Asset Management module
+globs:
+  - "**/*.csproj"
+  - "**/packages.config"
+  - "**/Web.config"
+  - "**/app.config"
+---
+
+# .NET Framework targeting
+
+- **Domain & Application** projects target **.NET Framework 4.0** (`net40` / `v4.0` where applicable).
+- **Infrastructure, Web, and Tests** target **.NET Framework 4.0** (`net40` / `v4.0`). The deliverable is an **ASP.NET MVC 3** web app; persistence is SQL Server via the Infrastructure repository layer (script-based schema, no EF at runtime).
+- **Tests** target **net40** with **Moq 4.2.1402.2112** (`lib/net40`) and **NUnit 2.6.4** (MSTest 2.x and Moq 4.5+ require `net45+` and cannot compile against a `net40` test project). Use `Assert.Throws<T>` (NUnit) instead of `Assert.ThrowsException<T>` (MSTest v2).
+- Use **C# 6** (`LangVersion` 6) in SDK-style projects; avoid C# 7+ features (`out var`, etc.) unless the whole solution is raised.
+- Do not use `[EmailAddress]` on .NET 4.0–only builds; use `[RegularExpression]` for email validation.
+- NuGet packages that only ship `net45` libs may use `<AssetTargetFallback>net45</AssetTargetFallback>` on `net40` projects only when necessary; prefer aligning TFM with package requirements.
+- After changing target frameworks or packages, build with MSBuild for the Web project (`ResolveNuGetPackages=false` if using `packages.config`) and `dotnet build` for SDK projects.

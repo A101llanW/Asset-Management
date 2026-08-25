@@ -1,0 +1,30 @@
+@{
+    var canApprove = ViewData["CanApprove"] as bool? == true;
+    var approveAction = ViewData["ApproveAction"] as string;
+    var rejectAction = ViewData["RejectAction"] as string;
+    var controllerName = ViewData["ApprovalController"] as string;
+    var entityId = ViewData["ApprovalEntityId"];
+    var returnUrl = ViewData["ReturnUrl"] as string ?? Request.RawUrl;
+}
+@if (canApprove && !string.IsNullOrWhiteSpace(approveAction) && !string.IsNullOrWhiteSpace(rejectAction) && !string.IsNullOrWhiteSpace(controllerName) && entityId != null)
+{
+    <hr />
+    using (Html.BeginForm(approveAction, controllerName, FormMethod.Post, new { @class = "mb-3" }))
+    {
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@entityId" />
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <label class="form-label">Approval notes (optional)</label>
+        <input type="text" name="notes" class="form-control mb-2" maxlength="500" />
+        <button type="submit" class="btn btn-success">Approve stage</button>
+    }
+    using (Html.BeginForm(rejectAction, controllerName, FormMethod.Post, new { @class = "mb-0" }))
+    {
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@entityId" />
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <label class="form-label">Rejection notes (optional)</label>
+        <input type="text" name="notes" class="form-control mb-2" maxlength="500" />
+        <button type="submit" class="btn btn-outline-danger">Reject</button>
+    }
+}

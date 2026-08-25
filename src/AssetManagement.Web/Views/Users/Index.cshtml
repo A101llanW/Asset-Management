@@ -1,0 +1,115 @@
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.UserVm>
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Users";
+    var roleFilter = ViewBag.RoleFilter as SelectList;
+    var departments = ViewBag.Departments as SelectList;
+    var statusFilter = ViewBag.StatusFilter as SelectList;
+    var canCreateUser = Html.HasPermission("Users.Create");
+    var canInviteUser = Html.HasPermission("Users.Invite");
+    var isDepartmentScoped = ViewBag.IsDepartmentScoped == true;
+    var scopedDepartmentName = ViewBag.ScopedDepartmentName as string;
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = isDepartmentScoped && !string.IsNullOrWhiteSpace(scopedDepartmentName) ? scopedDepartmentName + " — Users" : "Users",
+    Subtitle = isDepartmentScoped
+        ? "Employees registered in your department (including assignees without login access)."
+        : "Manage people and their access. Assign department and role from each user's details page.",
+    PrimaryActionUrl = canCreateUser ? Url.Action("Create") : null,
+    PrimaryActionLabel = canCreateUser ? "Create User" : null,
+    SecondaryActionUrl = canInviteUser ? Url.Action("Index", "UserInvitations") : null,
+    SecondaryActionLabel = canInviteUser ? "Invitations" : null
+})
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input type="text" class="form-control" name="search" placeholder="Search by name, email, or employee number" value="@Model.Search" />
+        </div>
+        <div class="col-md-2">
+            @Html.DropDownList("roleId", roleFilter, "All roles", new { @class = "form-select" })
+        </div>
+        @if (!isDepartmentScoped)
+        {
+        <div class="col-md-2 col-lg-2">
+            @Html.DropDownList("departmentId", departments, "All departments", new { @class = "form-select" })
+        </div>
+        }
+        <div class="col-md-2">
+            @Html.DropDownList("isActive", statusFilter, new { @class = "form-select" })
+        </div>
+        <div class="col-md-1">
+            <select class="form-select" name="pageSize">
+                @foreach (var size in new[] { 10, 25, 50 })
+                {
+                    <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-1 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (!Model.Items.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No users yet</h5>
+            <p class="text-muted mb-3">@(isDepartmentScoped ? "No employees are registered in your department yet." : "Add your first user so assets can be assigned and permissions can be managed in one place.")</p>
+            @if (canCreateUser)
+            {
+                <a class="btn btn-primary" href="@Url.Action("Create")">Create User</a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 am-users-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee #</th>
+                            <th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Email", "email", currentSort, currentDirection)</th>
+                            @if (!isDepartmentScoped)
+                            {
+                                <th>Department</th>
+                            }
+                            <th>Job title</th>
+                            <th>@Html.SortLink("Role", "role", currentSort, currentDirection)</th>
+                            <th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th>
+                            <th class="text-end pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var user in Model.Items)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@user.EmployeeNumber</td>
+                            <td class="text-nowrap">@user.FirstName @user.LastName</td>
+                            <td class="am-users-email">@user.Email</td>
+                            @if (!isDepartmentScoped)
+                            {
+                                <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : user.DepartmentName)</td>
+                            }
+                            <td>@(string.IsNullOrWhiteSpace(user.PositionTitle) ? DisplayText.Empty : user.PositionTitle)</td>
+                            <td class="text-nowrap">@(string.IsNullOrWhiteSpace(user.RoleName) ? DisplayText.Empty : user.RoleName)</td>
+                            <td class="text-nowrap"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive) badge-status">@(user.IsActive ? "Active" : "Inactive")</span></td>
+                            <td class="text-end pe-3 text-nowrap">
+                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id, returnUrl = Request.RawUrl })">Details</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
+}

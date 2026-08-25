@@ -1,0 +1,429 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Asset - Asset Management Module</title>
+    <link rel="stylesheet" href="/Content/bootstrap.min.css" />
+    <link rel="stylesheet" href="/Content/css/site.css" />
+    <link rel="stylesheet" href="/Content/css/am-modules.css" />
+</head>
+<body>
+    <header class="am-shell-header">
+        <div class="am-header-inner">
+            <div class="am-header-branding">
+                    <button type="button" id="amSidebarToggle" class="am-menu-button" aria-label="Open menu" aria-controls="amSidebar" aria-expanded="false">
+                        <span class="am-menu-button-dot"></span>
+                        <span class="am-menu-button-dot"></span>
+                        <span class="am-menu-button-dot"></span>
+                    </button>
+                <a class="am-brand" href="/api/v1/Account/Landing">
+                    <span class="am-brand-mark">AM</span>
+                    <span class="am-brand-copy">
+                        <small class="am-brand-kicker">Nanosoft Asset Suite</small>
+                        <span class="am-brand-title">Asset Management Module</span>
+                    </span>
+                </a>
+            </div>
+
+                <div class="am-header-actions d-flex align-items-center gap-3">
+                        <form class="am-global-search" method="get" action="/api/v1/Search" role="search">
+                            <input type="search" class="form-control form-control-sm" name="q" placeholder="Search assets..." aria-label="Search assets" />
+                        </form>
+                    <div class="am-header-user">
+                        <span class="am-header-user-label">Welcome</span>
+                        <strong class="am-header-user-name">assetmanager@asset.local</strong>
+                    </div>
+                </div>
+        </div>
+    </header>
+
+        <div id="amSidebarOverlay" class="am-sidebar-overlay" aria-hidden="true"></div>
+        <aside id="amSidebar" class="am-sidebar" aria-hidden="true">
+            <div class="am-sidebar-header">
+                <a class="am-sidebar-brand" href="/api/v1/Account/Landing">Asset Management Module</a>
+            </div>
+
+            <nav class="am-sidebar-nav">
+                
+<ul class="nav flex-column am-sidebar-menu" id="amSidebarMenu">
+        <li class="am-nav-module" data-am-module="overview">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Overview</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-overview" aria-label="Toggle Overview section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-overview">
+                <li class="nav-item"><a class="nav-link " href="/api/v1/Dashboard">Dashboard</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="assets">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Assets &amp; custody</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-assets" aria-label="Toggle Assets and custody section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-assets">
+                <li class="nav-item"><a class="nav-link " href="/api/v1/AssetScan/Lookup">Scan</a></li>
+                <li class="nav-item"><a class="nav-link " href="/api/v1/Assets">Assets</a></li>
+                <li class="nav-item"><a class="nav-link " href="/api/v1/Assets/MyAssets">My Assets</a></li>
+                <li class="nav-item"><a class="nav-link " href="/api/v1/Assets/DepartmentAssets">Department Assets</a></li>
+                <li class="nav-item"><a class="nav-link " href="/api/v1/Assignments/List">Assignments</a></li>
+                <li class="nav-item"><a class="nav-link " href="/api/v1/Search">Search</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="workflow">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Workflow</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-workflow" aria-label="Toggle Workflow section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-workflow">
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/AssetRequests">Asset Requests</a></li>
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/PendingApprovals">Pending Approvals</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="procurement">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Procurement</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-procurement" aria-label="Toggle Procurement section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-procurement">
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Purchases">Purchases</a></li>
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/PurchaseRequests">Purchase Requests</a></li>
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Suppliers">Suppliers</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="risk">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Risk &amp; incidents</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-risk" aria-label="Toggle Risk and incidents section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-risk">
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Incidents">Incidents</a></li>
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Claims">Claims</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="finance">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Finance &amp; reports</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-finance" aria-label="Toggle Finance and reports section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-finance">
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Reports">Reports</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="organization">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Organization</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-organization" aria-label="Toggle Organization section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-organization">
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Departments">Departments</a></li>
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/AssetCategories">Asset Categories</a></li>
+            </ul>
+        </li>
+
+        <li class="am-nav-module" data-am-module="administration">
+            <div class="am-nav-module-header">
+                <span class="am-nav-module-label">Administration</span>
+                <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-administration" aria-label="Toggle Administration section">
+                    <span class="am-nav-module-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
+            <ul class="am-nav-module-items nav flex-column" id="am-nav-administration">
+                    <li class="nav-item"><a class="nav-link " href="/api/v1/Notifications">Notifications</a></li>
+            </ul>
+        </li>
+</ul>
+
+            </nav>
+
+            <div class="am-sidebar-footer">
+                <span class="am-user-name">assetmanager@asset.local</span>
+<form action="/api/v1/Account/LogOff" class="mb-0" method="post"><input name="__RequestVerificationToken" type="hidden" value="Rt9KSyA2S/Yjhw6KoBczE3GT3vy6t19CxfZAxBd38hiHvGT8CyglITANGbbikd41c/S9B2xyTGep/U5dxYbegXpBIL2tCK5khjZWbDwmy+WMpg4Z2yRI/6ve4wy80sTv4wzp+4AetRKp2x5ymYKDYJUysRcNxAnORbiy2w7N4wR6w4s0sjYTNsskUVAu273oIzCl9vwgls0cU9Srucl0Bw==" />                    <button type="submit" class="btn btn-sm btn-light w-100">Logout</button>
+</form>            </div>
+        </aside>
+
+    <main class="container-fluid px-4 py-3 am-main-content">
+        
+
+
+        
+<div class="am-page-header">
+    <div>
+            <a class="btn btn-outline-secondary btn-sm am-page-header-back" href="/api/v1/Assets">Back to Assets</a>
+        <h3 class="am-page-title">Create Asset</h3>
+            <div class="am-page-subtitle">Capture the core asset details first, then continue from the asset profile to assign, transfer, or maintain it.</div>
+    </div>
+</div>
+
+
+<form action="/Assets/Create" method="post"><input name="__RequestVerificationToken" type="hidden" value="rx5doy+yfd5N8ocRB507kcVjakJyajG7dbij6HbkCbAHkRBKmFO63Kbo4grXHii6OZrgEgyC0CvD+SmlIZBZvJaLKnE97srkmzYpU3JmJ22UPnjVW4yENMz5g8C4gMUGwQB/E/UoBPZDKUZJSj0QtLBvjjNymDp+Y3W0ZpzSTXQVaqF8LNSSGjI7BctGaiHiQ/XZ2T+HQ0HbZwGVnTHSLA==" /><div class="validation-summary-errors text-danger"><ul><li style="display:none"></li>
+</ul></div>    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label" for="AssetName">AssetName</label>
+            <input class="form-control" data-val="true" data-val-length="The field AssetName must be a string with a maximum length of 150." data-val-length-max="150" data-val-required="The AssetName field is required." id="AssetName" name="AssetName" type="text" value="" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="AssetTag">AssetTag</label>
+            <input class="form-control" data-val="true" data-val-length="The field AssetTag must be a string with a maximum length of 60." data-val-length-max="60" data-val-required="The AssetTag field is required." id="AssetTag" name="AssetTag" type="text" value="" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="SerialNumber">SerialNumber</label>
+            <input class="form-control" data-val="true" data-val-length="The field SerialNumber must be a string with a maximum length of 120." data-val-length-max="120" id="SerialNumber" name="SerialNumber" type="text" value="" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="Brand">Brand</label>
+            <input class="form-control" data-val="true" data-val-length="The field Brand must be a string with a maximum length of 120." data-val-length-max="120" data-val-required="The Brand field is required." id="Brand" name="Brand" type="text" value="" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="Model">Model</label>
+            <input class="input-validation-error form-control" data-val="true" data-val-length="The field Model must be a string with a maximum length of 120." data-val-length-max="120" data-val-required="The Model field is required." id="Model" name="Model" type="text" value="Model" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="CategoryId">CategoryId</label>
+            <select class="form-select" data-val="true" data-val-number="The field CategoryId must be a number." data-val-required="The CategoryId field is required." id="CategoryId" name="CategoryId"><option value="">-- Select category --</option>
+<option value="2">Furniture</option>
+<option value="1">IT Equipment</option>
+<option value="4">Medical/Lab Equipment</option>
+<option value="3">Networking</option>
+</select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="AssetTypeId">AssetTypeId</label>
+            <select class="form-select" id="AssetTypeId" name="AssetTypeId">
+                <option value="">-- Select asset type --</option>
+                    <option value="2" data-category-id="1" >Desktop</option>
+                    <option value="5" data-category-id="4" >Lab Microscope</option>
+                    <option value="1" data-category-id="1" >Laptop</option>
+                    <option value="4" data-category-id="2" >Office Chair</option>
+                    <option value="3" data-category-id="3" >Router</option>
+            </select>
+            <span class="field-validation-valid text-danger" data-valmsg-for="AssetTypeId" data-valmsg-replace="true"></span>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="DepartmentId">DepartmentId</label>
+            <select class="form-select" data-val="true" data-val-number="The field DepartmentId must be a number." data-val-required="The DepartmentId field is required." id="DepartmentId" name="DepartmentId"><option value="">-- Select department --</option>
+<option value="1">Information Technology</option>
+</select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="SupplierId">SupplierId</label>
+            <select class="form-select" data-val="true" data-val-number="The field SupplierId must be a number." data-val-required="The SupplierId field is required." id="SupplierId" name="SupplierId"><option value="">-- Select supplier --</option>
+<option value="3">MedEquip Africa</option>
+<option value="2">Office Works Hub</option>
+<option value="1">Tech Source Ltd</option>
+</select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="PurchaseDate">PurchaseDate</label>
+            <input class="form-control" data-val="true" data-val-required="The PurchaseDate field is required." id="PurchaseDate" name="PurchaseDate" type="date" value="0001-01-01" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="AcquisitionCost">AcquisitionCost</label>
+            <input class="form-control" data-val="true" data-val-number="The field AcquisitionCost must be a number." data-val-range="The field AcquisitionCost must be between 0.01 and 999999999." data-val-range-max="999999999" data-val-range-min="0.01" data-val-required="The AcquisitionCost field is required." id="AcquisitionCost" name="AcquisitionCost" step="0.01" type="number" value="0" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="Currency">Currency</label>
+            <input class="form-control" data-val="true" data-val-length="The field Currency must be a string with a maximum length of 10." data-val-length-max="10" data-val-required="The Currency field is required." id="Currency" name="Currency" type="text" value="KES" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="UsefulLifeMonths">UsefulLifeMonths</label>
+            <input class="form-control" data-val="true" data-val-number="The field UsefulLifeMonths must be a number." data-val-required="The UsefulLifeMonths field is required." id="UsefulLifeMonths" name="UsefulLifeMonths" type="number" value="36" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="SalvageValue">SalvageValue</label>
+            <input class="form-control" data-val="true" data-val-number="The field SalvageValue must be a number." data-val-required="The SalvageValue field is required." id="SalvageValue" name="SalvageValue" step="0.01" type="number" value="0" />
+        </div>
+        <div class="col-md-12">
+            <label class="form-label" for="Description">Description</label>
+            <textarea class="form-control" cols="20" id="Description" name="Description" rows="3">
+</textarea>
+        </div>
+    </div>
+<div class="mt-4 d-flex gap-2 am-form-actions">
+    <button class="btn btn-primary" type="submit">Create Asset</button>
+        <a class="btn btn-outline-secondary" href="/api/v1/Assets">Back to Assets</a>
+</div>
+</form>
+<script>
+    (function () {
+        var category = document.getElementById('CategoryId');
+        var assetType = document.getElementById('AssetTypeId');
+
+        if (!category || !assetType) {
+            return;
+        }
+
+        var options = Array.prototype.slice.call(assetType.options);
+
+        function syncAssetTypes() {
+            var selectedCategoryId = category.value;
+
+            options.forEach(function (option, index) {
+                if (index === 0) {
+                    option.disabled = false;
+                    return;
+                }
+
+                var matchesCategory = !selectedCategoryId || option.getAttribute('data-category-id') === selectedCategoryId;
+                option.disabled = !matchesCategory;
+                option.hidden = false;
+            });
+
+            var selectedOption = assetType.options[assetType.selectedIndex];
+            if (selectedOption && selectedOption.disabled) {
+                assetType.value = '';
+            }
+        }
+
+        category.addEventListener('change', syncAssetTypes);
+        syncAssetTypes();
+    })();
+</script>
+
+    </main>
+
+        <div id="amHelpBot"
+         class="am-helpbot"
+         data-current-controller="Assets"
+         data-current-action="Create"
+         data-dashboard-url="/api/v1/Dashboard"
+         data-assets-url="/api/v1/Assets"
+         data-assets-create-url="/api/v1/Assets/Create"
+         data-assignments-url="/api/v1/Assignments"
+         data-purchases-url="/api/v1/Purchases"
+         data-purchases-create-url="/api/v1/Purchases/Create"
+         data-departments-url="/api/v1/Departments"
+         data-suppliers-url="/api/v1/Suppliers"
+         data-users-url="/api/v1/Users"
+         data-users-create-url="/api/v1/Users/Create"
+         data-roles-url="/api/v1/Roles"
+         data-reports-url="/api/v1/Reports"
+         data-notifications-url="/api/v1/Notifications"
+         data-categories-url="/api/v1/AssetCategories"
+         data-types-url="/api/v1/AssetTypes"
+         data-settings-url="/api/v1/Settings">
+        <button type="button"
+                id="amHelpBotToggle"
+                class="am-helpbot-toggle"
+                aria-controls="amHelpBotPanel"
+                aria-expanded="false">
+            <span class="am-helpbot-toggle-badge">Help</span>
+            <span class="am-helpbot-toggle-copy">
+                <strong>Process Assistant</strong>
+                <small>Need guidance?</small>
+            </span>
+        </button>
+
+        <section id="amHelpBotPanel" class="am-helpbot-panel" aria-hidden="true">
+            <header class="am-helpbot-header">
+                <div>
+                    <span class="am-helpbot-kicker">System guide</span>
+                    <h2>Process Assistant</h2>
+                </div>
+                <button type="button" id="amHelpBotClose" class="am-helpbot-close" aria-label="Close assistant">&times;</button>
+            </header>
+
+            <div id="amHelpBotMessages" class="am-helpbot-messages">
+                <article class="am-helpbot-message am-helpbot-message-bot">
+                    <p>I can help users navigate the module and understand the actual system processes.</p>
+                    <p>Ask things like "How do I assign an asset?", "How do I record a purchase?", or "What can I do on this page?"</p>
+                </article>
+            </div>
+
+            <div class="am-helpbot-prompts">
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I create an asset?">Create asset</button>
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I assign an asset?">Assign asset</button>
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I transfer an asset?">Transfer asset</button>
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="How do I return an asset?">Return asset</button>
+                    <button type="button" class="am-helpbot-chip" data-helpbot-prompt="Where do I manage asset categories and types?">Asset categories</button>
+                <button type="button" class="am-helpbot-chip" data-helpbot-prompt="What can I do on this page?">This page</button>
+            </div>
+
+            <form id="amHelpBotForm" class="am-helpbot-form" autocomplete="off">
+                <label class="visually-hidden" for="amHelpBotInput">Ask the process assistant</label>
+                <input type="text" id="amHelpBotInput" class="form-control" placeholder="Ask about a system process" />
+                <button type="submit" class="btn btn-primary">Send</button>
+            </form>
+        </section>
+    </div>
+
+
+    
+
+    <script src="/Scripts/jquery-3.7.1.min.js"></script>
+    <script src="/Scripts/bootstrap.bundle.min.js"></script>
+    <script src="/Scripts/app/permissions.js"></script>
+    <script src="/Scripts/app/help-bot.js"></script>
+    <script src="/Scripts/app/site-interactive.js"></script>
+        <script src="/Scripts/app/sidebar-nav.js"></script>
+
+        <script>
+            (function () {
+                var body = document.body;
+                var toggle = document.getElementById("amSidebarToggle");
+                var sidebar = document.getElementById("amSidebar");
+                var overlay = document.getElementById("amSidebarOverlay");
+
+                if (!toggle || !sidebar || !overlay) {
+                    return;
+                }
+
+                function setSidebarState(isOpen) {
+                    if (isOpen) {
+                        body.classList.add("am-sidebar-open");
+                    } else {
+                        body.classList.remove("am-sidebar-open");
+                    }
+
+                    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                    sidebar.setAttribute("aria-hidden", isOpen ? "false" : "true");
+                    overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
+                }
+
+                toggle.addEventListener("click", function () {
+                    setSidebarState(!body.classList.contains("am-sidebar-open"));
+                });
+
+                overlay.addEventListener("click", function () {
+                    setSidebarState(false);
+                });
+
+                document.addEventListener("keydown", function (event) {
+                    if (event.key === "Escape") {
+                        setSidebarState(false);
+                    }
+                });
+
+                var links = sidebar.querySelectorAll(".nav-link");
+                for (var i = 0; i < links.length; i++) {
+                    links[i].addEventListener("click", function () {
+                        setSidebarState(false);
+                    });
+                }
+            })();
+        </script>
+
+    
+</body>
+</html>
+

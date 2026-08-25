@@ -1,0 +1,81 @@
+@using AssetManagement.Application.Security
+@{
+    ViewBag.Title = "Terms and Conditions";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var companyName = ViewBag.CompanyName as string ?? LegalPolicyDefaults.CompanyName;
+    var contactEmail = ViewBag.ContactEmail as string ?? LegalPolicyDefaults.ContactEmail;
+    var contactAddress = ViewBag.ContactAddress as string ?? LegalPolicyDefaults.ContactAddress;
+    var lastUpdated = ViewBag.LastUpdated as string ?? LegalPolicyDefaults.LastUpdated;
+    var legalTenant = ViewBag.LegalDocTenant as string;
+    var legalPage = ViewBag.LegalDocPage as string ?? "terms";
+    var rel = ViewBag.LegalRelationship is LegalRelationshipKind
+        ? (LegalRelationshipKind)ViewBag.LegalRelationship
+        : LegalRelationshipKind.TenantUser;
+}
+
+<div class="container py-4">
+    <div class="card am-auth-card">
+        <div class="card-body p-4 p-md-5">
+            <nav class="mb-4 pb-3 border-bottom" aria-label="Legal documents">
+                <a class="btn btn-sm me-2 @(legalPage == "privacy" ? "btn-primary" : "btn-outline-primary")"
+                   href="@(string.IsNullOrWhiteSpace(legalTenant) ? Url.Action("Privacy", "Home") : Url.RouteUrl("Tenant", new { tenant = legalTenant, controller = "Home", action = "Privacy" }))">Privacy policy</a>
+                <a class="btn btn-sm @(legalPage == "terms" ? "btn-primary" : "btn-outline-primary")"
+                   href="@(string.IsNullOrWhiteSpace(legalTenant) ? Url.Action("Terms", "Home") : Url.RouteUrl("Tenant", new { tenant = legalTenant, controller = "Home", action = "Terms" }))">Terms and conditions</a>
+            </nav>
+
+            <h2 class="mb-2">Terms and Conditions</h2>
+            <p class="text-muted small mb-4">Policy version: <strong>@(ViewBag.TermsVersionLabel as string)</strong> · Last updated: @lastUpdated</p>
+
+            @if (rel == LegalRelationshipKind.PlatformAdmin)
+            {
+                <p class="text-muted mb-4">
+                    These Terms govern use of the Asset Management platform by <strong>@LegalPolicyDefaults.GetRelationshipDisplayName(rel)</strong>s
+                    who manage organizations, licenses, impersonation, and platform-wide settings.
+                </p>
+            }
+            else if (rel == LegalRelationshipKind.CompanyAdmin)
+            {
+                <p class="text-muted mb-4">
+                    These Terms govern use of the Asset Management module by <strong>@LegalPolicyDefaults.GetRelationshipDisplayName(rel)</strong>s
+                    within a tenant organization.
+                </p>
+            }
+            else
+            {
+                <p class="text-muted mb-4">
+                    These Terms govern use of the Asset Management module by <strong>@LegalPolicyDefaults.GetRelationshipDisplayName(rel)</strong>s
+                    assigned to an organization.
+                </p>
+            }
+
+            <h5>1. Acceptable Use</h5>
+            <p>You must use the system only for authorized business purposes and in compliance with your organization's policies.</p>
+
+            <h5>2. Accounts and Security</h5>
+            <ul>
+                <li>Keep credentials confidential and report suspected compromise immediately.</li>
+                <li>Privileged accounts may require multi-factor authentication.</li>
+                <li>You are responsible for activity performed under your account.</li>
+            </ul>
+
+            <h5>3. Data Accuracy</h5>
+            <p>You agree to enter accurate asset, custody, and workflow information to the best of your knowledge.</p>
+
+            <h5>4. Service Availability</h5>
+            <p>
+                @companyName provides the platform on a commercially reasonable basis.
+                Maintenance, outages, or license restrictions may affect availability.
+            </p>
+
+            <h5>5. Limitation of Liability</h5>
+            <p>
+                To the extent permitted by law, @companyName is not liable for indirect or consequential damages arising from use of the service.
+            </p>
+
+            <h5>6. Contact</h5>
+            <p class="mb-0">
+                Questions about these terms: <a href="mailto:@contactEmail">@contactEmail</a> · @contactAddress
+            </p>
+        </div>
+    </div>
+</div>

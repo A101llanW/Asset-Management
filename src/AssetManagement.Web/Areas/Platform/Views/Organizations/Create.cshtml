@@ -1,0 +1,76 @@
+@model CreateOrganizationViewModel
+@{
+    ViewBag.Title = "Register Organization";
+    Layout = "~/Areas/Platform/Views/Shared/_PlatformLayout.cshtml";
+}
+
+<div class="am-platform-companies-dashboard">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card card-kpi am-platform-form-card">
+                <div class="card-header am-platform-form-card__header">
+                    <h1 class="am-platform-form-card__title mb-0">New Organization Registration</h1>
+                </div>
+                <div class="card-body am-platform-form-card__body">
+                    @using (Html.BeginForm("CreateOrganization", "Organizations", new { area = "Platform" }, FormMethod.Post))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="submitToken" value="@Guid.NewGuid().ToString("N")" />
+
+                        if (ViewBag.ShowSimilarNameWarning == true)
+                        {
+                            <div class="alert alert-warning">
+                                A similarly named organization may already exist. Check the box below to continue anyway.
+                            </div>
+                            <div class="form-check mb-3">
+                                @Html.CheckBoxFor(m => m.IgnoreSimilarNameWarning, new { @class = "form-check-input" })
+                                @Html.LabelFor(m => m.IgnoreSimilarNameWarning, "I understand and want to continue", new { @class = "form-check-label" })
+                            </div>
+                        }
+
+                        if (!ViewData.ModelState.IsValid)
+                        {
+                            <div class="alert alert-danger">
+                                @Html.ValidationSummary(true, "", new { @class = "mb-0" })
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            @Html.LabelFor(m => m.Name, "Organization name", new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", required = "required" })
+                            @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger small" })
+                            <div class="form-text">A unique portal URL slug is generated automatically (same pattern as Recruitment).</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                @Html.LabelFor(m => m.AdminEmail, "Admin email (optional)", new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.AdminEmail, new { @class = "form-control", type = "email" })
+                                @Html.ValidationMessageFor(m => m.AdminEmail, "", new { @class = "text-danger small" })
+                            </div>
+                            <div class="col-md-3">
+                                @Html.LabelFor(m => m.AdminFirstName, "Admin first name", new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.AdminFirstName, new { @class = "form-control" })
+                                @Html.ValidationMessageFor(m => m.AdminFirstName, "", new { @class = "text-danger small" })
+                            </div>
+                            <div class="col-md-3">
+                                @Html.LabelFor(m => m.AdminLastName, "Admin last name", new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.AdminLastName, new { @class = "form-control" })
+                                @Html.ValidationMessageFor(m => m.AdminLastName, "", new { @class = "text-danger small" })
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
+                            <button type="submit" class="btn btn-primary">Confirm Registration</button>
+                            <a class="btn btn-outline-secondary" href="@Url.Action("Index", "Organizations", new { area = "Platform" })">Cancel</a>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <p class="text-muted small text-center mt-3 mb-0">
+                This is a restricted administrative action. All registrations are logged for audit purposes.
+            </p>
+        </div>
+    </div>
+</div>

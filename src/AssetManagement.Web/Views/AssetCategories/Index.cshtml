@@ -1,0 +1,81 @@
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Web.ViewModels.AssetCategoryVm>
+@using System.Collections.Generic
+@using System.Linq
+@using AssetManagement.Domain.Entities
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Asset Categories";
+    var currentSort = ViewBag.Sort as string;
+    var currentDirection = ViewBag.Direction as string;
+    var typeLookup = ViewBag.TypeLookup as IDictionary<int, int> ?? new Dictionary<int, int>();
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Asset Categories",
+    Subtitle = "Define the top-level categories used to classify assets and drive asset type choices.",
+    PrimaryActionUrl = Url.Action("Create"),
+    PrimaryActionLabel = "Create Category"
+})
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-8">
+            <input type="text" class="form-control" name="search" placeholder="Search by name or description" value="@Model.Search" />
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="pageSize">
+                @foreach (var size in new[] { 10, 25, 50 })
+                {
+                    <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (!Model.Items.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No asset categories yet</h5>
+            <p class="text-muted mb-3">Create categories first, then add asset types under each one before registering assets.</p>
+            <a class="btn btn-primary" href="@Url.Action("Create")">Create Category</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi">
+        <div class="card-body p-0">
+            <table class="table mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>@Html.SortLink("Category", "name", currentSort, currentDirection)</th>
+                        <th>Description</th>
+                        <th>@Html.SortLink("Asset Types", "types", currentSort, currentDirection)</th>
+                        <th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.Name</td>
+                        <td>@item.Description</td>
+                        <td>@(typeLookup.ContainsKey(item.Id) ? typeLookup[item.Id] : 0)</td>
+                        <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = item.Id, returnUrl = Request.RawUrl })">Edit</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Create", "AssetTypes", new { categoryId = item.Id, returnUrl = Request.RawUrl })">Add Type</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
+}

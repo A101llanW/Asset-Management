@@ -1,0 +1,51 @@
+@using AssetManagement.Web.Helpers
+@model AssetManagement.Application.ViewModels.RoleCreateEditVm
+@{
+    ViewBag.Title = "Edit Role";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Edit Role",
+    Subtitle = "Update module permissions so users can submit or approve requisitions and asset requests as intended.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Roles", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name, Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }) },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Edit Role" }
+    }
+})
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Id)
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+        </div>
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Description, new { @class = "form-control" })
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check">
+                @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+                @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+            </div>
+        </div>
+    </div>
+
+    @Html.Partial("_RolePermissionMatrix", Model)
+
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Update Role",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}

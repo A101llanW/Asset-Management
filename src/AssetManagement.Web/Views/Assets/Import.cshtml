@@ -1,0 +1,123 @@
+@using AssetManagement.Application.Helpers
+
+@{
+
+    ViewBag.Title = "Import Assets";
+
+}
+
+
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+
+{
+
+    Title = "Import Assets",
+
+    Subtitle = "Bulk onboard assets from an Excel workbook or CSV file. Download the template, fill in your data, then upload the file.",
+
+    BackUrl = Url.Action("Index"),
+
+    BackLabel = "Back to Assets"
+
+})
+
+
+
+<div class="row g-3">
+
+    <div class="col-lg-7">
+
+        <div class="card card-kpi">
+
+            <div class="card-body">
+
+                <h5 class="mb-3">Upload spreadsheet</h5>
+
+                @using (Html.BeginForm("Import", "Assets", FormMethod.Post, new { enctype = "multipart/form-data" }))
+
+                {
+
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+
+                        <label class="form-label" for="importFile">Excel or CSV file</label>
+
+                        <input type="file" class="form-control" id="importFile" name="importFile" accept=".csv,.xlsx,.xls" required />
+
+                        <div class="form-text">Supported formats: .xlsx, .xls, .csv (max 10 MB, up to 2,000 rows).</div>
+
+                    </div>
+
+                    <div class="d-flex gap-2">
+
+                        <button type="submit" class="btn btn-primary">Import assets</button>
+
+                        <a class="btn btn-outline-secondary" href="@Url.Action("DownloadImportTemplate")">Download template</a>
+
+                    </div>
+
+                }
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-lg-5">
+
+        <div class="card card-kpi mb-3">
+
+            <div class="card-body">
+
+                <h6 class="mb-2">Instructions for filling the template</h6>
+
+                <ol class="small text-muted mb-3 ps-3">
+
+                    <li class="mb-2">Download a fresh template using the button on the left. The workbook includes an <strong>Instructions</strong> sheet and an <strong>Import</strong> sheet.</li>
+
+                    <li class="mb-2">Open the <strong>Import</strong> sheet. Do not change row 1 (headers) or row 2 (Required/Optional labels).</li>
+
+                    <li class="mb-2">Row 3 is an example only — enter your assets from <strong>row 4</strong> downward, one asset per row.</li>
+
+                    <li class="mb-2">Fill every required column marked <code>*</code>: AssetName, Category, AssetType, Brand, Model, PurchaseDate, AcquisitionCost.</li>
+
+                    <li class="mb-2">Type Category, AssetType, Department, Supplier, and AssetSubType as plain text. Names must match records already set up in your organization (or leave Department blank for organization custody).</li>
+
+                    <li class="mb-2">Use dates as <code>yyyy-MM-dd</code> and amounts as numbers (example: <code>95000.00</code>).</li>
+
+                    <li class="mb-0">Save the file and upload it here. Asset tags and QR codes are created automatically — do not add those columns.</li>
+
+                </ol>
+
+                <p class="small text-muted mb-0">After import, review the summary message for any skipped rows and correct them before uploading again.</p>
+
+            </div>
+
+        </div>
+
+        <div class="card card-kpi">
+
+            <div class="card-body">
+
+                <h6 class="mb-2">Column reference</h6>
+
+                <p class="small text-muted mb-2"><strong>Required:</strong> AssetName, Category, AssetType, Brand, Model, PurchaseDate, AcquisitionCost.</p>
+
+                <p class="small text-muted mb-2"><strong>Plain text:</strong> Category, AssetType, Department, Supplier, AssetSubType, SerialNumber, Description, Specifications, PolicyReference.</p>
+
+                <p class="small text-muted mb-2"><strong>Pick-list (dropdown in Excel):</strong> ConditionOnReceipt, Condition, CurrentStatus, DepreciationMethod, IsInsured, IsLeased (<code>true</code> / <code>false</code>).</p>
+
+                <p class="small text-muted mb-0"><strong>Optional financial / warranty:</strong> Currency, TaxAmount, SalvageValue, depreciation overrides, InsuredValue, WarrantyStartDate, WarrantyEndDate, IsLeased.</p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+

@@ -1,0 +1,120 @@
+@model AssetManagement.Application.ViewModels.DepartmentCreateVm
+@{
+    ViewBag.Title = "Create Department";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var setupModes = ViewBag.SetupModes as System.Web.Mvc.SelectList;
+    var adminParents = ViewBag.AdminParentDepartments as System.Web.Mvc.SelectList;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Department",
+    Subtitle = "Add an administrative unit, a sub-unit, a grade with class streams, or bulk grades 1–6.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Department" }
+    }
+})
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="mb-3">
+        <label class="form-label">Setup type</label>
+        @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
+    </div>
+    <div id="setup-normal">
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+        </div>
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Code, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Code, new { @class = "form-control" })
+        </div>
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        </div>
+        <div class="form-check mb-3">
+            @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input", id = "requisition-target-normal" })
+            <label class="form-check-label" for="requisition-target-normal">Requisition target</label>
+        </div>
+    </div>
+    <div id="setup-sub-department" style="display:none;">
+        <div class="mb-3">
+            <label class="form-label">Parent department</label>
+            @Html.DropDownListFor(m => m.ParentDepartmentId, adminParents, "-- Select parent department --", new { @class = "form-select" })
+            <div class="form-text">Example: Information Technology, Administration.</div>
+        </div>
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Name, "Sub-unit name", new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Comp Lab - Senior" })
+        </div>
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        </div>
+    </div>
+    <div id="setup-grade-streams" style="display:none;">
+        <div class="mb-3">
+            <label class="form-label">Grade number</label>
+            @Html.TextBoxFor(m => m.GradeNumber, new { @class = "form-control", type = "number", min = "1", max = "6" })
+            <div class="form-text">Grades are capped at 6 for school clients.</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Streams</label>
+            @Html.TextBoxFor(m => m.SelectedStreams, new { @class = "form-control", placeholder = "A,B,C" })
+            <div class="form-text">Enter streams separated by commas (example: A,B,C).</div>
+        </div>
+    </div>
+    <div id="setup-bulk-grades" style="display:none;">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">From grade</label>
+                @Html.TextBoxFor(m => m.BulkGradeFrom, new { @class = "form-control", type = "number", min = "1", max = "6" })
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To grade</label>
+                @Html.TextBoxFor(m => m.BulkGradeTo, new { @class = "form-control", type = "number", min = "1", max = "6" })
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Streams per grade</label>
+                @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C,D" })
+            </div>
+        </div>
+        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template. Maximum grade is 6.</div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Department",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}
+<script>
+    (function () {
+        var modeSelect = document.getElementById('department-setup-mode');
+        var sections = {
+            Normal: document.getElementById('setup-normal'),
+            SubDepartment: document.getElementById('setup-sub-department'),
+            GradeWithStreams: document.getElementById('setup-grade-streams'),
+            BulkGrades: document.getElementById('setup-bulk-grades')
+        };
+        function syncSections() {
+            var mode = modeSelect ? modeSelect.value : 'Normal';
+            Object.keys(sections).forEach(function (key) {
+                if (sections[key]) {
+                    sections[key].style.display = key === mode ? '' : 'none';
+                }
+            });
+        }
+        if (modeSelect) {
+            modeSelect.addEventListener('change', syncSections);
+            syncSections();
+        }
+    })();
+</script>

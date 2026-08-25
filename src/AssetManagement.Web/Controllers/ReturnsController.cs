@@ -1,0 +1,180 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Mvc;
+using AssetManagement.Application.Contracts;
+using AssetManagement.Application.DTOs;
+using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Entities;
+using AssetManagement.Web.Filters;
+using AssetManagement.Web.Helpers;
+using AssetManagement.Web.ViewModels;
+
+namespace AssetManagement.Web.Controllers
+{
+    [PermissionAuthorize("Assets.Return")]
+    public class ReturnsController : BaseController
+    {
+        private readonly IReturnService _returnService;
+        public ReturnsController()
+        {
+            _returnService = BuildReturnService();
+        }
+
+        public ActionResult Wizard(int? assetId)
+        {
+            if (!assetId.HasValue)
+            {
+                return RedirectToMissingAsset();
+            }
+
+            var result = Create(assetId);
+            if (result is ViewResult)
+            {
+                return View("Wizard", ((ViewResult)result).Model);
+            }
+
+            return result;
+        }
+
+        public ActionResult Create(int? assetId)
+        {
+            if (!assetId.HasValue)
+            {
+                return RedirectToMissingAsset();
+            }
+
+            var asset = UnitOfWork.Repository<Asset>().GetById(assetId.Value);
+            if (asset == null)
+            {
+                return HttpNotFound();
+            }
+
+            string scopeError;
+            if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
+            {
+                TempData["Error"] = scopeError;
+                return RedirectToAssetDetails(assetId.Value);
+            }
+
+            var model = new AssetReturnVm
+            {
+                AssetId = assetId.Value,
+                ReturnedById = ResolveReturningUserId(asset, null),
+                ReturnDate = DateTime.UtcNow,
+                ReturnCondition = asset.Condition.ToString()
+            };
+
+            PopulateLookups(model, asset);
+            ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
+            return View(model);
+        }
+
+        private ActionResult RedirectToMissingAsset()
+        {
+            TempData["Error"] = "Select an asset to return.";
+            return RedirectToAction("Index", "Assets");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult Create([Bind(Prefix = "")] AssetReturnVm viewModel)
+        {
+            if (viewModel == null)
+            {
+                return RedirectToAction("Index", "Assets");
+            }
+
+            var asset = UnitOfWork.Repository<Asset>().GetById(viewModel.AssetId);
+            if (asset == null)
+            {
+                return HttpNotFound();
+            }
+
+            viewModel.ReturnedById = ResolveReturningUserId(asset, viewModel);
+            if (string.IsNullOrWhiteSpace(viewModel.ReturnedById))
+            {
+                ModelState.AddModelError("ReturnedById", "Select the user returning this asset.");
+            }
+
+            string scopeError;
+            if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
+            {
+                ModelState.AddModelError("", scopeError);
+            }
+
+            var receiveDepartmentId = asset.DepartmentId > 0 ? (int?)asset.DepartmentId : null;
+            if (!string.IsNullOrWhiteSpace(viewModel.ReceivedById)
+                && !ValidateUserBelongsToDepartment(viewModel.ReceivedById, receiveDepartmentId))
+            {
+                ModelState.AddModelError("ReceivedById", "Receiving user must belong to the asset's department.");
+            }
+
+            PopulateLookups(viewModel, asset);
+            ViewBag.AssetContext = BuildAssetWorkflowContext(viewModel.AssetId);
+            if (!ModelState.IsValid)
+            {
+                return View(viewModel);
+            }
+
+            try
+            {
+                _returnService.ReturnAsset(viewModel);
+                TempData["Message"] = "Return logged.";
+                return RedirectToAssetDetails(viewModel.AssetId);
+            }
+            catch (BusinessException ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+                return View(viewModel);
+            }
+        }
+
+        private void PopulateLookups(AssetReturnVm model, Asset asset)
+        {
+            var activeUsers = GetActiveUsers().ToList();
+            var receiveDepartmentId = asset != null && asset.DepartmentId > 0 ? (int?)asset.DepartmentId : null;
+            ViewBag.Users = BuildActiveUserSelectList(model?.ReceivedById, receiveDepartmentId);
+            ViewBag.ConditionOptions = BuildAssetConditionSelectList(model?.ReturnCondition);
+            ViewBag.LockReturnedBy = !string.IsNullOrWhiteSpace(asset?.CurrentCustodianId);
+            ViewBag.RequireReturnedBy = !ViewBag.LockReturnedBy;
+            ViewBag.ReturnedByName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.ReturnedById, activeUsers);
+            ViewBag.ReceiveDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
+                receiveDepartmentId,
+                GetActiveDepartments());
+
+            SetWorkflowFormConfig(BuildWorkflowFormConfig(
+                activeUsers,
+                new WorkflowDepartmentUserPairVm[0],
+                ViewBag.LockReturnedBy == true
+                    ? new[] { new WorkflowLockedFieldVm { FieldId = "ReturnedById" } }
+                    : new WorkflowLockedFieldVm[0]));
+        }
+
+        private string ResolveReturningUserId(Asset asset, AssetReturnVm model)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+            {
+                return asset.CurrentCustodianId.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(model?.ReturnedById))
+            {
+                return model.ReturnedById.Trim();
+            }
+
+            var lastAssignee = UnitOfWork.Repository<AssetAssignment>().Query()
+                .Where(x => x.AssetId == asset.Id && x.IsActive && x.ToUserId != null && x.ToUserId != string.Empty)
+                .OrderByDescending(x => x.AssignedDate)
+                .Select(x => x.ToUserId)
+                .FirstOrDefault();
+
+            return string.IsNullOrWhiteSpace(lastAssignee) ? null : lastAssignee.Trim();
+        }
+    }
+}

@@ -1,0 +1,175 @@
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{FE9AE2E8-76E4-4912-A755-FCDCBAF16940}</ProjectGuid>
+    <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <RootNamespace>AssetManagement.Web</RootNamespace>
+    <AssemblyName>AssetManagement.Web</AssemblyName>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
+    <UseIISExpress>true</UseIISExpress>
+    <IISExpressSSLPort />
+    <IISExpressAnonymousAuthentication />
+    <IISExpressWindowsAuthentication />
+    <IISExpressUseClassicPipelineMode />
+    <UseGlobalApplicationHostFile />
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
+    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Web.Abstractions" />
+    <Reference Include="System.Web.ApplicationServices" />
+    <Reference Include="System.Web.DynamicData" />
+    <Reference Include="System.Web.Entity" />
+    <Reference Include="System.Web.Helpers" />
+    <Reference Include="System.Web.Mvc" />
+    <Reference Include="System.Web.Optimization" />
+    <Reference Include="System.Web.Razor" />
+    <Reference Include="System.Web.Routing" />
+    <Reference Include="System.Web.WebPages" />
+    <Reference Include="System.Web.WebPages.Deployment" />
+    <Reference Include="System.Web.WebPages.Razor" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Antlr3.Runtime">
+      <HintPath>$(NuGetPackageRoot)antlr\3.5.0.2\lib\Antlr3.Runtime.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="EntityFramework">
+      <HintPath>$(NuGetPackageRoot)entityframework\6.4.4\lib\net45\EntityFramework.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="EntityFramework.SqlServer">
+      <HintPath>$(NuGetPackageRoot)entityframework\6.4.4\lib\net45\EntityFramework.SqlServer.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.AspNet.Identity.Core">
+      <HintPath>$(NuGetPackageRoot)microsoft.aspnet.identity.core\2.2.4\lib\net45\Microsoft.AspNet.Identity.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.AspNet.Identity.EntityFramework">
+      <HintPath>$(NuGetPackageRoot)microsoft.aspnet.identity.entityframework\2.2.4\lib\net45\Microsoft.AspNet.Identity.EntityFramework.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.AspNet.Identity.Owin">
+      <HintPath>$(NuGetPackageRoot)microsoft.aspnet.identity.owin\2.2.4\lib\net45\Microsoft.AspNet.Identity.Owin.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Owin">
+      <HintPath>$(NuGetPackageRoot)microsoft.owin\4.2.2\lib\net45\Microsoft.Owin.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Owin.Host.SystemWeb">
+      <HintPath>$(NuGetPackageRoot)microsoft.owin.host.systemweb\4.2.2\lib\net45\Microsoft.Owin.Host.SystemWeb.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Owin.Security">
+      <HintPath>$(NuGetPackageRoot)microsoft.owin.security\4.2.2\lib\net45\Microsoft.Owin.Security.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Owin.Security.Cookies">
+      <HintPath>$(NuGetPackageRoot)microsoft.owin.security.cookies\4.2.2\lib\net45\Microsoft.Owin.Security.Cookies.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(NuGetPackageRoot)newtonsoft.json\13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Owin">
+      <HintPath>$(NuGetPackageRoot)owin\1.0.0\lib\net40\Owin.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="WebGrease">
+      <HintPath>$(NuGetPackageRoot)webgrease\1.6.0\lib\WebGrease.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AssetManagement.Application\AssetManagement.Application.csproj">
+      <Project>{2D8505AC-6E1A-4B85-8315-1052BA9254DA}</Project>
+      <Name>AssetManagement.Application</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\AssetManagement.Domain\AssetManagement.Domain.csproj">
+      <Project>{15AC80B8-C70E-4A91-80B9-057C0C7B68ED}</Project>
+      <Name>AssetManagement.Domain</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\AssetManagement.Infrastructure\AssetManagement.Infrastructure.csproj">
+      <Project>{DBA638FF-111F-4160-B12B-00DB632878D2}</Project>
+      <Name>AssetManagement.Infrastructure</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
+    <Content Include="Views\**\*.cshtml;Content\**\*.*;Scripts\**\*.*;**\*.config" Exclude="bin\**;obj\**" />
+    <None Include="Global.asax" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Antlr" Version="3.5.0.2" />
+    <PackageReference Include="Bootstrap" Version="5.3.3" />
+    <PackageReference Include="EntityFramework" Version="6.4.4" />
+    <PackageReference Include="jQuery" Version="3.7.1" />
+    <PackageReference Include="Microsoft.AspNet.Identity.Core" Version="2.2.4" />
+    <PackageReference Include="Microsoft.AspNet.Identity.EntityFramework" Version="2.2.4" />
+    <PackageReference Include="Microsoft.AspNet.Identity.Owin" Version="2.2.4" />
+    <PackageReference Include="Microsoft.AspNet.Mvc" Version="5.2.9" />
+    <PackageReference Include="Microsoft.AspNet.Razor" Version="3.2.9" />
+    <PackageReference Include="Microsoft.AspNet.Web.Optimization" Version="1.1.3" />
+    <PackageReference Include="Microsoft.AspNet.WebPages" Version="3.2.9" />
+    <PackageReference Include="Microsoft.jQuery.Unobtrusive.Validation" Version="3.2.12" />
+    <PackageReference Include="Microsoft.Owin" Version="4.2.2" />
+    <PackageReference Include="Microsoft.Owin.Host.SystemWeb" Version="4.2.2" />
+    <PackageReference Include="Microsoft.Owin.Security" Version="4.2.2" />
+    <PackageReference Include="Microsoft.Owin.Security.Cookies" Version="4.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="WebGrease" Version="1.6.0" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(VSToolsPath)\WebApplications\Microsoft.WebApplication.targets" Condition="Exists('$(VSToolsPath)\WebApplications\Microsoft.WebApplication.targets')" />
+  <ProjectExtensions>
+    <VisualStudio>
+      <FlavorProperties GUID="{349c5851-65df-11da-9384-00065b846f21}">
+        <WebProjectProperties>
+          <UseIIS>True</UseIIS>
+          <AutoAssignPort>True</AutoAssignPort>
+          <DevelopmentServerPort>0</DevelopmentServerPort>
+          <DevelopmentServerVPath>/</DevelopmentServerVPath>
+          <IISUrl>http://localhost:50444/</IISUrl>
+          <NTLMAuthentication>False</NTLMAuthentication>
+          <UseCustomServer>False</UseCustomServer>
+          <CustomServerUrl></CustomServerUrl>
+          <SaveServerSettingsInUserFile>False</SaveServerSettingsInUserFile>
+        </WebProjectProperties>
+      </FlavorProperties>
+    </VisualStudio>
+  </ProjectExtensions>
+</Project>

@@ -1,0 +1,16 @@
+---
+description: Razor view and controller model alignment
+globs:
+  - "src/AssetManagement.Web/Views/**/*.cshtml"
+  - "src/AssetManagement.Web/Controllers/**/*.cs"
+---
+
+# Razor / controller alignment
+
+Before finishing Web UI changes:
+
+1. Match each view's `@model` type to what the action passes to `View(...)` (or the implicit model for strongly typed partials).
+2. Confirm properties used in the `.cshtml` exist on the view model (grep the view for `Model.`).
+3. Partials (`_ApprovalActions`, `_ApprovalHistory`, `_PageHeader`, `_Pagination`) rely on `@model` or `ViewData` keys set by the parent view—set `ViewData` before `@Html.Partial(...)`.
+4. Keep `if` / `else if` chains valid Razor: do not place `else if` immediately after a standalone `@Html.Partial` without a wrapping `@if`.
+5. Rebuild **AssetManagement.Web** after controller or view model changes.

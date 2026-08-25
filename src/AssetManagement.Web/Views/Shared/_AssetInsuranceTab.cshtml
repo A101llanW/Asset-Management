@@ -1,0 +1,180 @@
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
+
+@using AssetManagement.Web.Helpers
+
+@{
+
+    var canCreateClaim = ViewData["CanCreateClaim"] as bool? ?? false;
+
+    var canManagePolicies = Html.HasPermission("Insurance.Manage");
+
+}
+
+<div class="card card-kpi">
+
+    <div class="card-body">
+
+        <p><strong>Policy reference:</strong> @(string.IsNullOrWhiteSpace(Model.PolicyReference) ? DisplayText.Empty : Model.PolicyReference)<br />
+
+        <strong>Warranty end:</strong> @(Model.WarrantyEndDate.HasValue ? Model.WarrantyEndDate.Value.ToString("yyyy-MM-dd") : "N/A")</p>
+
+
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+
+            <h6 class="mb-0">Insurance policies</h6>
+
+            @if (canManagePolicies)
+
+            {
+
+                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", "InsurancePolicies", new { assetId = Model.Id })">Add policy</a>
+
+            }
+
+        </div>
+
+        @if (Model.InsurancePolicies == null || !Model.InsurancePolicies.Any())
+
+        {
+
+            <p class="text-muted mb-3">No insurance policies on file for this asset.</p>
+
+        }
+
+        else
+
+        {
+
+            <table class="table table-striped mb-3">
+
+                <thead><tr><th>Insurer</th><th>Policy #</th><th>End</th><th>Value</th><th></th></tr></thead>
+
+                <tbody>
+
+                @foreach (var policy in Model.InsurancePolicies)
+
+                {
+
+                    <tr>
+
+                        <td>@policy.InsurerName</td>
+
+                        <td>@policy.PolicyNumber</td>
+
+                        <td>@policy.PolicyEndDate.ToString("yyyy-MM-dd")</td>
+
+                        <td>@Html.FormatCurrency(policy.InsuredValue)</td>
+
+                        <td class="text-end text-nowrap">
+
+                            @if (canManagePolicies)
+
+                            {
+
+                                <a href="@Url.Action("Edit", "InsurancePolicies", new { id = policy.Id })">Edit</a>
+
+                            }
+
+                        </td>
+
+                    </tr>
+
+                }
+
+                </tbody>
+
+            </table>
+
+        }
+
+
+
+        @if (Model.TotalCostOfOwnership != null)
+
+        {
+
+            <div class="border rounded p-3 mb-3 bg-light">
+
+                <h6 class="mb-2">Total cost of ownership (TCO)</h6>
+
+                <p class="mb-1 small">Acquisition: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.AcquisitionCost)</strong> + Tax: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.TaxAmount)</strong> + Maintenance: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.MaintenanceTotal)</strong></p>
+
+                <p class="mb-0">TCO: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.TotalCostOfOwnership)</strong></p>
+
+            </div>
+
+        }
+
+
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+
+            <h6 class="mb-0">Insurance claims</h6>
+
+            <div>
+
+                <a class="btn btn-sm btn-outline-secondary me-1" href="@Url.Action("Index", "Claims", new { assetId = Model.Id })">All claims</a>
+
+                @if (canCreateClaim)
+
+                {
+
+                    <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", "Claims", new { assetId = Model.Id })">Initiate claim</a>
+
+                }
+
+            </div>
+
+        </div>
+
+        @if (Model.InsuranceClaims == null || !Model.InsuranceClaims.Any())
+
+        {
+
+            <p class="text-muted mb-0">No insurance claims for this asset.</p>
+
+        }
+
+        else
+
+        {
+
+            <table class="table table-striped mb-0">
+
+                <thead><tr><th>Claim #</th><th>Type</th><th>Insurer</th><th>Status</th><th>Date</th><th></th></tr></thead>
+
+                <tbody>
+
+                @foreach (var claim in Model.InsuranceClaims)
+
+                {
+
+                    <tr>
+
+                        <td>@claim.ClaimNumber</td>
+
+                        <td>@claim.ClaimType</td>
+
+                        <td>@claim.Insurer</td>
+
+                        <td>@claim.ClaimStatus</td>
+
+                        <td>@claim.ClaimDate.ToString("yyyy-MM-dd")</td>
+
+                        <td class="text-end"><a href="@Url.Action("Details", "Claims", new { id = claim.Id })">View</a></td>
+
+                    </tr>
+
+                }
+
+                </tbody>
+
+            </table>
+
+        }
+
+    </div>
+
+</div>
+

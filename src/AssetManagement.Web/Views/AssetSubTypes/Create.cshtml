@@ -1,0 +1,73 @@
+@model AssetManagement.Application.ViewModels.AssetSubTypeEditVm
+@{
+    ViewBag.Title = "Create Asset Sub-Type";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", "AssetTypes", new { id = Model.AssetTypeId });
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Asset Sub-Type",
+    Subtitle = "Define an exact item variant under " + (ViewBag.AssetTypeName as string ?? "this asset type") + ".",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Asset Types", Url = Url.Action("Index", "AssetTypes") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = ViewBag.AssetTypeName as string, Url = Url.Action("Details", "AssetTypes", new { id = Model.AssetTypeId }) },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Sub-Type" }
+    }
+})
+@using (Html.BeginForm("Create", "AssetSubTypes", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.AssetTypeId)
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Context</div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Category</dt>
+                <dd class="col-sm-9">@ViewBag.AssetCategoryName</dd>
+                <dt class="col-sm-3">Asset type</dt>
+                <dd class="col-sm-9">@ViewBag.AssetTypeName</dd>
+            </dl>
+        </div>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.Brand, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Brand, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.Brand, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.ItemModel, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.ItemModel, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ItemModel, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-4">
+            @Html.LabelFor(m => m.Sku, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Sku, new { @class = "form-control" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Specifications, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Specifications, new { @class = "form-control", rows = "3" })
+        </div>
+        <div class="col-md-12">
+            <div class="form-check">
+                @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+                @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+            </div>
+        </div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Sub-Type",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}

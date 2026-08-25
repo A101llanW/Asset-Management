@@ -1,0 +1,38 @@
+@model AssetManagement.Web.ViewModels.UserCreateViewModel
+@{
+    ViewBag.Title = "Create User";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create User",
+    Subtitle = "Set up a person, then open their profile to assign department and role.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Users", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create User" }
+    }
+})
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label">Email</label>@Html.TextBoxFor(m => m.Email, new { @class = "form-control" })</div>
+        <div class="col-md-3"><label class="form-label">Employee Number</label>@Html.TextBoxFor(m => m.EmployeeNumber, new { @class = "form-control" })</div>
+        <div class="col-md-3"><label class="form-label">First Name</label>@Html.TextBoxFor(m => m.FirstName, new { @class = "form-control" })</div>
+        <div class="col-md-3"><label class="form-label">Last Name</label>@Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })</div>
+        <div class="col-md-3"><label class="form-label">Phone</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>
+        <div class="col-md-3"><label class="form-label">Position Title</label>@Html.TextBoxFor(m => m.PositionTitle, new { @class = "form-control" })</div>
+        <div class="col-md-4"><label class="form-label">Password</label>@Html.PasswordFieldFor(m => m.Password)</div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create User",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}

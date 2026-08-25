@@ -1,0 +1,102 @@
+@using System.Globalization
+@using System.Linq
+@model AssetManagement.Application.ViewModels.AssetEditVm
+@{
+    ViewBag.Title = "Edit Asset";
+    var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
+    var acquisitionCostDisplay = Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"));
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Edit Asset",
+    Subtitle = "Update the asset record and keep category, type, ownership, and supplier details in sync.",
+    BackUrl = Url.Action("Details", new { id = Model.Id }),
+    BackLabel = "Back to Asset"
+})
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Id)
+    @Html.HiddenFor(m => m.CurrentStatus)
+    @Html.HiddenFor(m => m.Currency)
+    @Html.ValidationSummary(false, "Please correct the following:", new { @class = "alert alert-danger rounded-3 mb-4 am-form-validation-summary" })
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.AssetName, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.AssetTag, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.AssetTag, new { @class = "form-control" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.SerialNumber, new { @class = "form-control" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.Brand, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Brand, new { @class = "form-control" })
+        </div>
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.Model, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Model, new { @class = "form-control" })
+        </div>
+        <div class="col-md-12">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        </div>
+    </div>
+
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">Classification</h6>
+            @Html.Partial("_AssetClassificationFields", Model)
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-3">
+            @Html.LabelFor(m => m.PurchaseDate, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="AcquisitionCost">Acquisition cost (@organizationCurrency)</label>
+            <input type="text"
+                   class="form-control"
+                   id="AcquisitionCost"
+                   name="AcquisitionCost"
+                   value="@acquisitionCostDisplay"
+                   data-monetary-input="true"
+                   inputmode="decimal" />
+            @Html.ValidationMessageFor(m => m.AcquisitionCost, "", new { @class = "text-danger small" })
+        </div>
+        @Html.Partial("_AssetTaxAmountFields", Model)
+    </div>
+
+    @Html.Partial("_AssetDepreciationFields", Model)
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Request Approval Paths</div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Configure how transfer and disposal requests for this asset move through approval. Assign an approver role for each stage — any user with that role can act on pending requests. Changes apply to new requests submitted after you save.</p>
+            @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
+        </div>
+    </div>
+
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Update Asset",
+        BackUrl = Url.Action("Details", new { id = Model.Id }),
+        BackLabel = "Back to Asset"
+    })
+}
+
+@Html.Partial("_AssetSubTypePickerModal")
+
+<script src="@Url.Content("~/Scripts/app/asset-monetary-input.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-category-type.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>

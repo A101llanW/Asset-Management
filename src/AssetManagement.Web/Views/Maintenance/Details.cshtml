@@ -1,0 +1,69 @@
+@model AssetManagement.Application.ViewModels.MaintenanceDetailsVm
+@using AssetManagement.Domain.Enums
+@{
+    ViewBag.Title = "Maintenance Ticket";
+    var canComplete = ViewBag.CanComplete as bool? ?? false;
+    var isOpen = Model.Status == MaintenanceStatus.Open || Model.Status == MaintenanceStatus.InProgress;
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.MaintenanceTicketNumber,
+    Subtitle = Model.AssetTag + " · " + Model.AssetName,
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to Asset",
+    PrimaryActionUrl = canComplete ? Url.Action("Complete", new { id = Model.Id }) : null,
+    PrimaryActionLabel = canComplete ? "Complete ticket" : null
+})
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card card-kpi border-0 shadow-sm">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8"><span class="badge bg-@(isOpen ? "warning" : "success")">@Model.Status</span></dd>
+
+                    <dt class="col-sm-4">Type</dt>
+                    <dd class="col-sm-8">@Model.MaintenanceType</dd>
+
+                    <dt class="col-sm-4">Opened</dt>
+                    <dd class="col-sm-8">@Model.ServiceDate.ToString("g")</dd>
+
+                    @if (Model.CompletionDate.HasValue)
+                    {
+                        <dt class="col-sm-4">Returned from repair</dt>
+                        <dd class="col-sm-8">@Model.CompletionDate.Value.ToString("g")</dd>
+                    }
+
+                    <dt class="col-sm-4">Reported issue</dt>
+                    <dd class="col-sm-8">@Model.ReportedIssue</dd>
+
+                    @if (!string.IsNullOrWhiteSpace(Model.AssignedTechnicianOrVendor))
+                    {
+                        <dt class="col-sm-4">Technician / vendor</dt>
+                        <dd class="col-sm-8">@Model.AssignedTechnicianOrVendor</dd>
+                    }
+
+                    @if (Model.Cost > 0)
+                    {
+                        <dt class="col-sm-4">Repair cost</dt>
+                        <dd class="col-sm-8">@Model.Cost.ToString("N2")</dd>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.Outcome))
+                    {
+                        <dt class="col-sm-4">Outcome</dt>
+                        <dd class="col-sm-8">@Model.Outcome</dd>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.PreviousOwnerName))
+                    {
+                        <dt class="col-sm-4">Previous owner</dt>
+                        <dd class="col-sm-8">@Model.PreviousOwnerName</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>

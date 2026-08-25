@@ -1,0 +1,103 @@
+@using System.Linq
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Web.Helpers
+@{
+    var categories = ViewBag.Categories as SelectList;
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Domain.Entities.AssetType>
+        ?? Enumerable.Empty<AssetManagement.Domain.Entities.AssetType>();
+    var lookupUrl = ViewBag.SubTypeLookupUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
+    var byTypeUrl = ViewBag.SubTypeByTypeUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
+    var createUrl = ViewBag.SubTypeCreateUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
+}
+
+<div class="modal fade" id="assetSubTypePickerModal" tabindex="-1" aria-labelledby="assetSubTypePickerModalLabel" aria-hidden="true"
+     data-am-subtype-lookup-url="@lookupUrl"
+     data-am-subtype-by-type-url="@byTypeUrl"
+     data-am-subtype-create-url="@createUrl">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assetSubTypePickerModalLabel">Assign asset sub-type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Set the category and asset type first so the sub-type is stored in the right place.
+                    New sub-types are saved to the system and can be reused on other assets.
+                </p>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="subtype-select-category">Category <span class="text-danger">*</span></label>
+                        <select class="form-select" id="subtype-select-category">
+                            <option value="">-- Select category --</option>
+                            @if (categories != null)
+                            {
+                                foreach (var item in categories)
+                                {
+                                    if (string.IsNullOrEmpty(item.Value)) { continue; }
+                                    <option value="@item.Value">@item.Text</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="subtype-select-type">Asset type <span class="text-danger">*</span></label>
+                        <select class="form-select" id="subtype-select-type">
+                            <option value="">-- Select asset type --</option>
+                            @foreach (var assetType in assetTypeOptions)
+                            {
+                                if (assetType == null) { continue; }
+                                <option value="@assetType.Id" data-category-id="@assetType.AssetCategoryId">@assetType.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="subtype-create-tab" data-bs-toggle="tab" data-bs-target="#subtype-create-panel" type="button" role="tab">Create new</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="subtype-select-tab" data-bs-toggle="tab" data-bs-target="#subtype-select-panel" type="button" role="tab">Select existing</button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="subtype-create-panel" role="tabpanel">
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label" for="subtype-create-name">Display name</label>
+                                <input type="text" class="form-control" id="subtype-create-name" maxlength="200" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="subtype-create-brand">Brand</label>
+                                <input type="text" class="form-control" id="subtype-create-brand" maxlength="100" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="subtype-create-model">Model</label>
+                                <input type="text" class="form-control" id="subtype-create-model" maxlength="100" />
+                            </div>
+                        </div>
+                        <div class="alert alert-danger mt-3 mb-0" id="subtype-create-error" style="display:none;"></div>
+                    </div>
+                    <div class="tab-pane fade" id="subtype-select-panel" role="tabpanel">
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label" for="subtype-select-item">Sub-type</label>
+                                <select class="form-select" id="subtype-select-item">
+                                    <option value="">-- Select sub-type --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="small text-muted mt-2" id="subtype-select-meta"></div>
+                        <div class="alert alert-danger mt-3 mb-0" id="subtype-select-error" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="asset-subtype-picker-confirm">Assign sub-type</button>
+            </div>
+        </div>
+    </div>
+</div>

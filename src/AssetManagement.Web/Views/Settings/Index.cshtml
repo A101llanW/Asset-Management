@@ -1,0 +1,141 @@
+@model AssetManagement.Application.ViewModels.SettingsVm
+@using System.Linq
+@using System.Web.Mvc
+@{
+    ViewBag.Title = "Settings";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "System Settings",
+    Subtitle = "Operational defaults, finance currency, and the approval matrix for requisitions, transfers, and disposals.",
+    BackUrl = Url.Action("Index", "Dashboard"),
+    BackLabel = "Back to Dashboard"
+})
+
+@using (Html.BeginForm("Index", "Settings", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger" })
+
+    <div class="am-stagger">
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Attachments</div>
+        <div class="card-body">
+            <div class="mb-3">
+                @Html.LabelFor(m => m.AttachmentRootPath, new { @class = "form-label" })
+                @Html.TextBoxFor(m => m.AttachmentRootPath, new { @class = "form-control", placeholder = "~/App_Data/Attachments" })
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Notification Thresholds</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.WarrantyThresholdDays, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.WarrantyThresholdDays, new { @class = "form-control", type = "number", min = "0" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.InsuranceThresholdDays, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.InsuranceThresholdDays, new { @class = "form-control", type = "number", min = "0" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.MaintenanceThresholdDays, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.MaintenanceThresholdDays, new { @class = "form-control", type = "number", min = "0" })
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Finance Defaults</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.DefaultCurrency, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.DefaultCurrency, new { @class = "form-control text-uppercase", maxlength = "10" })
+                </div>
+            </div>
+            <p class="text-muted small mb-0 mt-3">Useful life defaults are configured per asset category and asset type by company administrators.</p>
+        </div>
+    </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Label printer (Zebra ZD421)</div>
+        <div class="card-body">
+            <p class="text-muted small">Configure the Zebra ZD4A042-30EM00EZ (ZD421, 203 dpi) for asset QR labels. Requires Zebra Browser Print on each print workstation.</p>
+            <div class="form-check mb-3">
+                @Html.CheckBoxFor(m => m.LabelPrinter.Enabled, new { @class = "form-check-input", id = "labelPrinterEnabled" })
+                @Html.LabelFor(m => m.LabelPrinter.Enabled, new { @class = "form-check-label", @for = "labelPrinterEnabled" })
+            </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.LabelPrinter.Model, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.LabelPrinter.Model, new { @class = "form-control", @readonly = "readonly" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.LabelPrinter.Mode, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.LabelPrinter.Mode, new SelectList(new[]
+                    {
+                        new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.ModeZebraBrowserPrint, Text = "Zebra Browser Print" },
+                        new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.ModeBrowser, Text = "Browser print only" }
+                    }, "Value", "Text", Model.LabelPrinter.Mode), new { @class = "form-select" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.LabelPrinter.DeviceName, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.LabelPrinter.DeviceName, new { @class = "form-control", placeholder = "Optional Windows queue name" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.LabelPrinter.WidthMm, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.LabelPrinter.WidthMm, new { @class = "form-control", type = "number", min = "15", max = "104" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.LabelPrinter.HeightMm, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.LabelPrinter.HeightMm, new { @class = "form-control", type = "number", min = "6", max = "279" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-control", type = "number", min = "1", max = "10" })
+                </div>
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.LabelPrinter.LayoutPreset, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.LabelPrinter.LayoutPreset, new SelectList(new[]
+                    {
+                        new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutQrWithMeta, Text = "QR + metadata" },
+                        new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutQrCompact, Text = "QR compact" },
+                        new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutQrOnly, Text = "QR only" }
+                    }, "Value", "Text", Model.LabelPrinter.LayoutPreset), new { @class = "form-select" })
+                </div>
+            </div>
+            <div class="alert alert-light border mt-3 mb-0 small">
+                <strong>Workstation setup checklist</strong>
+                <ol class="mb-0 mt-2 ps-3">
+                    <li>Install the ZDesigner driver for ZD421 (203 dpi, thermal transfer).</li>
+                    <li>Connect the ZD4A042-30EM00EZ via USB or Bluetooth and load matching label stock.</li>
+                    <li>Install and start <a href="https://www.zebra.com/us/en/support-downloads/software/printer-software/browser-print.html" target="_blank" rel="noopener">Zebra Browser Print</a> on the print PC.</li>
+                    <li>Calibrate media in the driver; match label width/height above to your stock.</li>
+                    <li>Set the platform <strong>External base URL</strong> so QR codes scan from phones outside your LAN.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Approval Matrix</div>
+        <div class="card-body">
+            @Html.Partial("_RequisitionWorkflowGuide")
+            <p class="text-muted mb-3">Enable approval per process and assign an approver <strong>role</strong> for each stage (up to @AssetManagement.Application.ViewModels.ApprovalWorkflowSettingsHelper.MaxApprovalStages). Any active user with that role can act on pending items. Stage roles need matching permissions (for example <code>Purchases.Approve</code> for requisition approval). Changes apply to <strong>new</strong> requests only.</p>
+            @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
+        </div>
+    </div>
+    </div>
+
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Save Settings",
+        BackUrl = Url.Action("Index", "Dashboard"),
+        BackLabel = "Back to Dashboard"
+    })
+}

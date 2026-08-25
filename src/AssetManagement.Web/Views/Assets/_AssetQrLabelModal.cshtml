@@ -1,0 +1,23 @@
+@model AssetManagement.Web.ViewModels.AssetLabelPrintVm
+<div class="modal fade" id="assetQrLabelModal" tabindex="-1" aria-labelledby="assetQrLabelModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assetQrLabelModalTitle">Asset label</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @Html.Partial("_AssetLabelCodeTypeSelector", Model)
+                <div class="am-asset-label-sheet am-asset-label-sheet--modal">
+                    @Html.Partial("_AssetLabelContent", Model)
+                </div>
+                @Html.Partial("_AssetLabelPrinterStatus")
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success d-none" data-am-asset-label-zebra-print="true" data-asset-id="@Model.AssetId" data-config-url="@Url.Action("LabelPrintConfig", new { id = Model.AssetId })">Print to Zebra</button>
+                <button type="button" class="btn btn-primary" data-am-asset-label-print="true">Print label</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

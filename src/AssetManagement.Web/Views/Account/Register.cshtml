@@ -1,0 +1,74 @@
+@model AssetManagement.Web.Models.RegisterViewModel
+@{
+    ViewBag.Title = "Register";
+    ViewBag.ShowLoginBackground = true;
+    var tenantToken = ViewBag.TenantToken as string;
+    var organizationName = ViewBag.OrganizationName as string;
+
+    ViewBag.AuthPortalBadge = "Create account";
+    ViewBag.AuthPortalTitle = "Join " + organizationName;
+    ViewBag.AuthPortalSubtitle = "Create your staff account to access the asset management portal. Your administrator can assign your department and job title later.";
+}
+
+<div class="am-auth-container">
+    <div class="am-auth-shell">
+        <div class="am-portal-panel am-auth-panel">
+            @Html.Partial("_AuthPortalBrand")
+
+            @if (!string.IsNullOrWhiteSpace(ViewBag.PasswordPolicyMessage as string))
+            {
+                <p class="am-portal-copy mb-3">@ViewBag.PasswordPolicyMessage</p>
+            }
+
+            @using (Html.BeginForm())
+            {
+                @Html.AntiForgeryToken()
+                if (!string.IsNullOrWhiteSpace(tenantToken))
+                {
+                    <input type="hidden" name="tenantPortal" value="@tenantToken" />
+                }
+                @Html.ValidationSummary(true, "", new { @class = "text-danger alert alert-danger am-portal-alert py-2 mb-3" })
+
+                <div class="row g-3 am-auth-form">
+                    <div class="col-md-6">
+                        @Html.LabelFor(m => m.FirstName, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.FirstName, new { @class = "form-control", autocomplete = "given-name" })
+                        @Html.ValidationMessageFor(m => m.FirstName, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="col-md-6">
+                        @Html.LabelFor(m => m.LastName, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.LastName, new { @class = "form-control", autocomplete = "family-name" })
+                        @Html.ValidationMessageFor(m => m.LastName, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="col-12">
+                        @Html.LabelFor(m => m.Email, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.Email, new { @class = "form-control", autocomplete = "email", placeholder = "name@example.com" })
+                        @Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="col-12">
+                        @Html.LabelFor(m => m.Phone, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.Phone, new { @class = "form-control", autocomplete = "tel" })
+                        @Html.ValidationMessageFor(m => m.Phone, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="col-12">
+                        @Html.LabelFor(m => m.Password, new { @class = "form-label" })
+                        @Html.PasswordFieldFor(m => m.Password, new { autocomplete = "new-password" })
+                        @Html.ValidationMessageFor(m => m.Password, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="col-12">
+                        @Html.LabelFor(m => m.ConfirmPassword, new { @class = "form-label" })
+                        @Html.PasswordFieldFor(m => m.ConfirmPassword, new { autocomplete = "new-password" })
+                        @Html.ValidationMessageFor(m => m.ConfirmPassword, "", new { @class = "text-danger small" })
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 mt-3">Create account</button>
+            }
+
+            <div class="am-auth-links mt-3 text-center">
+                Already have an account?
+                <a href="@Url.RouteUrl("Tenant", new { tenant = tenantToken, controller = "Account", action = "Login" })" class="am-auth-link am-auth-link--strong">Sign in</a>
+            </div>
+        </div>
+    </div>
+</div>

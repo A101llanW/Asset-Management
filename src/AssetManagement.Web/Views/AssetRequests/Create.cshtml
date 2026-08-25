@@ -1,0 +1,75 @@
+@using System.Linq
+@model AssetManagement.Application.ViewModels.AssetRequestCreateVm
+@{
+    ViewBag.Title = "Request an Asset";
+    var departments = ViewBag.Departments as SelectList;
+    var categories = ViewBag.Categories as SelectList;
+    var lockDepartment = ViewBag.LockDepartment == true;
+    var departmentName = ViewBag.DepartmentName as string;
+    var assetsUrl = Url.Action("AvailableAssets", "AssetRequests");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Request an Asset",
+    Subtitle = "Choose the category and in-store asset for your department. An approver will review and assign it.",
+    BackUrl = Url.Action("Index"),
+    BackLabel = "Back to requests"
+})
+
+<div class="card card-kpi am-fade-in">
+    <div class="card-body">
+        @using (Html.BeginForm("Create", "AssetRequests", FormMethod.Post, new
+        {
+            id = "asset-request-form",
+            data_am_asset_request_form = "true",
+            data_am_assets_url = assetsUrl
+        }))
+        {
+            @Html.AntiForgeryToken()
+            @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+            @Html.HiddenFor(m => m.RequestForSelf)
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Department</label>
+                    @if (lockDepartment)
+                    {
+                        @Html.HiddenFor(m => m.DepartmentId)
+                        <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(departmentName) ? "Your department" : departmentName)" />
+                        <div class="form-text">Your profile department is applied automatically.</div>
+                    }
+                    else
+                    {
+                        @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select department --", new { @class = "form-select", required = "required" })
+                    }
+                    @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Asset category</label>
+                    @Html.DropDownListFor(m => m.CategoryId, categories, "-- Select category --", new { @class = "form-select", required = "required" })
+                    @Html.ValidationMessageFor(m => m.CategoryId, "", new { @class = "text-danger" })
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Asset</label>
+                    @Html.DropDownListFor(m => m.RequestedAssetId, new SelectList(Enumerable.Empty<SelectListItem>()), "-- Select department and category first --", new { @class = "form-select", required = "required", data_am_asset_select = "true" })
+                    @Html.ValidationMessageFor(m => m.RequestedAssetId, "", new { @class = "text-danger" })
+                    <div id="in-store-stock-hint" class="form-text">Select department and category to see in-store availability.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Justification</label>
+                    @Html.TextAreaFor(m => m.Justification, 4, new { @class = "form-control", required = "required" })
+                    @Html.ValidationMessageFor(m => m.Justification, "", new { @class = "text-danger" })
+                </div>
+            </div>
+            @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+            {
+                SubmitLabel = "Submit request",
+                BackUrl = Url.Action("Index"),
+                BackLabel = "Cancel"
+            })
+        }
+    </div>
+</div>
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/asset-request-create.js")"></script>
+}

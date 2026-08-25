@@ -1,0 +1,40 @@
+<div class="modal fade" id="roleTemplateSaveModal" tabindex="-1" aria-labelledby="roleTemplateSaveModalTitle" aria-hidden="true" data-show-form="@(!string.IsNullOrWhiteSpace(ViewBag.RoleTemplateSaveError as string) ? "true" : "false")">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="roleTemplateSaveModalTitle">Save role as template?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="js-role-template-prompt">
+                    <p class="mb-0">Would you like to store this role's permission settings as a reusable template for future roles?</p>
+                </div>
+                <div class="js-role-template-form d-none">
+                    <p class="text-muted small">Templates save the permission matrix only. You can apply them when creating a new role.</p>
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.RoleTemplateSaveError as string))
+                    {
+                        <div class="alert alert-danger py-2">@ViewBag.RoleTemplateSaveError</div>
+                    }
+                    @using (Html.BeginForm("SaveTemplate", "Roles", FormMethod.Post))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="RoleId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@(ViewBag.ReturnUrl as string)" />
+                        <div class="mb-3">
+                            <label class="form-label" for="TemplateName">Template name</label>
+                            <input type="text" class="form-control" id="TemplateName" name="TemplateName" maxlength="120" required="required" placeholder="e.g. Procurement officer starter" />
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-outline-secondary js-role-template-skip" data-bs-dismiss="modal">Skip</button>
+                            <button type="submit" class="btn btn-primary">Save template</button>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer js-role-template-prompt">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Not now</button>
+                <button type="button" class="btn btn-primary js-role-template-yes">Yes, save as template</button>
+            </div>
+        </div>
+    </div>
+</div>

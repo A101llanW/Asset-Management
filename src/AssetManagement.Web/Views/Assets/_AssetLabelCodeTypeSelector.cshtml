@@ -1,0 +1,13 @@
+@model AssetManagement.Web.ViewModels.AssetLabelPrintVm
+@using AssetManagement.Application.Helpers
+<div class="am-asset-label-code-type mb-3">
+    <label class="form-label" for="assetLabelCodeType">Code type</label>
+    <select id="assetLabelCodeType"
+            class="form-select"
+            data-am-asset-label-code-type="true"
+            aria-label="Select barcode or QR code">
+        <option value="@LabelPrinterSettingsHelper.CodeTypeQr" selected="selected">QR code</option>
+        <option value="@LabelPrinterSettingsHelper.CodeTypeBarcode">Barcode</option>
+    </select>
+    <div class="form-text">QR codes open the full asset page when scanned. Barcodes encode the asset tag for quick lookup.</div>
+</div>

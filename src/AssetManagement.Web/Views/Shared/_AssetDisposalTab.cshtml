@@ -1,0 +1,120 @@
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
+@using AssetManagement.Domain.Enums
+@{
+    var canRequestDisposal = ViewData["CanRequestDisposal"] as bool? ?? false;
+    var canApproveDisposal = Html.HasPermission("Assets.ApproveDisposal");
+    var disposalApprovalSummary = ViewData["DisposalApprovalSummary"] as string ?? string.Empty;
+    var disposalBlockedReason = ViewData["DisposalBlockedReason"] as string;
+}
+
+<div class="card card-kpi">
+    <div class="card-body">
+        <h6 class="mb-3">Disposal workflow</h6>
+        <p class="text-muted small">Submit, track, and approve asset disposal requests. Approved disposals mark the asset as disposed and record custody history.</p>
+
+        @if (!string.IsNullOrWhiteSpace(disposalBlockedReason))
+        {
+            <div class="alert alert-warning">@disposalBlockedReason</div>
+        }
+
+        @if (canRequestDisposal && string.IsNullOrWhiteSpace(disposalBlockedReason) && Model.PendingDisposal == null)
+        {
+            <div class="alert alert-info">
+                <strong>This asset's approval path:</strong> @disposalApprovalSummary
+            </div>
+            <form action="@Url.Action("RequestDisposal", "Assets")" method="post" class="row g-2 mb-3">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="col-md-3">
+                    <label class="form-label">Method</label>
+                    <select class="form-select" name="disposalMethod" required>
+                        @foreach (DisposalMethod method in Enum.GetValues(typeof(DisposalMethod)))
+                        {
+                            <option value="@((int)method)">@method</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Reason</label>
+                    <input class="form-control" name="disposalReason" required maxlength="500" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Notes</label>
+                    <input class="form-control" name="notes" maxlength="500" />
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-outline-danger">Submit disposal request</button>
+                </div>
+            </form>
+        }
+
+        @if (Model.PendingDisposal != null)
+        {
+            <div class="border rounded p-3 mb-3">
+                <div class="row g-2">
+                    <div class="col-md-3"><strong>Requested by:</strong><br />@Model.PendingDisposal.RequestedByName</div>
+                    <div class="col-md-3"><strong>Submitted:</strong><br />@Model.PendingDisposal.RequestedDateText</div>
+                    <div class="col-md-3"><strong>Method:</strong><br />@Model.PendingDisposal.DisposalMethod</div>
+                    <div class="col-md-3"><strong>Awaiting stage:</strong><br />Stage @Model.PendingDisposal.CurrentApprovalStage — @Model.PendingDisposal.CurrentStageRoleName</div>
+                    <div class="col-12"><strong>Reason:</strong><br />@Model.PendingDisposal.DisposalReason</div>
+                </div>
+                @if (Model.PendingDisposal.ApprovalHistory != null && Model.PendingDisposal.ApprovalHistory.Any())
+                {
+                    <div class="mt-3">
+                        <strong>Approval history</strong>
+                        <ul class="mb-0 mt-2">
+                            @foreach (var decision in Model.PendingDisposal.ApprovalHistory)
+                            {
+                                <li>Stage @decision.StageNumber — @decision.RoleName — @decision.Decision by @decision.ApproverName on @decision.DecisionDateText</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (Model.PendingDisposal != null && Model.PendingDisposal.CanCurrentUserApprove && canApproveDisposal)
+        {
+            <div class="mt-3">
+                <form action="@Url.Action("ApproveDisposal", "Assets")" method="post" class="row g-2 mb-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <div class="col-md-3">
+                        <label class="form-label">Disposal amount</label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="disposalAmount" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Approval notes</label>
+                        <input class="form-control" name="notes" maxlength="500" />
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-danger w-100">Approve disposal</button>
+                    </div>
+                </form>
+                <form action="@Url.Action("RejectDisposal", "Assets")" method="post" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <div class="col-md-9">
+                        <label class="form-label">Rejection notes</label>
+                        <input class="form-control" name="notes" required maxlength="500" />
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-outline-danger w-100">Reject disposal</button>
+                    </div>
+                </form>
+            </div>
+        }
+        else if (Model.PendingDisposal != null && canApproveDisposal && !Model.PendingDisposal.CanCurrentUserApprove)
+        {
+            <p class="small text-muted mb-0">You are not the approver for the current disposal stage. Check Pending Approvals or ask the assigned role.</p>
+        }
+        else if (Model.CurrentStatus == AssetStatus.Disposed)
+        {
+            <p class="text-muted mb-0">This asset has been disposed.</p>
+        }
+        else if (Model.PendingDisposal == null && !canRequestDisposal)
+        {
+            <p class="text-muted mb-0">You do not have permission to request disposal for this asset.</p>
+        }
+    </div>
+</div>

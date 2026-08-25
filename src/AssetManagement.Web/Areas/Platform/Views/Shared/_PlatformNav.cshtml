@@ -1,0 +1,50 @@
+@using AssetManagement.Web.Helpers
+@{
+    const string ctrlOrganizations = "Organizations";
+    const string ctrlUsers = "Users";
+    const string ctrlLicenses = "Licenses";
+    const string ctrlSecurityLogs = "SecurityLogs";
+    const string ctrlPlatformSettings = "PlatformSettings";
+    const string actIndex = "Index";
+    const string actEmail = "Email";
+}
+
+<ul class="nav flex-column am-sidebar-menu" id="amSidebarMenu">
+    <li class="am-nav-module" data-am-module="platform">
+        <div class="am-nav-module-header">
+            <span class="am-nav-module-label">Platform</span>
+            <button type="button" class="am-nav-module-chevron-btn" aria-expanded="false" aria-controls="am-nav-platform" aria-label="Toggle Platform section">
+                <span class="am-nav-module-chevron" aria-hidden="true"></span>
+            </button>
+        </div>
+        <ul class="am-nav-module-items nav flex-column" id="am-nav-platform">
+            @if (Html.HasPermission("Platform.Organizations.View"))
+            {
+                <li class="nav-item">
+                    <a class="nav-link @Html.SidebarLinkClass(ctrlOrganizations)" href="@(Url.Action(actIndex, ctrlOrganizations, new { area = "Platform" }))">Organizations</a>
+                </li>
+            }
+            @if (Html.HasPermission("Platform.Users.View"))
+            {
+                <li class="nav-item">
+                    <a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@(Url.Action(actIndex, ctrlUsers, new { area = "Platform" }))">Users</a>
+                </li>
+            }
+            @if (Html.HasPermission("Platform.Licenses.View"))
+            {
+                <li class="nav-item">
+                    <a class="nav-link @Html.SidebarLinkClass(ctrlLicenses)" href="@(Url.Action(actIndex, ctrlLicenses, new { area = "Platform" }))">Licenses</a>
+                </li>
+            }
+            @if (Html.HasPermission("Platform.Organizations.View"))
+            {
+                <li class="nav-item">
+                    <a class="nav-link @Html.SidebarLinkClass(ctrlSecurityLogs)" href="@(Url.Action(actIndex, ctrlSecurityLogs, new { area = "Platform" }))">Security Logs</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @Html.SidebarLinkClassForAction(ctrlPlatformSettings, actEmail)" href="@(Url.Action(actEmail, ctrlPlatformSettings, new { area = "Platform" }))">Email Settings</a>
+                </li>
+            }
+        </ul>
+    </li>
+</ul>

@@ -1,0 +1,56 @@
+@model AssetManagement.Application.ViewModels.DepartmentVm
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Department Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var canEditDepartment = Html.HasPermission("Departments.Edit");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = Model.Name,
+    Subtitle = "Department code: " + Model.Code,
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    PrimaryActionUrl = canEditDepartment ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
+    PrimaryActionLabel = canEditDepartment ? "Edit Department" : null,
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name }
+    }
+})
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Overview</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Code</dt>
+                    <dd class="col-sm-7">@Model.Code</dd>
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">Users</dt>
+                    <dd class="col-sm-7">@ViewBag.ActiveUserCount</dd>
+                    <dt class="col-sm-5">Assets</dt>
+                    <dd class="col-sm-7">@ViewBag.AssetCount</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Description</div>
+            <div class="card-body">
+                @if (string.IsNullOrWhiteSpace(Model.Description))
+                {
+                    <p class="text-muted mb-0">No description has been added for this department yet.</p>
+                }
+                else
+                {
+                    <p class="mb-0">@Model.Description</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

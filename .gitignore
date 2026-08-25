@@ -1,0 +1,65 @@
+# Build artifacts
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Local uploads
+src/AssetManagement.Web/Uploads/*
+!src/AssetManagement.Web/Uploads/.gitkeep
+src/AssetManagement.Web/App_Data/Attachments/
+
+# Local build/publish scratch
+.build/
+.tools/
+
+# E2E temp artifacts
+e2e/.tmp/
+e2e/.tmp-inspect-out.txt
+
+# IDE / local backups
+vs-activity-log.xml
+src/AssetManagement.Web/Web.config.iis-host-backup
+ActivityLog.xsl
+AssetManagementModule1.xml
+TestResult.xml
+UpgradeLog.htm
+.nuget/nuget.exe
+pdf_converter.py
+
+# Packages
+packages/
+
+# Test results
+TestResults/
+
+# E2E artifacts
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+e2e/.cache/
+src/AssetManagement.Web/Web.config.e2e-backup
+src/AssetManagement.Web/connectionStrings.config
+src/AssetManagement.Web/machineKey.config
+src/AssetManagement.Web/smtp.secrets.config
+
+
+# Cursor — commit cloud agent config; keep local-only artifacts out of repo
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/environment.json
+!.cursor/skills/
+!.cursor/skills/**
+!.cursor/hooks.json
+.cursor/rules/codacy.mdc
+.cursor/plans/
+.codacy/
+

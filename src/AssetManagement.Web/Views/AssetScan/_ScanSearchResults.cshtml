@@ -1,0 +1,50 @@
+@model AssetManagement.Application.ViewModels.GlobalSearchResultVm
+@using AssetManagement.Web.Helpers
+
+@if (Model != null && Model.Assets != null && Model.Assets.Any())
+{
+    <div class="card card-kpi border-0 shadow-sm mt-4 am-fade-in am-scan-search-results">
+        <div class="card-header bg-white border-bottom py-3">
+            <span class="text-muted small">
+                @Model.TotalCount result(s) for <strong class="text-dark">"@Model.Query"</strong>
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="bg-light" style="font-size:0.82rem;letter-spacing:0.04em;">
+                            <th class="ps-3">Tag</th>
+                            <th>Name</th>
+                            <th>Serial</th>
+                            <th>Department</th>
+                            <th>Custodian</th>
+                            <th>Status</th>
+                            <th>Matched on</th>
+                            <th class="pe-3 text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var hit in Model.Assets)
+                    {
+                        <tr class="border-bottom border-light">
+                            <td class="ps-3"><span class="am-tag-pill am-tag-pill--sm">@hit.AssetTag</span></td>
+                            <td class="fw-semibold text-dark">@hit.AssetName</td>
+                            <td class="text-muted small">@(string.IsNullOrWhiteSpace(hit.SerialNumber) ? DisplayText.Empty : hit.SerialNumber)</td>
+                            <td class="text-muted small">@hit.DepartmentName</td>
+                            <td class="text-muted small">@hit.CustodianName</td>
+                            <td><span class="badge rounded-pill bg-light border text-secondary">@hit.Status</span></td>
+                            <td class="small text-muted">
+                                <span style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;">@hit.MatchReason</span>
+                            </td>
+                            <td class="text-end pe-3">
+                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", "Assets", new { id = hit.AssetId })">Open</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}

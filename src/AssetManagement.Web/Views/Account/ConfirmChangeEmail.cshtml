@@ -1,0 +1,35 @@
+@model AssetManagement.Application.ViewModels.ConfirmChangeEmailViewModel
+@{
+    ViewBag.Title = "Confirm Email Change";
+}
+<h3>Confirm Email Change</h3>
+<p class="text-muted">Enter the verification code sent to <strong>@Model.NewEmailHint</strong>. Codes expire after 30 minutes.</p>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card card-kpi">
+            <div class="card-body">
+                @using (Html.BeginForm("ConfirmChangeEmail", "Account", FormMethod.Post))
+                {
+                    @Html.AntiForgeryToken()
+                    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.Code, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.Code, new { @class = "form-control", autocomplete = "one-time-code" })
+                        @Html.ValidationMessageFor(m => m.Code, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Confirm new email</button>
+                        <a class="btn btn-outline-secondary" href="@Url.Action("ChangeEmail", "Account")">Start over</a>
+                    </div>
+                }
+                @using (Html.BeginForm("ResendChangeEmailCode", "Account", FormMethod.Post, new { @class = "mt-3" }))
+                {
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-link p-0">Resend code</button>
+                }
+            </div>
+        </div>
+    </div>
+</div>

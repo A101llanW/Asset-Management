@@ -1,0 +1,137 @@
+@model AssetManagement.Application.ViewModels.PurchaseRequestCreateVm
+@{
+    ViewBag.Title = "New requisition";
+    var departments = ViewBag.Departments as SelectList;
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
+    var lockDepartment = ViewBag.LockDepartment == true;
+    var departmentName = ViewBag.DepartmentName as string;
+    var selectedTargetAssetLabel = ViewBag.SelectedTargetAssetLabel as string ?? string.Empty;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "New requisition",
+    Subtitle = "Describe the item needed, stock on hand, and when it is required. Optionally tag an existing asset in the system for easier assignment after purchase. Requisition approvers are configured under Settings &rarr; Approval Matrix (typically Procurement Officer).",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index", "Purchases") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Requisitions", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "New requisition" }
+    }
+})
+
+@if (!string.IsNullOrWhiteSpace(approvalSummary))
+{
+    <div class="alert alert-light border mb-3"><strong>Approval path:</strong> @approvalSummary</div>
+}
+
+@using (Html.BeginForm("Create", "PurchaseRequests", FormMethod.Post, new
+{
+    enctype = "multipart/form-data",
+    id = "purchase-request-form",
+    data_am_purchase_request_form = "true",
+    data_am_lock_department = lockDepartment ? "true" : "false"
+}))
+{
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.HiddenFor(m => m.RequestForSelf)
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="row g-3">
+        <div class="col-md-8">
+            <label class="form-label">Tag existing asset (optional)</label>
+            @Html.HiddenFor(m => m.TargetAssetId)
+            <div class="input-group">
+                <input type="text"
+                       class="form-control"
+                       id="target-asset-display"
+                       readonly="readonly"
+                       placeholder="No asset selected"
+                       value="@selectedTargetAssetLabel"
+                       role="button"
+                       style="cursor: pointer;" />
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        id="open-target-asset-picker">Browse assets</button>
+                <button type="button" class="btn btn-outline-secondary" id="clear-target-asset" title="Clear selection">&times;</button>
+            </div>
+            <div id="target-asset-hint" class="form-text">Optional: browse the asset register to tag an existing asset. Selecting an asset fills department, description, and qty in stock when available.</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Department <span class="text-danger">*</span></label>
+            @if (lockDepartment)
+            {
+                @Html.HiddenFor(m => m.DepartmentId)
+                <input type="text" class="form-control" id="department-display" readonly="readonly" value="@(string.IsNullOrWhiteSpace(departmentName) ? "Your department" : departmentName)" />
+            }
+            else
+            {
+                @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select target department --", new { @class = "form-select" })
+                @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
+            }
+            <div class="form-text">Select the class or admin unit that will receive these goods.</div>
+        </div>
+        @if (ViewBag.CanCreateForAnyDepartment == true)
+        {
+            var orderByUsers = ViewBag.OrderByUsers as System.Web.Mvc.SelectList;
+            <div class="col-md-4">
+                <label class="form-label">Order by (optional)</label>
+                @Html.DropDownListFor(m => m.OrderByUserId, orderByUsers, "-- Teacher / class contact (optional) --", new { @class = "form-select" })
+                <div class="form-text">Teacher or class contact in the selected department. They do not need login access.</div>
+            </div>
+        }
+        <div class="col-md-8">
+            <label class="form-label">Description of item</label>
+            @Html.TextBoxFor(m => m.ItemDescription, new { @class = "form-control" })
+            @Html.ValidationMessageFor(m => m.ItemDescription, "", new { @class = "text-danger" })
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Qty in stock</label>
+            @Html.TextBoxFor(m => m.QuantityInStock, new { @class = "form-control", type = "number", min = "0", @readonly = "readonly" })
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Qty to order</label>
+            @Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number", min = "1" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Date required</label>
+            @Html.TextBoxFor(m => m.RequiredDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Currency</label>
+            @Html.TextBoxFor(m => m.Currency, new { @class = "form-control text-uppercase", maxlength = "10", @readonly = "readonly" })
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Justification / remarks</label>
+            @Html.TextAreaFor(m => m.Justification, new { @class = "form-control", rows = 3 })
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Additional notes (optional)</label>
+            @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = 2 })
+        </div>
+        @if (ViewBag.CanCreateForAnyDepartment != true)
+        {
+            <div class="col-md-12">
+                <label class="form-label">Attachment (optional)</label>
+                <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png" />
+                <div class="form-text">Upload a file when listing more than a few line items (max 10 MB).</div>
+            </div>
+        }
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Submit requisition",
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}
+
+@section modals {
+    @Html.Partial("_TargetAssetPickerModal")
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/purchase-request-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-request-create.js")).Ticks"></script>
+}

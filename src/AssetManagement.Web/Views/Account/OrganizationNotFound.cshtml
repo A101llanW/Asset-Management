@@ -1,0 +1,28 @@
+@{
+    ViewBag.Title = "Organization Not Found";
+    ViewBag.ShowLoginBackground = true;
+    var tenantToken = ViewBag.TenantToken as string;
+    ViewBag.AuthPortalTitle = "Asset Management Module";
+    ViewBag.AuthPortalSubtitle = "We could not find an active organization for this portal URL.";
+}
+
+<div class="am-auth-container">
+    <div class="am-auth-shell">
+        <div class="am-portal-panel am-auth-panel">
+            @Html.Partial("_AuthPortalBrand")
+
+            <div class="alert alert-warning am-portal-alert mb-3">
+                No active organization matches <strong>/@(tenantToken)</strong>.
+            </div>
+
+            <p class="text-muted mb-4">
+                Check the portal link from your platform administrator. Demo tenants include
+                <a href="@Url.Content("~/nanosoft/Account/Login")">/nanosoft</a>.
+            </p>
+
+            <div class="d-grid gap-2">
+                <a class="btn btn-primary" href="@Url.Action("Login", "Account")">Platform sign in</a>
+            </div>
+        </div>
+    </div>
+</div>

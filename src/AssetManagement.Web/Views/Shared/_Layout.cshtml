@@ -1,0 +1,351 @@
+@using AssetManagement.Web.App_Start
+@using AssetManagement.Web.Helpers
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewBag.Title - Asset Management Module</title>
+    <link rel="icon" href="@Url.Content("~/Content/images/nanosoft-logo-transparent.png")" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
+    @if (Request.IsAuthenticated)
+    {
+        <link rel="stylesheet" href="@Url.Content("~/Content/css/am-animations.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-animations.css")).Ticks" />
+    }
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <link rel="stylesheet" href="@Url.Content("~/Content/css/auth-portal.css")" />
+        <script>
+            (function () {
+                try {
+                    var theme = localStorage.getItem("amAuthTheme") || "light";
+                    document.documentElement.setAttribute("data-am-auth-theme", theme);
+                } catch (e) { }
+            })();
+        </script>
+    }
+    <style>
+        .app-impersonation-bar { background: #f39c12; color: #1a1a1a; }
+    </style>
+</head>
+<body class="@(ViewBag.ShowLoginBackground == true ? "am-login-page am-auth-theme-light" : null)">
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <script>
+            (function () {
+                try {
+                    var theme = document.documentElement.getAttribute("data-am-auth-theme") || "light";
+                    document.body.classList.remove("am-auth-theme-light", "am-auth-theme-dark");
+                    document.body.classList.add(theme === "dark" ? "am-auth-theme-dark" : "am-auth-theme-light");
+                } catch (e) { }
+            })();
+        </script>
+    }
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        @Html.Partial("_LoginBackground")
+    }
+    @if (Session["ImpersonatedOrganizationId"] != null)
+    {
+        <div class="app-impersonation-bar py-2">
+            <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center">
+                <span>
+                    <strong>ELEVATED:</strong> @(Session["ImpersonatedOrganizationName"] ?? "Organization")
+                    <small class="ms-2">(@(Session["ImpersonationReason"] ?? "N/A"))</small>
+                    <span class="app-impersonation-chip ms-3"><span id="impersonation-countdown">--:--</span> left</span>
+                </span>
+                <a href="@Url.Action("StopImpersonating", "Organizations", new { area = "Platform" })" class="btn btn-dark btn-sm">Return to platform portal</a>
+            </div>
+        </div>
+    }
+
+    @if (Request.IsAuthenticated)
+    {
+        @Html.Partial("_SupportSessionOverlay")
+    }
+
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        var isTenantAuthPortal = ViewBag.IsTenantPortal == true;
+        var tenantOrgName = ViewBag.OrganizationName as string;
+        var tenantLogoUrl = ViewBag.OrganizationLogoUrl as string;
+        var showTenantLogo = isTenantAuthPortal && !string.IsNullOrWhiteSpace(tenantLogoUrl);
+        var showTenantNameFallback = isTenantAuthPortal && !showTenantLogo && !string.IsNullOrWhiteSpace(tenantOrgName);
+        var defaultLogoUrl = Url.Content("~/Content/images/nanosoft-logo-transparent.png");
+        <header class="am-shell-header am-auth-page-header">
+            <div class="am-header-inner am-auth-header-inner">
+                <a class="am-auth-header-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">
+                    @if (showTenantLogo)
+                    {
+                        <img src="@tenantLogoUrl"
+                             alt="@tenantOrgName"
+                             class="am-auth-header-logo am-auth-header-logo--tenant" />
+                    }
+                    else if (showTenantNameFallback)
+                    {
+                        <span class="am-auth-header-org-name">@tenantOrgName</span>
+                    }
+                    else
+                    {
+                        <img src="@defaultLogoUrl"
+                             alt="Nanosoft"
+                             class="am-auth-header-logo" />
+                    }
+                    <span class="am-auth-header-copy">
+                        <small class="am-auth-header-kicker">@(isTenantAuthPortal && !string.IsNullOrWhiteSpace(tenantOrgName) ? tenantOrgName : "Nanosoft Asset Suite")</small>
+                        <span class="am-auth-header-title">Asset Management Module</span>
+                    </span>
+                </a>
+                <button type="button"
+                        id="amAuthThemeToggle"
+                        class="am-auth-theme-toggle"
+                        aria-pressed="false"
+                        aria-label="Switch to dark mode">
+                    <span class="am-auth-theme-toggle__icon am-auth-theme-toggle__icon--sun" aria-hidden="true">&#9728;</span>
+                    <span class="am-auth-theme-toggle__icon am-auth-theme-toggle__icon--moon" aria-hidden="true">&#9790;</span>
+                    <span class="am-auth-theme-toggle__label">Light</span>
+                </button>
+            </div>
+        </header>
+    }
+    else
+    {
+    <header class="am-shell-header">
+        <div class="am-header-inner">
+            <div class="am-header-branding">
+                @if (Request.IsAuthenticated)
+                {
+                    <button type="button" id="amSidebarToggle" class="am-menu-button" aria-label="Open menu" aria-controls="amSidebar" aria-expanded="false">
+                        <span class="am-menu-button-dot"></span>
+                        <span class="am-menu-button-dot"></span>
+                        <span class="am-menu-button-dot"></span>
+                    </button>
+                }
+                <a class="am-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">
+                    <span class="am-brand-mark">AM</span>
+                    <span class="am-brand-copy">
+                        <small class="am-brand-kicker">Nanosoft Asset Suite</small>
+                        <span class="am-brand-title">Asset Management Module</span>
+                    </span>
+                </a>
+            </div>
+
+            @if (Request.IsAuthenticated)
+            {
+                <div class="am-header-actions d-flex align-items-center gap-3">
+                    @if (Html.HasPermission("Assets.View"))
+                    {
+                        <form class="am-global-search" method="get" action="@TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetScan")" role="search">
+                            <input type="search" class="form-control form-control-sm" name="q" placeholder="Search assets..." aria-label="Search assets" />
+                        </form>
+                    }
+                    <div class="am-header-user">
+                        <span class="am-header-user-label">Welcome</span>
+                        <strong class="am-header-user-name">@User.Identity.Name</strong>
+                        <a class="btn btn-sm btn-outline-light ms-2" href="@Url.Action("Profile", "Account")">Profile</a>
+                    </div>
+                </div>
+            }
+        </div>
+    </header>
+    }
+
+    @if (Request.IsAuthenticated)
+    {
+        <div id="amSidebarOverlay" class="am-sidebar-overlay" aria-hidden="true"></div>
+
+        <aside id="amSidebar" class="am-sidebar" aria-hidden="true">
+            <div class="am-sidebar-header">
+                <a class="am-sidebar-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">Asset Management Module</a>
+            </div>
+
+            <nav class="am-sidebar-nav">
+                @Html.Partial("_SidebarNav")
+            </nav>
+
+            <div class="am-sidebar-footer">
+                <span class="am-user-name">@User.Identity.Name</span>
+                <form action="@TenantUrlHelper.TenantRouteUrl(Url, "LogOff", "Account")" method="post" class="mb-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-sm btn-light w-100">Logout</button>
+                </form>
+            </div>
+        </aside>
+    }
+
+    <main class="container-fluid px-4 py-3 am-main-content@(Request.IsAuthenticated ? " am-page-enter" : null)">
+        @Html.Partial("_Alerts")
+        @RenderBody()
+    </main>
+
+    @if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
+    {
+        @Html.Partial("_HelpBot")
+    }
+
+    @RenderSection("modals", required: false)
+
+    @if (Request.IsAuthenticated)
+    {
+        <div class="modal fade" id="elevationRequestModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-danger">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">Elevation request</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>A platform administrator is requesting temporary access to your organization context.</p>
+                        <p class="small text-muted mb-2">Choose how long the approved support session may remain active.</p>
+                        <div id="elevationRequestDetails" class="p-3 bg-light border-start border-danger border-4"></div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between">
+                        @using (Html.BeginForm("HandleImpersonationRequest", "Dashboard", FormMethod.Post, new { id = "denyElevationForm" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="requestId" id="denyRequestId" />
+                            <input type="hidden" name="approved" value="false" />
+                            <button type="submit" class="btn btn-outline-danger">Deny</button>
+                        }
+                        @using (Html.BeginForm("HandleImpersonationRequest", "Dashboard", FormMethod.Post, new { id = "approveElevationForm", @class = "d-flex flex-wrap align-items-center gap-2" }))
+                        {
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="requestId" id="approveRequestId" />
+                            <input type="hidden" name="approved" value="true" />
+                            <label class="small mb-0" for="elevationDurationMinutes">Session length</label>
+                            <select name="durationMinutes" id="elevationDurationMinutes" class="form-select form-select-sm w-auto">
+                                @foreach (var option in ImpersonationDurationOptions.All)
+                                {
+                                    <option value="@option.Minutes" @(option.IsDefault ? "selected" : null)>@option.Label</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-warning">Approve</button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <script src="@Url.Content("~/Scripts/jquery-3.7.1.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/bootstrap.bundle.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/permissions.js")"></script>
+    @if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
+    {
+        <script src="@Url.Content("~/Scripts/app/help-bot.js")"></script>
+    }
+    <script src="@Url.Content("~/Scripts/app/site-interactive.js")"></script>
+    @if (Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/am-animations.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/am-animations.js")).Ticks"></script>
+    }
+    <script src="@Url.Content("~/Scripts/app/password-toggle.js")"></script>
+    @if (ViewBag.ShowLoginBackground == true || Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/vendor/three.min.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/vendor/three.min.js")).Ticks"></script>
+        <script src="@Url.Content("~/Scripts/app/antigravity-three.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/antigravity-three.js")).Ticks"></script>
+    }
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <script src="@Url.Content("~/Scripts/app/anti-gravity-bubbles.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/anti-gravity-bubbles.js")).Ticks"></script>
+    }
+    @if (ViewBag.ShowLoginBackground == true)
+    {
+        <script src="@Url.Content("~/Scripts/app/auth-theme.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/auth-theme.js")).Ticks"></script>
+    }
+    @if (Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/impersonation-ui.js")"></script>
+    }
+    @if (Request.IsAuthenticated)
+    {
+        <script src="@Url.Content("~/Scripts/app/sidebar-nav.js")"></script>
+    }
+
+    @if (Request.IsAuthenticated && Session["ImpersonatedOrganizationId"] != null)
+    {
+        <script>
+            $(function () {
+                if (window.AmImpersonationUi) {
+                    AmImpersonationUi.initImpersonationCountdown({
+                        statusUrl: '@Url.Action("GetMyImpersonationStatus", "Organizations", new { area = "Platform" })',
+                        countdownSelector: '#impersonation-countdown',
+                        endSessionUrl: '@Url.Action("StopImpersonating", "Organizations", new { area = "Platform" })'
+                    });
+                }
+            });
+        </script>
+    }
+
+    @if (Request.IsAuthenticated)
+    {
+        <script>
+            $(function () {
+                if (window.AmImpersonationUi) {
+                    AmImpersonationUi.initElevationRequests({
+                        pendingUrl: '@Url.Action("GetPendingRequests", "Dashboard")',
+                        pollIntervalMs: 3000
+                    });
+
+                    AmImpersonationUi.initSupportSessionFreeze({
+                        statusUrl: '@Url.Action("GetImpersonationStatus", "Dashboard")',
+                        pollIntervalMs: 5000
+                    });
+                }
+            });
+        </script>
+        <script>
+            (function () {
+                var body = document.body;
+                var toggle = document.getElementById("amSidebarToggle");
+                var sidebar = document.getElementById("amSidebar");
+                var overlay = document.getElementById("amSidebarOverlay");
+
+                if (!toggle || !sidebar || !overlay) {
+                    return;
+                }
+
+                function setSidebarState(isOpen) {
+                    if (isOpen) {
+                        body.classList.add("am-sidebar-open");
+                    } else {
+                        body.classList.remove("am-sidebar-open");
+                    }
+
+                    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                    sidebar.setAttribute("aria-hidden", isOpen ? "false" : "true");
+                    overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
+                }
+
+                toggle.addEventListener("click", function () {
+                    setSidebarState(!body.classList.contains("am-sidebar-open"));
+                });
+
+                overlay.addEventListener("click", function () {
+                    setSidebarState(false);
+                });
+
+                document.addEventListener("keydown", function (event) {
+                    if (event.key === "Escape") {
+                        setSidebarState(false);
+                    }
+                });
+
+                var links = sidebar.querySelectorAll(".nav-link");
+                for (var i = 0; i < links.length; i++) {
+                    links[i].addEventListener("click", function () {
+                        setSidebarState(false);
+                    });
+                }
+            })();
+        </script>
+    }
+
+    @RenderSection("scripts", required: false)
+</body>
+</html>

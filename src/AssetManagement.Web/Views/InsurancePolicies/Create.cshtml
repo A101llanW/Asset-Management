@@ -1,0 +1,26 @@
+@model AssetManagement.Application.ViewModels.InsurancePolicyEditVm
+@{
+    ViewBag.Title = "Add Insurance Policy";
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Add Insurance Policy",
+    BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
+    BackLabel = "Back to asset"
+})
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.AssetId)
+    <div class="row g-3">
+        <div class="col-md-6">@Html.LabelFor(m => m.InsurerName, new { @class = "form-label" }) @Html.TextBoxFor(m => m.InsurerName, new { @class = "form-control" })</div>
+        <div class="col-md-6">@Html.LabelFor(m => m.PolicyNumber, new { @class = "form-label" }) @Html.TextBoxFor(m => m.PolicyNumber, new { @class = "form-control" })</div>
+        <div class="col-md-4">@Html.LabelFor(m => m.PolicyStartDate, new { @class = "form-label" }) @Html.TextBoxFor(m => m.PolicyStartDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })</div>
+        <div class="col-md-4">@Html.LabelFor(m => m.PolicyEndDate, new { @class = "form-label" }) @Html.TextBoxFor(m => m.PolicyEndDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })</div>
+        <div class="col-md-4">@Html.LabelFor(m => m.InsuredValue, new { @class = "form-label" }) @Html.TextBoxFor(m => m.InsuredValue, new { @class = "form-control", type = "number", step = "0.01" })</div>
+        <div class="col-md-4 form-check mt-4">@Html.CheckBoxFor(m => m.ClaimEligibility, new { @class = "form-check-input" }) @Html.LabelFor(m => m.ClaimEligibility, new { @class = "form-check-label" })</div>
+        <div class="col-12">@Html.LabelFor(m => m.ClaimNotes, new { @class = "form-label" }) @Html.TextAreaFor(m => m.ClaimNotes, new { @class = "form-control", rows = 3 })</div>
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel { SubmitLabel = "Save policy" })
+}

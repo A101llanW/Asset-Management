@@ -1,0 +1,6 @@
+{
+  "name": "codexasset-iis",
+  "install": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/setup-windows-environment.ps1",
+  "start": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/deploy/Start-IisDev.ps1 -WaitForReady",
+  "terminals": []
+}

@@ -1,0 +1,124 @@
+@using System.Globalization
+@using System.Linq
+@model AssetManagement.Application.ViewModels.AssetCreateVm
+@{
+    ViewBag.Title = "Create Asset";
+    var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
+    var acquisitionCostDisplay = Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"));
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Asset",
+    Subtitle = "Capture the core asset details first, then continue from the asset profile to assign, transfer, or maintain it.",
+    BackUrl = Url.Action("Index"),
+    BackLabel = "Back to Assets"
+})
+
+@using (Html.BeginForm("Create", "Assets", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Currency)
+    @Html.ValidationSummary(false, "Please correct the following:", new { @class = "alert alert-danger rounded-3 mb-4 am-form-validation-summary" })
+
+    @* Section 1: Core Details *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                Core Details
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-12">
+                    @Html.LabelFor(m => m.AssetName, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control" })
+                    @Html.ValidationMessageFor(m => m.AssetName, "", new { @class = "text-danger small" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.SerialNumber, new { @class = "form-control" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.Brand, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Brand, new { @class = "form-control" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.Model, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.Model, new { @class = "form-control" })
+                </div>
+                <div class="col-md-12">
+                    @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+                    @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Section 2: Classification *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                Classification
+            </h6>
+            @Html.Partial("_AssetClassificationFields", Model)
+        </div>
+    </div>
+
+    @* Section 3: Financial *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-3" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Financial
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    @Html.LabelFor(m => m.PurchaseDate, new { @class = "form-label" })
+                    @Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="AcquisitionCost">Acquisition cost (@organizationCurrency)</label>
+                    <input type="text"
+                           class="form-control"
+                           id="AcquisitionCost"
+                           name="AcquisitionCost"
+                           value="@acquisitionCostDisplay"
+                           data-monetary-input="true"
+                           inputmode="decimal" />
+                    @Html.ValidationMessageFor(m => m.AcquisitionCost, "", new { @class = "text-danger small" })
+                </div>
+                @Html.Partial("_AssetTaxAmountFields", Model)
+            </div>
+            <p class="text-muted small mb-0 mt-3">Expected useful life and depreciation defaults are applied from asset type or category rules when configured.</p>
+        </div>
+    </div>
+
+    @Html.Partial("_AssetDepreciationFields", Model)
+
+    @* Section 4: Approval Paths *@
+    <div class="card card-kpi border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase fw-bold text-muted mb-1" style="font-size:.78rem;letter-spacing:.08em;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:.4rem"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+                Approval Paths
+            </h6>
+            <p class="text-muted small mb-3">Configure how transfer and disposal requests for this asset move through approval. Add stages and choose the approver role for each.</p>
+            @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
+        </div>
+    </div>
+
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Create Asset",
+        BackUrl = Url.Action("Index"),
+        BackLabel = "Back to Assets"
+    })
+}
+
+@Html.Partial("_AssetSubTypePickerModal")
+
+<script src="@Url.Content("~/Scripts/app/asset-monetary-input.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-category-type.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>

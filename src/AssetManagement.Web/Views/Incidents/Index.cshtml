@@ -1,0 +1,66 @@
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.IncidentListVm>
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Incidents";
+    var canCreate = Html.HasPermission("Incidents.Create");
+    var assetId = ViewBag.AssetId as int?;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Incidents",
+    Subtitle = "Review reported loss, damage, theft, and other asset incidents.",
+    PrimaryActionUrl = canCreate && assetId.HasValue ? Url.Action("Create", new { assetId = assetId.Value }) : null,
+    PrimaryActionLabel = canCreate && assetId.HasValue ? "Report Incident" : null
+})
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2">
+        <div class="col-md-8">
+            <input type="text" class="form-control" name="search" placeholder="Search incident number, description, or asset" value="@Model.Search" />
+        </div>
+        @if (assetId.HasValue)
+        {
+            <input type="hidden" name="assetId" value="@assetId" />
+        }
+        <div class="col-md-2">
+            <select class="form-select" name="pageSize">
+                @foreach (var size in new[] { 10, 25, 50 })
+                {
+                    <option value="@size" selected="@(Model.PageSize == size)">@size per page</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (!Model.Items.Any())
+{
+    <div class="card card-kpi"><div class="card-body am-empty-state">
+        <h5>No incidents recorded</h5>
+        <p class="text-muted mb-0">Incidents reported from asset profiles will appear here.</p>
+    </div></div>
+}
+else
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>Number</th><th>Asset</th><th>Type</th><th>Severity</th><th>Date</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>@item.IncidentNumber</td>
+                    <td>@(item.AssetTag ?? DisplayText.Empty) - @(item.AssetName ?? "")</td>
+                    <td>@item.IncidentType</td>
+                    <td>@item.Severity</td>
+                    <td>@item.IncidentDate.ToString("yyyy-MM-dd")</td>
+                    <td>@(item.ResolutionStatus ?? DisplayText.Empty)</td>
+                    <td class="text-end"><a href="@Url.Action("Details", new { id = item.Id })">View</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div></div>
+    @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
+}
