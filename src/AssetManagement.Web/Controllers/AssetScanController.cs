@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application;
@@ -72,9 +73,15 @@ namespace AssetManagement.Web.Controllers
         [Authorize]
         [TenantAuthorize]
         [PermissionAuthorize("Assets.View")]
-        public ActionResult QuickActions(int id)
+        public ActionResult QuickActions(string id)
         {
-            var asset = _assetService.GetById(id);
+            int assetId;
+            if (!TryResolveAssetId(id, out assetId))
+            {
+                return HttpNotFound();
+            }
+
+            var asset = _assetService.GetById(assetId);
             if (asset == null)
             {
                 return HttpNotFound();
@@ -122,6 +129,29 @@ namespace AssetManagement.Web.Controllers
             }
 
             return string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+        }
+
+        private bool TryResolveAssetId(string id, out int assetId)
+        {
+            assetId = 0;
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return false;
+            }
+
+            if (int.TryParse(id, out assetId) && assetId > 0)
+            {
+                return true;
+            }
+
+            var lookup = _assetService.LookupByScanCode(id, true, false);
+            if (lookup == null || !lookup.Found || !lookup.AssetId.HasValue || lookup.AssetId.Value <= 0)
+            {
+                return false;
+            }
+
+            assetId = lookup.AssetId.Value;
+            return true;
         }
 
         private bool TryAcquireScanLookup()

@@ -216,7 +216,7 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             string assetName,
             int? assetSubTypeId,
             int? groupDepartmentId,
-            AssetStatus groupStatus,
+            AssetStatus? groupStatus,
             int skip,
             int take)
         {
@@ -281,7 +281,7 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             return @" AND a.[AssetName] = @GroupAssetName
  AND ((@GroupAssetSubTypeId IS NULL AND a.[AssetSubTypeId] IS NULL) OR a.[AssetSubTypeId] = @GroupAssetSubTypeId)
  AND ((@GroupDepartmentId IS NULL AND a.[DepartmentId] IS NULL) OR a.[DepartmentId] = @GroupDepartmentId)
- AND a.[CurrentStatus] = @GroupCurrentStatus";
+ AND (@GroupCurrentStatus IS NULL OR a.[CurrentStatus] = @GroupCurrentStatus)";
         }
 
         private static void AddGroupMemberParameters(
@@ -289,14 +289,15 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             string assetName,
             int? assetSubTypeId,
             int? departmentId,
-            AssetStatus status)
+            AssetStatus? status)
         {
             SqlQueryHelper.AddParameter(command, "@GroupAssetName", assetName);
             SqlQueryHelper.AddParameter(command, "@GroupAssetSubTypeId",
                 assetSubTypeId.HasValue ? (object)assetSubTypeId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@GroupDepartmentId",
                 departmentId.HasValue ? (object)departmentId.Value : DBNull.Value);
-            SqlQueryHelper.AddParameter(command, "@GroupCurrentStatus", (int)status);
+            SqlQueryHelper.AddParameter(command, "@GroupCurrentStatus",
+                status.HasValue ? (object)(int)status.Value : DBNull.Value);
         }
 
         private static string BuildGroupKey(string assetName, int? assetSubTypeId, int? departmentId, AssetStatus status)

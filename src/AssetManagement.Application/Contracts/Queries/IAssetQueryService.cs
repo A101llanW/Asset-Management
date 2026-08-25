@@ -15,7 +15,7 @@ namespace AssetManagement.Application.Contracts.Queries
             string assetName,
             int? assetSubTypeId,
             int? groupDepartmentId,
-            AssetStatus groupStatus,
+            AssetStatus? groupStatus,
             int skip,
             int take);
 

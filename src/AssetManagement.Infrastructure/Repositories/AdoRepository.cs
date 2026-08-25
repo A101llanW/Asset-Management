@@ -51,23 +51,7 @@ namespace AssetManagement.Infrastructure.Repositories
                 tenantOrganizationId,
                 applyOrgFilter,
                 _session.Transaction);
-            var tracked = _session.GetTrackedEntities(typeof(T));
-            foreach (var entity in entities)
-            {
-                var existing = tracked.FirstOrDefault(x =>
-                    Equals(map.EntityType.GetProperty(map.PrimaryKey).GetValue(x.Entity, null),
-                        map.EntityType.GetProperty(map.PrimaryKey).GetValue(entity, null)));
-                if (existing == null)
-                {
-                    tracked.Add(new TrackedEntity { Entity = entity, State = TrackedEntityState.Unchanged });
-                }
-                else
-                {
-                    entities[entities.IndexOf(entity)] = (T)existing.Entity;
-                }
-            }
-
-            return entities;
+            return MergeReadResults(entities, map);
         }
 
         public int Count(Expression<Func<T, bool>> predicate)
@@ -190,37 +174,59 @@ namespace AssetManagement.Infrastructure.Repositories
                 var tenantOrganizationId = _organizationScope == null || !applyOrgFilter
                     ? null
                     : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
-                rows = EntitySqlReader.ReadWhere<T>(
-                    _session.Connection,
-                    map,
-                    predicate,
-                    tenantOrganizationId,
-                    applyOrgFilter,
-                    _session.Transaction);
-                TrackReadRows(rows, map);
+                rows = MergeReadResults(
+                    EntitySqlReader.ReadWhere<T>(
+                        _session.Connection,
+                        map,
+                        predicate,
+                        tenantOrganizationId,
+                        applyOrgFilter,
+                        _session.Transaction),
+                    map);
             }
 
             return SqlQueryableExpressionHelper.ExecuteInMemory(expression, rows);
         }
 
-        private void TrackReadRows(IList<T> entities, EntityMap map)
+        private IList<T> MergeReadResults(IList<T> entities, EntityMap map)
         {
             var tracked = _session.GetTrackedEntities(typeof(T));
             var keyProperty = map.EntityType.GetProperty(map.PrimaryKey);
-            for (var index = 0; index < entities.Count; index++)
+            var trackedByKey = new Dictionary<object, TrackedEntity>();
+            var trackedSnapshot = new List<TrackedEntity>(tracked);
+            foreach (var item in trackedSnapshot)
             {
-                var entity = entities[index];
-                var key = keyProperty.GetValue(entity, null);
-                var existing = tracked.FirstOrDefault(x => Equals(keyProperty.GetValue(x.Entity, null), key));
-                if (existing == null)
+                var existingKey = keyProperty.GetValue(item.Entity, null);
+                if (existingKey == null || trackedByKey.ContainsKey(existingKey))
                 {
-                    tracked.Add(new TrackedEntity { Entity = entity, State = TrackedEntityState.Unchanged });
+                    continue;
                 }
-                else
-                {
-                    entities[index] = (T)existing.Entity;
-                }
+
+                trackedByKey.Add(existingKey, item);
             }
+
+            var result = new List<T>(entities.Count);
+            foreach (var entity in entities)
+            {
+                var key = keyProperty.GetValue(entity, null);
+                TrackedEntity existing;
+                if (key != null && trackedByKey.TryGetValue(key, out existing))
+                {
+                    result.Add((T)existing.Entity);
+                    continue;
+                }
+
+                var trackedEntity = new TrackedEntity { Entity = entity, State = TrackedEntityState.Unchanged };
+                tracked.Add(trackedEntity);
+                if (key != null)
+                {
+                    trackedByKey[key] = trackedEntity;
+                }
+
+                result.Add(entity);
+            }
+
+            return result;
         }
 
         private static void BlockApplicationUserFullTableLoad()

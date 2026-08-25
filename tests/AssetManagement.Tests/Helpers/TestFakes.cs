@@ -648,7 +648,7 @@ namespace AssetManagement.Tests.Helpers
             string assetName,
             int? assetSubTypeId,
             int? groupDepartmentId,
-            AssetStatus groupStatus,
+            AssetStatus? groupStatus,
             int skip,
             int take)
         {

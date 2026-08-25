@@ -78,7 +78,10 @@
         params.push("assetName=" + encodeURIComponent(panel.getAttribute("data-am-group-asset-name") || ""));
         params.push("assetSubTypeId=" + encodeURIComponent(panel.getAttribute("data-am-group-sub-type-id") || ""));
         params.push("groupDepartmentId=" + encodeURIComponent(panel.getAttribute("data-am-group-department-id") || ""));
-        params.push("groupStatus=" + encodeURIComponent(panel.getAttribute("data-am-group-status") || ""));
+        var groupStatus = panel.getAttribute("data-am-group-status");
+        if (groupStatus) {
+            params.push("groupStatus=" + encodeURIComponent(groupStatus));
+        }
         params.push("skip=" + encodeURIComponent(String(skip || 0)));
         params.push("take=" + encodeURIComponent(String(take || memberPageSize)));
 

@@ -6,6 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title - Asset Management Module</title>
+    <link rel="icon" href="@Url.Content("~/Content/images/nanosoft-logo-transparent.png")" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -78,7 +79,7 @@
         var defaultLogoUrl = Url.Content("~/Content/images/nanosoft-logo-transparent.png");
         <header class="am-shell-header am-auth-page-header">
             <div class="am-header-inner am-auth-header-inner">
-                <a class="am-auth-header-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">
+                <a class="am-auth-header-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">
                     @if (showTenantLogo)
                     {
                         <img src="@tenantLogoUrl"
@@ -125,7 +126,7 @@
                         <span class="am-menu-button-dot"></span>
                     </button>
                 }
-                <a class="am-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">
+                <a class="am-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">
                     <span class="am-brand-mark">AM</span>
                     <span class="am-brand-copy">
                         <small class="am-brand-kicker">Nanosoft Asset Suite</small>
@@ -160,7 +161,7 @@
 
         <aside id="amSidebar" class="am-sidebar" aria-hidden="true">
             <div class="am-sidebar-header">
-                <a class="am-sidebar-brand" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Landing" })">Asset Management Module</a>
+                <a class="am-sidebar-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">Asset Management Module</a>
             </div>
 
             <nav class="am-sidebar-nav">

@@ -84,7 +84,7 @@ namespace AssetManagement.Web.Controllers
             string assetName,
             int? assetSubTypeId,
             int? groupDepartmentId,
-            AssetStatus groupStatus,
+            AssetStatus? groupStatus,
             int skip = 0,
             int take = 10)
         {
@@ -295,9 +295,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.View")]
-        public ActionResult Details(int id)
+        public ActionResult Details(string id)
         {
-            var model = _assetService.GetById(id);
+            int assetId;
+            if (!TryResolveAssetId(id, out assetId))
+            {
+                return HttpNotFound();
+            }
+
+            var model = _assetService.GetById(assetId);
             if (model == null)
             {
                 return HttpNotFound();
@@ -328,29 +334,35 @@ namespace AssetManagement.Web.Controllers
                     model.PendingDisposal.CurrentStageUserId);
             }
 
-            var entity = UnitOfWork.Repository<Asset>().GetById(id);
+            var entity = UnitOfWork.Repository<Asset>().GetById(assetId);
             ViewBag.TransferApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Transfer);
             ViewBag.DisposalApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Disposal);
             ViewBag.AssetLabelPrint = AssetLabelPrintHelper.CreateModel(Request, Url, model, GetExternalBaseUrl());
-            ViewBag.AssetId = id;
+            ViewBag.AssetId = assetId;
             ViewBag.AssetAuditLogs = BuildAuditLogService()
-                .GetLogs(new AuditLogFilterVm { RelatedAssetId = id, BusinessEventsOnly = true })
+                .GetLogs(new AuditLogFilterVm { RelatedAssetId = assetId, BusinessEventsOnly = true })
                 .OrderByDescending(x => x.Timestamp)
                 .Take(30)
                 .ToList();
             ViewBag.DisposalBlockedReason = BuildDisposalBlockedReason(model);
             EnrichAssetDetails(model);
-            model.Documents = BuildAssetDocumentService().GetByAsset(id).ToList();
-            model.DocumentRows = BuildAssetDocumentRequirementService().GetStatusRowsByAsset(id).ToList();
+            model.Documents = BuildAssetDocumentService().GetByAsset(assetId).ToList();
+            model.DocumentRows = BuildAssetDocumentRequirementService().GetStatusRowsByAsset(assetId).ToList();
             ViewBag.PendingDocumentRequirementId = Request.QueryString["uploadRequirement"];
 
             return View(model);
         }
 
         [PermissionAuthorize("Assets.View")]
-        public ActionResult PrintLabel(int id)
+        public ActionResult PrintLabel(string id)
         {
-            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
+            int assetId;
+            if (!TryResolveAssetId(id, out assetId))
+            {
+                return HttpNotFound();
+            }
+
+            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, assetId, GetExternalBaseUrl());
             if (model == null)
             {
                 return HttpNotFound();
@@ -360,9 +372,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.View")]
-        public ActionResult LabelZpl(int id)
+        public ActionResult LabelZpl(string id)
         {
-            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
+            int assetId;
+            if (!TryResolveAssetId(id, out assetId))
+            {
+                return HttpNotFound();
+            }
+
+            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, assetId, GetExternalBaseUrl());
             if (model == null)
             {
                 return HttpNotFound();
@@ -374,9 +392,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.View")]
-        public JsonResult LabelPrintConfig(int id)
+        public JsonResult LabelPrintConfig(string id)
         {
-            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, id, GetExternalBaseUrl());
+            int assetId;
+            if (!TryResolveAssetId(id, out assetId))
+            {
+                return Json(new { error = "Asset not found." }, JsonRequestBehavior.AllowGet);
+            }
+
+            var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, assetId, GetExternalBaseUrl());
             if (model == null)
             {
                 return Json(new { error = "Asset not found." }, JsonRequestBehavior.AllowGet);
@@ -759,6 +783,29 @@ namespace AssetManagement.Web.Controllers
             }
 
             return codes;
+        }
+
+        private bool TryResolveAssetId(string id, out int assetId)
+        {
+            assetId = 0;
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return false;
+            }
+
+            if (int.TryParse(id, out assetId) && assetId > 0)
+            {
+                return true;
+            }
+
+            var lookup = _assetService.LookupByScanCode(id, true, false);
+            if (lookup == null || !lookup.Found || !lookup.AssetId.HasValue || lookup.AssetId.Value <= 0)
+            {
+                return false;
+            }
+
+            assetId = lookup.AssetId.Value;
+            return true;
         }
 
         private bool HtmlHasPermission(string code)

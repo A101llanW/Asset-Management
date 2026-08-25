@@ -57,7 +57,7 @@
                 </button>
             </div>
             <ul class="am-nav-module-items nav flex-column" id="am-nav-overview">
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDashboard)" href="@(Url.RouteUrl("Default", new { controller = ctrlDashboard, action = actIndex }))">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDashboard)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDashboard)">Dashboard</a></li>
             </ul>
         </li>
     }
@@ -73,10 +73,10 @@
             </div>
             <ul class="am-nav-module-items nav flex-column" id="am-nav-assets">
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetScan)" href="@TenantUrlHelper.TenantRouteUrl(Url, actLookup, ctrlAssetScan)">Scan &amp; Search</a></li>
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actIndex)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actIndex }))">Assets</a></li>
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actMyAssets)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actMyAssets }))">My Assets</a></li>
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actDepartmentAssets)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssets, action = actDepartmentAssets }))">Department Assets</a></li>
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssignments)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssignments, action = actList }))">Assignments</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actIndex)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlAssets)">Assets</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actMyAssets)" href="@TenantUrlHelper.TenantRouteUrl(Url, actMyAssets, ctrlAssets)">My Assets</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actDepartmentAssets)" href="@TenantUrlHelper.TenantRouteUrl(Url, actDepartmentAssets, ctrlAssets)">Department Assets</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssignments)" href="@TenantUrlHelper.TenantRouteUrl(Url, actList, ctrlAssignments)">Assignments</a></li>
             </ul>
         </li>
     }
@@ -93,11 +93,11 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-workflow">
                 @if (Html.HasPermission("Assets.Request") || Html.HasPermission("Assets.Request.Approve"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetRequests)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetRequests, action = actIndex }))">Asset Requests</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssetRequests)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlAssetRequests)">Asset Requests</a></li>
                 }
                 @if (canViewPendingApprovals)
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPendingApprovals)" href="@(Url.RouteUrl("Default", new { controller = ctrlPendingApprovals, action = actIndex }))">Pending Approvals</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPendingApprovals)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlPendingApprovals)">Pending Approvals</a></li>
                 }
             </ul>
         </li>
@@ -115,15 +115,15 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-procurement">
                 @if (canViewPurchaseOrders)
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchases)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchases, action = actIndex }))">Purchases</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchases)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlPurchases)">Purchases</a></li>
                 }
                 @if (canViewRequisitions)
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchaseRequests)" href="@(Url.RouteUrl("Default", new { controller = ctrlPurchaseRequests, action = actIndex }))">Requisitions</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlPurchaseRequests)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlPurchaseRequests)">Requisitions</a></li>
                 }
                 @if (Html.HasPermission("Suppliers.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSuppliers)" href="@(Url.RouteUrl("Default", new { controller = ctrlSuppliers, action = actIndex }))">Suppliers</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSuppliers)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlSuppliers)">Suppliers</a></li>
                 }
             </ul>
         </li>
@@ -141,11 +141,11 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-risk">
                 @if (Html.HasPermission("Incidents.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlIncidents)" href="@(Url.RouteUrl("Default", new { controller = ctrlIncidents, action = actIndex }))">Incidents</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlIncidents)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlIncidents)">Incidents</a></li>
                 }
                 @if (Html.HasPermission("Claims.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlClaims)" href="@(Url.RouteUrl("Default", new { controller = ctrlClaims, action = actIndex }))">Claims</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlClaims)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlClaims)">Claims</a></li>
                 }
             </ul>
         </li>
@@ -161,7 +161,7 @@
                 </button>
             </div>
             <ul class="am-nav-module-items nav flex-column" id="am-nav-finance">
-                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlReports)" href="@(Url.RouteUrl("Default", new { controller = ctrlReports, action = actIndex }))">Reports</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlReports)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlReports)">Reports</a></li>
             </ul>
         </li>
     }
@@ -179,19 +179,19 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-organization">
                 @if (Html.HasPermission("Departments.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDepartments)" href="@(Url.RouteUrl("Default", new { controller = ctrlDepartments, action = actIndex }))">Departments</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDepartments)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments)">Departments</a></li>
                 }
                 @if (Html.HasPermission("Assets.Edit"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlAssetCategories, ctrlAssetTypes)" href="@(Url.RouteUrl("Default", new { controller = ctrlAssetCategories, action = actIndex }))">Asset Categories</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlAssetCategories, ctrlAssetTypes)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlAssetCategories)">Asset Categories</a></li>
                 }
                 @if (Html.HasPermission("Users.View") || Html.HasPermission("Users.ViewDepartment"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@(Url.RouteUrl("Default", new { controller = ctrlUsers, action = actIndex }))">Users</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlUsers)">Users</a></li>
                 }
                 @if (Html.HasPermission("Roles.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlRoles, ctrlPermissions)" href="@(Url.RouteUrl("Default", new { controller = ctrlRoles, action = actIndex }))">Roles &amp; Permissions</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlRoles, ctrlPermissions)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlRoles)">Roles &amp; Permissions</a></li>
                 }
             </ul>
         </li>
@@ -209,19 +209,19 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-administration">
                 @if (Html.HasPermission("Reports.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlNotifications)" href="@(Url.RouteUrl("Default", new { controller = ctrlNotifications, action = actIndex }))">Notifications</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlNotifications)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlNotifications)">Notifications</a></li>
                 }
                 @if (Html.HasPermission("AuditLogs.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAuditLogs)" href="@(Url.RouteUrl("Default", new { controller = ctrlAuditLogs, action = actIndex }))">Audit Logs</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAuditLogs)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlAuditLogs)">Audit Logs</a></li>
                 }
                 @if (Html.HasPermission("SecurityLogs.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSecurityLogs)" href="@(Url.RouteUrl("Default", new { controller = ctrlSecurityLogs, action = actIndex }))">Security Logs</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSecurityLogs)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlSecurityLogs)">Security Logs</a></li>
                 }
                 @if (Html.HasPermission("Settings.Manage"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSettings)" href="@(Url.RouteUrl("Default", new { controller = ctrlSettings, action = actIndex }))">Settings</a></li>
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSettings)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlSettings)">Settings</a></li>
                 }
             </ul>
         </li>

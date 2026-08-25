@@ -59,6 +59,25 @@ namespace AssetManagement.Web.Controllers
                 : null;
         }
 
+        public ActionResult Landing()
+        {
+            var tenant = TenantUrlHelper.GetTenantToken(RouteData);
+            var controllerName = ControllerContext != null && ControllerContext.RouteData != null
+                ? Convert.ToString(ControllerContext.RouteData.Values["controller"])
+                : null;
+            if (string.IsNullOrWhiteSpace(controllerName))
+            {
+                controllerName = "Dashboard";
+            }
+
+            if (TenantUrlHelper.IsValidTenantSlug(tenant))
+            {
+                return TenantUrlHelper.CreateTenantRedirect(tenant, controllerName, "Index");
+            }
+
+            return RedirectToAction("Index");
+        }
+
         protected IAssetService BuildAssetService() => DependencyResolver.Current.GetService<IAssetService>();
 
         protected IAssetRequestService BuildAssetRequestService() => DependencyResolver.Current.GetService<IAssetRequestService>();
