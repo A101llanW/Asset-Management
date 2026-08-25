@@ -193,7 +193,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.HandedOverByName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.HandedOverById, activeUsers);
             ViewBag.ToDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 toDepartmentId,
-                BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
+                GetActiveDepartments());
 
             var selectedType = string.IsNullOrWhiteSpace(model?.AssignmentType)
                 ? AssignmentType.Permanent.ToString()

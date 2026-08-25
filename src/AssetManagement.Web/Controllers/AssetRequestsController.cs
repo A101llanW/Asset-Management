@@ -291,7 +291,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.LockDepartment = lockDepartment;
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 model == null ? GetCurrentUserDepartmentId() : model.DepartmentId,
-                BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
+                GetActiveDepartments());
             ViewBag.Departments = BuildDepartmentSelectList(model == null ? null : model.DepartmentId);
             ViewBag.Categories = BuildCategorySelectList(model == null ? null : model.CategoryId);
         }

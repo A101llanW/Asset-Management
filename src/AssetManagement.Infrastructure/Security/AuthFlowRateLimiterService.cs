@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Infrastructure.Persistence;
 
@@ -23,12 +22,6 @@ namespace AssetManagement.Infrastructure.Security
         private const int MaxResetPasswordFailures = 5;
         private static readonly TimeSpan ResetPasswordFailureWindow = TimeSpan.FromMinutes(15);
         private static readonly TimeSpan ResetPasswordLockoutDuration = TimeSpan.FromMinutes(30);
-
-        private static readonly object FallbackSyncRoot = new object();
-        private static readonly Dictionary<string, FallbackCounterBucket> FallbackCounterBuckets =
-            new Dictionary<string, FallbackCounterBucket>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<string, FallbackFailureLockoutState> FallbackFailureLockouts =
-            new Dictionary<string, FallbackFailureLockoutState>(StringComparer.OrdinalIgnoreCase);
 
         private readonly AuthFlowRateLimitRepository _repository;
 
@@ -99,7 +92,7 @@ namespace AssetManagement.Infrastructure.Security
             catch (Exception ex)
             {
                 LogPersistenceFallback(ex, key);
-                return TryAcquireCounterFallback(key, maxRequests, window);
+                return false;
             }
         }
 
@@ -113,7 +106,8 @@ namespace AssetManagement.Infrastructure.Security
             catch (Exception ex)
             {
                 LogPersistenceFallback(ex, key);
-                return IsFailureLockoutExpiredFallback(key, out minutesRemaining);
+                minutesRemaining = 1;
+                return false;
             }
         }
 
@@ -126,7 +120,7 @@ namespace AssetManagement.Infrastructure.Security
             catch (Exception ex)
             {
                 LogPersistenceFallback(ex, key);
-                RecordFailureLockoutFallback(key, maxFailures, failureWindow, lockoutDuration);
+                // Fail closed. Authentication limits must not become node-local during a database outage.
             }
         }
 
@@ -139,7 +133,7 @@ namespace AssetManagement.Infrastructure.Security
             catch (Exception ex)
             {
                 LogPersistenceFallback(ex, key);
-                ClearFailureLockoutFallback(key);
+                // There is no local state to clear.
             }
         }
 
@@ -147,125 +141,6 @@ namespace AssetManagement.Infrastructure.Security
         {
             System.Diagnostics.Trace.WriteLine(
                 "AuthFlowRateLimiter persistence unavailable for scope '" + (scopeKey ?? string.Empty) + "': " + ex.Message);
-        }
-
-        private static bool TryAcquireCounterFallback(string key, int maxRequests, TimeSpan window)
-        {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return true;
-            }
-
-            var now = DateTime.UtcNow;
-            lock (FallbackSyncRoot)
-            {
-                FallbackCounterBucket bucket;
-                if (!FallbackCounterBuckets.TryGetValue(key, out bucket) || now - bucket.WindowStart >= window)
-                {
-                    bucket = new FallbackCounterBucket { WindowStart = now, Count = 0 };
-                    FallbackCounterBuckets[key] = bucket;
-                }
-
-                if (bucket.Count >= maxRequests)
-                {
-                    return false;
-                }
-
-                bucket.Count++;
-                return true;
-            }
-        }
-
-        private static bool IsFailureLockoutExpiredFallback(string key, out int minutesRemaining)
-        {
-            minutesRemaining = 0;
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return true;
-            }
-
-            var now = DateTime.UtcNow;
-            lock (FallbackSyncRoot)
-            {
-                FallbackFailureLockoutState state;
-                if (!FallbackFailureLockouts.TryGetValue(key, out state))
-                {
-                    return true;
-                }
-
-                PruneFailures(state, now);
-                if (state.LockedUntilUtc.HasValue && state.LockedUntilUtc.Value > now)
-                {
-                    minutesRemaining = Math.Max(1, (int)Math.Ceiling((state.LockedUntilUtc.Value - now).TotalMinutes));
-                    return false;
-                }
-
-                if (state.LockedUntilUtc.HasValue && state.LockedUntilUtc.Value <= now)
-                {
-                    FallbackFailureLockouts.Remove(key);
-                }
-
-                return true;
-            }
-        }
-
-        private static void RecordFailureLockoutFallback(string key, int maxFailures, TimeSpan failureWindow, TimeSpan lockoutDuration)
-        {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return;
-            }
-
-            var now = DateTime.UtcNow;
-            lock (FallbackSyncRoot)
-            {
-                FallbackFailureLockoutState state;
-                if (!FallbackFailureLockouts.TryGetValue(key, out state))
-                {
-                    state = new FallbackFailureLockoutState();
-                    FallbackFailureLockouts[key] = state;
-                }
-
-                PruneFailures(state, now, failureWindow);
-                state.Failures.Add(now);
-
-                if (state.Failures.Count >= maxFailures)
-                {
-                    state.LockedUntilUtc = now.Add(lockoutDuration);
-                    state.Failures.Clear();
-                }
-            }
-        }
-
-        private static void ClearFailureLockoutFallback(string key)
-        {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return;
-            }
-
-            lock (FallbackSyncRoot)
-            {
-                FallbackFailureLockouts.Remove(key);
-            }
-        }
-
-        private static void PruneFailures(FallbackFailureLockoutState state, DateTime now, TimeSpan? failureWindow = null)
-        {
-            if (state == null || state.Failures == null || state.Failures.Count == 0)
-            {
-                return;
-            }
-
-            var window = failureWindow ?? MfaVerifyFailureWindow;
-            var cutoff = now - window;
-            for (var index = state.Failures.Count - 1; index >= 0; index--)
-            {
-                if (state.Failures[index] < cutoff)
-                {
-                    state.Failures.RemoveAt(index);
-                }
-            }
         }
 
         private static string BuildUserScopeKey(string scope, string userId)
@@ -310,23 +185,5 @@ namespace AssetManagement.Infrastructure.Security
             return string.IsNullOrWhiteSpace(clientAddress) ? "unknown" : clientAddress.Trim();
         }
 
-        private sealed class FallbackCounterBucket
-        {
-            public DateTime WindowStart { get; set; }
-
-            public int Count { get; set; }
-        }
-
-        private sealed class FallbackFailureLockoutState
-        {
-            public FallbackFailureLockoutState()
-            {
-                Failures = new List<DateTime>();
-            }
-
-            public List<DateTime> Failures { get; private set; }
-
-            public DateTime? LockedUntilUtc { get; set; }
-        }
     }
 }

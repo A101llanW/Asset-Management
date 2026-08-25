@@ -92,6 +92,33 @@ namespace AssetManagement.Application.ViewModels
         public string OrganizationName { get; set; }
     }
 
+    public class ChangeEmailViewModel
+    {
+        [Display(Name = "Current email")]
+        public string CurrentEmail { get; set; }
+
+        [Display(Name = "New email")]
+        [Required]
+        [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Invalid email address.")]
+        [StringLength(256)]
+        public string NewEmail { get; set; }
+
+        [Display(Name = "Current password")]
+        [Required]
+        [DataType(DataType.Password)]
+        public string CurrentPassword { get; set; }
+    }
+
+    public class ConfirmChangeEmailViewModel
+    {
+        [Display(Name = "Verification code")]
+        [Required]
+        [StringLength(12)]
+        public string Code { get; set; }
+
+        public string NewEmailHint { get; set; }
+    }
+
     public class ChangePasswordViewModel
     {
         [Display(Name = "Current password")]

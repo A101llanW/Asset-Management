@@ -4,6 +4,8 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.Outbox;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Infrastructure.Identity;
+using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Infrastructure.Services
 {
@@ -13,23 +15,27 @@ namespace AssetManagement.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserContext _currentUser;
         private readonly IOrganizationScopeService _organizationScope;
+        private readonly UserAccountRepository _users;
 
         public AuditWriter(
             IOutboxWriter outboxWriter,
             IUnitOfWork unitOfWork,
             ICurrentUserContext currentUser,
-            IOrganizationScopeService organizationScope)
+            IOrganizationScopeService organizationScope,
+            ISqlConnectionFactory connectionFactory)
         {
             _outboxWriter = outboxWriter;
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
             _organizationScope = organizationScope;
+            _users = new UserAccountRepository(connectionFactory);
         }
 
         public void Write(string action, string entityType, string entityId, string oldValues, string newValues)
         {
-            var organizationId = ResolveOrganizationId(entityType, entityId);
-            if (!organizationId.HasValue)
+            bool allowNullOrganization;
+            var organizationId = ResolveOrganizationId(entityType, entityId, out allowNullOrganization);
+            if (!organizationId.HasValue && !allowNullOrganization)
             {
                 throw new InvalidOperationException(
                     string.Format(
@@ -73,8 +79,10 @@ namespace AssetManagement.Infrastructure.Services
             _outboxWriter.Enqueue(OutboxMessageTypes.AuditLog, payload);
         }
 
-        private int? ResolveOrganizationId(string entityType, string entityId)
+        private int? ResolveOrganizationId(string entityType, string entityId, out bool allowNullOrganization)
         {
+            allowNullOrganization = false;
+
             var organizationId = _organizationScope.GetCurrentOrganizationId();
             if (organizationId.HasValue)
             {
@@ -84,6 +92,18 @@ namespace AssetManagement.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(entityType) || string.IsNullOrWhiteSpace(entityId))
             {
                 return null;
+            }
+
+            if (string.Equals(entityType, nameof(ApplicationUser), StringComparison.OrdinalIgnoreCase))
+            {
+                var user = _users.FindById(entityId);
+                if (user == null)
+                {
+                    return null;
+                }
+
+                allowNullOrganization = !user.OrganizationId.HasValue;
+                return user.OrganizationId;
             }
 
             int parsedId;

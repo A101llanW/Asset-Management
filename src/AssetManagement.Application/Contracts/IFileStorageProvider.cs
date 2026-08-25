@@ -8,6 +8,10 @@ namespace AssetManagement.Application.Contracts
 
         void Delete(string relativePath);
 
+        Stream OpenRead(string relativePath);
+
+        bool Exists(string relativePath);
+
         string GetFullPath(string relativePath);
     }
 }

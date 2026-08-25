@@ -23,6 +23,7 @@ namespace AssetManagement.Infrastructure.Services
         private int? _instanceFilterOverride;
         private bool _instancePlatformAdminOverride;
         private bool _instanceCompanyAdminOverride;
+        private TenantExecutionContext _executionContext;
 
         public OrganizationScopeService(ICurrentUserContext currentUser, ISqlConnectionFactory connectionFactory)
         {
@@ -32,6 +33,12 @@ namespace AssetManagement.Infrastructure.Services
 
         public void SetOrganizationFilterOverride(int? organizationId)
         {
+            if (_executionContext != null)
+            {
+                _executionContext.OrganizationFilterOverride = organizationId;
+                return;
+            }
+
             var context = HttpContext.Current;
             if (context == null)
             {
@@ -59,8 +66,28 @@ namespace AssetManagement.Infrastructure.Services
             _instanceCompanyAdminOverride = isCompanyAdmin;
         }
 
+        public void SetExecutionContext(TenantExecutionContext context)
+        {
+            _executionContext = context ?? new TenantExecutionContext();
+        }
+
+        public void ClearExecutionContext()
+        {
+            _executionContext = null;
+        }
+
         public int? GetCurrentOrganizationId()
         {
+            if (_executionContext != null)
+            {
+                if (_executionContext.OrganizationFilterOverride.HasValue)
+                {
+                    return _executionContext.OrganizationFilterOverride;
+                }
+
+                return _executionContext.OrganizationId;
+            }
+
             if (HttpContext.Current == null && _instanceFilterOverride.HasValue)
             {
                 return _instanceFilterOverride;
@@ -126,12 +153,22 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool IsImpersonating()
         {
+            if (_executionContext != null)
+            {
+                return _executionContext.IsImpersonating;
+            }
+
             int? id;
             return TryGetImpersonatedOrganizationId(out id) && id.HasValue;
         }
 
         public bool IsPlatformAdmin()
         {
+            if (_executionContext != null)
+            {
+                return _executionContext.IsPlatformAdmin && !_executionContext.IsImpersonating;
+            }
+
             if (IsImpersonating())
             {
                 return false;
@@ -142,6 +179,11 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool IsActualPlatformAdmin()
         {
+            if (_executionContext != null)
+            {
+                return _executionContext.IsPlatformAdmin;
+            }
+
             if (HttpContext.Current == null && _instancePlatformAdminOverride)
             {
                 return true;
@@ -154,6 +196,11 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool IsCompanyAdmin()
         {
+            if (_executionContext != null)
+            {
+                return _executionContext.IsCompanyAdmin || _executionContext.IsImpersonating;
+            }
+
             if (HttpContext.Current == null && _instanceCompanyAdminOverride)
             {
                 return true;
@@ -170,6 +217,11 @@ namespace AssetManagement.Infrastructure.Services
 
         public string GetImpersonationReason()
         {
+            if (_executionContext != null)
+            {
+                return _executionContext.ImpersonationReason;
+            }
+
             var session = HttpContext.Current != null ? HttpContext.Current.Session : null;
             return session != null ? session["ImpersonationReason"] as string : null;
         }

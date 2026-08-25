@@ -66,5 +66,9 @@ namespace AssetManagement.Application.Contracts
         bool ChangePassword(string userId, string currentPassword, string newPassword);
 
         bool UpdateProfile(string userId, string firstName, string lastName, string phone);
+
+        EmailChangeResult ValidateEmailChangeRequest(string userId, string newEmail, string currentPassword);
+
+        EmailChangeResult ApplyEmailChange(string userId, string newEmail);
     }
 }

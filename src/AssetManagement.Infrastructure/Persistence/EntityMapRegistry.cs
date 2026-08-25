@@ -78,11 +78,9 @@ namespace AssetManagement.Infrastructure.Persistence
         private static void Register(Type entityType, string tableName = null, string primaryKey = "Id", bool primaryKeyIsIdentity = true)
         {
             var resolvedTableName = tableName ?? entityType.Name;
-            var scalarProperties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(IsScalarProperty)
-                .ToList();
+            var scalarProperties = GetScalarProperties(entityType);
 
-            var navigations = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            var navigations = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy)
                 .Where(IsNavigationProperty)
                 .Select(property => CreateNavigationBinding(entityType, property))
                 .Where(binding => binding != null)
@@ -97,6 +95,26 @@ namespace AssetManagement.Infrastructure.Persistence
                 ScalarProperties = scalarProperties,
                 Navigations = navigations
             };
+        }
+
+        private static IList<PropertyInfo> GetScalarProperties(Type entityType)
+        {
+            var properties = new List<PropertyInfo>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (var current = entityType; current != null && current != typeof(object); current = current.BaseType)
+            {
+                foreach (var property in current.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                {
+                    if (!seen.Add(property.Name) || !IsScalarProperty(property))
+                    {
+                        continue;
+                    }
+
+                    properties.Add(property);
+                }
+            }
+
+            return properties;
         }
 
         private static bool IsScalarProperty(PropertyInfo property)

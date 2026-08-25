@@ -30,13 +30,23 @@ namespace AssetManagement.Runner
             return CreateAssetImportService(connectionStringName, CreateOrganizationScope(connectionStringName));
         }
 
+        public static IOutboxDispatcher CreateOutboxDispatcher(string connectionStringName = "AssetManagementConnection")
+        {
+            var connectionFactory = new SqlConnectionFactory(connectionStringName);
+            var organizationScope = CreateOrganizationScope(connectionStringName);
+            organizationScope.SetPlatformAdminOverride(true);
+            return new OutboxDispatcher(
+                CreateUnitOfWork(connectionStringName, organizationScope),
+                new NotificationQueryService(connectionFactory, organizationScope));
+        }
+
         private static IAssetImportService CreateAssetImportService(string connectionStringName, OrganizationScopeService organizationScope)
         {
             var unitOfWork = CreateUnitOfWork(connectionStringName, organizationScope);
             var currentUser = new BootstrapCurrentUserContext();
             var connectionFactory = new SqlConnectionFactory(connectionStringName);
             var outboxWriter = new OutboxWriter(unitOfWork, organizationScope);
-            var auditWriter = new AuditWriter(outboxWriter, unitOfWork, currentUser, organizationScope);
+            var auditWriter = new AuditWriter(outboxWriter, unitOfWork, currentUser, organizationScope, connectionFactory);
             var referenceDataCache = new ReferenceDataCache(connectionFactory);
             var authorizationService = new AuthorizationService(unitOfWork, organizationScope, connectionFactory);
             var roleService = new RoleService(
@@ -95,7 +105,7 @@ namespace AssetManagement.Runner
             var connectionFactory = new SqlConnectionFactory(connectionStringName);
             var currentUser = new BootstrapCurrentUserContext();
             var outboxWriter = new OutboxWriter(unitOfWork, organizationScope);
-            var auditWriter = new AuditWriter(outboxWriter, unitOfWork, currentUser, organizationScope);
+            var auditWriter = new AuditWriter(outboxWriter, unitOfWork, currentUser, organizationScope, connectionFactory);
             var platformSettings = new PlatformSettingsService(connectionFactory);
             var emailService = new EmailService(platformSettings);
             var licenseQueryRepository = new OrganizationLicenseQueryRepository(connectionFactory);

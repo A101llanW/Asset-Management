@@ -207,7 +207,7 @@ namespace AssetManagement.Web.Controllers
         private void PopulateLookups(AssetTransferVm model, Asset asset)
         {
             var activeUsers = GetActiveUsers().ToList();
-            var departments = BuildDepartmentService().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList();
+            var departments = GetActiveDepartments().OrderBy(x => x.Name).ToList();
             var lockToDepartment = !IsCurrentUserSuperAdmin() && GetCurrentUserDepartmentId().HasValue;
             var toDepartmentId = model?.ToDepartmentId ?? (lockToDepartment ? GetCurrentUserDepartmentId() : null);
 

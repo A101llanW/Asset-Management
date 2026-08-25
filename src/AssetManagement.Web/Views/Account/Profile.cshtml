@@ -27,6 +27,9 @@
                     <div class="mb-3">
                         @Html.LabelFor(m => m.Email, new { @class = "form-label" })
                         @Html.TextBoxFor(m => m.Email, new { @class = "form-control", @readonly = "readonly" })
+                        <div class="form-text">
+                            <a href="@Url.Action("ChangeEmail", "Account")">Change email address</a>
+                        </div>
                     </div>
                     <div class="mb-3">
                         @Html.LabelFor(m => m.Phone, new { @class = "form-label" })

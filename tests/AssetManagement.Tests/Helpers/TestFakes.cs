@@ -297,6 +297,14 @@ namespace AssetManagement.Tests.Helpers
         {
         }
 
+        public void SetExecutionContext(TenantExecutionContext context)
+        {
+        }
+
+        public void ClearExecutionContext()
+        {
+        }
+
         public bool IsImpersonating() => _impersonating;
 
         public bool IsPlatformAdmin() => _platformAdmin;
@@ -927,6 +935,8 @@ namespace AssetManagement.Tests.Helpers
 
         public IEnumerable<T> Find(Expression<Func<T, bool>> predicate) => _items.AsQueryable().Where(predicate).ToList();
 
+        public int Count(Expression<Func<T, bool>> predicate) => _items.AsQueryable().Count(predicate);
+
         public T GetById(object id)
         {
             var prop = typeof(T).GetProperty("Id");
@@ -984,6 +994,10 @@ namespace AssetManagement.Tests.Helpers
         public void Delete(string relativePath)
         {
         }
+
+        public Stream OpenRead(string relativePath) => null;
+
+        public bool Exists(string relativePath) => false;
 
         public string GetFullPath(string relativePath) => relativePath;
     }

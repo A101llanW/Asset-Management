@@ -1,5 +1,6 @@
 using System;
 using System.Web.Mvc;
+using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 using AssetManagement.Web.Services;
@@ -9,11 +10,17 @@ namespace AssetManagement.Web.Controllers
     public class CaptchaController : Controller
     {
         private readonly RealisticCaptchaService _captchaService = new RealisticCaptchaService();
+        private readonly IDistributedRateLimiter _rateLimiter;
+
+        public CaptchaController()
+        {
+            _rateLimiter = DependencyResolver.Current.GetService<IDistributedRateLimiter>();
+        }
 
         [HttpGet]
         public JsonResult Generate()
         {
-            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "generate"))
+            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "generate", _rateLimiter))
             {
                 return RateLimitedJson();
             }
@@ -24,7 +31,7 @@ namespace AssetManagement.Web.Controllers
         [HttpGet]
         public JsonResult Refresh()
         {
-            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "refresh"))
+            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "refresh", _rateLimiter))
             {
                 return RateLimitedJson();
             }
@@ -37,7 +44,7 @@ namespace AssetManagement.Web.Controllers
         [ValidateAntiForgeryToken]
         public JsonResult Validate(string captchaId, string userInput)
         {
-            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "validate"))
+            if (!CaptchaRateLimiter.TryAcquire(HttpContext, "validate", _rateLimiter))
             {
                 return RateLimitedJson();
             }

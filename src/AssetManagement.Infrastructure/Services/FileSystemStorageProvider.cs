@@ -53,6 +53,16 @@ namespace AssetManagement.Infrastructure.Services
             }
         }
 
+        public Stream OpenRead(string relativePath)
+        {
+            return File.OpenRead(GetFullPath(relativePath));
+        }
+
+        public bool Exists(string relativePath)
+        {
+            return File.Exists(GetFullPath(relativePath));
+        }
+
         public string GetFullPath(string relativePath)
         {
             var combined = Path.Combine(_rootPath, (relativePath ?? string.Empty).Replace("/", "\\"));

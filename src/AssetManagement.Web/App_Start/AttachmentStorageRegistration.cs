@@ -16,7 +16,9 @@ namespace AssetManagement.Web.App_Start
 
         public static void Register(ContainerBuilder builder)
         {
-            builder.Register(ctx => new FileSystemStorageProvider(ResolveAttachmentRoot(ctx)))
+            builder.Register(ctx => new HybridFileStorageProvider(
+                    ctx.Resolve<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>(),
+                    ResolveAttachmentRoot(ctx)))
                 .As<IFileStorageProvider>()
                 .InstancePerHttpRequest();
 

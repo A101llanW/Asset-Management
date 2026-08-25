@@ -66,7 +66,11 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.ActiveUserCount = BuildUserService().GetAll().Count(x => x.DepartmentId == id && x.IsActive);
+            var organizationId = ResolveCurrentOrganizationId();
+            ViewBag.ActiveUserCount = organizationId.HasValue
+                ? DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Queries.IUserAccountQueryRepository>()
+                    .CountActiveUsersForDepartment(organizationId.Value, id)
+                : 0;
             ViewBag.AssetCount = BuildAssetService().CountAssets(new AssetFilterVm { DepartmentId = model.Id });
             return View(model);
         }

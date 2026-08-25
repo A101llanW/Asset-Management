@@ -15,6 +15,8 @@ namespace AssetManagement.Application.Contracts
 
         IEnumerable<T> Find(Expression<Func<T, bool>> predicate);
 
+        int Count(Expression<Func<T, bool>> predicate);
+
         T GetById(object id);
 
         void Add(T entity);

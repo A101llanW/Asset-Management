@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Infrastructure.Persistence;
 using AssetManagement.Infrastructure.Services;
@@ -33,7 +34,40 @@ namespace AssetManagement.Runner
                 return;
             }
 
+            if (args.Length > 0 && string.Equals(args[0], "outbox-worker", StringComparison.OrdinalIgnoreCase))
+            {
+                RunOutboxWorker(args);
+                return;
+            }
+
             RunWebHost(args);
+        }
+
+        private static void RunOutboxWorker(string[] args)
+        {
+            var dispatcher = BootstrapServiceFactory.CreateOutboxDispatcher();
+            PurgeStaleSecurityRecords(new SqlConnectionFactory("AssetManagementConnection"));
+            var intervalSeconds = 5;
+            for (;;)
+            {
+                dispatcher.ProcessPending(100);
+                System.Threading.Thread.Sleep(intervalSeconds * 1000);
+            }
+        }
+
+        private static void PurgeStaleSecurityRecords(ISqlConnectionFactory connectionFactory)
+        {
+            try
+            {
+                new AssetManagement.Infrastructure.Security.LoginAttemptRepository(connectionFactory)
+                    .PurgeOlderThan(System.DateTime.UtcNow.AddDays(-30));
+                new AssetManagement.Infrastructure.Identity.PasswordResetRepository(connectionFactory)
+                    .PurgeStale(System.DateTime.UtcNow.AddDays(-7));
+            }
+            catch (System.Exception ex)
+            {
+                Console.Error.WriteLine("Security cleanup failed: " + ex.Message);
+            }
         }
 
         private static void RunMigrations(string[] args)
@@ -273,7 +307,7 @@ namespace AssetManagement.Runner
         private static void RunWebHost(string[] args)
         {
             var port = args.Length > 0 ? args[0] : "51901";
-            var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", ".."));
+            var repoRoot = ResolveRepoRoot();
             var webPath = Path.GetFullPath(Path.Combine(repoRoot, "src", "AssetManagement.Web"));
             var configPath = Path.Combine(repoRoot, ".build", "iis-remote", "applicationhost.config");
             var iisExpressPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "IIS Express", "iisexpress.exe");
@@ -331,6 +365,7 @@ namespace AssetManagement.Runner
             process.BeginErrorReadLine();
 
             Console.WriteLine("AssetManagement web app running on http://localhost:" + port + "/");
+            Console.WriteLine("MFA: codes are emailed via SMTP (MfaAllowAnyCode=false). Configure Platform Settings → Email or Web.config SMTP keys.");
             Console.WriteLine("Press ENTER to stop.");
             Console.ReadLine();
 
@@ -383,5 +418,6 @@ namespace AssetManagement.Runner
                 }
             }
         }
+
     }
 }

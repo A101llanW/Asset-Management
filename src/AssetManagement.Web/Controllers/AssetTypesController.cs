@@ -168,11 +168,7 @@ namespace AssetManagement.Web.Controllers
 
         private SelectList BuildCategorySelectList(int? selectedCategoryId = null)
         {
-            var categories = UnitOfWork.Repository<AssetCategory>().GetAll()
-                .OrderBy(x => x.Name)
-                .Select(x => new { x.Id, x.Name })
-                .ToList();
-            return new SelectList(categories, "Id", "Name", selectedCategoryId);
+            return base.BuildCategorySelectList(selectedCategoryId, true);
         }
 
         private void ValidateAssetType(AssetTypeVm model)
@@ -193,10 +189,9 @@ namespace AssetManagement.Web.Controllers
             }
 
             var name = model.Name.Trim();
-            var exists = UnitOfWork.Repository<AssetType>().GetAll()
-                .Any(x => x.Id != model.Id
+            var exists = UnitOfWork.Repository<AssetType>().Find(x => x.Id != model.Id
                     && x.AssetCategoryId == model.AssetCategoryId
-                    && x.Name.ToLower() == name.ToLower());
+                    && x.Name == name).Any();
             if (exists)
             {
                 ModelState.AddModelError(nameof(model.Name), "This category already has an asset type with the same name.");

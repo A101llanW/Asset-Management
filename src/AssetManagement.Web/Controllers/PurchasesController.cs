@@ -234,8 +234,7 @@ namespace AssetManagement.Web.Controllers
             }
             ViewBag.Categories = BuildCategorySelectList(categoryId);
             ViewBag.AssetTypeOptions = UnitOfWork.Repository<AssetType>()
-                .GetAll()
-                .Where(x => x.IsActive)
+                .Find(x => x.IsActive)
                 .OrderBy(x => x.Name)
                 .ToList();
             ViewBag.SubTypeLookupUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");

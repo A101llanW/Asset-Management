@@ -21,12 +21,6 @@ namespace AssetManagement.Web
 {
     public class MvcApplication : System.Web.HttpApplication
     {
-        private static readonly object NotificationScheduleLock = new object();
-        private static readonly object LicenseExpiryLock = new object();
-        private static readonly object OutboxDispatchLock = new object();
-        private static DateTime _lastNotificationScheduleCheckUtc = DateTime.MinValue;
-        private static DateTime _lastLicenseExpiryCheckUtc = DateTime.MinValue;
-        private static DateTime _lastOutboxDispatchCheckUtc = DateTime.MinValue;
 
         protected void Application_Start()
         {
@@ -39,7 +33,6 @@ namespace AssetManagement.Web
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
-            System.Threading.ThreadPool.QueueUserWorkItem(_ => PurgeStaleSecurityRecords());
         }
 
         private static void ConfigureDevelopmentTraceListeners()
@@ -199,28 +192,6 @@ namespace AssetManagement.Web
             System.Threading.Thread.CurrentPrincipal = principal;
         }
 
-        private static void PurgeStaleSecurityRecords()
-        {
-            try
-            {
-                var connectionFactory = DependencyResolver.Current.GetService<ISqlConnectionFactory>();
-                if (connectionFactory == null)
-                {
-                    return;
-                }
-
-                var loginAttempts = new Infrastructure.Security.LoginAttemptRepository(connectionFactory);
-                loginAttempts.PurgeOlderThan(DateTime.UtcNow.AddDays(-30));
-
-                var passwordResets = new AssetManagement.Infrastructure.Identity.PasswordResetRepository(connectionFactory);
-                passwordResets.PurgeStale(DateTime.UtcNow.AddDays(-7));
-            }
-            catch
-            {
-                // Non-critical startup purge.
-            }
-        }
-
         private static bool IsPublicAuthPath(string requestPath)
         {
             if (string.IsNullOrEmpty(requestPath))
@@ -315,106 +286,8 @@ namespace AssetManagement.Web
                 return;
             }
 
-            TryGenerateScheduledNotifications();
-            TryProcessLicenseExpiry();
-            TryProcessOutbox();
+            // Scheduled and outbox work is owned by the external worker process.
         }
 
-        private static void TryGenerateScheduledNotifications()
-        {
-            if (DateTime.UtcNow - _lastNotificationScheduleCheckUtc < TimeSpan.FromHours(1))
-            {
-                return;
-            }
-
-            lock (NotificationScheduleLock)
-            {
-                if (DateTime.UtcNow - _lastNotificationScheduleCheckUtc < TimeSpan.FromHours(1))
-                {
-                    return;
-                }
-
-                _lastNotificationScheduleCheckUtc = DateTime.UtcNow;
-            }
-
-            try
-            {
-                var notificationService = DependencyResolver.Current.GetService<INotificationService>();
-                notificationService?.TryGenerateScheduledNotifications();
-            }
-            catch
-            {
-                // Scheduled generation must not block requests.
-            }
-        }
-
-        private static void TryProcessOutbox()
-        {
-            var interval = GetOutboxDispatchInterval();
-            if (interval > TimeSpan.Zero && DateTime.UtcNow - _lastOutboxDispatchCheckUtc < interval)
-            {
-                return;
-            }
-
-            lock (OutboxDispatchLock)
-            {
-                if (interval > TimeSpan.Zero && DateTime.UtcNow - _lastOutboxDispatchCheckUtc < interval)
-                {
-                    return;
-                }
-
-                _lastOutboxDispatchCheckUtc = DateTime.UtcNow;
-            }
-
-            try
-            {
-                var dispatcher = DependencyResolver.Current.GetService<IOutboxDispatcher>();
-                dispatcher?.ProcessPending(25);
-            }
-            catch
-            {
-                // Outbox dispatch must not block requests.
-            }
-        }
-
-        private static TimeSpan GetOutboxDispatchInterval()
-        {
-            var setting = ConfigurationManager.AppSettings["OutboxDispatchIntervalSeconds"];
-            int seconds;
-            if (int.TryParse(setting, out seconds))
-            {
-                return seconds <= 0 ? TimeSpan.Zero : TimeSpan.FromSeconds(seconds);
-            }
-
-            return TimeSpan.FromMinutes(5);
-        }
-
-        private static void TryProcessLicenseExpiry()
-        {
-            if (DateTime.UtcNow - _lastLicenseExpiryCheckUtc < TimeSpan.FromHours(1))
-            {
-                return;
-            }
-
-            lock (LicenseExpiryLock)
-            {
-                if (DateTime.UtcNow - _lastLicenseExpiryCheckUtc < TimeSpan.FromHours(1))
-                {
-                    return;
-                }
-
-                _lastLicenseExpiryCheckUtc = DateTime.UtcNow;
-            }
-
-            try
-            {
-                var licenseService = DependencyResolver.Current.GetService<IOrganizationLicenseService>();
-                licenseService?.ProcessExpiredLicenses();
-            }
-            catch
-            {
-                // License expiry processing must not block requests.
-            }
-        }
     }
 }

@@ -768,13 +768,12 @@ namespace AssetManagement.Web.Controllers
 
         private void PopulateLookups(AssetCreateVm model)
         {
-            var categories = UnitOfWork.Repository<AssetCategory>().GetAll().OrderBy(x => x.Name).ToList();
-            ViewBag.Categories = new SelectList(categories, "Id", "Name", model?.CategoryId);
+            ViewBag.Categories = BuildCategorySelectList(model?.CategoryId, activeOnly: false);
 
-            var assetTypes = UnitOfWork.Repository<AssetType>().GetAll()
-                .OrderBy(x => x.Name)
-                .ToList();
-            ViewBag.AssetTypeOptions = assetTypes;
+            var organizationId = ResolveCurrentOrganizationId();
+            ViewBag.AssetTypeOptions = organizationId.HasValue
+                ? (object)BuildReferenceDataCache().GetAssetTypes(organizationId.Value, false).OrderBy(x => x.Name).ToList()
+                : (object)UnitOfWork.Repository<AssetType>().GetAll().OrderBy(x => x.Name).ToList();
 
             ViewBag.Departments = BuildDepartmentSelectList(model?.DepartmentId, activeOnly: false);
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId, activeOnly: false);

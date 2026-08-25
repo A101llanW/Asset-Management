@@ -744,6 +744,45 @@ namespace AssetManagement.Infrastructure.Services
             _users.Update(user);
         }
 
+        public bool SendVerificationCodeToAddress(string email, out string code)
+        {
+            code = null;
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return false;
+            }
+
+            var relaxed = IsMfaCodeValidationRelaxed();
+            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            {
+                System.Diagnostics.Trace.WriteLine(
+                    "Verification code not sent: SMTP is not configured while MfaAllowAnyCode=false.");
+                return false;
+            }
+
+            code = GenerateNumericCode(6);
+
+            if (_emailService != null && _emailService.IsConfigured)
+            {
+                try
+                {
+                    _emailService.SendMfaCodeEmail(email.Trim(), code);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Verification code send failed: " + ex.Message);
+                    if (!relaxed)
+                    {
+                        code = null;
+                        return false;
+                    }
+                }
+            }
+
+            return relaxed;
+        }
+
         public void RotateUserAccessToken(string userId)
         {
             var user = _users.FindById(userId);

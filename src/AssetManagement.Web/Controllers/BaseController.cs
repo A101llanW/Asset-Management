@@ -136,6 +136,17 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
         }
 
+        protected IList<DepartmentVm> GetActiveDepartments()
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (orgId.HasValue)
+            {
+                return BuildReferenceDataCache().GetDepartments(orgId.Value, true);
+            }
+
+            return BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList();
+        }
+
         protected IEnumerable<UserVm> GetActiveUsersForDepartment(int? departmentId)
         {
             if (!departmentId.HasValue)

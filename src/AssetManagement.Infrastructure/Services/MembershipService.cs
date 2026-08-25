@@ -329,6 +329,138 @@ namespace AssetManagement.Infrastructure.Services
             return true;
         }
 
+        public EmailChangeResult ValidateEmailChangeRequest(string userId, string newEmail, string currentPassword)
+        {
+            var user = _users.FindById(userId);
+            if (user == null)
+            {
+                return EmailChangeResult.Failure("User account not found.");
+            }
+
+            var errors = new List<string>();
+            var normalizedNewEmail = NormalizeEmail(newEmail);
+            if (string.IsNullOrWhiteSpace(normalizedNewEmail))
+            {
+                errors.Add("Email is required.");
+            }
+            else if (!IsValidEmailFormat(normalizedNewEmail))
+            {
+                errors.Add("Invalid email address.");
+            }
+            else if (string.Equals(NormalizeEmail(user.Email), normalizedNewEmail, StringComparison.Ordinal))
+            {
+                errors.Add("That is already your current email address.");
+            }
+
+            var verifyResult = PasswordHasher.VerifyHashedPassword(user.PasswordHash, currentPassword);
+            if (string.IsNullOrEmpty(currentPassword) || verifyResult == PasswordVerificationResult.Failed)
+            {
+                errors.Add("Current password is incorrect.");
+            }
+
+            if (errors.Count == 0)
+            {
+                var uniquenessError = GetEmailUniquenessError(user, normalizedNewEmail);
+                if (uniquenessError != null)
+                {
+                    errors.Add(uniquenessError);
+                }
+            }
+
+            return errors.Count > 0 ? EmailChangeResult.Failure(errors) : EmailChangeResult.Success();
+        }
+
+        public EmailChangeResult ApplyEmailChange(string userId, string newEmail)
+        {
+            var normalizedNewEmail = NormalizeEmail(newEmail);
+            if (string.IsNullOrWhiteSpace(normalizedNewEmail) || !IsValidEmailFormat(normalizedNewEmail))
+            {
+                return EmailChangeResult.Failure("Invalid email address.");
+            }
+
+            var user = _users.FindById(userId);
+            if (user == null)
+            {
+                return EmailChangeResult.Failure("User account not found.");
+            }
+
+            if (string.Equals(NormalizeEmail(user.Email), normalizedNewEmail, StringComparison.Ordinal))
+            {
+                return EmailChangeResult.Failure("That is already your current email address.");
+            }
+
+            var uniquenessError = GetEmailUniquenessError(user, normalizedNewEmail);
+            if (uniquenessError != null)
+            {
+                return EmailChangeResult.Failure(uniquenessError);
+            }
+
+            var oldEmail = user.Email;
+            user.Email = normalizedNewEmail;
+            user.UserName = normalizedNewEmail;
+            user.EmailConfirmed = true;
+            user.IsEmailVerified = true;
+            user.EmailVerificationCode = null;
+            user.EmailVerificationExpiryUtc = null;
+            user.TwoFactorCode = null;
+            user.TwoFactorExpiryUtc = null;
+            _users.Update(user);
+            _resetTokens.InvalidateAllForUser(userId);
+            _users.UpdateImpersonationEmailReferences(oldEmail, normalizedNewEmail);
+            _auditWriter?.Write("Users.ChangeEmail", nameof(ApplicationUser), userId, oldEmail, normalizedNewEmail);
+
+            return EmailChangeResult.Success();
+        }
+
+        private string GetEmailUniquenessError(ApplicationUser user, string normalizedNewEmail)
+        {
+            if (user == null || string.IsNullOrWhiteSpace(normalizedNewEmail))
+            {
+                return "Invalid email address.";
+            }
+
+            if (!user.OrganizationId.HasValue)
+            {
+                var existingPlatformUser = _users.FindPlatformAdminByEmail(normalizedNewEmail);
+                if (existingPlatformUser != null && !string.Equals(existingPlatformUser.Id, user.Id, StringComparison.Ordinal))
+                {
+                    return "Email '" + normalizedNewEmail + "' is already taken for a system user.";
+                }
+
+                return null;
+            }
+
+            var existingTenantUser = _users.FindByEmailAndOrganization(normalizedNewEmail, user.OrganizationId.Value);
+            if (existingTenantUser != null && !string.Equals(existingTenantUser.Id, user.Id, StringComparison.Ordinal))
+            {
+                return "Email '" + normalizedNewEmail + "' is already taken in this organization.";
+            }
+
+            return null;
+        }
+
+        private static string NormalizeEmail(string email)
+        {
+            return string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
+        }
+
+        private static bool IsValidEmailFormat(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return false;
+            }
+
+            var atIndex = email.IndexOf('@');
+            if (atIndex <= 0 || atIndex >= email.Length - 1)
+            {
+                return false;
+            }
+
+            var domain = email.Substring(atIndex + 1);
+            return domain.IndexOf('.') > 0 && domain.IndexOf('.') < domain.Length - 1;
+        }
+
         private string BuildPasswordResetLink(string token, string email, string organizationSlug)
         {
             var configuredBaseUrl = _platformSettings == null ? null : _platformSettings.GetExternalBaseUrl();

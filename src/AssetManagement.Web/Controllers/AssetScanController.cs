@@ -2,6 +2,7 @@ using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
@@ -22,12 +23,14 @@ namespace AssetManagement.Web.Controllers
         private readonly IAssetService _assetService;
         private readonly IAuthorizationService _authorizationService;
         private readonly ISearchService _searchService;
+        private readonly IDistributedRateLimiter _rateLimiter;
 
         public AssetScanController()
         {
             _assetService = DependencyResolver.Current.GetService<IAssetService>();
             _authorizationService = DependencyResolver.Current.GetService<IAuthorizationService>();
             _searchService = DependencyResolver.Current.GetService<ISearchService>();
+            _rateLimiter = DependencyResolver.Current.GetService<IDistributedRateLimiter>();
         }
 
         public ActionResult Lookup(string code, string q)
@@ -123,7 +126,7 @@ namespace AssetManagement.Web.Controllers
 
         private bool TryAcquireScanLookup()
         {
-            if (ScanLookupRateLimiter.TryAcquire(HttpContext))
+            if (ScanLookupRateLimiter.TryAcquire(HttpContext, _rateLimiter))
             {
                 return true;
             }

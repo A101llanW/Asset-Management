@@ -98,6 +98,20 @@ namespace AssetManagement.Web.Filters
             filterContext.Controller.ViewBag.TenantContext = organization;
             filterContext.Controller.ViewBag.TenantToken = organization.Slug ?? tenantToken;
             filterContext.Controller.ViewBag.IsTenantPortal = true;
+
+            var organizationScope = DependencyResolver.Current.GetService<IOrganizationScopeService>();
+            if (organizationScope != null)
+            {
+                var session = filterContext.HttpContext.Session;
+                organizationScope.SetExecutionContext(new TenantExecutionContext
+                {
+                    OrganizationId = organization.Id,
+                    IsImpersonating = session != null && session["ImpersonatedOrganizationId"] != null,
+                    IsPlatformAdmin = filterContext.HttpContext.User.IsInRole("Platform Admin"),
+                    IsCompanyAdmin = filterContext.HttpContext.User.IsInRole("Company Admin"),
+                    ImpersonationReason = session == null ? null : session["ImpersonationReason"] as string
+                });
+            }
         }
 
         private static ActionResult BuildEmailVerificationBlock(ActionExecutingContext filterContext)
@@ -313,6 +327,9 @@ namespace AssetManagement.Web.Filters
                     || string.Equals(actionName, "VerifyEmailSubmit", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ResendEmailVerificationCode", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ChangePassword", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "ChangeEmail", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "ConfirmChangeEmail", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(actionName, "ResendChangeEmailCode", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "LogOff", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "Register", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(actionName, "ForgotPassword", StringComparison.OrdinalIgnoreCase)

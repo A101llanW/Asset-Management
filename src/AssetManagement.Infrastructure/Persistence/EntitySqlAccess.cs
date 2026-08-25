@@ -5,6 +5,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Reflection;
 using AssetManagement.Application.DTOs;
+using System.Linq.Expressions;
 
 namespace AssetManagement.Infrastructure.Persistence
 {
@@ -19,6 +20,54 @@ namespace AssetManagement.Infrastructure.Persistence
 
     public static class EntitySqlReader
     {
+        public static IList<T> ReadWhere<T>(SqlConnection connection, EntityMap map, Expression<Func<T, bool>> predicate, int? tenantOrganizationId, bool applyOrganizationFilter, SqlTransaction transaction = null) where T : class, new()
+        {
+            var sqlPredicate = SqlPredicateBuilder.Build(predicate, map);
+            var results = new List<T>();
+            using (var command = connection.CreateCommand())
+            {
+                if (transaction != null)
+                {
+                    command.Transaction = transaction;
+                }
+
+                var sql = "SELECT * FROM [" + map.TableName + "] WHERE " + sqlPredicate.Sql;
+                AppendOrganizationFilter(ref sql, applyOrganizationFilter, tenantOrganizationId);
+                command.CommandText = sql;
+                AddPredicateParameters(command, sqlPredicate);
+                AppendOrganizationFilterParameters(command, applyOrganizationFilter, tenantOrganizationId);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        results.Add(ReadRow<T>(reader, map));
+                    }
+                }
+            }
+
+            return results;
+        }
+
+        public static int CountWhere<T>(SqlConnection connection, EntityMap map, Expression<Func<T, bool>> predicate, int? tenantOrganizationId, bool applyOrganizationFilter, SqlTransaction transaction = null) where T : class, new()
+        {
+            var sqlPredicate = SqlPredicateBuilder.Build(predicate, map);
+            using (var command = connection.CreateCommand())
+            {
+                if (transaction != null)
+                {
+                    command.Transaction = transaction;
+                }
+
+                var sql = "SELECT COUNT(*) FROM [" + map.TableName + "] WHERE " + sqlPredicate.Sql;
+                AppendOrganizationFilter(ref sql, applyOrganizationFilter, tenantOrganizationId);
+                command.CommandText = sql;
+                AddPredicateParameters(command, sqlPredicate);
+                AppendOrganizationFilterParameters(command, applyOrganizationFilter, tenantOrganizationId);
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+
         public static IList<T> ReadAll<T>(SqlConnection connection, EntityMap map, int? tenantOrganizationId, bool applyOrganizationFilter, SqlTransaction transaction = null) where T : class, new()
         {
             var results = new List<T>();
@@ -119,6 +168,14 @@ namespace AssetManagement.Infrastructure.Persistence
             }
 
             command.Parameters.Add(parameter);
+        }
+
+        private static void AddPredicateParameters(IDbCommand command, SqlPredicate predicate)
+        {
+            foreach (var parameter in predicate.Parameters)
+            {
+                AddReadParameter(command, parameter.Key, parameter.Value);
+            }
         }
 
         public static T ReadRow<T>(IDataRecord record, EntityMap map) where T : class, new()

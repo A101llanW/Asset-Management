@@ -170,8 +170,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var name = model.Name.Trim();
-            var exists = UnitOfWork.Repository<AssetCategory>().GetAll()
-                .Any(x => x.Id != model.Id && x.Name.ToLower() == name.ToLower());
+            var exists = UnitOfWork.Repository<AssetCategory>().Find(x => x.Id != model.Id && x.Name == name).Any();
             if (exists)
             {
                 ModelState.AddModelError(nameof(model.Name), "An asset category with this name already exists.");

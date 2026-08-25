@@ -141,7 +141,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ReturnedByName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.ReturnedById, activeUsers);
             ViewBag.ReceiveDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 receiveDepartmentId,
-                BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
+                GetActiveDepartments());
 
             SetWorkflowFormConfig(BuildWorkflowFormConfig(
                 activeUsers,

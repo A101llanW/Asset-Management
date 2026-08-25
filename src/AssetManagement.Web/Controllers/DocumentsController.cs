@@ -99,13 +99,13 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 var relativePath = _documentService.GetStoredRelativePath(id, userId);
-                var physicalPath = _storage.GetFullPath(relativePath);
-                if (!System.IO.File.Exists(physicalPath))
+                var content = _storage.OpenRead(relativePath);
+                if (content == null)
                 {
                     return HttpNotFound();
                 }
 
-                return File(physicalPath, document.ContentType ?? "application/octet-stream", document.FileName);
+                return File(content, document.ContentType ?? "application/octet-stream", document.FileName);
             }
             catch (BusinessException)
             {

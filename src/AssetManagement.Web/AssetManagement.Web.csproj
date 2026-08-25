@@ -367,6 +367,8 @@
     <Content Include="Views\SecurityLogs\Index.cshtml" />
     <Content Include="Views\Account\Profile.cshtml" />
     <Content Include="Views\Account\ChangePassword.cshtml" />
+    <Content Include="Views\Account\ChangeEmail.cshtml" />
+    <Content Include="Views\Account\ConfirmChangeEmail.cshtml" />
     <Content Include="Views\Claims\Create.cshtml" />
     <Content Include="Views\Claims\Details.cshtml" />
     <Content Include="Views\Claims\Index.cshtml" />

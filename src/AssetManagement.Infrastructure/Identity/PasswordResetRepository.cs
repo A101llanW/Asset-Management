@@ -91,6 +91,29 @@ WHERE ([UsedAtUtc] IS NOT NULL OR [ExpiresAtUtc] < @NowUtc)
             }
         }
 
+        public void InvalidateAllForUser(string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+UPDATE [PasswordResetToken]
+SET [UsedAtUtc]=@UsedAtUtc
+WHERE [UserId]=@UserId AND [UsedAtUtc] IS NULL";
+                    command.Parameters.Add(CreateParameter(command, "@UserId", userId));
+                    command.Parameters.Add(CreateParameter(command, "@UsedAtUtc", DateTime.UtcNow));
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
         private static IDbDataParameter CreateParameter(IDbCommand command, string name, object value)
         {
             var parameter = command.CreateParameter();

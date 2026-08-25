@@ -14,6 +14,10 @@ namespace AssetManagement.Application.Contracts.Security
 
         void SetCompanyAdminOverride(bool isCompanyAdmin);
 
+        void SetExecutionContext(TenantExecutionContext context);
+
+        void ClearExecutionContext();
+
         bool IsImpersonating();
 
         bool IsPlatformAdmin();

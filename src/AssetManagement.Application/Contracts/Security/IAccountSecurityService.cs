@@ -60,6 +60,8 @@ namespace AssetManagement.Application.Contracts.Security
 
         void MarkEmailVerified(string userId);
 
+        bool SendVerificationCodeToAddress(string email, out string code);
+
         void RotateUserAccessToken(string userId);
 
         /// <summary>

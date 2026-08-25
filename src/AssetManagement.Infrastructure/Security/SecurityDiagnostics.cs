@@ -59,6 +59,7 @@ namespace AssetManagement.Infrastructure.Security
         {
             Trace.WriteLine(message);
             Debug.WriteLine(message);
+            Console.WriteLine(message);
 
             if (!DeploymentSecuritySettings.MfaAllowAnyCode)
             {

@@ -311,6 +311,42 @@ WHERE [IsActive] = 1
             }
         }
 
+        public void UpdateImpersonationEmailReferences(string oldEmail, string newEmail)
+        {
+            if (string.IsNullOrWhiteSpace(oldEmail) || string.IsNullOrWhiteSpace(newEmail))
+            {
+                return;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+UPDATE [ImpersonationRequest]
+SET [RequestedBy] = @NewEmail,
+    [UpdatedAt] = GETUTCDATE()
+WHERE LOWER(LTRIM(RTRIM([RequestedBy]))) = LOWER(LTRIM(RTRIM(@OldEmail)))";
+                    AddParameter(command, "@OldEmail", oldEmail);
+                    AddParameter(command, "@NewEmail", newEmail);
+                    command.ExecuteNonQuery();
+                }
+
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+UPDATE [ImpersonationRequest]
+SET [RequestedFrom] = @NewEmail,
+    [UpdatedAt] = GETUTCDATE()
+WHERE LOWER(LTRIM(RTRIM([RequestedFrom]))) = LOWER(LTRIM(RTRIM(@OldEmail)))";
+                    AddParameter(command, "@OldEmail", oldEmail);
+                    AddParameter(command, "@NewEmail", newEmail);
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
         public ApplicationUser FindPlatformAdminByEmail(string email)
         {
             using (var connection = _connectionFactory.CreateConnection())

@@ -275,6 +275,38 @@ ORDER BY [Name], [Id]";
             }
         }
 
+        public int CountUsersForRole(int organizationId, int roleId)
+        {
+            return CountUsers("[OrganizationId] = @OrganizationId AND [RoleId] = @RoleId", command =>
+            {
+                SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                SqlQueryHelper.AddParameter(command, "@RoleId", roleId);
+            });
+        }
+
+        public int CountActiveUsersForDepartment(int organizationId, int departmentId)
+        {
+            return CountUsers("[OrganizationId] = @OrganizationId AND [DepartmentId] = @DepartmentId AND [IsActive] = 1", command =>
+            {
+                SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                SqlQueryHelper.AddParameter(command, "@DepartmentId", departmentId);
+            });
+        }
+
+        private int CountUsers(string whereClause, Action<IDbCommand> addParameters)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT COUNT(*) FROM [Users] WHERE " + whereClause;
+                    addParameters(command);
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+        }
+
         public IList<PlatformUserListItemVm> GetAllUsersForPlatformAdmin()
         {
             var items = new List<PlatformUserListItemVm>();

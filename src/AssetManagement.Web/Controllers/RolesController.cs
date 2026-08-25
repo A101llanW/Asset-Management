@@ -63,7 +63,11 @@ namespace AssetManagement.Web.Controllers
                     .GroupBy(x => x.Module)
                     .Select(g => new PermissionGroupVm { Module = g.Key, Permissions = g.ToList() })
                     .ToList();
-            ViewBag.UserCount = BuildUserService().GetAll().Count(x => x.RoleId == id);
+            var organizationId = ResolveCurrentOrganizationId();
+            ViewBag.UserCount = organizationId.HasValue
+                ? DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Queries.IUserAccountQueryRepository>()
+                    .CountUsersForRole(organizationId.Value, id)
+                : 0;
             ViewBag.WorkflowNote = ApprovalWorkflowSettingsHelper.GetTypicalRoleWorkflowNote(role.Name);
             ViewBag.OfferRoleTemplateSave = TempData["OfferRoleTemplateSave"] != null;
             ViewBag.RoleTemplateSaveError = TempData["RoleTemplateSaveError"];

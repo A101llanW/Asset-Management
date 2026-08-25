@@ -24,9 +24,13 @@
 
     <ProjectReference Include="..\..\src\AssetManagement.Infrastructure\AssetManagement.Infrastructure.csproj" />
 
+    <ProjectReference Include="..\..\src\AssetManagement.Web\AssetManagement.Web.csproj" />
+
   </ItemGroup>
 
   <ItemGroup>
+
+    <Reference Include="System.Web" />
 
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.2" />
 

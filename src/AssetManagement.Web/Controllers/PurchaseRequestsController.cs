@@ -173,8 +173,8 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
-            var fullPath = _storage.GetFullPath(relativePath);
-            if (!System.IO.File.Exists(fullPath))
+            var content = _storage.OpenRead(relativePath);
+            if (content == null)
             {
                 return HttpNotFound();
             }
@@ -182,7 +182,7 @@ namespace AssetManagement.Web.Controllers
             var contentType = string.IsNullOrWhiteSpace(model.AttachmentContentType)
                 ? "application/octet-stream"
                 : model.AttachmentContentType;
-            return File(fullPath, contentType, model.AttachmentFileName);
+            return File(content, contentType, model.AttachmentFileName);
         }
 
         [PermissionAuthorize("Purchases.View")]
@@ -354,7 +354,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.LockDepartment = lockDepartment;
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
-                BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
+                GetActiveDepartments());
             ViewBag.Departments = canCreateForAnyDepartment
                 ? BuildRequisitionDepartmentSelectList(departmentId)
                 : BuildDepartmentSelectList(departmentId);

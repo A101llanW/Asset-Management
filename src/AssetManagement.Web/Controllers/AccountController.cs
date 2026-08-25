@@ -300,6 +300,205 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("Profile");
         }
 
+        [Authorize]
+        [HttpGet]
+        public ActionResult ChangeEmail()
+        {
+            var userId = User.GetUserId();
+            var user = FindUserById(userId);
+            if (user == null)
+            {
+                return HttpNotFound();
+            }
+
+            return View(new ChangeEmailViewModel
+            {
+                CurrentEmail = user.Email
+            });
+        }
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult ChangeEmail(ChangeEmailViewModel model)
+        {
+            var userId = User.GetUserId();
+            var user = FindUserById(userId);
+            if (user == null)
+            {
+                return HttpNotFound();
+            }
+
+            model.CurrentEmail = user.Email;
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            if (_userAccountService == null || _accountSecurityService == null)
+            {
+                ModelState.AddModelError("", "Email change is unavailable.");
+                return View(model);
+            }
+
+            var validation = _userAccountService.ValidateEmailChangeRequest(userId, model.NewEmail, model.CurrentPassword);
+            if (!validation.Succeeded)
+            {
+                foreach (var error in validation.Errors ?? new string[0])
+                {
+                    ModelState.AddModelError("", error);
+                }
+
+                return View(model);
+            }
+
+            var normalizedNewEmail = model.NewEmail == null ? null : model.NewEmail.Trim().ToLowerInvariant();
+            string verificationCode;
+            if (!_accountSecurityService.SendVerificationCodeToAddress(normalizedNewEmail, out verificationCode))
+            {
+                ModelState.AddModelError("", "Could not send a verification code to the new email address. Check SMTP settings or try again later.");
+                return View(model);
+            }
+
+            Session["PendingEmailChangeUserId"] = userId;
+            Session["PendingEmailChangeNewEmail"] = normalizedNewEmail;
+            Session["PendingEmailChangeOldEmail"] = user.Email;
+            Session["PendingEmailChangeCode"] = verificationCode;
+            Session["PendingEmailChangeExpiryUtc"] = DateTime.UtcNow.AddMinutes(30);
+
+            if (_accountSecurityService.IsMfaCodeValidationRelaxed())
+            {
+                SecurityDiagnostics.LogOneTimeCode("EmailChange", normalizedNewEmail, verificationCode);
+            }
+
+            return RedirectToAction("ConfirmChangeEmail");
+        }
+
+        [Authorize]
+        [HttpGet]
+        public ActionResult ConfirmChangeEmail()
+        {
+            PendingEmailChangeState pending;
+            if (!TryGetPendingEmailChange(out pending))
+            {
+                return RedirectToAction("ChangeEmail");
+            }
+
+            return View(new ConfirmChangeEmailViewModel
+            {
+                NewEmailHint = _accountSecurityService != null
+                    ? _accountSecurityService.MaskEmail(pending.NewEmail)
+                    : pending.NewEmail
+            });
+        }
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult ConfirmChangeEmail(ConfirmChangeEmailViewModel model)
+        {
+            PendingEmailChangeState pending;
+            if (!TryGetPendingEmailChange(out pending))
+            {
+                return RedirectToAction("ChangeEmail");
+            }
+
+            model.NewEmailHint = _accountSecurityService != null
+                ? _accountSecurityService.MaskEmail(pending.NewEmail)
+                : pending.NewEmail;
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            if (_userAccountService == null || _accountSecurityService == null)
+            {
+                ModelState.AddModelError("", "Email change is unavailable.");
+                return View(model);
+            }
+
+            if (pending.ExpiryUtc < DateTime.UtcNow)
+            {
+                ClearPendingEmailChangeSession();
+                ModelState.AddModelError("", "The verification code has expired. Please start again.");
+                return View(model);
+            }
+
+            if (!string.Equals(pending.Code, model.Code == null ? null : model.Code.Trim(), StringComparison.Ordinal))
+            {
+                ModelState.AddModelError("", "The verification code is incorrect.");
+                return View(model);
+            }
+
+            var applyResult = _userAccountService.ApplyEmailChange(pending.UserId, pending.NewEmail);
+            if (!applyResult.Succeeded)
+            {
+                foreach (var error in applyResult.Errors ?? new string[0])
+                {
+                    ModelState.AddModelError("", error);
+                }
+
+                return View(model);
+            }
+
+            if (!string.IsNullOrWhiteSpace(pending.OldEmail))
+            {
+                var updatedUser = FindUserById(pending.UserId);
+                _accountSecurityService.ClearFailedLoginAttempts(
+                    pending.OldEmail,
+                    updatedUser == null ? null : updatedUser.OrganizationId);
+            }
+
+            _accountSecurityService.RotateUserAccessToken(pending.UserId);
+            ClearPendingEmailChangeSession();
+
+            var user = FindUserById(pending.UserId);
+            if (user != null)
+            {
+                CurrentUserExtensions.SetAuthCookie(Response, user, false, Request.UserAgent, user.RequirePasswordChange);
+            }
+
+            TempData["Message"] = "Your email address has been updated successfully.";
+            return RedirectToAction("Profile");
+        }
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult ResendChangeEmailCode()
+        {
+            PendingEmailChangeState pending;
+            if (!TryGetPendingEmailChange(out pending))
+            {
+                return RedirectToAction("ChangeEmail");
+            }
+
+            if (_accountSecurityService == null)
+            {
+                TempData["Error"] = "Email change is unavailable.";
+                return RedirectToAction("ConfirmChangeEmail");
+            }
+
+            string verificationCode;
+            if (!_accountSecurityService.SendVerificationCodeToAddress(pending.NewEmail, out verificationCode))
+            {
+                TempData["Error"] = "Could not resend the verification code. Try again later.";
+                return RedirectToAction("ConfirmChangeEmail");
+            }
+
+            Session["PendingEmailChangeCode"] = verificationCode;
+            Session["PendingEmailChangeExpiryUtc"] = DateTime.UtcNow.AddMinutes(30);
+
+            if (_accountSecurityService.IsMfaCodeValidationRelaxed())
+            {
+                SecurityDiagnostics.LogOneTimeCode("EmailChange", pending.NewEmail, verificationCode);
+            }
+
+            TempData["Message"] = "A new verification code has been sent.";
+            return RedirectToAction("ConfirmChangeEmail");
+        }
+
         [HttpGet]
         public ActionResult VerifyEmail()
         {
@@ -1463,6 +1662,59 @@ namespace AssetManagement.Web.Controllers
             var invalid = System.IO.Path.GetInvalidFileNameChars();
             var cleaned = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
             return string.IsNullOrWhiteSpace(cleaned) ? "Organization" : cleaned.Trim();
+        }
+
+        private bool TryGetPendingEmailChange(out PendingEmailChangeState pending)
+        {
+            pending = null;
+            var userId = User.GetUserId();
+            var pendingUserId = Session["PendingEmailChangeUserId"] as string;
+            var newEmail = Session["PendingEmailChangeNewEmail"] as string;
+            var oldEmail = Session["PendingEmailChangeOldEmail"] as string;
+            var code = Session["PendingEmailChangeCode"] as string;
+            var expiry = Session["PendingEmailChangeExpiryUtc"] as DateTime?;
+
+            if (string.IsNullOrWhiteSpace(userId)
+                || string.IsNullOrWhiteSpace(pendingUserId)
+                || !string.Equals(userId, pendingUserId, StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(newEmail)
+                || string.IsNullOrWhiteSpace(code)
+                || !expiry.HasValue)
+            {
+                return false;
+            }
+
+            pending = new PendingEmailChangeState
+            {
+                UserId = pendingUserId,
+                NewEmail = newEmail,
+                OldEmail = oldEmail,
+                Code = code,
+                ExpiryUtc = expiry.Value
+            };
+            return true;
+        }
+
+        private void ClearPendingEmailChangeSession()
+        {
+            Session.Remove("PendingEmailChangeUserId");
+            Session.Remove("PendingEmailChangeNewEmail");
+            Session.Remove("PendingEmailChangeOldEmail");
+            Session.Remove("PendingEmailChangeCode");
+            Session.Remove("PendingEmailChangeExpiryUtc");
+        }
+
+        private sealed class PendingEmailChangeState
+        {
+            public string UserId { get; set; }
+
+            public string NewEmail { get; set; }
+
+            public string OldEmail { get; set; }
+
+            public string Code { get; set; }
+
+            public DateTime ExpiryUtc { get; set; }
         }
     }
 }

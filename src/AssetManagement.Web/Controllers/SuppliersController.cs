@@ -42,7 +42,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.PurchaseCount = BuildPurchaseService().GetAll().Count(x => x.SupplierId == id);
+            ViewBag.PurchaseCount = UnitOfWork.Repository<PurchaseRecord>().Count(x => x.SupplierId == id);
             ViewBag.AssetCount = BuildAssetService().CountAssets(new AssetFilterVm { SupplierId = id });
             ViewBag.CatalogItems = _supplierCatalogService.GetBySupplier(id).ToList();
             ViewBag.CanEditCatalog = HtmlHasPermission("Suppliers.Edit");
@@ -110,7 +110,7 @@ namespace AssetManagement.Web.Controllers
 
         public JsonResult AvailableAssetTypes(int? categoryId)
         {
-            var query = UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive);
+            var query = UnitOfWork.Repository<AssetType>().Find(x => x.IsActive).AsQueryable();
             if (categoryId.HasValue)
             {
                 query = query.Where(x => x.AssetCategoryId == categoryId.Value);
@@ -273,11 +273,7 @@ namespace AssetManagement.Web.Controllers
 
         private SelectList BuildCategorySelectList(int? selectedCategoryId)
         {
-            var categories = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetCategory>().GetAll()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.Name)
-                .ToList();
-            return new SelectList(categories, "Id", "Name", selectedCategoryId);
+            return base.BuildCategorySelectList(selectedCategoryId, true);
         }
 
         private void PopulateCreateLookups()
@@ -293,8 +289,7 @@ namespace AssetManagement.Web.Controllers
 
         private IList<AssetType> GetActiveAssetTypes()
         {
-            return UnitOfWork.Repository<AssetType>().GetAll()
-                .Where(x => x.IsActive)
+            return UnitOfWork.Repository<AssetType>().Find(x => x.IsActive)
                 .OrderBy(x => x.Name)
                 .ToList();
         }

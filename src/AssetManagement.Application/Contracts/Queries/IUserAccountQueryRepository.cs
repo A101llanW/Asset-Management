@@ -41,6 +41,10 @@ namespace AssetManagement.Application.Contracts.Queries
 
         int CountUsersForOrganization(int organizationId);
 
+        int CountUsersForRole(int organizationId, int roleId);
+
+        int CountActiveUsersForDepartment(int organizationId, int departmentId);
+
         IList<PlatformUserListItemVm> GetAllUsersForPlatformAdmin();
 
         PagedListVm<PlatformUserListItemVm> GetPlatformUserListPage(

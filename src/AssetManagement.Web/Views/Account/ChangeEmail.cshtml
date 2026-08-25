@@ -1,0 +1,39 @@
+@model AssetManagement.Application.ViewModels.ChangeEmailViewModel
+@{
+    ViewBag.Title = "Change Email";
+}
+<h3>Change Email</h3>
+<p class="text-muted">Enter your new email address and current password. We will send a verification code to the new address before the change takes effect.</p>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card card-kpi">
+            <div class="card-body">
+                @using (Html.BeginForm("ChangeEmail", "Account", FormMethod.Post))
+                {
+                    @Html.AntiForgeryToken()
+                    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.CurrentEmail, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.CurrentEmail, new { @class = "form-control", @readonly = "readonly" })
+                    </div>
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.NewEmail, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.NewEmail, new { @class = "form-control", autocomplete = "email", placeholder = "name@example.com" })
+                        @Html.ValidationMessageFor(m => m.NewEmail, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.CurrentPassword, new { @class = "form-label" })
+                        @Html.PasswordFieldFor(m => m.CurrentPassword, new { autocomplete = "current-password" })
+                        @Html.ValidationMessageFor(m => m.CurrentPassword, "", new { @class = "text-danger small" })
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Send verification code</button>
+                        <a class="btn btn-outline-secondary" href="@Url.Action("Profile", "Account")">Cancel</a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -119,6 +119,7 @@ namespace AssetManagement.Application.Helpers
                 { "Users.AssignDepartment", "User department updated" },
 
                 { "Users.EditProfile", "User profile updated" },
+                { "Users.ChangeEmail", "Email address changed" },
 
                 { "Users.PasswordChanged", "User password changed" },
 

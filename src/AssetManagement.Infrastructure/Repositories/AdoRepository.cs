@@ -24,8 +24,7 @@ namespace AssetManagement.Infrastructure.Repositories
 
         public IQueryable<T> Query()
         {
-            EnsureLoaded();
-            return ApplyTenantFilter(GetTrackedEntities().Select(x => (T)x.Entity).AsQueryable());
+            return new SqlQueryable<T>(ExecuteQuery);
         }
 
         public IEnumerable<T> GetAll()
@@ -35,7 +34,61 @@ namespace AssetManagement.Infrastructure.Repositories
 
         public IEnumerable<T> Find(Expression<Func<T, bool>> predicate)
         {
-            return Query().Where(predicate).ToList();
+            if (predicate == null)
+            {
+                throw new ArgumentNullException("predicate");
+            }
+
+            var map = EntityMapRegistry.GetMap<T>();
+            var applyOrgFilter = typeof(ITenantEntity).IsAssignableFrom(typeof(T));
+            var tenantOrganizationId = _organizationScope == null || !applyOrgFilter
+                ? null
+                : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
+            var entities = EntitySqlReader.ReadWhere(
+                _session.Connection,
+                map,
+                predicate,
+                tenantOrganizationId,
+                applyOrgFilter,
+                _session.Transaction);
+            var tracked = _session.GetTrackedEntities(typeof(T));
+            foreach (var entity in entities)
+            {
+                var existing = tracked.FirstOrDefault(x =>
+                    Equals(map.EntityType.GetProperty(map.PrimaryKey).GetValue(x.Entity, null),
+                        map.EntityType.GetProperty(map.PrimaryKey).GetValue(entity, null)));
+                if (existing == null)
+                {
+                    tracked.Add(new TrackedEntity { Entity = entity, State = TrackedEntityState.Unchanged });
+                }
+                else
+                {
+                    entities[entities.IndexOf(entity)] = (T)existing.Entity;
+                }
+            }
+
+            return entities;
+        }
+
+        public int Count(Expression<Func<T, bool>> predicate)
+        {
+            if (predicate == null)
+            {
+                throw new ArgumentNullException("predicate");
+            }
+
+            var map = EntityMapRegistry.GetMap<T>();
+            var applyOrgFilter = typeof(ITenantEntity).IsAssignableFrom(typeof(T));
+            var tenantOrganizationId = _organizationScope == null || !applyOrgFilter
+                ? null
+                : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
+            return EntitySqlReader.CountWhere(
+                _session.Connection,
+                map,
+                predicate,
+                tenantOrganizationId,
+                applyOrgFilter,
+                _session.Transaction);
         }
 
         public T GetById(object id)
@@ -119,6 +172,55 @@ namespace AssetManagement.Infrastructure.Repositories
             }
 
             _loaded = true;
+        }
+
+        private object ExecuteQuery(Expression expression)
+        {
+            var predicate = SqlQueryableExpressionHelper.TryBuildPredicate<T>(expression, EntityMapRegistry.GetMap<T>());
+            IList<T> rows;
+            if (predicate == null)
+            {
+                EnsureLoaded();
+                rows = GetTrackedEntities().Select(x => (T)x.Entity).ToList();
+            }
+            else
+            {
+                var map = EntityMapRegistry.GetMap<T>();
+                var applyOrgFilter = typeof(ITenantEntity).IsAssignableFrom(typeof(T));
+                var tenantOrganizationId = _organizationScope == null || !applyOrgFilter
+                    ? null
+                    : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
+                rows = EntitySqlReader.ReadWhere<T>(
+                    _session.Connection,
+                    map,
+                    predicate,
+                    tenantOrganizationId,
+                    applyOrgFilter,
+                    _session.Transaction);
+                TrackReadRows(rows, map);
+            }
+
+            return SqlQueryableExpressionHelper.ExecuteInMemory(expression, rows);
+        }
+
+        private void TrackReadRows(IList<T> entities, EntityMap map)
+        {
+            var tracked = _session.GetTrackedEntities(typeof(T));
+            var keyProperty = map.EntityType.GetProperty(map.PrimaryKey);
+            for (var index = 0; index < entities.Count; index++)
+            {
+                var entity = entities[index];
+                var key = keyProperty.GetValue(entity, null);
+                var existing = tracked.FirstOrDefault(x => Equals(keyProperty.GetValue(x.Entity, null), key));
+                if (existing == null)
+                {
+                    tracked.Add(new TrackedEntity { Entity = entity, State = TrackedEntityState.Unchanged });
+                }
+                else
+                {
+                    entities[index] = (T)existing.Entity;
+                }
+            }
         }
 
         private static void BlockApplicationUserFullTableLoad()
