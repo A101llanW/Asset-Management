@@ -9,6 +9,7 @@ SQL content lives in `database/scripts/`. These PowerShell entry points apply th
 | Script | Destructive? | When to use |
 |--------|--------------|-------------|
 | **`Initialize-Database.ps1`** | No DROP | Fresh DB or re-apply schema + migrations + seed + indexes. Creates DB if missing. |
+| **`Test-DatabaseConnectivity.ps1`** | No | Verify SQL Server reachability, schema, and demo login accounts. |
 | **`Invoke-Migrations.ps1`** | No | Apply only `004_Migrations` with `SchemaMigrationHistory` (production-safe incremental path). |
 | **`Unlock-Logins.ps1`** | No | Clear lockouts; repair demo admin accounts (runs SQL 030/031). |
 | **`Reset-E2eDatabase.ps1`** | **YES — DROP DATABASE** | **E2E / CI only.** Disposable `*_E2E` catalog. |
@@ -55,6 +56,14 @@ Playwright `global-setup.ts` passes `-ConfirmDestructive`.
 ```powershell
 .\tools\database\Unlock-Logins.ps1
 ```
+
+### Check connectivity and demo login readiness
+
+```powershell
+.\tools\database\Test-DatabaseConnectivity.ps1
+```
+
+Reports SQL Server reachability, whether the configured database exists, whether schema/seed ran, and whether `superadmin@asset.local` / `nanosoft@asset.local` are present. Exits non-zero with remediation steps when something is missing.
 
 ## Destructive script guards (`Reset-E2eDatabase.ps1`)
 
