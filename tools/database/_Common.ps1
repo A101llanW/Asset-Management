@@ -17,7 +17,16 @@ function Get-RepositoryRoot {
         $dir = $parent
     }
 
-    throw 'Repository root not found (expected database\scripts\001_Schema).'
+    $user = if ($env:USERNAME) { $env:USERNAME } else { $env:USER }
+    throw @"
+Repository root not found (expected database\scripts\001_Schema).
+Current location: $(Get-Location)
+A home folder such as C:\Users\$user is not the repository.
+
+cd into the folder that contains AssetManagementModule.sln, then retry:
+  cd C:\Users\$user\source\repos\Asset-Management
+  .\tools\database\Initialize-Database.ps1
+"@
 }
 
 function Get-WebConfigPath {

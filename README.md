@@ -80,12 +80,16 @@ Platform admins manage organizations at `/Platform/Organizations`. Elevation int
 
 ## Local Setup
 
-From **any** PowerShell window, first `cd` into your clone (not `C:\Users\allan`):
+From **any** PowerShell window, first `cd` into your clone (not `C:\Users\allan` — that home folder is not a git repo):
 
 ```powershell
-cd C:\path\to\Asset-Management
-& ".\Start-Dev.ps1"
+cd C:\Users\allan\source\repos\Asset-Management
+git pull origin cursor/set-web-startup-project-9fdb
+.\tools\dev\Reset-VisualStudioStartup.ps1
+.\Start-Dev.ps1
 ```
+
+If `cd` fails, try `C:\Users\allan\Asset-Management` or `C:\Users\allan\Documents\GitHub\Asset-Management`.
 
 If you do not know the clone path:
 
