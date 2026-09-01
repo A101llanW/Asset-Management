@@ -1,0 +1,12 @@
+<Project>
+  <!-- If Visual Studio still has a class library selected as startup, F5 launches the web host instead of failing. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'AssetManagement.Domain' or '$(MSBuildProjectName)' == 'AssetManagement.Application' or '$(MSBuildProjectName)' == 'AssetManagement.Infrastructure'">
+    <StartAction>Program</StartAction>
+    <StartProgram>powershell.exe</StartProgram>
+    <StartArguments>-NoProfile -ExecutionPolicy Bypass -File "$(RepoRoot)Start-Dev.ps1"</StartArguments>
+    <StartWorkingDirectory>$(RepoRoot)</StartWorkingDirectory>
+    <RunCommand>powershell.exe</RunCommand>
+    <RunArguments>-NoProfile -ExecutionPolicy Bypass -File "$(RepoRoot)Start-Dev.ps1"</RunArguments>
+    <RunWorkingDirectory>$(RepoRoot)</RunWorkingDirectory>
+  </PropertyGroup>
+</Project>

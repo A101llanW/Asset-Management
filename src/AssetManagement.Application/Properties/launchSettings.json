@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "AssetManagement.Web": {
+      "commandName": "Executable",
+      "executablePath": "powershell.exe",
+      "commandLineArgs": "-NoProfile -ExecutionPolicy Bypass -File \"..\\..\\Start-Dev.ps1\"",
+      "workingDirectory": "..\\.."
+    }
+  }
+}

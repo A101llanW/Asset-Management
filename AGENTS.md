@@ -7,7 +7,7 @@ Layers: Domain → Application → Infrastructure → Web (IIS).
 
 Solution: `AssetManagementModule.sln`
 
-Startup project for Visual Studio F5 is **`AssetManagement.Web`** (IIS Express). `Domain`, `Application`, `Infrastructure`, and test projects are class libraries and cannot be started directly. `AssetManagement.Runner` is the executable that starts local IIS.
+Startup project for Visual Studio F5 is **`AssetManagement.Web`** (IIS Express). If a stale `.suo` still selects a class library, run `.\tools\dev\Reset-VisualStudioStartup.ps1` and reopen the solution. F5 on Domain / Application / Infrastructure launches `Start-Dev.ps1`. `AssetManagement.Runner` is the executable that starts local IIS.
 
 ## Cursor Cloud specific instructions
 

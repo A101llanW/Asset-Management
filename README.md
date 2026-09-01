@@ -91,7 +91,7 @@ Or double-click `Start-Dev.cmd` in the repo root. The script restores packages, 
 Manual steps (same result):
 
 1. Open `AssetManagementModule.sln` in Visual Studio (or use MSBuild from a Developer PowerShell prompt).
-2. **Set the startup project** to `AssetManagement.Web` (right-click → Set as Startup Project). Do **not** F5 `Domain`, `Application`, `Infrastructure`, or `Tests` — those are class libraries and Visual Studio will show *A project with an Output Type of Class Library cannot be started directly.*
+2. Confirm **`AssetManagement.Web`** is the startup project (bold in Solution Explorer). If F5 still says a class library cannot be started, run `.\tools\dev\Reset-VisualStudioStartup.ps1` and reopen the solution.
 3. Ensure SQL Server LocalDB or SQL Express is available.
 4. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
 5. One-time IIS setup (elevated PowerShell): `.\tools\deploy\Setup-IisSite.ps1`
@@ -99,7 +99,7 @@ Manual steps (same result):
 7. Open `http://localhost:8080/nanosoft/Account/Login`
 8. Database scripts run automatically when `AutoInitializeDatabase` is enabled (Debug).
 
-Visual Studio **F5** starts `AssetManagement.Web` on IIS Express (shared profile in `AssetManagementModule.slnLaunch`). If an existing `.suo` still points at a library, pick **AssetManagement.Web (IIS Express)** from the toolbar startup dropdown, or right-click `AssetManagement.Web` → **Set as Startup Project**. `AssetManagement.Runner` is the executable alternative (starts local IIS via `Start-IisDev.ps1`). Local IIS on port 8080 remains the supported day-to-day path (`C:\inetpub\AssetManagement`).
+Visual Studio **F5** starts `AssetManagement.Web` on IIS Express (shared profile in `AssetManagementModule.slnLaunch`). If an existing `.suo` still points at a library, run `.\tools\dev\Reset-VisualStudioStartup.ps1`, then reopen the solution — or pick **AssetManagement.Web (IIS Express)** from the toolbar. F5 on Domain / Application / Infrastructure now launches `Start-Dev.ps1` instead of the class-library error. `AssetManagement.Runner` is the executable alternative (local IIS). Local IIS on port 8080 remains the supported day-to-day path (`C:\inetpub\AssetManagement`).
 
 ## Development vs Production
 
