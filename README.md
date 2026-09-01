@@ -80,10 +80,18 @@ Platform admins manage organizations at `/Platform/Organizations`. Elevation int
 
 ## Local Setup
 
-From **any** PowerShell window (use your clone path):
+From **any** PowerShell window, first `cd` into your clone (not `C:\Users\allan`):
 
 ```powershell
-& "C:\path\to\Asset-Management\Start-Dev.ps1"
+cd C:\path\to\Asset-Management
+& ".\Start-Dev.ps1"
+```
+
+If you do not know the clone path:
+
+```powershell
+Get-ChildItem -Path $HOME -Filter AssetManagementModule.sln -Recurse -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty DirectoryName
 ```
 
 Or double-click `Start-Dev.cmd` in the repo root. The script restores packages, creates the IIS site if needed (`-SetupSite` on first run may require an elevated PowerShell), builds, deploys to `C:\inetpub\AssetManagement`, and waits for the app.
