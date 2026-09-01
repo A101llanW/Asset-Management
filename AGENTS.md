@@ -7,6 +7,8 @@ Layers: Domain → Application → Infrastructure → Web (IIS).
 
 Solution: `AssetManagementModule.sln`
 
+Startup project for Visual Studio F5 is **`AssetManagement.Web`** (IIS Express). If a stale `.suo` still selects a class library, `cd` into the clone (not `C:\Users\<you>`) and run `.\tools\dev\Reset-VisualStudioStartup.ps1`, then reopen the solution. F5 on Domain / Application / Infrastructure launches `Start-Dev.ps1`. `AssetManagement.Runner` is the executable that starts local IIS.
+
 ## Cursor Cloud specific instructions
 
 Cloud agents for this repo should run on **Windows with IIS**, not Linux.
@@ -27,9 +29,10 @@ Build, deploy, and verify on IIS:
 & "C:\path\to\Asset-Management\Start-Dev.ps1"
 ```
 
-Or from the repo root:
+Or from the repo root (the folder that contains `AssetManagementModule.sln` — not `C:\Users\<you>`):
 
 ```powershell
+cd C:\Users\<you>\source\repos\Asset-Management
 .\Start-Dev.ps1
 ```
 

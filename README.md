@@ -80,10 +80,22 @@ Platform admins manage organizations at `/Platform/Organizations`. Elevation int
 
 ## Local Setup
 
-From **any** PowerShell window (use your clone path):
+From **any** PowerShell window, first `cd` into your clone (not `C:\Users\allan` — that home folder is not a git repo):
 
 ```powershell
-& "C:\path\to\Asset-Management\Start-Dev.ps1"
+cd C:\Users\allan\source\repos\Asset-Management
+git pull origin cursor/set-web-startup-project-9fdb
+.\tools\dev\Reset-VisualStudioStartup.ps1
+.\Start-Dev.ps1
+```
+
+If `cd` fails, try `C:\Users\allan\Asset-Management` or `C:\Users\allan\Documents\GitHub\Asset-Management`.
+
+If you do not know the clone path:
+
+```powershell
+Get-ChildItem -Path $HOME -Filter AssetManagementModule.sln -Recurse -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty DirectoryName
 ```
 
 Or double-click `Start-Dev.cmd` in the repo root. The script restores packages, creates the IIS site if needed (`-SetupSite` on first run may require an elevated PowerShell), builds, deploys to `C:\inetpub\AssetManagement`, and waits for the app.
@@ -91,14 +103,15 @@ Or double-click `Start-Dev.cmd` in the repo root. The script restores packages, 
 Manual steps (same result):
 
 1. Open `AssetManagementModule.sln` in Visual Studio (or use MSBuild from a Developer PowerShell prompt).
-2. Ensure SQL Server LocalDB or SQL Express is available.
-3. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
-4. One-time IIS setup (elevated PowerShell): `.\tools\deploy\Setup-IisSite.ps1`
-5. Build and run on IIS: `.\tools\deploy\Start-IisDev.ps1 -WaitForReady`
-6. Open `http://localhost:8080/nanosoft/Account/Login`
-7. Database scripts run automatically when `AutoInitializeDatabase` is enabled (Debug).
+2. Confirm **`AssetManagement.Web`** is the startup project (bold in Solution Explorer). If F5 still says a class library cannot be started, run `.\tools\dev\Reset-VisualStudioStartup.ps1` and reopen the solution.
+3. Ensure SQL Server LocalDB or SQL Express is available.
+4. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
+5. One-time IIS setup (elevated PowerShell): `.\tools\deploy\Setup-IisSite.ps1`
+6. Build and run on IIS: `.\tools\deploy\Start-IisDev.ps1 -WaitForReady`
+7. Open `http://localhost:8080/nanosoft/Account/Login`
+8. Database scripts run automatically when `AutoInitializeDatabase` is enabled (Debug).
 
-Visual Studio F5 / IIS Express still works, but **local IIS on port 8080** is the supported dev path (`C:\inetpub\AssetManagement`).
+Visual Studio **F5** starts `AssetManagement.Web` on IIS Express (shared profile in `AssetManagementModule.slnLaunch`). If an existing `.suo` still points at a library, run `.\tools\dev\Reset-VisualStudioStartup.ps1`, then reopen the solution — or pick **AssetManagement.Web (IIS Express)** from the toolbar. F5 on Domain / Application / Infrastructure now launches `Start-Dev.ps1` instead of the class-library error. `AssetManagement.Runner` is the executable alternative (local IIS). Local IIS on port 8080 remains the supported day-to-day path (`C:\inetpub\AssetManagement`).
 
 ## Development vs Production
 

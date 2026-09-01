@@ -1,0 +1,20 @@
+[
+  {
+    "Name": "AssetManagement.Web (IIS Express)",
+    "Projects": [
+      {
+        "Path": "src\\AssetManagement.Web\\AssetManagement.Web.csproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "AssetManagement.Runner (local IIS)",
+    "Projects": [
+      {
+        "Path": "src\\AssetManagement.Runner\\AssetManagement.Runner.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
