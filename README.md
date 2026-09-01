@@ -91,14 +91,15 @@ Or double-click `Start-Dev.cmd` in the repo root. The script restores packages, 
 Manual steps (same result):
 
 1. Open `AssetManagementModule.sln` in Visual Studio (or use MSBuild from a Developer PowerShell prompt).
-2. Ensure SQL Server LocalDB or SQL Express is available.
-3. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
-4. One-time IIS setup (elevated PowerShell): `.\tools\deploy\Setup-IisSite.ps1`
-5. Build and run on IIS: `.\tools\deploy\Start-IisDev.ps1 -WaitForReady`
-6. Open `http://localhost:8080/nanosoft/Account/Login`
-7. Database scripts run automatically when `AutoInitializeDatabase` is enabled (Debug).
+2. **Set the startup project** to `AssetManagement.Web` (right-click → Set as Startup Project). Do **not** F5 `Domain`, `Application`, `Infrastructure`, or `Tests` — those are class libraries and Visual Studio will show *A project with an Output Type of Class Library cannot be started directly.*
+3. Ensure SQL Server LocalDB or SQL Express is available.
+4. Adjust `AssetManagementConnection` in `src/AssetManagement.Web/Web.config` if needed.
+5. One-time IIS setup (elevated PowerShell): `.\tools\deploy\Setup-IisSite.ps1`
+6. Build and run on IIS: `.\tools\deploy\Start-IisDev.ps1 -WaitForReady`
+7. Open `http://localhost:8080/nanosoft/Account/Login`
+8. Database scripts run automatically when `AutoInitializeDatabase` is enabled (Debug).
 
-Visual Studio F5 / IIS Express still works, but **local IIS on port 8080** is the supported dev path (`C:\inetpub\AssetManagement`).
+Visual Studio **F5** starts `AssetManagement.Web` on IIS Express (shared profile in `AssetManagementModule.slnLaunch`). If an existing `.suo` still points at a library, pick **AssetManagement.Web (IIS Express)** from the toolbar startup dropdown, or right-click `AssetManagement.Web` → **Set as Startup Project**. `AssetManagement.Runner` is the executable alternative (starts local IIS via `Start-IisDev.ps1`). Local IIS on port 8080 remains the supported day-to-day path (`C:\inetpub\AssetManagement`).
 
 ## Development vs Production
 

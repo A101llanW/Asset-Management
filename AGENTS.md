@@ -7,6 +7,8 @@ Layers: Domain → Application → Infrastructure → Web (IIS).
 
 Solution: `AssetManagementModule.sln`
 
+Startup project for Visual Studio F5 is **`AssetManagement.Web`** (IIS Express). `Domain`, `Application`, `Infrastructure`, and test projects are class libraries and cannot be started directly. `AssetManagement.Runner` is the executable that starts local IIS.
+
 ## Cursor Cloud specific instructions
 
 Cloud agents for this repo should run on **Windows with IIS**, not Linux.
