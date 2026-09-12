@@ -74,50 +74,6 @@
         return modalElement.classList.contains("show");
     }
 
-    function initSupportSessionCanvas() {
-        if (!global.AmAntigravityThree || !global.AmAntigravityThree.init) {
-            return null;
-        }
-
-        var canvas = global.document.getElementById("amSupportSessionCanvas");
-        if (!canvas || canvas.amAntigravityInitialized) {
-            return canvas;
-        }
-
-        global.AmAntigravityThree.init(canvas, {
-            color: "#f5c26b",
-            count: 180,
-            magnetRadius: 10,
-            ringRadius: 5,
-            influenceRadius: 9,
-            waveSpeed: 0.2,
-            waveAmplitude: 0.5,
-            particleSize: 0.65,
-            lerpSpeed: 0.028,
-            autoAnimate: false,
-            particleVariance: 0.6,
-            rotationSpeed: 0.03,
-            depthFactor: 0.8,
-            pulseSpeed: 1.5,
-            particleShape: "asset-icon",
-            fieldStrength: 12,
-            hoverOnlyMagnet: true,
-            mouseIdleMs: 450,
-            idleDriftSpeed: 0.01,
-            idleWanderAmplitude: 0.014,
-            homeLerpSpeed: 0.014,
-            iconPixelSize: 56
-        });
-        return canvas;
-    }
-
-    function destroySupportSessionCanvas() {
-        var canvas = global.document.getElementById("amSupportSessionCanvas");
-        if (canvas && global.AmAntigravityThree) {
-            global.AmAntigravityThree.destroy(canvas);
-        }
-    }
-
     function setSupportOverlayVisible(isVisible) {
         var overlay = global.document.getElementById("am-support-session-overlay");
         if (!overlay) {
@@ -126,12 +82,6 @@
 
         overlay.classList.toggle("is-visible", !!isVisible);
         overlay.setAttribute("aria-hidden", isVisible ? "false" : "true");
-
-        if (isVisible) {
-            initSupportSessionCanvas();
-        } else {
-            destroySupportSessionCanvas();
-        }
     }
 
     function hideImpersonationBar() {

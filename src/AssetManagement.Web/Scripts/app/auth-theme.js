@@ -37,10 +37,6 @@
             }
         }
 
-        if (global.AmAntiGravityBubbles && global.AmAntiGravityBubbles.refreshTheme) {
-            global.AmAntiGravityBubbles.refreshTheme();
-        }
-
         return nextTheme;
     }
 
