@@ -74,6 +74,54 @@
         return modalElement.classList.contains("show");
     }
 
+    function getSupportSessionOptions() {
+        return {
+            color: "#f5c26b",
+            count: 140,
+            magnetRadius: 12,
+            ringRadius: 6,
+            influenceRadius: 11,
+            waveSpeed: 0.15,
+            waveAmplitude: 0.35,
+            particleSize: 0.72,
+            lerpSpeed: 0.018,
+            autoAnimate: false,
+            particleVariance: 0.5,
+            rotationSpeed: 0.02,
+            depthFactor: 0.75,
+            pulseSpeed: 1.2,
+            particleShape: "asset-icon",
+            fieldStrength: 14,
+            hoverOnlyMagnet: true,
+            mouseIdleMs: 600,
+            idleDriftSpeed: 0.006,
+            idleWanderAmplitude: 0.01,
+            homeLerpSpeed: 0.01,
+            iconPixelSize: 56
+        };
+    }
+
+    function initSupportSessionCanvas() {
+        if (!global.AmAntigravityThree || !global.AmAntigravityThree.init) {
+            return null;
+        }
+
+        var canvas = global.document.getElementById("amSupportSessionCanvas");
+        if (!canvas || canvas.amAntigravityInitialized) {
+            return canvas;
+        }
+
+        global.AmAntigravityThree.init(canvas, getSupportSessionOptions());
+        return canvas;
+    }
+
+    function destroySupportSessionCanvas() {
+        var canvas = global.document.getElementById("amSupportSessionCanvas");
+        if (canvas && global.AmAntigravityThree) {
+            global.AmAntigravityThree.destroy(canvas);
+        }
+    }
+
     function setSupportOverlayVisible(isVisible) {
         var overlay = global.document.getElementById("am-support-session-overlay");
         if (!overlay) {
@@ -82,6 +130,12 @@
 
         overlay.classList.toggle("is-visible", !!isVisible);
         overlay.setAttribute("aria-hidden", isVisible ? "false" : "true");
+
+        if (isVisible) {
+            initSupportSessionCanvas();
+        } else {
+            destroySupportSessionCanvas();
+        }
     }
 
     function hideImpersonationBar() {

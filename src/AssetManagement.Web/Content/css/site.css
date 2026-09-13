@@ -2726,9 +2726,20 @@ body.modal-open .am-main-content.am-page-enter {
     min-width: 4.5rem;
 }
 
-/* Login uses React Bits Waves-inspired CSS background (see am-animations.css) */
+/* React Bits Antigravity login background (Three.js particle field) */
 body.am-login-page {
     background: transparent;
+}
+
+.am-anti-gravity-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    display: block;
 }
 
 body.am-login-page .am-shell-header {
