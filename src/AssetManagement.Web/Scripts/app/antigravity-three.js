@@ -61,20 +61,6 @@
             && global.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
 
-    function clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    function smoothstep(value) {
-        var t = clamp(value, 0, 1);
-        return t * t * (3 - 2 * t);
-    }
-
-    function expSmooth(current, target, rate, delta) {
-        var blend = 1 - Math.exp(-rate * delta);
-        return current + (target - current) * blend;
-    }
-
     function mergeOptions(options) {
         var merged = {};
         var key;
@@ -94,11 +80,8 @@
         }
 
         if (prefersReducedMotion()) {
-            merged.count = Math.min(merged.count, 80);
-            merged.lerpSpeed = Math.min(merged.lerpSpeed, 0.05);
-            merged.homeLerpSpeed = Math.min(merged.homeLerpSpeed, 0.02);
-            merged.rotationSpeed = 0;
-            merged.waveAmplitude = Math.min(merged.waveAmplitude, 0.2);
+            merged.count = Math.min(merged.count, 120);
+            merged.lerpSpeed = Math.min(merged.lerpSpeed, 0.04);
             merged.autoAnimate = true;
         }
 
@@ -217,7 +200,6 @@
         var virtualMouse = { x: 0, y: 0 };
         var animationId = null;
         var isTabVisible = !global.document.hidden;
-        var magnetActivity = 0;
         var clock = new THREE.Clock();
         var dummy = new THREE.Object3D();
         var trackTarget = global.document;
@@ -270,8 +252,7 @@
                     vy: (Math.random() - 0.5) * opts.idleDriftSpeed * 2,
                     wanderPhase: Math.random() * Math.PI * 2,
                     wanderSpeed: 0.2 + Math.random() * 0.45,
-                    randomRadiusOffset: (Math.random() - 0.5) * 2,
-                    magnetBlend: 0
+                    randomRadiusOffset: (Math.random() - 0.5) * 2
                 });
             }
 
@@ -383,42 +364,53 @@
         function magnetStrength(distToCursor, distHomeToCursor) {
             var influenceLimit = opts.influenceRadius || opts.magnetRadius;
             var cursorFactor = distToCursor < influenceLimit
-                ? smoothstep(1 - (distToCursor / influenceLimit))
+                ? 1 - (distToCursor / influenceLimit)
                 : 0;
             var homeFactor = distHomeToCursor < opts.magnetRadius
-                ? smoothstep(1 - (distHomeToCursor / opts.magnetRadius))
+                ? 1 - (distHomeToCursor / opts.magnetRadius)
                 : 0;
 
-            return clamp(Math.max(cursorFactor, homeFactor * 0.82), 0, 1);
+            return Math.max(0.2, Math.min(1, Math.max(cursorFactor, homeFactor * 0.85)));
         }
 
-        function applyReturnHome(particle, elapsed, delta) {
-            var wanderScale = 0.55 + (1 - particle.magnetBlend) * 0.45;
+        function applyReturnHome(particle, elapsed) {
             var wanderX = Math.sin(elapsed * particle.wanderSpeed + particle.wanderPhase)
-                * opts.idleWanderAmplitude * wanderScale;
+                * opts.idleWanderAmplitude * 0.4;
             var wanderY = Math.cos(elapsed * particle.wanderSpeed * 0.73 + particle.wanderPhase * 1.3)
-                * opts.idleWanderAmplitude * wanderScale;
+                * opts.idleWanderAmplitude * 0.4;
             var homeX = particle.mx + wanderX;
             var homeY = particle.my + wanderY;
             var homeZ = particle.mz * opts.depthFactor
-                + Math.sin(elapsed * particle.wanderSpeed * 0.5 + particle.wanderPhase) * 0.12;
-            var homeRate = opts.homeLerpSpeed * (2.4 + delta * 18);
+                + Math.sin(elapsed * particle.wanderSpeed * 0.5 + particle.wanderPhase) * 0.15;
 
-            particle.cx = expSmooth(particle.cx, homeX, homeRate, delta);
-            particle.cy = expSmooth(particle.cy, homeY, homeRate, delta);
-            particle.cz = expSmooth(particle.cz, homeZ, homeRate, delta);
+            particle.cx += (homeX - particle.cx) * opts.homeLerpSpeed;
+            particle.cy += (homeY - particle.cy) * opts.homeLerpSpeed;
+            particle.cz += (homeZ - particle.cz) * opts.homeLerpSpeed;
         }
 
-        function applyIdleDrift(particle, elapsed, delta) {
-            applyReturnHome(particle, elapsed, delta);
+        function applyIdleDrift(particle, elapsed) {
+            var halfW = viewport.width / 2;
+            var halfH = viewport.height / 2;
+            var wanderX = Math.sin(elapsed * particle.wanderSpeed + particle.wanderPhase)
+                * opts.idleWanderAmplitude;
+            var wanderY = Math.cos(elapsed * particle.wanderSpeed * 0.73 + particle.wanderPhase * 1.3)
+                * opts.idleWanderAmplitude;
 
-            var driftX = Math.sin(elapsed * particle.wanderSpeed * 0.35 + particle.wanderPhase * 1.7)
-                * opts.idleDriftSpeed;
-            var driftY = Math.cos(elapsed * particle.wanderSpeed * 0.28 + particle.wanderPhase * 0.9)
-                * opts.idleDriftSpeed;
+            particle.cx += particle.vx + wanderX;
+            particle.cy += particle.vy + wanderY;
 
-            particle.cx += driftX * delta * 8;
-            particle.cy += driftY * delta * 8;
+            if (particle.cx > halfW || particle.cx < -halfW) {
+                particle.vx *= -1;
+                particle.cx = Math.max(-halfW, Math.min(halfW, particle.cx));
+            }
+
+            if (particle.cy > halfH || particle.cy < -halfH) {
+                particle.vy *= -1;
+                particle.cy = Math.max(-halfH, Math.min(halfH, particle.cy));
+            }
+
+            particle.cz += Math.sin(elapsed * particle.wanderSpeed * 0.5 + particle.wanderPhase) * 0.004;
+            particle.cz = Math.max(-8, Math.min(8, particle.cz));
         }
 
         function updateParticleVisual(particle, t, projectedTargetX, projectedTargetY, sprite) {
@@ -466,27 +458,25 @@
                 return;
             }
 
-            var delta = clamp(clock.getDelta(), 0.001, 0.05);
             var elapsed = clock.getElapsedTime();
             var magnetActive = !opts.hoverOnlyMagnet || isMouseActive();
-            var targetMagnetActivity = magnetActive ? 1 : 0;
-            magnetActivity = expSmooth(magnetActivity, targetMagnetActivity, 4.5, delta);
-            var globalRotation = elapsed * opts.rotationSpeed * magnetActivity;
+            var globalRotation = magnetActive ? elapsed * opts.rotationSpeed : 0;
             var destX = (pointer.x * viewport.width) / 2;
             var destY = (pointer.y * viewport.height) / 2;
+            var activeLerp = magnetActive ? opts.lerpSpeed : opts.lerpSpeed * 0.35;
             var targetX;
             var targetY;
 
             if (magnetActive) {
-                virtualMouse.x = expSmooth(virtualMouse.x, destX, 5.5, delta);
-                virtualMouse.y = expSmooth(virtualMouse.y, destY, 5.5, delta);
+                virtualMouse.x += (destX - virtualMouse.x) * 0.035;
+                virtualMouse.y += (destY - virtualMouse.y) * 0.035;
                 targetX = virtualMouse.x;
                 targetY = virtualMouse.y;
             } else if (opts.autoAnimate && !opts.hoverOnlyMagnet && Date.now() - lastMouseMoveTime > 2000) {
                 destX = Math.sin(elapsed * 0.5) * (viewport.width / 4);
                 destY = Math.cos(elapsed * 0.5 * 2) * (viewport.height / 4);
-                virtualMouse.x = expSmooth(virtualMouse.x, destX, 3.5, delta);
-                virtualMouse.y = expSmooth(virtualMouse.y, destY, 3.5, delta);
+                virtualMouse.x += (destX - virtualMouse.x) * 0.035;
+                virtualMouse.y += (destY - virtualMouse.y) * 0.035;
                 targetX = virtualMouse.x;
                 targetY = virtualMouse.y;
             } else {
@@ -496,7 +486,7 @@
 
             for (i = 0; i < particles.length; i++) {
                 var particle = particles[i];
-                var t = particle.t + particle.speed * delta * 30;
+                var t = particle.t + particle.speed / 2;
                 particle.t = t;
 
                 var projectionFactor = 1 - particle.mz / 50;
@@ -508,33 +498,26 @@
                 var dxHome = particle.mx - projectedTargetX;
                 var dyHome = particle.my - projectedTargetY;
                 var distHomeToCursor = Math.sqrt(dxHome * dxHome + dyHome * dyHome);
-                var inMagnetRange = magnetActive && isInMagnetRange(distToCursor, distHomeToCursor);
-                var targetBlend = inMagnetRange ? magnetStrength(distToCursor, distHomeToCursor) : 0;
 
-                particle.magnetBlend = expSmooth(particle.magnetBlend, targetBlend, 6, delta);
-
-                if (particle.magnetBlend > 0.001) {
+                if (magnetActive && isInMagnetRange(distToCursor, distHomeToCursor)) {
                     var angle = Math.atan2(dyHome, dxHome) + globalRotation;
                     var wave = Math.sin(t * opts.waveSpeed + angle) * (0.5 * opts.waveAmplitude);
-                    var deviation = particle.randomRadiusOffset * (2.2 / (opts.fieldStrength + 0.1));
+                    var deviation = particle.randomRadiusOffset * (3 / (opts.fieldStrength + 0.1));
                     var currentRingRadius = opts.ringRadius + wave + deviation;
+                    var influence = magnetStrength(distToCursor, distHomeToCursor);
+                    var effectiveLerp = activeLerp * influence;
                     var targetPosX = projectedTargetX + currentRingRadius * Math.cos(angle);
                     var targetPosY = projectedTargetY + currentRingRadius * Math.sin(angle);
                     var targetPosZ = particle.mz * opts.depthFactor
                         + Math.sin(t) * (0.5 * opts.waveAmplitude * opts.depthFactor);
-                    var magnetRate = opts.lerpSpeed * (14 + delta * 40) * particle.magnetBlend;
 
-                    particle.cx = expSmooth(particle.cx, targetPosX, magnetRate, delta);
-                    particle.cy = expSmooth(particle.cy, targetPosY, magnetRate, delta);
-                    particle.cz = expSmooth(particle.cz, targetPosZ, magnetRate, delta);
-                }
-
-                if (particle.magnetBlend < 0.995) {
-                    if (magnetActivity < 0.05) {
-                        applyIdleDrift(particle, elapsed, delta);
-                    } else {
-                        applyReturnHome(particle, elapsed, delta);
-                    }
+                    particle.cx += (targetPosX - particle.cx) * effectiveLerp;
+                    particle.cy += (targetPosY - particle.cy) * effectiveLerp;
+                    particle.cz += (targetPosZ - particle.cz) * effectiveLerp;
+                } else if (magnetActive) {
+                    applyReturnHome(particle, elapsed);
+                } else {
+                    applyIdleDrift(particle, elapsed);
                 }
 
                 var sprite = assetIconMode && iconLayer ? iconLayer.sprites[i] : null;
