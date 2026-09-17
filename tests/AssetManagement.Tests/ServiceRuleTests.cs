@@ -197,6 +197,16 @@ namespace AssetManagement.Tests
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             });
+            unitOfWork.Seed(new AssetSubType
+            {
+                Id = 8,
+                AssetTypeId = 1,
+                Name = "Generic Laptop",
+                Brand = "Generic",
+                Model = "Standard",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
 
             var service = TestServiceFactory.CreateAssetService(unitOfWork);
             var assetId = service.Create(new AssetCreateVm
@@ -205,6 +215,7 @@ namespace AssetManagement.Tests
                 AssetTag = "ORG-001",
                 CategoryId = 1,
                 AssetTypeId = 1,
+                AssetSubTypeId = 8,
                 PurchaseDate = DateTime.UtcNow,
                 AcquisitionCost = 500,
                 Currency = "USD",

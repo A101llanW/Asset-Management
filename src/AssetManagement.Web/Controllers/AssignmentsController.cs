@@ -135,11 +135,6 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("ToUserId", "Selected user does not belong to the target department.");
             }
 
-            if (!string.IsNullOrWhiteSpace(viewModel.ReceivedById) && !ValidateUserBelongsToDepartment(viewModel.ReceivedById, viewModel.ToDepartmentId))
-            {
-                ModelState.AddModelError("ReceivedById", "Received-by user must belong to the target department.");
-            }
-
             PopulateLookups(viewModel);
             ViewBag.AssetContext = BuildAssetWorkflowContext(viewModel.AssetId);
             if (!ModelState.IsValid)
@@ -186,11 +181,10 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.Users = BuildActiveUserSelectList(model?.ToUserId, toDepartmentId);
-            ViewBag.AllUsers = BuildActiveUserSelectList(model?.HandedOverById);
             ViewBag.Departments = BuildDepartmentSelectList(toDepartmentId);
             ViewBag.AllDepartments = BuildDepartmentSelectList(model?.ToDepartmentId);
+            ViewBag.DepartmentGroups = BuildGroupedDepartmentSelectGroups(model?.ToDepartmentId ?? toDepartmentId);
             ViewBag.LockToDepartment = lockToDepartment;
-            ViewBag.HandedOverByName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.HandedOverById, activeUsers);
             ViewBag.ToDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 toDepartmentId,
                 GetActiveDepartments());
@@ -221,12 +215,6 @@ namespace AssetManagement.Web.Controllers
                     {
                         DepartmentFieldId = "ToDepartmentId",
                         UserFieldId = "ToUserId",
-                        RequireDepartmentForUsers = true
-                    },
-                    new WorkflowDepartmentUserPairVm
-                    {
-                        DepartmentFieldId = "ToDepartmentId",
-                        UserFieldId = "ReceivedById",
                         RequireDepartmentForUsers = true
                     }
                 },

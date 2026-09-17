@@ -26,7 +26,59 @@ namespace AssetManagement.Application.Helpers
                 return "Information Technology";
             }
 
+            if (string.Equals(normalized, "IT DEPT", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Information Technology";
+            }
+
             return normalized;
+        }
+
+        public static bool IsIctDepartmentName(string departmentName)
+        {
+            return string.Equals((departmentName ?? string.Empty).Trim(), "ICT", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsSharedScopeClassValue(string classOrSubUnitValue)
+        {
+            var normalized = (classOrSubUnitValue ?? string.Empty).Trim();
+            return string.Equals(normalized, "ALL", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "All", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Maps ICT rows and IT rows with Class=ALL to Information Technology / ICT sub-department.
+        /// </summary>
+        public static bool TryResolveInformationTechnologySubUnit(
+            string departmentName,
+            string classOrSubUnitValue,
+            out string parentDepartmentName,
+            out string subUnitName)
+        {
+            parentDepartmentName = null;
+            subUnitName = null;
+
+            if (IsIctDepartmentName(departmentName))
+            {
+                parentDepartmentName = "Information Technology";
+                subUnitName = string.IsNullOrWhiteSpace(classOrSubUnitValue) || IsSharedScopeClassValue(classOrSubUnitValue)
+                    ? "ICT"
+                    : classOrSubUnitValue.Trim();
+                return true;
+            }
+
+            var normalizedAdmin = NormalizeAdminDepartmentName(departmentName);
+            if (!string.Equals(normalizedAdmin, "Information Technology", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(classOrSubUnitValue))
+            {
+                return false;
+            }
+
+            parentDepartmentName = "Information Technology";
+            subUnitName = IsSharedScopeClassValue(classOrSubUnitValue)
+                ? "ICT"
+                : classOrSubUnitValue.Trim();
+            return true;
         }
 
         public static string BuildAdminDepartmentCode(string departmentName)
@@ -76,7 +128,9 @@ namespace AssetManagement.Application.Helpers
             var words = name.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             if (words.Length >= 2)
             {
-                return NormalizeToken(string.Concat(Array.ConvertAll(words, word => word[0].ToString())), maxLength);
+                var compact = string.Concat(Array.ConvertAll(words, word =>
+                    word.Length >= 3 ? word.Substring(0, 3) : word));
+                return NormalizeToken(compact, maxLength);
             }
 
             return NormalizeToken(words[0], maxLength);

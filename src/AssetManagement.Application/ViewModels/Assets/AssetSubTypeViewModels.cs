@@ -13,7 +13,11 @@ namespace AssetManagement.Application.ViewModels
         public string Model { get; set; }
         public string Specifications { get; set; }
         public string Sku { get; set; }
+
+        public decimal? DefaultAcquisitionCost { get; set; }
+
         public bool IsActive { get; set; }
+
         public int StockCount { get; set; }
     }
     public class AssetSubTypeListItemVm
@@ -22,7 +26,11 @@ namespace AssetManagement.Application.ViewModels
         public string Name { get; set; }
         public string Brand { get; set; }
         public string Model { get; set; }
+
+        public decimal? DefaultAcquisitionCost { get; set; }
+
         public bool IsActive { get; set; }
+
         public int StockCount { get; set; }
     }
     public class AssetSubTypeEditVm
@@ -33,16 +41,24 @@ namespace AssetManagement.Application.ViewModels
         [Required]
         [StringLength(200)]
         public string Name { get; set; }
-        [Required]
         [StringLength(100)]
         public string Brand { get; set; }
-        [Required]
         [StringLength(100)]
         [Display(Name = "Model")]
         public string ItemModel { get; set; }
         public string Specifications { get; set; }
         [StringLength(100)]
         public string Sku { get; set; }
+
+        [Range(0.01, 999999999)]
+        [Display(Name = "Default acquisition cost")]
+        public decimal? DefaultAcquisitionCost { get; set; }
+
+        public decimal? PreviousDefaultAcquisitionCost { get; set; }
+
+        /// <summary>individual or subtype — see AcquisitionCostApplyScopes.</summary>
+        public string AcquisitionCostApplyScope { get; set; }
+
         public bool IsActive { get; set; } = true;
     }
     public class AssetSubTypeCreateFromAssetVm
@@ -52,10 +68,8 @@ namespace AssetManagement.Application.ViewModels
         [Required]
         [StringLength(200)]
         public string Name { get; set; }
-        [Required]
         [StringLength(100)]
         public string Brand { get; set; }
-        [Required]
         [StringLength(100)]
         public string Model { get; set; }
         public string Specifications { get; set; }

@@ -675,38 +675,48 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
-            var resolver = new AssetSubTypeResolver(_assetSubTypeService);
-            var resolution = resolver.Resolve(model.AssetTypeId, model.Brand, model.Model, model.AssetSubTypeId);
-            if (resolution.IsMatched)
+            var normalizedBrand = AssetSubTypeNormalizer.NormalizeBrand(model.Brand);
+            var normalizedModel = AssetSubTypeNormalizer.NormalizeModel(model.Model);
+            if (!string.IsNullOrEmpty(normalizedBrand) || !string.IsNullOrEmpty(normalizedModel))
             {
-                model.AssetSubTypeId = resolution.SubType.Id;
-                model.Brand = resolution.SubType.Brand;
-                model.Model = resolution.SubType.Model;
-                return;
+                var resolver = new AssetSubTypeResolver(_assetSubTypeService);
+                var resolution = resolver.Resolve(model.AssetTypeId, model.Brand, model.Model, model.AssetSubTypeId);
+                if (resolution.IsMatched)
+                {
+                    model.AssetSubTypeId = resolution.SubType.Id;
+                    model.Brand = resolution.SubType.Brand;
+                    model.Model = resolution.SubType.Model;
+                    return;
+                }
+
+                if (resolution.RequiresAssignment)
+                {
+                    var createdId = _assetSubTypeService.CreateFromAsset(new AssetSubTypeCreateFromAssetVm
+                    {
+                        AssetTypeId = model.AssetTypeId,
+                        Name = AssetSubTypeNormalizer.BuildSuggestedName(model.Brand, model.Model),
+                        Brand = model.Brand,
+                        Model = model.Model
+                    });
+                    var created = _assetSubTypeService.GetById(createdId);
+                    if (created == null)
+                    {
+                        result.Messages.Add("Row " + rowNumber + ": Could not create asset sub-type.");
+                        throw new BusinessException("Could not create asset sub-type for this row.");
+                    }
+
+                    model.AssetSubTypeId = created.Id;
+                    model.Brand = created.Brand;
+                    model.Model = created.Model;
+                    return;
+                }
             }
 
-            if (!resolution.RequiresAssignment)
+            if (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0)
             {
-                return;
+                throw new BusinessException(
+                    "AssetSubType is required. Enter AssetSubType for this row, or Brand and Model for legacy import rows.");
             }
-
-            var createdId = _assetSubTypeService.CreateFromAsset(new AssetSubTypeCreateFromAssetVm
-            {
-                AssetTypeId = model.AssetTypeId,
-                Name = AssetSubTypeNormalizer.BuildSuggestedName(model.Brand, model.Model),
-                Brand = model.Brand,
-                Model = model.Model
-            });
-            var created = _assetSubTypeService.GetById(createdId);
-            if (created == null)
-            {
-                result.Messages.Add("Row " + rowNumber + ": Could not create asset sub-type for brand/model.");
-                throw new BusinessException("Could not create asset sub-type for this brand and model.");
-            }
-
-            model.AssetSubTypeId = created.Id;
-            model.Brand = created.Brand;
-            model.Model = created.Model;
         }
 
         private AssetCreateVm MapRow(
@@ -886,20 +896,24 @@ namespace AssetManagement.Application.Services
                 return byCode;
             }
 
+            string informationTechnologyParent;
+            string informationTechnologySubUnit;
+            if (SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
+                    departmentName,
+                    classValue,
+                    out informationTechnologyParent,
+                    out informationTechnologySubUnit))
+            {
+                return ResolveAdminSubDepartment(
+                    lookups,
+                    informationTechnologyParent,
+                    informationTechnologySubUnit);
+            }
+
             if (SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment(departmentName, classValue))
             {
                 var normalizedName = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName);
-                var parentCode = SchoolDepartmentCodeHelper.BuildAdminDepartmentCode(normalizedName);
-                var subCode = SchoolDepartmentCodeHelper.BuildSubDepartmentCode(parentCode, classValue);
-                Department subDepartment;
-                if (!lookups.DepartmentsByCode.TryGetValue(NormalizeKey(subCode), out subDepartment))
-                {
-                    throw new BusinessException(
-                        "Sub-department '" + classValue.Trim() + "' under '" + normalizedName + "' was not found.");
-                }
-
-                _departmentScope.EnsureCanAccessDepartment(subDepartment);
-                return subDepartment;
+                return ResolveAdminSubDepartment(lookups, normalizedName, classValue.Trim());
             }
 
             if (string.IsNullOrWhiteSpace(departmentName))
@@ -931,6 +945,21 @@ namespace AssetManagement.Application.Services
             }
 
             throw new BusinessException("Department '" + departmentName + "' was not found.");
+        }
+
+        private Department ResolveAdminSubDepartment(ImportLookups lookups, string parentDepartmentName, string subUnitName)
+        {
+            var parentCode = SchoolDepartmentCodeHelper.BuildAdminDepartmentCode(parentDepartmentName);
+            var subCode = SchoolDepartmentCodeHelper.BuildSubDepartmentCode(parentCode, subUnitName);
+            Department subDepartment;
+            if (!lookups.DepartmentsByCode.TryGetValue(NormalizeKey(subCode), out subDepartment))
+            {
+                throw new BusinessException(
+                    "Sub-department '" + subUnitName + "' under '" + parentDepartmentName + "' was not found.");
+            }
+
+            _departmentScope.EnsureCanAccessDepartment(subDepartment);
+            return subDepartment;
         }
 
         private static string GetCategoryLabel(IDictionary<string, string> row)

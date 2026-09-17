@@ -4,6 +4,7 @@ using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Services;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Infrastructure.Repositories;
 using AssetManagement.Infrastructure.Services;
@@ -304,6 +305,68 @@ namespace AssetManagement.Web.Controllers
             return new SelectList(cachedDepartments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
         }
 
+        /// <summary>
+        /// Organizational vs Classes optgroups for assign/transfer/asset classification pickers.
+        /// </summary>
+        protected IList<DepartmentSelectGroupVm> BuildGroupedDepartmentSelectGroups(
+            int? selectedDepartmentId = null,
+            bool activeOnly = true)
+        {
+            var departments = BuildDepartmentService().GetAll();
+            if (activeOnly)
+            {
+                departments = departments.Where(x => x.IsActive);
+            }
+
+            var list = departments
+                .OrderBy(x => x.DepartmentKind)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            var orgGroup = new DepartmentSelectGroupVm { Label = "Organizational" };
+            var classGroup = new DepartmentSelectGroupVm { Label = "Streams" };
+
+            foreach (var dept in list)
+            {
+                var option = new DepartmentSelectOptionVm
+                {
+                    Value = dept.Id.ToString(),
+                    Text = string.IsNullOrWhiteSpace(dept.Code)
+                        ? dept.Name
+                        : dept.Code + " — " + dept.Name,
+                    Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
+                };
+
+                if (DepartmentHierarchyRules.IsAcademic(dept.DepartmentKind))
+                {
+                    // Skip Grade containers in pickers — leaves (Class) are the useful targets.
+                    if (dept.DepartmentKind == DepartmentKind.Grade)
+                    {
+                        continue;
+                    }
+
+                    classGroup.Items.Add(option);
+                }
+                else if (DepartmentHierarchyRules.IsOrganizational(dept.DepartmentKind))
+                {
+                    orgGroup.Items.Add(option);
+                }
+            }
+
+            var groups = new List<DepartmentSelectGroupVm>();
+            if (orgGroup.Items.Any())
+            {
+                groups.Add(orgGroup);
+            }
+
+            if (classGroup.Items.Any())
+            {
+                groups.Add(classGroup);
+            }
+
+            return groups;
+        }
+
         protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null)
         {
             var items = new List<SelectListItem>();
@@ -419,6 +482,30 @@ namespace AssetManagement.Web.Controllers
 
             var cachedCategories = BuildReferenceDataCache().GetCategories(orgId.Value, activeOnly);
             return new SelectList(cachedCategories.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedCategoryId);
+        }
+
+        protected IList<AssetTypeLookupVm> BuildAssetTypeLookupList(bool activeOnly = true)
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (orgId.HasValue)
+            {
+                return BuildReferenceDataCache()
+                    .GetAssetTypes(orgId.Value, activeOnly)
+                    .OrderBy(x => x.Name)
+                    .ToList();
+            }
+
+            var types = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetType>().GetAll();
+            return types
+                .OrderBy(x => x.Name)
+                .Select(x => new AssetTypeLookupVm
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    AssetCategoryId = x.AssetCategoryId,
+                    IsActive = true
+                })
+                .ToList();
         }
 
         protected SelectList BuildRoleSelectList(int? selectedRoleId = null)

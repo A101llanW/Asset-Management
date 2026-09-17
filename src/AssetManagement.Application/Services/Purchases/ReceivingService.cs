@@ -175,9 +175,18 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Asset type was not found.");
             }
-            if (string.IsNullOrWhiteSpace(context.Brand) || string.IsNullOrWhiteSpace(context.Model))
+            if (subType == null && (!context.AssetSubTypeId.HasValue || context.AssetSubTypeId.Value <= 0))
             {
-                throw new BusinessException("Brand and model are required to create assets at receipt.");
+                throw new BusinessException("Assign an asset sub-type before recording this receipt.");
+            }
+            var resolvedSubType = subType;
+            if (resolvedSubType == null && context.AssetSubTypeId.HasValue)
+            {
+                resolvedSubType = _assetSubTypeService.GetById(context.AssetSubTypeId.Value);
+            }
+            if (resolvedSubType == null)
+            {
+                throw new BusinessException("Selected asset sub-type was not found.");
             }
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
@@ -204,9 +213,9 @@ namespace AssetManagement.Application.Services
                         AssetTag = null,
                         CategoryId = assetType.AssetCategoryId,
                         AssetTypeId = assetType.Id,
-                        AssetSubTypeId = subType?.Id ?? context.AssetSubTypeId,
-                        Brand = context.Brand.Trim(),
-                        Model = context.Model.Trim(),
+                        AssetSubTypeId = resolvedSubType.Id,
+                        Brand = resolvedSubType.Brand,
+                        Model = resolvedSubType.Model,
                         SerialNumber = unit.SerialNumber,
                         Description = itemDescription,
                         PurchaseDate = model.ReceivedDate,

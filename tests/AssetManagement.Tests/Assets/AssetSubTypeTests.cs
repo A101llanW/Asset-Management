@@ -134,6 +134,33 @@ namespace AssetManagement.Tests.Assets
         }
     }
     [TestFixture]
+    public class AssetSubTypeServiceTests
+    {
+        [Test]
+        public void CreateFromAsset_AllowsDisplayNameWithoutBrandOrModel()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new AssetCategory { Id = 1, Name = "Classrooms", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new AssetType { Id = 2, Name = "Chairs", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
+            var service = TestServiceFactory.CreateAssetSubTypeService(unitOfWork);
+
+            var id = service.CreateFromAsset(new AssetSubTypeCreateFromAssetVm
+            {
+                AssetTypeId = 2,
+                Name = "Teacher's chair",
+                Brand = string.Empty,
+                Model = string.Empty
+            });
+
+            var created = service.GetById(id);
+            Assert.IsNotNull(created);
+            Assert.AreEqual("Teacher's chair", created.Name);
+            Assert.AreEqual(string.Empty, created.Brand);
+            Assert.AreEqual("Teacher's chair", created.Model);
+        }
+    }
+
+    [TestFixture]
     public class ReceivingServiceUnitTrackingTests
     {
         [Test]
@@ -177,6 +204,36 @@ namespace AssetManagement.Tests.Assets
             Assert.AreEqual(2, created.Count);
             Assert.IsTrue(created.All(x => x.DepartmentId == 5));
         }
+        [Test]
+        public void Receive_AllowsSubTypeWithoutBrandOrModel()
+        {
+            var unitOfWork = SeedPurchase(quantity: 1);
+            var subType = unitOfWork.Repository<AssetSubType>().GetById(50);
+            subType.Brand = string.Empty;
+            subType.Model = "Teacher's chair";
+            subType.Name = "Teacher's chair";
+            unitOfWork.Repository<Asset>().GetById(60).Brand = string.Empty;
+            unitOfWork.Repository<Asset>().GetById(60).Model = "Teacher's chair";
+
+            var service = TestServiceFactory.CreateReceivingService(unitOfWork);
+            var result = service.Receive(new AssetReceiveVm
+            {
+                PurchaseRecordId = 100,
+                AssetSubTypeId = 50,
+                ReceivePlacementChoice = ReceivingService.PlacementCompanyCustody,
+                ReceivedDate = DateTime.UtcNow,
+                ConditionOnReceipt = "New",
+                QuantityReceived = 1
+            }, "receiver-1");
+
+            Assert.AreEqual(1, result.CreatedAssets.Count);
+            var created = unitOfWork.Repository<Asset>().GetAll().FirstOrDefault(x => x.Id != 60);
+            Assert.IsNotNull(created);
+            Assert.AreEqual(50, created.AssetSubTypeId);
+            Assert.AreEqual(string.Empty, created.Brand);
+            Assert.AreEqual("Teacher's chair", created.Model);
+        }
+
         private static FakeUnitOfWork SeedPurchase(int quantity)
         {
             var unitOfWork = new FakeUnitOfWork();

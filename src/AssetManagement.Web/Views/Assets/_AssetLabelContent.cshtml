@@ -1,21 +1,11 @@
 @model AssetManagement.Web.ViewModels.AssetLabelPrintVm
-<div class="am-asset-label">
-    <div class="am-asset-label-code"
-         data-am-asset-label-code="true"
-         data-scan-url="@Model.ScanUrl"
-         data-barcode-payload="@Model.BarcodePayload"
-         aria-hidden="true"></div>
-    <div class="am-asset-label-meta">
-        <div class="am-asset-label-tag">@Model.AssetTag</div>
-        <div class="am-asset-label-name">@Model.AssetName</div>
-        @if (!string.IsNullOrWhiteSpace(Model.DepartmentName))
-        {
-            <div class="am-asset-label-dept">@Model.DepartmentName</div>
-        }
-        @if (!string.IsNullOrWhiteSpace(Model.SerialNumber))
-        {
-            <div class="am-asset-label-serial">S/N: @Model.SerialNumber</div>
-        }
-        <div class="am-asset-label-hint" data-am-asset-label-hint="true">Scan to view full asset details</div>
-    </div>
+<div class="am-asset-label-shell"
+     data-am-asset-label-shell="true"
+     data-asset-tag="@Model.AssetTag"
+     data-asset-name="@Model.AssetName"
+     data-department-name="@Model.DepartmentName"
+     data-serial-number="@Model.SerialNumber"
+     data-scan-url="@Model.ScanUrl"
+     data-barcode-payload="@Model.BarcodePayload">
+    <div class="am-asset-label am-asset-label--layout" data-am-asset-label-root="true"></div>
 </div>

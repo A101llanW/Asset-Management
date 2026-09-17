@@ -65,12 +65,36 @@
             return "";
         }
 
+        var canBatchPrint = !!data.CanBatchPrintLabels;
+        var selectHeader = canBatchPrint
+            ? '<th class="ps-3" style="width:2.5rem;"><span class="visually-hidden">Select</span></th>'
+            : "";
+        var tagHeaderClass = canBatchPrint ? "" : "ps-3";
+
         var rows = results.Assets.map(function (hit) {
             var serial = displayText(hit.SerialNumber, data.EmptyDisplay);
             var detailsUrl = hit.DetailsUrl ? escapeHtml(hit.DetailsUrl) : "#";
+            var zplUrl = hit.LabelZplUrl ? escapeHtml(hit.LabelZplUrl) : "";
+            var selectCell = canBatchPrint
+                ? '<td class="ps-3"><input type="checkbox" class="form-check-input" value="' + hit.AssetId + '"' +
+                ' data-am-scan-search-id="' + hit.AssetId + '"' +
+                ' data-am-scan-search-tag="' + escapeHtml(hit.AssetTag) + '"' +
+                ' data-am-scan-search-name="' + escapeHtml(hit.AssetName) + '"' +
+                ' data-am-scan-search-zpl="' + zplUrl + '"' +
+                ' aria-label="Queue ' + escapeHtml(hit.AssetTag) + ' for printing" /></td>'
+                : "";
+            var queueBtn = canBatchPrint
+                ? '<button type="button" class="btn btn-sm btn-outline-primary me-1"' +
+                ' data-am-scan-search-add="' + hit.AssetId + '"' +
+                ' data-am-scan-search-tag="' + escapeHtml(hit.AssetTag) + '"' +
+                ' data-am-scan-search-name="' + escapeHtml(hit.AssetName) + '"' +
+                ' data-am-scan-search-zpl="' + zplUrl + '">Queue</button>'
+                : "";
+
             return (
                 "<tr class=\"border-bottom border-light\">" +
-                '<td class="ps-3"><span class="am-tag-pill am-tag-pill--sm">' + escapeHtml(hit.AssetTag) + "</span></td>" +
+                selectCell +
+                '<td class="' + tagHeaderClass + '"><span class="am-tag-pill am-tag-pill--sm">' + escapeHtml(hit.AssetTag) + "</span></td>" +
                 '<td class="fw-semibold text-dark">' + escapeHtml(hit.AssetName) + "</td>" +
                 '<td class="text-muted small">' + serial + "</td>" +
                 '<td class="text-muted small">' + displayText(hit.DepartmentName, data.EmptyDisplay) + "</td>" +
@@ -78,19 +102,25 @@
                 '<td><span class="badge rounded-pill bg-light border text-secondary">' + escapeHtml(hit.Status) + "</span></td>" +
                 '<td class="small text-muted"><span style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;">' +
                 escapeHtml(hit.MatchReason) + "</span></td>" +
-                '<td class="text-end pe-3"><a class="btn btn-sm btn-outline-primary" href="' + detailsUrl + '">Open</a></td>" +
+                '<td class="text-end pe-3">' + queueBtn +
+                '<a class="btn btn-sm btn-outline-primary" href="' + detailsUrl + '">Open</a></td>" +
                 "</tr>"
             );
         }).join("");
 
+        var headerHint = canBatchPrint
+            ? '<span class="text-muted small">Select rows to add them to the print queue below.</span>'
+            : "";
+
         return (
             '<div class="card card-kpi border-0 shadow-sm mt-4 am-fade-in am-scan-search-results">' +
-            '<div class="card-header bg-white border-bottom py-3">' +
+            '<div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">' +
             '<span class="text-muted small">' + results.TotalCount + ' result(s) for <strong class="text-dark">"' +
-            escapeHtml(results.Query) + '"</strong></span></div>' +
+            escapeHtml(results.Query) + '"</strong></span>' + headerHint + "</div>" +
             '<div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0">' +
             '<thead><tr class="bg-light" style="font-size:0.82rem;letter-spacing:0.04em;">' +
-            '<th class="ps-3">Tag</th><th>Name</th><th>Serial</th><th>Department</th><th>Custodian</th>' +
+            selectHeader +
+            '<th class="' + tagHeaderClass + '">Tag</th><th>Name</th><th>Serial</th><th>Department</th><th>Custodian</th>' +
             '<th>Status</th><th>Matched on</th><th class="pe-3 text-end">Action</th></tr></thead>' +
             "<tbody>" + rows + "</tbody></table></div></div></div>"
         );
@@ -119,6 +149,15 @@
                         '<a class="' + detailsClass + '" href="' + escapeHtml(data.DetailsUrl) + '">' +
                         '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.4rem;vertical-align:-2px;" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
                         "Full details</a>";
+                }
+                if (data.CanBatchPrintLabels && data.AssetId) {
+                    actions +=
+                        '<button type="button" class="btn btn-outline-primary w-100 mt-2"' +
+                        ' data-am-scan-search-add="' + data.AssetId + '"' +
+                        ' data-am-scan-search-tag="' + escapeHtml(data.AssetTag) + '"' +
+                        ' data-am-scan-search-name="' + escapeHtml(data.AssetName) + '"' +
+                        ' data-am-scan-search-zpl="' + escapeHtml(data.LabelZplUrl || "") + '">' +
+                        "Queue label for printing</button>";
                 }
                 actions += "</div>";
             }

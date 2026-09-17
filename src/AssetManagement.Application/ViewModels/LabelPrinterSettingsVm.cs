@@ -27,12 +27,15 @@ namespace AssetManagement.Application.ViewModels
         [Display(Name = "Label height (mm)")]
         public int HeightMm { get; set; }
 
-        [Range(1, 10)]
+        [Range(typeof(decimal), "0.5", "10")]
         [Display(Name = "QR magnification")]
-        public int QrMagnification { get; set; }
+        public decimal QrMagnification { get; set; }
 
         [StringLength(50)]
         [Display(Name = "Layout preset")]
         public string LayoutPreset { get; set; }
+
+        [Display(Name = "Custom layout design")]
+        public string LayoutDesignJson { get; set; }
     }
 }

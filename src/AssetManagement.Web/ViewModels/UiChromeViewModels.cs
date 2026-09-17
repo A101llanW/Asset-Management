@@ -54,4 +54,22 @@ namespace AssetManagement.Web.ViewModels
 
         public string CustodianName { get; set; }
     }
+
+    public class DepartmentSelectOptionVm
+    {
+        public string Value { get; set; }
+
+        public string Text { get; set; }
+
+        public bool Selected { get; set; }
+    }
+
+    public class DepartmentSelectGroupVm
+    {
+        public string Label { get; set; }
+
+        public System.Collections.Generic.IList<DepartmentSelectOptionVm> Items { get; set; }
+            = new System.Collections.Generic.List<DepartmentSelectOptionVm>();
+    }
 }
+

@@ -224,6 +224,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.FromUsers = BuildActiveUserSelectList(model?.FromUserId);
             ViewBag.Departments = BuildDepartmentSelectList(toDepartmentId);
             ViewBag.AllDepartments = BuildDepartmentSelectList(model?.ToDepartmentId);
+            ViewBag.DepartmentGroups = BuildGroupedDepartmentSelectGroups(model?.ToDepartmentId ?? toDepartmentId);
             ViewBag.LockToDepartment = lockToDepartment;
             ViewBag.LockFromFields = true;
             ViewBag.FromDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(model?.FromDepartmentId, departments);

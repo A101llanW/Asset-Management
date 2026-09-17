@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Web.Mvc;
 using AssetManagement.Application.ViewModels;
 
 namespace AssetManagement.Web.ViewModels
@@ -12,6 +14,8 @@ namespace AssetManagement.Web.ViewModels
 
         public bool CanOpenQuickActions { get; set; }
 
+        public bool CanBatchPrintLabels { get; set; }
+
         public string StatusBadgeClass { get; set; }
 
         public string DetailsUrl { get; set; }
@@ -22,8 +26,18 @@ namespace AssetManagement.Web.ViewModels
 
         public string LookupJsonUrl { get; set; }
 
+        public string PrintCandidatesUrl { get; set; }
+
+        public string LabelPrintConfigUrl { get; set; }
+
+        public string LabelZplUrlTemplate { get; set; }
+
         public string InitialCode { get; set; }
 
         public GlobalSearchResultVm SearchResults { get; set; }
+
+        public IEnumerable<SelectListItem> DepartmentOptions { get; set; }
+
+        public IEnumerable<SelectListItem> StatusOptions { get; set; }
     }
 }

@@ -24,7 +24,13 @@ namespace AssetManagement.Application.ViewModels
     {
         public string GroupKey { get; set; }
 
+        public string GroupLabel { get; set; }
+
         public string AssetName { get; set; }
+
+        public int? CategoryId { get; set; }
+
+        public int? AssetTypeId { get; set; }
 
         public string CategoryName { get; set; }
 
@@ -60,6 +66,8 @@ namespace AssetManagement.Application.ViewModels
         public int Page { get; set; }
 
         public int PageSize { get; set; }
+
+        public string GroupBy { get; set; }
     }
 
     public class AssetGroupMembersPageVm

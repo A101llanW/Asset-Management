@@ -179,7 +179,17 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-organization">
                 @if (Html.HasPermission("Departments.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDepartments)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments)">Departments</a></li>
+                    var currentDeptController = ViewContext.RouteData.Values["controller"] as string ?? string.Empty;
+                    var onDepartments = string.Equals(currentDeptController, ctrlDepartments, System.StringComparison.OrdinalIgnoreCase);
+                    var deptDomain = Request["domain"];
+                    var orgActive = onDepartments
+                        && (string.IsNullOrEmpty(deptDomain) || string.Equals(deptDomain, "org", System.StringComparison.OrdinalIgnoreCase))
+                        ? "active" : string.Empty;
+                    var classesActive = onDepartments
+                        && string.Equals(deptDomain, "classes", System.StringComparison.OrdinalIgnoreCase)
+                        ? "active" : string.Empty;
+                    <li class="nav-item"><a class="nav-link @orgActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments, new { domain = "org" })">Departments</a></li>
+                    <li class="nav-item"><a class="nav-link @classesActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments, new { domain = "classes" })">Grades &amp; Streams</a></li>
                 }
                 @if (Html.HasPermission("Assets.Edit"))
                 {

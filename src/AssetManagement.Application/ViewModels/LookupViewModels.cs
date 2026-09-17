@@ -55,7 +55,7 @@ namespace AssetManagement.Application.ViewModels
 
         public int BulkGradeFrom { get; set; } = 1;
 
-        public int BulkGradeTo { get; set; } = 6;
+        public int BulkGradeTo { get; set; } = 12;
 
         public string BulkStreams { get; set; } = "A,B,C,D";
     }

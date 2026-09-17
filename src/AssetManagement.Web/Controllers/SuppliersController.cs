@@ -215,6 +215,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             StripEmptyCatalogItems(model, ModelState);
+            PromoteCatalogValidationErrors(ModelState);
 
             if (!ModelState.IsValid)
             {
@@ -386,27 +387,163 @@ namespace AssetManagement.Web.Controllers
                 return;
             }
 
-            for (var i = 0; i < model.CatalogItems.Count; i++)
+            var keptItems = new System.Collections.Generic.List<SupplierCatalogItemVm>();
+            var indexMap = new System.Collections.Generic.Dictionary<int, int>();
+
+            for (var oldIndex = 0; oldIndex < model.CatalogItems.Count; oldIndex++)
             {
-                var item = model.CatalogItems[i];
-                if (item != null && !string.IsNullOrWhiteSpace(item.ItemName))
+                var item = model.CatalogItems[oldIndex];
+                if (item == null || string.IsNullOrWhiteSpace(item.ItemName))
+                {
+                    RemoveCatalogModelStatePrefix(modelState, oldIndex);
+                    continue;
+                }
+
+                indexMap[oldIndex] = keptItems.Count;
+                keptItems.Add(item);
+            }
+
+            if (modelState != null && indexMap.Count > 0)
+            {
+                var catalogKeys = modelState.Keys
+                    .Where(k => k.StartsWith("CatalogItems[", StringComparison.Ordinal))
+                    .ToList();
+
+                var movedStates = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, ModelState>>();
+                foreach (var key in catalogKeys)
+                {
+                    var oldIndex = TryParseCatalogItemIndex(key);
+                    if (!oldIndex.HasValue)
+                    {
+                        continue;
+                    }
+
+                    int newIndex;
+                    if (!indexMap.TryGetValue(oldIndex.Value, out newIndex))
+                    {
+                        modelState.Remove(key);
+                        continue;
+                    }
+
+                    var suffix = key.Substring(key.IndexOf("].", StringComparison.Ordinal) + 2);
+                    var newKey = "CatalogItems[" + newIndex + "]." + suffix;
+                    if (string.Equals(newKey, key, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    movedStates.Add(new System.Collections.Generic.KeyValuePair<string, ModelState>(newKey, modelState[key]));
+                    modelState.Remove(key);
+                }
+
+                foreach (var moved in movedStates)
+                {
+                    modelState[moved.Key] = moved.Value;
+                }
+            }
+
+            model.CatalogItems = keptItems;
+        }
+
+        private static void RemoveCatalogModelStatePrefix(ModelStateDictionary modelState, int index)
+        {
+            if (modelState == null)
+            {
+                return;
+            }
+
+            var prefix = "CatalogItems[" + index + "].";
+            foreach (var key in modelState.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+            {
+                modelState.Remove(key);
+            }
+        }
+
+        private static int? TryParseCatalogItemIndex(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("CatalogItems[", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var end = key.IndexOf("]", StringComparison.Ordinal);
+            if (end < 0)
+            {
+                return null;
+            }
+
+            int index;
+            if (int.TryParse(key.Substring("CatalogItems[".Length, end - "CatalogItems[".Length), out index))
+            {
+                return index;
+            }
+
+            return null;
+        }
+
+        private static void PromoteCatalogValidationErrors(ModelStateDictionary modelState)
+        {
+            if (modelState == null)
+            {
+                return;
+            }
+
+            foreach (var key in modelState.Keys.Where(k => k.StartsWith("CatalogItems[", StringComparison.Ordinal)).ToList())
+            {
+                var state = modelState[key];
+                if (state == null || state.Errors == null || state.Errors.Count == 0)
                 {
                     continue;
                 }
 
-                var prefix = "CatalogItems[" + i + "].";
-                if (modelState != null)
+                var rowIndex = ExtractCatalogRowIndex(key);
+                var field = ExtractCatalogFieldName(key);
+                foreach (var error in state.Errors)
                 {
-                    foreach (var key in modelState.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+                    if (error == null || string.IsNullOrWhiteSpace(error.ErrorMessage))
                     {
-                        modelState.Remove(key);
+                        continue;
                     }
+
+                    var prefix = rowIndex.HasValue
+                        ? "Catalog line " + (rowIndex.Value + 1) + " " + field + ": "
+                        : "Catalog item: ";
+                    modelState.AddModelError("", prefix + error.ErrorMessage);
                 }
             }
+        }
 
-            model.CatalogItems = model.CatalogItems
-                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.ItemName))
-                .ToList();
+        private static int? ExtractCatalogRowIndex(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("CatalogItems[", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var end = key.IndexOf("]", StringComparison.Ordinal);
+            if (end < 0)
+            {
+                return null;
+            }
+
+            int index;
+            if (int.TryParse(key.Substring("CatalogItems[".Length, end - "CatalogItems[".Length), out index))
+            {
+                return index;
+            }
+
+            return null;
+        }
+
+        private static string ExtractCatalogFieldName(string key)
+        {
+            var dot = key.LastIndexOf('.');
+            if (dot < 0 || dot >= key.Length - 1)
+            {
+                return "field";
+            }
+
+            return key.Substring(dot + 1);
         }
 
         private static void EnsureCatalogItemRows(SupplierCreateVm model)

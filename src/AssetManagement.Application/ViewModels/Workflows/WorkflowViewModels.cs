@@ -42,11 +42,9 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(1000)]
         public string HandoverNotes { get; set; }
 
-        [Display(Name = "Handed Over By")]
         [StringLength(128)]
         public string HandedOverById { get; set; }
 
-        [Display(Name = "Received By")]
         [StringLength(128)]
         public string ReceivedById { get; set; }
     }

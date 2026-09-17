@@ -1,3 +1,4 @@
+@using AssetManagement.Web.Helpers
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -35,7 +36,7 @@
         </main>
 
         <footer class="am-public-footer">
-            <a class="am-public-signin-link" href="@Url.RouteUrl("Default", new { controller = "Account", action = "Login", returnUrl = Request.RawUrl })">
+            <a class="am-public-signin-link" href="@TenantUrlHelper.TenantRouteUrl(Url, "Login", "Account", new { returnUrl = Request.RawUrl })">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:0.35rem"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                 Staff sign in
             </a>

@@ -242,6 +242,8 @@
     <Compile Include="Helpers\KenyaTimeHtmlHelpers.cs" />
     <Compile Include="Helpers\SidebarNavHtmlHelpers.cs" />
     <Compile Include="Helpers\StatusHtmlHelpers.cs" />
+    <Compile Include="Helpers\DepartmentKindHtmlHelpers.cs" />
+    <Compile Include="Helpers\DepartmentSelectHtmlHelpers.cs" />
     <Compile Include="Helpers\ApproverPickerHelper.cs" />
     <Compile Include="Helpers\DepartmentUserWorkflowHelper.cs" />
     <Compile Include="Helpers\AssetQrUrlHelper.cs" />
@@ -301,8 +303,10 @@
     <Content Include="Scripts\app\document-pdf.js" />
     <Content Include="Scripts\app\reports.js" />
     <Content Include="Scripts\app\asset-scan-camera.js" />
+    <Content Include="Scripts\app\label-designer.js" />
     <Content Include="Scripts\app\asset-label.js" />
     <Content Include="Scripts\app\asset-label-zebra.js" />
+    <Content Include="Scripts\app\asset-scan-batch-print.js" />
     <Content Include="Scripts\app\asset-details-tabs.js" />
     <Content Include="Scripts\app\asset-documents-tab.js" />
     <Content Include="Scripts\app\incident-create.js" />
@@ -316,8 +320,12 @@
     <Content Include="Scripts\app\asset-monetary-input.js" />
     <Content Include="Scripts\app\assignment-return-date.js" />
     <Content Include="Scripts\app\asset-subtype-picker.js" />
+    <Content Include="Scripts\app\asset-classification-picker.js" />
+    <Content Include="Scripts\app\asset-price-apply.js" />
+    <Content Include="Scripts\app\asset-subtype-default-cost.js" />
     <Content Include="Scripts\app\receive-serial-wizard.js" />
     <Content Include="Scripts\app\asset-category-type.js" />
+    <Content Include="Scripts\vendor\BrowserPrint-2.0.0.75.min.js" />
     <Content Include="Scripts\vendor\qrcode.min.js" />
     <Content Include="Scripts\vendor\jsbarcode.all.min.js" />
     <Content Include="Scripts\vendor\three.min.js" />
@@ -356,6 +364,7 @@
     <Content Include="Views\Assets\CustodyList.cshtml" />
     <Content Include="Views\Assets\Index.cshtml" />
     <Content Include="Views\AssetScan\Lookup.cshtml" />
+    <Content Include="Views\AssetScan\_ScanBatchPrintPanel.cshtml" />
     <Content Include="Views\AssetScan\_ScanLookupResult.cshtml" />
     <Content Include="Views\AssetScan\_ScanSearchResults.cshtml" />
     <Content Include="Views\AssetScan\QuickActions.cshtml" />
@@ -412,8 +421,11 @@
     <Content Include="Views\Search\Index.cshtml" />
     <Content Include="Views\Roles\Edit.cshtml" />
     <Content Include="Views\Roles\Index.cshtml" />
+    <Content Include="Views\Settings\LabelDesigner.cshtml" />
     <Content Include="Views\Settings\Index.cshtml" />
     <Content Include="Views\Shared\_AssetSubTypePickerModal.cshtml" />
+    <Content Include="Views\Shared\_AssetClassificationPickerModal.cshtml" />
+    <Content Include="Views\Shared\_AcquisitionCostApplyModal.cshtml" />
     <Content Include="Views\Shared\_CaptchaPartial.cshtml" />
     <Content Include="Views\Shared\Error.cshtml" />
     <Content Include="Views\Shared\_HelpBot.cshtml" />
@@ -426,6 +438,7 @@
     <Content Include="Views\Shared\_AssetWorkflowContext.cshtml" />
     <Content Include="Views\Shared\_AttachmentUpload.cshtml" />
     <Content Include="Views\Shared\_AssetDocumentsTab.cshtml" />
+    <Content Include="Views\Shared\_AssetDocumentUploadModals.cshtml" />
     <Content Include="Views\Shared\_AssetIncidentsTab.cshtml" />
     <Content Include="Views\Shared\_AssetInsuranceTab.cshtml" />
     <Content Include="Views\Shared\_AssetMaintenanceTab.cshtml" />

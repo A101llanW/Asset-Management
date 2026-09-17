@@ -3,8 +3,8 @@
 @using AssetManagement.Web.Helpers
 @{
     var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Domain.Entities.AssetType>
-        ?? Enumerable.Empty<AssetManagement.Domain.Entities.AssetType>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetTypeLookupVm>
+        ?? Enumerable.Empty<AssetTypeLookupVm>();
     var lookupUrl = ViewBag.SubTypeLookupUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
     var byTypeUrl = ViewBag.SubTypeByTypeUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
     var createUrl = ViewBag.SubTypeCreateUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
@@ -66,15 +66,15 @@
                     <div class="tab-pane fade show active" id="subtype-create-panel" role="tabpanel">
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label class="form-label" for="subtype-create-name">Display name</label>
-                                <input type="text" class="form-control" id="subtype-create-name" maxlength="200" />
+                                <label class="form-label" for="subtype-create-name">Display name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="subtype-create-name" maxlength="200" placeholder="e.g. Teacher's table" />
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="subtype-create-brand">Brand</label>
+                                <label class="form-label" for="subtype-create-brand">Brand <span class="text-muted small">(optional)</span></label>
                                 <input type="text" class="form-control" id="subtype-create-brand" maxlength="100" />
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="subtype-create-model">Model</label>
+                                <label class="form-label" for="subtype-create-model">Model <span class="text-muted small">(optional)</span></label>
                                 <input type="text" class="form-control" id="subtype-create-model" maxlength="100" />
                             </div>
                         </div>

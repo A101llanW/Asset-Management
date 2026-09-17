@@ -33,6 +33,37 @@ namespace AssetManagement.Tests.Helpers
             Assert.IsFalse(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Classroom", "2A"));
             Assert.IsFalse(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Administration", string.Empty));
         }
+
+        [Test]
+        public void TryResolveInformationTechnologySubUnit_MapsIctAndSharedScopeToItIctSubDepartment()
+        {
+            string parentName;
+            string subUnitName;
+
+            Assert.IsTrue(SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
+                "ICT", "ALL", out parentName, out subUnitName));
+            Assert.AreEqual("Information Technology", parentName);
+            Assert.AreEqual("ICT", subUnitName);
+
+            Assert.IsTrue(SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
+                "Information Technology", "All", out parentName, out subUnitName));
+            Assert.AreEqual("Information Technology", parentName);
+            Assert.AreEqual("ICT", subUnitName);
+
+            Assert.IsTrue(SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
+                "ICT", string.Empty, out parentName, out subUnitName));
+            Assert.AreEqual("ICT", subUnitName);
+
+            Assert.IsTrue(SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
+                "Information Technology", "Comp Lab - Senior", out parentName, out subUnitName));
+            Assert.AreEqual("Comp Lab - Senior", subUnitName);
+        }
+
+        [Test]
+        public void BuildSubDepartmentCode_UsesIctInsteadOfAllForSharedScope()
+        {
+            Assert.AreEqual("IT-ICT", SchoolDepartmentCodeHelper.BuildSubDepartmentCode("IT", "ICT"));
+        }
     }
 
     [TestFixture]
@@ -77,6 +108,30 @@ namespace AssetManagement.Tests.Helpers
 
             Assert.IsNotNull(classLeaf);
             Assert.AreEqual(DepartmentKind.Class, classLeaf.DepartmentKind);
+        }
+
+        [Test]
+        public void ProvisionFromRows_CreatesItIctSubDepartmentForSharedScopeRows()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            var provisioner = new SchoolImportProvisioner(
+                unitOfWork,
+                new FakeOrganizationScopeService(),
+                new FakeReferenceDataCache());
+
+            var rows = new List<IDictionary<string, string>>
+            {
+                Row("Plastic stool", "Furniture", "Stools", "ICT", "ALL"),
+                Row("Desktop table", "Furniture", "Desks", "Information Technology", "All")
+            };
+
+            provisioner.ProvisionFromRows(rows, GetValue);
+
+            var departments = unitOfWork.Repository<Department>().GetAll();
+            Assert.IsNotNull(FindByCode(departments, "IT"));
+            Assert.IsNotNull(FindByCode(departments, "IT-ICT"));
+            Assert.IsNull(FindByCode(departments, "ICT"));
+            Assert.IsNull(FindByCode(departments, "ICT-ALL"));
         }
 
         [Test]

@@ -102,10 +102,21 @@ namespace AssetManagement.Application.Services
             int? assetSubTypeId,
             int? groupDepartmentId,
             AssetStatus? groupStatus,
+            int? groupCategoryId,
+            int? groupAssetTypeId,
             int skip,
             int take)
         {
-            return _assetQueryService.GetGroupMembers(filter, assetName, assetSubTypeId, groupDepartmentId, groupStatus, skip, take);
+            return _assetQueryService.GetGroupMembers(
+                filter,
+                assetName,
+                assetSubTypeId,
+                groupDepartmentId,
+                groupStatus,
+                groupCategoryId,
+                groupAssetTypeId,
+                skip,
+                take);
         }
 
         public int CountAssets(AssetFilterVm filter)
@@ -277,6 +288,16 @@ namespace AssetManagement.Application.Services
 
             var assetType = _unitOfWork.Repository<AssetType>().GetById(asset.AssetTypeId);
             var category = _unitOfWork.Repository<AssetCategory>().GetById(asset.CategoryId);
+            string assetSubTypeName = null;
+            if (asset.AssetSubTypeId.HasValue)
+            {
+                var assetSubType = _unitOfWork.Repository<AssetSubType>().GetById(asset.AssetSubTypeId.Value);
+                if (assetSubType != null)
+                {
+                    assetSubTypeName = AssetSubTypeNormalizer.NormalizeName(assetSubType.Name);
+                }
+            }
+
             var depreciationSettings = DepreciationSettingsResolver.Resolve(asset, assetType, category);
             var depreciationPosition = DepreciationCalculator.Compute(asset, depreciationSettings, DateTime.UtcNow);
 
@@ -293,6 +314,8 @@ namespace AssetManagement.Application.Services
                     ? departmentLookup[asset.DepartmentId.Value]
                     : null,
                 CategoryName = categoryLookup.ContainsKey(asset.CategoryId) ? categoryLookup[asset.CategoryId] : null,
+                AssetTypeName = assetType != null ? assetType.Name : null,
+                AssetSubTypeName = assetSubTypeName,
                 SupplierName = asset.SupplierId.HasValue && supplierLookup.ContainsKey(asset.SupplierId.Value)
                     ? supplierLookup[asset.SupplierId.Value]
                     : null,
@@ -402,8 +425,6 @@ namespace AssetManagement.Application.Services
                 AssetTag = model.AssetTag,
                 CategoryId = model.CategoryId,
                 AssetTypeId = model.AssetTypeId,
-                Brand = model.Brand,
-                Model = model.Model,
                 SerialNumber = model.SerialNumber,
                 Description = model.Description,
                 PurchaseDate = model.PurchaseDate,
@@ -617,8 +638,6 @@ namespace AssetManagement.Application.Services
             entity.AssetTag = model.AssetTag;
             entity.CategoryId = model.CategoryId;
             entity.AssetTypeId = model.AssetTypeId;
-            entity.Brand = model.Brand;
-            entity.Model = model.Model;
             entity.SerialNumber = model.SerialNumber;
             entity.Description = model.Description;
             entity.PurchaseDate = model.PurchaseDate;
@@ -655,6 +674,89 @@ namespace AssetManagement.Application.Services
             _unitOfWork.Repository<Asset>().Update(entity);
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Assets.Edit", nameof(Asset), entity.Id.ToString(), oldSnapshot, entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus);
+        }
+
+        public int CountAcquisitionCostApplyCandidates(int sourceAssetId, string scope, AssetFilterVm filter)
+        {
+            return ResolveAcquisitionCostTargets(sourceAssetId, scope, filter, includeSource: false).Count;
+        }
+
+        public AssetBulkActionResultVm ApplyAcquisitionCost(
+            int sourceAssetId,
+            decimal acquisitionCost,
+            string scope,
+            AssetFilterVm filter,
+            string actorUserId)
+        {
+            if (acquisitionCost <= 0)
+            {
+                throw new BusinessException("Acquisition cost must be greater than zero.");
+            }
+
+            if (string.IsNullOrWhiteSpace(actorUserId))
+            {
+                throw new BusinessException("Current user is required to apply acquisition cost.");
+            }
+
+            if (!_authorizationService.HasPermission(actorUserId, "Assets.Edit"))
+            {
+                throw new BusinessException("You do not have permission to update asset prices.");
+            }
+
+            if (string.Equals(scope, AcquisitionCostApplyScopes.Individual, StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(scope))
+            {
+                return new AssetBulkActionResultVm
+                {
+                    ProcessedCount = 0,
+                    SkippedCount = 0,
+                    Messages = new List<string>()
+                };
+            }
+
+            var targets = ResolveAcquisitionCostTargets(sourceAssetId, scope, filter, includeSource: false);
+            if (targets.Count == 0)
+            {
+                throw new BusinessException("No matching assets were found for this price update.");
+            }
+
+            var messages = new List<string>();
+            var processed = 0;
+            var skipped = 0;
+
+            foreach (var asset in targets)
+            {
+                try
+                {
+                    _departmentScope.EnsureCanAccessAsset(asset);
+                    _workflowGuard.EnsureNoBlockingWorkflow(asset.Id);
+                    ApplyAcquisitionCostToAsset(asset, acquisitionCost);
+                    processed++;
+                }
+                catch (BusinessException ex)
+                {
+                    skipped++;
+                    messages.Add(asset.AssetTag + ": " + ex.Message);
+                }
+            }
+
+            if (processed > 0)
+            {
+                _unitOfWork.SaveChanges();
+                _auditWriter.Write(
+                    "Assets.ApplyAcquisitionCost." + scope,
+                    nameof(Asset),
+                    sourceAssetId.ToString(),
+                    null,
+                    "cost=" + acquisitionCost + ";processed=" + processed + ";skipped=" + skipped);
+            }
+
+            return new AssetBulkActionResultVm
+            {
+                ProcessedCount = processed,
+                SkippedCount = skipped,
+                Messages = messages
+            };
         }
 
         public void Delete(int id)
@@ -1248,33 +1350,24 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            if (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose an asset sub-type in classification before saving.");
+            }
+
+            var assigned = _assetSubTypeService.GetById(model.AssetSubTypeId.Value);
+            if (assigned == null)
+            {
+                throw new BusinessException("Selected asset sub-type was not found.");
+            }
+
+            if (assigned.AssetTypeId != model.AssetTypeId)
+            {
+                throw new BusinessException("Selected sub-type does not match the chosen asset type.");
+            }
+
             var resolver = new AssetSubTypeResolver(_assetSubTypeService);
-            var resolution = resolver.Resolve(model.AssetTypeId, model.Brand, model.Model, model.AssetSubTypeId);
-            if (resolution.IsMatched)
-            {
-                resolver.ApplyToAsset(entity, resolution.SubType);
-                return;
-            }
-
-            if (!resolution.RequiresAssignment)
-            {
-                entity.AssetSubTypeId = null;
-                return;
-            }
-
-            if (model.AssetSubTypeId.HasValue && model.AssetSubTypeId.Value > 0)
-            {
-                var assigned = _assetSubTypeService.GetById(model.AssetSubTypeId.Value);
-                if (assigned == null)
-                {
-                    throw new BusinessException("Selected asset sub-type was not found.");
-                }
-
-                resolver.ApplyToAsset(entity, assigned);
-                return;
-            }
-
-            throw new BusinessException("Assign an asset sub-type for this brand and model before saving.");
+            resolver.ApplyToAsset(entity, assigned);
         }
 
         private static string NormalizeText(string value)
@@ -1302,6 +1395,115 @@ namespace AssetManagement.Application.Services
             }
 
             return normalizedActual.HasValue && normalizedActual.Value == normalizedExpected.Value;
+        }
+
+        private IList<Asset> ResolveAcquisitionCostTargets(
+            int sourceAssetId,
+            string scope,
+            AssetFilterVm filter,
+            bool includeSource)
+        {
+            if (!AcquisitionCostApplyScopes.IsValid(scope)
+                && !string.Equals(scope, AcquisitionCostApplyScopes.Individual, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException("Unsupported acquisition cost apply scope.");
+            }
+
+            if (string.Equals(scope, AcquisitionCostApplyScopes.Individual, StringComparison.OrdinalIgnoreCase))
+            {
+                return new List<Asset>();
+            }
+
+            Asset source = null;
+            if (sourceAssetId > 0)
+            {
+                source = _unitOfWork.Repository<Asset>().GetById(sourceAssetId);
+                if (source == null || !source.IsActive)
+                {
+                    throw new BusinessException("Source asset was not found.");
+                }
+
+                _departmentScope.EnsureCanAccessAsset(source);
+            }
+
+            var query = _unitOfWork.Repository<Asset>().GetAll()
+                .Where(x => x.IsActive && x.CurrentStatus != AssetStatus.Disposed);
+
+            if (sourceAssetId > 0 && !includeSource)
+            {
+                query = query.Where(x => x.Id != sourceAssetId);
+            }
+
+            if (string.Equals(scope, AcquisitionCostApplyScopes.SameSubType, StringComparison.OrdinalIgnoreCase))
+            {
+                var subTypeId = source != null ? source.AssetSubTypeId : filter == null ? null : filter.AssetSubTypeId;
+                if (!subTypeId.HasValue)
+                {
+                    throw new BusinessException("Assign a sub-type before applying price to matching units.");
+                }
+
+                query = query.Where(x => x.AssetSubTypeId == subTypeId);
+            }
+            else if (string.Equals(scope, AcquisitionCostApplyScopes.FilteredGroup, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!HasPriceApplyFilter(filter))
+                {
+                    throw new BusinessException("Select at least one filter when applying price to a custom group.");
+                }
+
+                if (filter.CategoryId.HasValue)
+                {
+                    query = query.Where(x => x.CategoryId == filter.CategoryId.Value);
+                }
+
+                if (filter.AssetTypeId.HasValue)
+                {
+                    query = query.Where(x => x.AssetTypeId == filter.AssetTypeId.Value);
+                }
+
+                if (filter.AssetSubTypeId.HasValue)
+                {
+                    query = query.Where(x => x.AssetSubTypeId == filter.AssetSubTypeId.Value);
+                }
+
+                if (filter.DepartmentId.HasValue)
+                {
+                    query = query.Where(x => x.DepartmentId == filter.DepartmentId.Value);
+                }
+
+                if (filter.Status.HasValue)
+                {
+                    query = query.Where(x => x.CurrentStatus == filter.Status.Value);
+                }
+            }
+            else
+            {
+                return new List<Asset>();
+            }
+
+            return query.OrderBy(x => x.AssetTag).ToList();
+        }
+
+        private static bool HasPriceApplyFilter(AssetFilterVm filter)
+        {
+            if (filter == null)
+            {
+                return false;
+            }
+
+            return filter.CategoryId.HasValue
+                || filter.AssetTypeId.HasValue
+                || filter.AssetSubTypeId.HasValue
+                || filter.DepartmentId.HasValue
+                || filter.Status.HasValue;
+        }
+
+        private void ApplyAcquisitionCostToAsset(Asset asset, decimal acquisitionCost)
+        {
+            asset.AcquisitionCost = acquisitionCost;
+            asset.UpdatedAt = DateTime.UtcNow;
+            ApplyCalculatedDepreciation(asset);
+            _unitOfWork.Repository<Asset>().Update(asset);
         }
 
         private bool CanViewAssetForPendingTransferApproval(Asset asset)

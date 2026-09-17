@@ -257,13 +257,13 @@
         row.className = "catalog-item-row";
         row.innerHTML =
             "<td><div class=\"input-group input-group-sm\">" +
-            "<input class=\"form-control form-control-sm catalog-item-name\" name=\"CatalogItems[" + index + "].ItemName\" placeholder=\"e.g. Dell Latitude laptop\" />" +
+            "<input class=\"form-control form-control-sm catalog-item-name\" name=\"CatalogItems[" + index + "].ItemName\" placeholder=\"e.g. Dell Latitude laptop\" required=\"required\" />" +
             "<button type=\"button\" class=\"btn btn-outline-secondary catalog-pick-asset\" title=\"Pick from asset register\">Pick</button></div></td>" +
             "<td><select class=\"form-select form-select-sm catalog-category\" name=\"CatalogItems[" + index + "].AssetCategoryId\">" + getCategoryOptionsHtml() + "</select></td>" +
             "<td><select class=\"form-select form-select-sm catalog-asset-type\" name=\"CatalogItems[" + index + "].AssetTypeId\">" + getAssetTypeOptionsHtml() + "</select></td>" +
             "<td><select class=\"form-select form-select-sm catalog-tagged-asset\" name=\"CatalogItems[" + index + "].TaggedAssetId\"><option value=\"\">—</option></select></td>" +
             "<td><input class=\"form-control form-control-sm\" name=\"CatalogItems[" + index + "].Sku\" placeholder=\"SKU\" /></td>" +
-            "<td><input class=\"form-control form-control-sm catalog-unit-price\" name=\"CatalogItems[" + index + "].UnitPrice\" type=\"number\" step=\"0.01\" min=\"0.01\" placeholder=\"0.00\" /></td>" +
+            "<td><input class=\"form-control form-control-sm catalog-unit-price\" name=\"CatalogItems[" + index + "].UnitPrice\" type=\"number\" step=\"0.01\" min=\"0.01\" placeholder=\"0.00\" required=\"required\" /></td>" +
             "<td><input class=\"form-control form-control-sm catalog-currency\" name=\"CatalogItems[" + index + "].Currency\" value=\"" + currency + "\" maxlength=\"10\" /></td>" +
             "<td><input class=\"form-control form-control-sm\" name=\"CatalogItems[" + index + "].MinimumOrderQuantity\" type=\"number\" min=\"1\" /></td>" +
             "<td><input class=\"form-control form-control-sm\" name=\"CatalogItems[" + index + "].LeadTimeDays\" type=\"number\" min=\"0\" /></td>" +
