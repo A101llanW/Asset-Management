@@ -17,10 +17,15 @@ namespace AssetManagement.Web.Controllers
 {
     public class AssignmentsController : BaseController
     {
+        private const int BatchAssignMaxRows = 100;
+
         private readonly IAssignmentService _assignmentService;
+        private readonly IAssetService _assetService;
+
         public AssignmentsController()
         {
             _assignmentService = BuildAssignmentService();
+            _assetService = BuildAssetService();
         }
 
         [PermissionAuthorize("Assets.View")]
@@ -158,6 +163,286 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("", ex.Message);
                 return View(viewModel);
             }
+        }
+
+        [PermissionAuthorize("Assets.Assign")]
+        public ActionResult BatchCreate(string assetIds, AssetFilterVm filter, bool fromFilter = false, string returnUrl = null)
+        {
+            var rows = LoadBatchAssignRows(assetIds, filter, fromFilter);
+            if (rows.Count == 0)
+            {
+                TempData["Error"] = "No assignable assets were found for batch assignment.";
+                return RedirectToAction("Index", "Assets");
+            }
+
+            var model = new BatchAssignPageVm
+            {
+                Rows = rows,
+                ReturnUrl = ResolveBatchAssignReturnUrl(returnUrl, filter, fromFilter)
+            };
+
+            ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId => model.ToDepartmentId = deptId);
+            PopulateBatchLookups(model);
+            return View("BatchCreate", model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize("Assets.Assign")]
+        public ActionResult BatchCreate(BatchAssignPageVm model)
+        {
+            if (model == null)
+            {
+                return RedirectToAction("Index", "Assets");
+            }
+
+            model.Rows = model.Rows ?? new List<BatchAssignRowVm>();
+            ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId => model.ToDepartmentId = deptId);
+
+            var assignableRows = model.Rows.Where(x => x != null && x.CanAssign).ToList();
+            if (assignableRows.Count == 0)
+            {
+                ModelState.AddModelError("", "No assignable assets remain on this page.");
+            }
+
+            foreach (var row in assignableRows)
+            {
+                if (string.IsNullOrWhiteSpace(row.ToUserId))
+                {
+                    continue;
+                }
+
+                if (!ValidateUserBelongsToDepartment(row.ToUserId, model.ToDepartmentId))
+                {
+                    ModelState.AddModelError("", "Selected user does not belong to the target department for asset " + (row.AssetTag ?? row.AssetId.ToString()) + ".");
+                }
+            }
+
+            PopulateBatchLookups(model);
+            if (!ModelState.IsValid)
+            {
+                return View("BatchCreate", model);
+            }
+
+            try
+            {
+                var request = new BatchAssignRequestVm
+                {
+                    ToDepartmentId = model.ToDepartmentId,
+                    HandedOverById = CurrentUserContext.UserId,
+                    HandoverNotes = model.HandoverNotes,
+                    Items = assignableRows
+                        .Where(x => !string.IsNullOrWhiteSpace(x.ToUserId))
+                        .Select(x => new BatchAssignItemVm
+                        {
+                            AssetId = x.AssetId,
+                            ToUserId = x.ToUserId
+                        })
+                        .ToList()
+                };
+
+                if (request.Items.Count == 0)
+                {
+                    ModelState.AddModelError("", "Select at least one custodian before saving.");
+                    return View("BatchCreate", model);
+                }
+
+                model.LastResult = _assignmentService.BatchAssign(request);
+                RefreshBatchRowState(model);
+                TempData["Message"] = "Batch assignment completed: "
+                    + model.LastResult.ProcessedCount + " assigned, "
+                    + model.LastResult.SkippedCount + " skipped.";
+                return View("BatchCreate", model);
+            }
+            catch (BusinessException ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+                return View("BatchCreate", model);
+            }
+        }
+
+        private IList<BatchAssignRowVm> LoadBatchAssignRows(string assetIds, AssetFilterVm filter, bool fromFilter)
+        {
+            if (!string.IsNullOrWhiteSpace(assetIds))
+            {
+                return BuildBatchRowsFromIds(ParseAssetIds(assetIds));
+            }
+
+            if (fromFilter)
+            {
+                filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
+                    filter ?? new AssetFilterVm(),
+                    GetCurrentUserProfile(),
+                    BuildAuthorizationService().HasPermission(User.GetUserId(), "Assets.Assign"),
+                    IsCurrentUserSuperAdmin());
+                filter.UnassignedOnly = true;
+                if (!filter.Status.HasValue)
+                {
+                    filter.Status = AssetStatus.InStore;
+                }
+
+                var page = _assetService.GetAssetListPage(filter, "tag", "asc", 1, BatchAssignMaxRows);
+                return page.Items
+                    .Select(x => BuildBatchRowFromAsset(UnitOfWork.Repository<Asset>().GetById(x.Id)))
+                    .Where(x => x != null)
+                    .ToList();
+            }
+
+            return new List<BatchAssignRowVm>();
+        }
+
+        private static IList<int> ParseAssetIds(string assetIds)
+        {
+            return (assetIds ?? string.Empty)
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x =>
+                {
+                    int id;
+                    return int.TryParse(x.Trim(), out id) ? id : 0;
+                })
+                .Where(x => x > 0)
+                .Distinct()
+                .Take(BatchAssignMaxRows)
+                .ToList();
+        }
+
+        private IList<BatchAssignRowVm> BuildBatchRowsFromIds(IEnumerable<int> ids)
+        {
+            var rows = new List<BatchAssignRowVm>();
+            foreach (var id in ids)
+            {
+                var row = BuildBatchRowFromAsset(UnitOfWork.Repository<Asset>().GetById(id));
+                if (row != null)
+                {
+                    rows.Add(row);
+                }
+            }
+
+            return rows;
+        }
+
+        private BatchAssignRowVm BuildBatchRowFromAsset(Asset asset)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            string scopeError;
+            if (!EnsureAssetInCurrentUserDepartment(asset, out scopeError))
+            {
+                return new BatchAssignRowVm
+                {
+                    AssetId = asset.Id,
+                    AssetTag = asset.AssetTag,
+                    SerialNumber = asset.SerialNumber,
+                    AssetName = asset.AssetName,
+                    CanAssign = false,
+                    BlockReason = scopeError
+                };
+            }
+
+            var canAssign = AssetCustodyRules.CanAssign(asset.CurrentStatus);
+            var blockReason = canAssign
+                ? null
+                : AssetCustodyRules.GetAssignBlockedMessage(asset.CurrentStatus);
+
+            if (canAssign && !string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+            {
+                canAssign = false;
+                blockReason = "Asset already has a custodian. Use Transfer instead.";
+            }
+
+            return new BatchAssignRowVm
+            {
+                AssetId = asset.Id,
+                AssetTag = asset.AssetTag,
+                SerialNumber = asset.SerialNumber,
+                AssetName = asset.AssetName,
+                CanAssign = canAssign,
+                BlockReason = blockReason
+            };
+        }
+
+        private void RefreshBatchRowState(BatchAssignPageVm model)
+        {
+            if (model?.Rows == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < model.Rows.Count; i++)
+            {
+                var current = model.Rows[i];
+                var refreshed = BuildBatchRowFromAsset(UnitOfWork.Repository<Asset>().GetById(current.AssetId));
+                if (refreshed == null)
+                {
+                    continue;
+                }
+
+                refreshed.ToUserId = current.ToUserId;
+                model.Rows[i] = refreshed;
+            }
+        }
+
+        private string ResolveBatchAssignReturnUrl(string returnUrl, AssetFilterVm filter, bool fromFilter)
+        {
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return returnUrl;
+            }
+
+            if (fromFilter && filter != null)
+            {
+                return Url.Action("Index", "Assets", new
+                {
+                    Status = filter.Status,
+                    DepartmentId = filter.DepartmentId,
+                    UnassignedOnly = filter.UnassignedOnly,
+                    Search = filter.Search
+                });
+            }
+
+            return Url.Action("Index", "Assets");
+        }
+
+        private void PopulateBatchLookups(BatchAssignPageVm model)
+        {
+            var activeUsers = GetActiveUsers().ToList();
+            var lockToDepartment = !IsCurrentUserSuperAdmin() && GetCurrentUserDepartmentId().HasValue;
+            var toDepartmentId = model?.ToDepartmentId ?? (lockToDepartment ? GetCurrentUserDepartmentId() : null);
+            if (lockToDepartment && model != null && !model.ToDepartmentId.HasValue)
+            {
+                model.ToDepartmentId = GetCurrentUserDepartmentId();
+                toDepartmentId = model.ToDepartmentId;
+            }
+
+            ViewBag.Users = BuildActiveUserSelectList(null, toDepartmentId);
+            ViewBag.Departments = BuildDepartmentSelectList(toDepartmentId);
+            ViewBag.AllDepartments = BuildDepartmentSelectList(model?.ToDepartmentId);
+            ViewBag.LockToDepartment = lockToDepartment;
+            ViewBag.ToDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
+                toDepartmentId,
+                GetActiveDepartments());
+
+            var lockedFields = new List<WorkflowLockedFieldVm>();
+            if (lockToDepartment)
+            {
+                lockedFields.Add(new WorkflowLockedFieldVm { FieldId = "ToDepartmentId" });
+            }
+
+            SetWorkflowFormConfig(BuildWorkflowFormConfig(
+                activeUsers,
+                new[]
+                {
+                    new WorkflowDepartmentUserPairVm
+                    {
+                        DepartmentFieldId = "ToDepartmentId",
+                        UserFieldId = "batch-user-select",
+                        RequireDepartmentForUsers = true
+                    }
+                },
+                lockedFields));
         }
 
         private static ListPageViewModel<AssignmentListVm> ToAssignmentListPage(AssignmentListPageVm source)

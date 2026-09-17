@@ -322,6 +322,7 @@
     <Content Include="Scripts\vendor\jsbarcode.all.min.js" />
     <Content Include="Scripts\vendor\three.min.js" />
     <Content Include="Scripts\vendor\html5-qrcode.min.js" />
+    <Content Include="Scripts\app\batch-assign.js" />
     <Content Include="Scripts\app\workflow-forms.js" />
     <Content Include="Scripts\app\workflow-wizard.js" />
     <Content Include="Views\web.config" />
@@ -364,6 +365,7 @@
     <Content Include="Views\AssetRequests\Create.cshtml" />
     <Content Include="Views\AssetRequests\Details.cshtml" />
     <Content Include="Views\AssetRequests\Index.cshtml" />
+    <Content Include="Views\Assignments\BatchCreate.cshtml" />
     <Content Include="Views\Assignments\Create.cshtml" />
     <Content Include="Views\Assignments\Index.cshtml" />
     <Content Include="Views\Assignments\List.cshtml" />

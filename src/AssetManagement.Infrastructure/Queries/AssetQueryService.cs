@@ -484,6 +484,11 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                 {
                     clauses.Add("a.[CurrentCustodianId] = @CustodianUserId");
                 }
+
+                if (filter.UnassignedOnly)
+                {
+                    clauses.Add("(a.[CurrentCustodianId] IS NULL OR LTRIM(RTRIM(a.[CurrentCustodianId])) = '')");
+                }
             }
 
             return " WHERE " + string.Join(" AND ", clauses.ToArray());

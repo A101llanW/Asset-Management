@@ -23,6 +23,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string CustodianUserId { get; set; }
 
+        /// <summary>When true, limits results to assets with no current custodian.</summary>
+        public bool UnassignedOnly { get; set; }
+
         /// <summary>When true, returns all organization assets regardless of the user's department scope.</summary>
         public bool OrganizationWide { get; set; }
 

@@ -19,6 +19,10 @@
     var groupedPage = ViewBag.GroupedPage as AssetGroupListPageVm;
     var isGrouped = string.Equals(listViewMode, "grouped", StringComparison.OrdinalIgnoreCase);
     var listFilter = ViewBag.Filter as AssetFilterVm ?? new AssetFilterVm();
+    var canAssignAssets = Html.HasPermission("Assets.Assign");
+    var showBatchAssignEntry = canAssignAssets
+        && listFilter.UnassignedOnly
+        && (!listFilter.Status.HasValue || listFilter.Status.Value == AssetStatus.InStore);
     var hasResults = isGrouped
         ? groupedPage != null && groupedPage.Items.Any()
         : Model.Items.Any();
@@ -64,9 +68,31 @@
                     <button type="submit" class="btn btn-primary am-click-spark">Apply</button>
                 </div>
             </div>
+            <div class="row g-2 align-items-center mt-2">
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="UnassignedOnly" value="true" id="UnassignedOnly" @(listFilter.UnassignedOnly ? "checked" : null) />
+                        <label class="form-check-label" for="UnassignedOnly">Unassigned only (no custodian)</label>
+                    </div>
+                </div>
+                @if (canAssignAssets)
+                {
+                    <div class="col-md-8 text-md-end">
+                        <a class="btn btn-outline-primary btn-sm" href="@Url.Action("BatchCreate", "Assignments", new { fromFilter = true, Status = AssetStatus.InStore, UnassignedOnly = true, DepartmentId = listFilter.DepartmentId, Search = listFilter.Search, returnUrl = Request.RawUrl })">Open in-store unassigned assign grid</a>
+                    </div>
+                }
+            </div>
         </form>
     </div>
 </div>
+
+@if (showBatchAssignEntry && hasResults)
+{
+    <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4" role="alert">
+        <span>These assets have no custodian. Assign each row to a person in one step.</span>
+        <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { fromFilter = true, Status = listFilter.Status ?? AssetStatus.InStore, UnassignedOnly = true, DepartmentId = listFilter.DepartmentId, Search = listFilter.Search, returnUrl = Request.RawUrl })">Assign these units</a>
+    </div>
+}
 
 @if (canBulkEdit)
 {

@@ -223,6 +223,117 @@ namespace AssetManagement.Application.Services
             return assignment;
         }
 
+        public BatchAssignResultVm BatchAssign(BatchAssignRequestVm request)
+        {
+            if (request == null)
+            {
+                throw new BusinessException("Batch assignment request is required.");
+            }
+
+            var items = request.Items ?? new List<BatchAssignItemVm>();
+            if (items.Count == 0)
+            {
+                throw new BusinessException("Select at least one asset to assign.");
+            }
+
+            var rowResults = new List<BatchAssignRowResultVm>();
+            var processed = 0;
+            var skipped = 0;
+
+            foreach (var item in items)
+            {
+                var assetTag = ResolveAssetTag(item?.AssetId ?? 0);
+                if (item == null || item.AssetId <= 0)
+                {
+                    skipped++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item?.AssetId ?? 0,
+                        AssetTag = assetTag,
+                        Success = false,
+                        Message = "Asset is required."
+                    });
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(item.ToUserId))
+                {
+                    skipped++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item.AssetId,
+                        AssetTag = assetTag,
+                        Success = false,
+                        Message = "Select a custodian for this asset."
+                    });
+                    continue;
+                }
+
+                try
+                {
+                    AssetAssignment assignment = null;
+                    var asset = _unitOfWork.Repository<Asset>().GetById(item.AssetId);
+                    if (asset == null)
+                    {
+                        throw new BusinessException("Asset not found.");
+                    }
+
+                    assetTag = asset.AssetTag;
+                    var model = new AssetAssignmentVm
+                    {
+                        AssetId = item.AssetId,
+                        ToUserId = item.ToUserId,
+                        ToDepartmentId = request.ToDepartmentId ?? asset.DepartmentId,
+                        HandedOverById = request.HandedOverById,
+                        AssignmentType = AssignmentType.Permanent.ToString(),
+                        AssignedDate = DateTime.UtcNow,
+                        ConditionBeforeHandover = asset.Condition.ToString(),
+                        HandoverNotes = request.HandoverNotes
+                    };
+
+                    _unitOfWork.ExecuteInTransaction(() => { assignment = AssignWithoutSave(model); });
+                    RecordAssignmentAudit(assignment, item.AssetId);
+                    processed++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item.AssetId,
+                        AssetTag = assetTag,
+                        Success = true,
+                        Message = "Assigned successfully."
+                    });
+                }
+                catch (BusinessException ex)
+                {
+                    skipped++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item.AssetId,
+                        AssetTag = assetTag,
+                        Success = false,
+                        Message = ex.Message
+                    });
+                }
+            }
+
+            return new BatchAssignResultVm
+            {
+                ProcessedCount = processed,
+                SkippedCount = skipped,
+                Rows = rowResults
+            };
+        }
+
+        private string ResolveAssetTag(int assetId)
+        {
+            if (assetId <= 0)
+            {
+                return null;
+            }
+
+            var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+            return asset?.AssetTag;
+        }
+
         private void EnsureUserBelongsToDepartment(string userId, int? departmentId)
         {
             if (string.IsNullOrWhiteSpace(userId) || !departmentId.HasValue)

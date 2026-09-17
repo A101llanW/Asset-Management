@@ -1,0 +1,163 @@
+@using System.Linq
+@using System.Web.Mvc
+@using System.Web.Script.Serialization
+@model AssetManagement.Application.ViewModels.BatchAssignPageVm
+@{
+    ViewBag.Title = "Assign Assets";
+    var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var lockToDepartment = ViewBag.LockToDepartment == true;
+    var workflowConfig = ViewBag.WorkflowFormConfig as AssetManagement.Web.ViewModels.WorkflowFormConfigVm;
+    var serializer = new JavaScriptSerializer();
+    var usersByDepartmentJson = workflowConfig == null ? "{}" : workflowConfig.UsersByDepartmentJson;
+    var assignableCount = Model.Rows == null ? 0 : Model.Rows.Count(x => x.CanAssign);
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Assign Assets",
+    Subtitle = "Set a custodian for each received or in-store unit, then save all assignments in one step.",
+    BackUrl = string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Url.Action("Index", "Assets") : Model.ReturnUrl,
+    BackLabel = "Back"
+})
+
+@if (Model.LastResult != null)
+{
+    <div class="alert @(Model.LastResult.SkippedCount > 0 ? "alert-warning" : "alert-success") mt-3" role="alert">
+        <div class="fw-semibold mb-2">Batch assignment results</div>
+        <p class="mb-2 small">@Model.LastResult.ProcessedCount assigned, @Model.LastResult.SkippedCount skipped.</p>
+        @if (Model.LastResult.Rows != null && Model.LastResult.Rows.Any())
+        {
+            <ul class="mb-0 small">
+                @foreach (var row in Model.LastResult.Rows)
+                {
+                    <li class="@(row.Success ? "text-success" : "text-danger")">
+                        @(string.IsNullOrWhiteSpace(row.AssetTag) ? ("Asset #" + row.AssetId) : row.AssetTag):
+                        @row.Message
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@using (Html.BeginForm(null, null, FormMethod.Post, new
+{
+    id = "batchAssignForm",
+    data_am_batch_assign_form = "true",
+    data_am_users_by_dept = usersByDepartmentJson
+}))
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.HiddenFor(m => m.ReturnUrl)
+
+    <div class="card card-kpi mb-4">
+        <div class="card-header">Assignment defaults</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.ToDepartmentId, new { @class = "form-label" })
+                    @if (lockToDepartment)
+                    {
+                        @Html.HiddenFor(m => m.ToDepartmentId)
+                        <input type="text" class="form-control" readonly="readonly" value="@(ViewBag.ToDepartmentName as string ?? "Your department")" />
+                    }
+                    else
+                    {
+                        @Html.DropDownListFor(m => m.ToDepartmentId, ViewBag.AllDepartments as IEnumerable<SelectListItem> ?? departments, "-- All departments --", new { @class = "form-select", id = "ToDepartmentId" })
+                    }
+                    <div class="form-text">Optional filter for custodian pickers below.</div>
+                </div>
+                <div class="col-md-8">
+                    @Html.LabelFor(m => m.HandoverNotes, new { @class = "form-label" })
+                    @Html.TextAreaFor(m => m.HandoverNotes, 2, 80, new { @class = "form-control", placeholder = "Optional notes applied to every assignment" })
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-kpi">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Assets (@assignableCount assignable)</span>
+            <button type="submit" class="btn btn-primary am-click-spark">Save assignments</button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tag</th>
+                            <th>Serial</th>
+                            <th>Name</th>
+                            <th style="min-width: 220px;">Custodian</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Rows == null || !Model.Rows.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-muted p-4">No assets loaded.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            for (var i = 0; i < Model.Rows.Count; i++)
+                            {
+                                var row = Model.Rows[i];
+                                <tr class="@(row.CanAssign ? null : "table-secondary")">
+                                    <td>
+                                        @Html.HiddenFor(m => m.Rows[i].AssetId)
+                                        @Html.HiddenFor(m => m.Rows[i].AssetTag)
+                                        @Html.HiddenFor(m => m.Rows[i].SerialNumber)
+                                        @Html.HiddenFor(m => m.Rows[i].AssetName)
+                                        @Html.HiddenFor(m => m.Rows[i].CanAssign)
+                                        @Html.HiddenFor(m => m.Rows[i].BlockReason)
+                                        <a href="@Url.Action("Details", "Assets", new { id = row.AssetId })">@row.AssetTag</a>
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(row.SerialNumber) ? "—" : row.SerialNumber)</td>
+                                    <td>@row.AssetName</td>
+                                    <td>
+                                        @if (row.CanAssign)
+                                        {
+                                            @Html.DropDownListFor(
+                                                m => m.Rows[i].ToUserId,
+                                                users,
+                                                "-- Select custodian --",
+                                                new
+                                                {
+                                                    @class = "form-select batch-assign-user-select",
+                                                    data_am_user_placeholder = "-- Select custodian --"
+                                                })
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">@row.BlockReason</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (row.CanAssign)
+                                        {
+                                            <span class="badge bg-success-subtle text-success">Ready</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary">Skipped</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary am-click-spark">Save assignments</button>
+        </div>
+    </div>
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/batch-assign.js")"></script>
+}

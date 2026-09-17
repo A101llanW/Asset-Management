@@ -27,6 +27,12 @@
         <div class="alert alert-success mt-3" role="alert">
             <div class="fw-semibold mb-2">New assets ready for labeling</div>
             <p class="mb-2 small">QR codes on printed labels link to each asset&rsquo;s registry record (tag and serial).</p>
+            @if (Html.HasPermission("Assets.Assign"))
+            {
+                <div class="mb-3">
+                    <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { assetIds = string.Join(",", createdIds), returnUrl = Request.RawUrl })">Assign these units</a>
+                </div>
+            }
             <ul class="mb-0">
                 @foreach (var idText in createdIds)
                 {
