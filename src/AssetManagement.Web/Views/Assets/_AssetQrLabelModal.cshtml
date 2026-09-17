@@ -8,7 +8,7 @@
             </div>
             <div class="modal-body">
                 @Html.Partial("_AssetLabelCodeTypeSelector", Model)
-                <div class="am-asset-label-sheet am-asset-label-sheet--modal">
+                <div class="am-asset-label-sheet am-asset-label-sheet--modal" data-am-asset-label-config-url="@Url.Action("LabelPrintConfig", new { id = Model.AssetId })">
                     @Html.Partial("_AssetLabelContent", Model)
                 </div>
                 @Html.Partial("_AssetLabelPrinterStatus")

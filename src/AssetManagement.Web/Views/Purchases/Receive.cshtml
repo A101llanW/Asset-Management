@@ -124,9 +124,9 @@
                         {
                             <span>Name: <strong>@detail.SuggestedAssetName</strong>.</span>
                         }
-                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.ContextBrand))
+                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
                         {
-                            <span>@detail.ContextBrand @detail.ContextModel</span>
+                            <span>Sub-type: <strong>@detail.AssetSubTypeName</strong>.</span>
                         }
                     </p>
                     <button type="button" class="btn btn-outline-primary" id="receive-open-serial-wizard">Enter serial numbers (optional)</button>

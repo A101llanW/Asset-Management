@@ -1,0 +1,91 @@
+@using AssetManagement.Web.Helpers
+@{
+    var lookupUrl = ViewBag.SubTypeLookupUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
+    var byTypeUrl = ViewBag.SubTypeByTypeUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
+    var createUrl = ViewBag.SubTypeCreateUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
+}
+
+<div class="modal fade" id="assetClassificationPickerModal" tabindex="-1" aria-labelledby="assetClassificationPickerModalLabel" aria-hidden="true"
+     data-am-subtype-lookup-url="@lookupUrl"
+     data-am-subtype-by-type-url="@byTypeUrl"
+     data-am-subtype-create-url="@createUrl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-1" id="assetClassificationPickerModalLabel">Choose classification</h5>
+                    <p class="text-muted small mb-0">Pick category and type, then select or create a specific sub-type (for example Desks → Student desk).</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="am-classification-picker-toolbar mb-3">
+                    <label class="form-label visually-hidden" for="classifier-search">Search classification</label>
+                    <input type="search"
+                           class="form-control"
+                           id="classifier-search"
+                           placeholder="Search categories, types, or sub-types…"
+                           autocomplete="off" />
+                </div>
+
+                <div class="am-classification-picker-grid">
+                    <section class="am-classification-panel" aria-labelledby="classifier-category-heading">
+                        <div class="am-classification-panel-header" id="classifier-category-heading">
+                            <span class="am-classification-step">1</span>
+                            Category
+                        </div>
+                        <ul class="am-classification-options list-unstyled mb-0" id="classifier-category-list" role="listbox" aria-label="Categories"></ul>
+                    </section>
+
+                    <section class="am-classification-panel" aria-labelledby="classifier-type-heading">
+                        <div class="am-classification-panel-header" id="classifier-type-heading">
+                            <span class="am-classification-step">2</span>
+                            Asset type
+                        </div>
+                        <div class="am-classification-panel-placeholder text-muted small" id="classifier-type-placeholder">
+                            Select a category to see asset types.
+                        </div>
+                        <ul class="am-classification-options list-unstyled mb-0 d-none" id="classifier-type-list" role="listbox" aria-label="Asset types"></ul>
+                    </section>
+
+                    <section class="am-classification-panel" aria-labelledby="classifier-subtype-heading">
+                        <div class="am-classification-panel-header" id="classifier-subtype-heading">
+                            <span class="am-classification-step">3</span>
+                            Sub-type
+                        </div>
+                        <div class="am-classification-panel-placeholder text-muted small" id="classifier-subtype-placeholder">
+                            Select an asset type to browse or create sub-types.
+                        </div>
+                        <ul class="am-classification-options list-unstyled mb-0 d-none" id="classifier-subtype-list" role="listbox" aria-label="Sub-types"></ul>
+
+                        <div class="am-classification-create border-top mt-3 pt-3 d-none" id="classifier-create-panel">
+                            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                <strong class="small">Create new sub-type</strong>
+                                <button type="button" class="btn btn-link btn-sm p-0" id="classifier-create-clear">Clear form</button>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="classifier-create-name">Display name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="classifier-create-name" maxlength="200" placeholder="e.g. Teacher's chair" />
+                                    <div class="form-text small mb-0">Use a specific variant name under the asset type (e.g. Student desk, Teacher's table).</div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="classifier-create-btn">Create and select</button>
+                            <div class="alert alert-danger mt-2 mb-0 py-2 small" id="classifier-create-error" style="display:none;"></div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="am-classification-preview mt-3" id="classifier-preview">
+                    <span class="text-muted small">Selection:</span>
+                    <span class="fw-medium" id="classifier-preview-text">None yet</span>
+                </div>
+                <div class="alert alert-danger mt-3 mb-0" id="classifier-apply-error" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="asset-classification-apply" disabled="disabled">Apply classification</button>
+            </div>
+        </div>
+    </div>
+</div>

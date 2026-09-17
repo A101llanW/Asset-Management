@@ -70,7 +70,8 @@ namespace AssetManagement.Web.Filters
             var controller = filterContext.ActionDescriptor.ControllerDescriptor.ControllerName;
             var action = filterContext.ActionDescriptor.ActionName;
             return string.Equals(controller, "AssetScan", System.StringComparison.OrdinalIgnoreCase)
-                && string.Equals(action, "LookupJson", System.StringComparison.OrdinalIgnoreCase);
+                && (string.Equals(action, "LookupJson", System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(action, "PrintCandidates", System.StringComparison.OrdinalIgnoreCase));
         }
     }
 }

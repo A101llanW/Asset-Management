@@ -247,8 +247,7 @@ namespace AssetManagement.Web.Controllers
                         ToDepartmentId = viewModel.ToDepartmentId,
                         HandoverNotes = viewModel.HandoverNotes,
                         AssignmentType = AssignmentType.Permanent.ToString(),
-                        HandedOverById = User.GetUserId(),
-                        ReceivedById = viewModel.ToUserId
+                        HandedOverById = User.GetUserId()
                     });
                 TempData["Message"] = "Asset request fulfilled and asset assigned.";
                 return RedirectToTenantAware("AssetRequests", "Details", new { id = viewModel.RequestId });

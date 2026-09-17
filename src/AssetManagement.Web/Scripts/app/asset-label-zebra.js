@@ -1,8 +1,9 @@
 (function (window) {
     'use strict';
 
-    var BROWSER_PRINT_SDK = 'https://www.zebra.com/content/dam/zebra_new_ia/en-us/software/printer/bbrowser-print/BrowserPrint-3.1.250.min.js';
+    var BROWSER_PRINT_SDK_FILE = 'BrowserPrint-2.0.0.75.min.js';
     var MODE_ZEBRA = 'ZebraBrowserPrint';
+    var LOAD_TIMEOUT_MS = 10000;
     var STATUS_CHECKING = 'checking';
     var STATUS_READY = 'ready';
     var STATUS_WARNING = 'warning';
@@ -65,8 +66,37 @@
         }
     }
 
+    function resolveBrowserPrintSdkUrl() {
+        if (window.AssetLabelZebraSdkUrl) {
+            return window.AssetLabelZebraSdkUrl;
+        }
+
+        var zebraScript = document.querySelector('script[src*="asset-label-zebra.js"]');
+        if (zebraScript) {
+            var src = zebraScript.getAttribute('src') || '';
+            var marker = '/Scripts/app/';
+            var idx = src.indexOf(marker);
+            if (idx >= 0) {
+                return src.substring(0, idx) + '/Scripts/vendor/' + BROWSER_PRINT_SDK_FILE;
+            }
+        }
+
+        return '/Scripts/vendor/' + BROWSER_PRINT_SDK_FILE;
+    }
+
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
+            var settled = false;
+            function finish(handler) {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                clearTimeout(timer);
+                handler();
+            }
+
             if (window.BrowserPrint) {
                 resolve(window.BrowserPrint);
                 return;
@@ -74,10 +104,19 @@
 
             var existing = document.querySelector('script[data-am-zebra-browser-print]');
             if (existing) {
-                existing.addEventListener('load', function () { resolve(window.BrowserPrint); });
-                existing.addEventListener('error', function () { reject(new Error('Failed to load Zebra Browser Print SDK.')); });
-                return;
+                if (window.BrowserPrint) {
+                    resolve(window.BrowserPrint);
+                    return;
+                }
+
+                existing.parentNode.removeChild(existing);
             }
+
+            var timer = setTimeout(function () {
+                finish(function () {
+                    reject(new Error('Timed out loading Zebra Browser Print SDK. Install and start Browser Print on this PC.'));
+                });
+            }, LOAD_TIMEOUT_MS);
 
             var script = document.createElement('script');
             script.src = src;
@@ -85,13 +124,18 @@
             script.setAttribute('data-am-zebra-browser-print', 'true');
             script.onload = function () {
                 if (window.BrowserPrint) {
-                    resolve(window.BrowserPrint);
+                    finish(function () { resolve(window.BrowserPrint); });
                     return;
                 }
-                reject(new Error('Zebra Browser Print SDK loaded but BrowserPrint is unavailable.'));
+
+                finish(function () {
+                    reject(new Error('Zebra Browser Print SDK loaded but BrowserPrint is unavailable.'));
+                });
             };
             script.onerror = function () {
-                reject(new Error('Failed to load Zebra Browser Print SDK. Install Browser Print on this PC.'));
+                finish(function () {
+                    reject(new Error('Failed to load Zebra Browser Print SDK. Install Browser Print on this PC.'));
+                });
             };
             document.head.appendChild(script);
         });
@@ -121,7 +165,24 @@
 
     function listPrinters(browserPrint) {
         return new Promise(function (resolve, reject) {
+            var settled = false;
+            var timer = setTimeout(function () {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                reject(new Error('Timed out discovering printers via Zebra Browser Print.'));
+            }, LOAD_TIMEOUT_MS);
+
             browserPrint.getLocalDevices(function (devices) {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                clearTimeout(timer);
+
                 var printers = [];
                 if (devices && devices.printer) {
                     printers = devices.printer;
@@ -130,6 +191,12 @@
                 }
                 resolve(printers || []);
             }, function (error) {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                clearTimeout(timer);
                 reject(error || new Error('Unable to discover printers via Zebra Browser Print.'));
             }, 'printer');
         });
@@ -190,7 +257,7 @@
 
         setStatusBadges(badges, STATUS_CHECKING, 'Checking printer...');
 
-        return loadScript(BROWSER_PRINT_SDK)
+        return loadScript(resolveBrowserPrintSdkUrl())
             .then(function (browserPrint) {
                 return listPrinters(browserPrint).then(function (printers) {
                     if (!printers.length) {
@@ -223,6 +290,18 @@
             });
     }
 
+    function printZplDirectly(zpl, config, browserPrint) {
+        var load = browserPrint
+            ? Promise.resolve(browserPrint)
+            : loadScript(resolveBrowserPrintSdkUrl());
+
+        return load.then(function (resolvedBrowserPrint) {
+            return selectDevice(resolvedBrowserPrint, config.deviceName).then(function (device) {
+                return sendToPrinter(device, zpl);
+            });
+        });
+    }
+
     function printToZebra(button, config, root) {
         if (!button) {
             return;
@@ -230,12 +309,10 @@
 
         button.disabled = true;
         var zplUrl = buildZplUrl(config.zplUrl, getSelectedCodeType(root));
-        loadScript(BROWSER_PRINT_SDK)
+        loadScript(resolveBrowserPrintSdkUrl())
             .then(function (browserPrint) {
                 return fetchText(zplUrl).then(function (zpl) {
-                    return selectDevice(browserPrint, config.deviceName).then(function (device) {
-                        return sendToPrinter(device, zpl);
-                    });
+                    return printZplDirectly(zpl, config, browserPrint);
                 });
             })
             .then(function () {
@@ -297,7 +374,10 @@
     window.AssetLabelZebra = {
         initRoot: initRoot,
         pollPrinterStatus: pollPrinterStatus,
-        printToZebra: printToZebra
+        printToZebra: printToZebra,
+        printZplDirectly: printZplDirectly,
+        fetchPrinterConfig: fetchJson,
+        buildZplUrl: buildZplUrl
     };
 
     if (document.readyState === 'loading') {

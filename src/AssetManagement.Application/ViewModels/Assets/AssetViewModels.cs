@@ -31,6 +31,9 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>flat (default) or grouped.</summary>
         public string ListViewMode { get; set; }
+
+        /// <summary>product, department, category, type, subtype, or status — used when ListViewMode is grouped.</summary>
+        public string GroupBy { get; set; }
     }
 
     public class AssetListVm
@@ -52,6 +55,8 @@ namespace AssetManagement.Application.ViewModels
         public int? DepartmentId { get; set; }
 
         public int AssetTypeId { get; set; }
+
+        public string AssetTypeName { get; set; }
 
         public int? AssetSubTypeId { get; set; }
 
@@ -90,11 +95,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string AssetSubTypeName { get; set; }
 
-        [Required]
         [StringLength(120)]
         public string Brand { get; set; }
 
-        [Required]
         [StringLength(120)]
         public string Model { get; set; }
 
@@ -156,6 +159,22 @@ namespace AssetManagement.Application.ViewModels
         public bool CanManageDepreciationSettings { get; set; }
 
         public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
+
+        /// <summary>Acquisition cost before edit; used to detect price changes.</summary>
+        public decimal PreviousAcquisitionCost { get; set; }
+
+        /// <summary>individual, subtype, or filtered — see AcquisitionCostApplyScopes.</summary>
+        public string AcquisitionCostApplyScope { get; set; }
+
+        public int? PriceApplyCategoryId { get; set; }
+
+        public int? PriceApplyAssetTypeId { get; set; }
+
+        public int? PriceApplyAssetSubTypeId { get; set; }
+
+        public int? PriceApplyDepartmentId { get; set; }
+
+        public AssetStatus? PriceApplyStatus { get; set; }
     }
 
     public class AssetEditVm : AssetCreateVm
@@ -181,6 +200,10 @@ namespace AssetManagement.Application.ViewModels
         public string DepartmentName { get; set; }
 
         public string CategoryName { get; set; }
+
+        public string AssetTypeName { get; set; }
+
+        public string AssetSubTypeName { get; set; }
 
         public string SupplierName { get; set; }
 

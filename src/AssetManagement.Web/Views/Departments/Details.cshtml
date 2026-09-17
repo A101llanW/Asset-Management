@@ -1,9 +1,15 @@
 @model AssetManagement.Application.ViewModels.DepartmentVm
+@using AssetManagement.Application.Helpers
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Department Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditDepartment = Html.HasPermission("Departments.Edit");
+    var domain = ViewBag.Domain as string
+        ?? (DepartmentHierarchyRules.IsAcademic(Model.DepartmentKind)
+            ? DepartmentHierarchyRules.DomainClasses
+            : DepartmentHierarchyRules.DomainOrg);
+    var indexLabel = domain == DepartmentHierarchyRules.DomainClasses ? "Grades & Streams" : "Departments";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -15,7 +21,7 @@
     PrimaryActionLabel = canEditDepartment ? "Edit Department" : null,
     Breadcrumbs = new[]
     {
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = indexLabel, Url = Url.Action("Index", new { domain = domain }) },
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name }
     }
 })
@@ -28,6 +34,12 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-5">Code</dt>
                     <dd class="col-sm-7">@Model.Code</dd>
+                    <dt class="col-sm-5">Kind</dt>
+                    <dd class="col-sm-7">@Html.DepartmentKindBadge(Model.DepartmentKind)</dd>
+                    <dt class="col-sm-5">Parent</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.ParentDepartmentName) ? "—" : Model.ParentDepartmentName)</dd>
+                    <dt class="col-sm-5">Requisition</dt>
+                    <dd class="col-sm-7">@(Model.IsRequisitionTarget ? "Yes" : "No")</dd>
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Users</dt>

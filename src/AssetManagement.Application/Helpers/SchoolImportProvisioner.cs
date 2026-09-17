@@ -66,13 +66,15 @@ namespace AssetManagement.Application.Helpers
                 var categoryName = ResolveCategoryName(row, getValue);
                 if (!string.IsNullOrWhiteSpace(categoryName))
                 {
-                    categoryNames.Add(categoryName.Trim());
+                    categoryNames.Add(TaxonomyNameNormalizer.NormalizeDisplayName(categoryName));
                 }
 
                 var assetTypeName = getValue(row, "AssetType");
                 if (!string.IsNullOrWhiteSpace(categoryName) && !string.IsNullOrWhiteSpace(assetTypeName))
                 {
-                    typePairs.Add(NormalizeKey(categoryName) + "|" + NormalizeKey(assetTypeName));
+                    var normalizedCategory = TaxonomyNameNormalizer.NormalizeDisplayName(categoryName);
+                    var normalizedType = TaxonomyNameNormalizer.NormalizeDisplayName(assetTypeName);
+                    typePairs.Add(NormalizeKey(normalizedCategory) + "|" + NormalizeKey(normalizedType));
                 }
 
                 var supplierName = getValue(row, "Supplier");
@@ -92,13 +94,28 @@ namespace AssetManagement.Application.Helpers
                         classCodes.Add(code);
                     }
                 }
-                else if (SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName(departmentName))
+                else if (SchoolDepartmentCodeHelper.IsIctDepartmentName(departmentName)
+                    || SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName(departmentName))
                 {
-                    var normalizedAdminName = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName);
-                    adminDepartmentNames.Add(normalizedAdminName);
-                    if (!string.IsNullOrWhiteSpace(classValue))
+                    string parentDepartmentName;
+                    string subUnitName;
+                    if (SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
+                            departmentName,
+                            classValue,
+                            out parentDepartmentName,
+                            out subUnitName))
                     {
-                        subDepartmentPairs.Add(normalizedAdminName + "|" + classValue.Trim());
+                        adminDepartmentNames.Add(parentDepartmentName);
+                        subDepartmentPairs.Add(parentDepartmentName + "|" + subUnitName);
+                    }
+                    else
+                    {
+                        var normalizedAdminName = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName);
+                        adminDepartmentNames.Add(normalizedAdminName);
+                        if (!string.IsNullOrWhiteSpace(classValue))
+                        {
+                            subDepartmentPairs.Add(normalizedAdminName + "|" + classValue.Trim());
+                        }
                     }
                 }
             }
@@ -302,7 +319,8 @@ namespace AssetManagement.Application.Helpers
             string name,
             SchoolImportProvisionResult result)
         {
-            if (categories.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+            name = TaxonomyNameNormalizer.NormalizeDisplayName(name);
+            if (categories.Any(x => TaxonomyNameNormalizer.NamesEquivalent(x.Name, name)))
             {
                 return;
             }
@@ -327,9 +345,10 @@ namespace AssetManagement.Application.Helpers
             string name,
             SchoolImportProvisionResult result)
         {
+            name = TaxonomyNameNormalizer.NormalizeDisplayName(name);
             if (assetTypes.Any(x =>
                     x.AssetCategoryId == category.Id
-                    && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+                    && TaxonomyNameNormalizer.NamesEquivalent(x.Name, name)))
             {
                 return;
             }

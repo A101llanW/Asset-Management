@@ -104,6 +104,35 @@ namespace AssetManagement.Tests.Helpers
         }
 
         [Test]
+        public void Build_QrMagnificationHalf_UsesSmallestZplSize()
+        {
+            var data = new ZplLabelData
+            {
+                AssetTag = "AST-300",
+                ScanUrl = "https://assets.example.com/AssetScan/Lookup?code=AST-300"
+            };
+            var settings = new LabelPrinterSettingsVm
+            {
+                WidthMm = 50,
+                HeightMm = 25,
+                QrMagnification = 0.5m,
+                LayoutPreset = LabelPrinterSettingsHelper.LayoutQrOnly
+            };
+
+            var zpl = ZplLabelBuilder.Build(data, settings);
+
+            Assert.IsTrue(zpl.Contains("^BQN,1,1"));
+        }
+
+        [Test]
+        public void ResolveZplQrMagnification_ClampsAndRounds()
+        {
+            Assert.AreEqual(1, ZplLabelBuilder.ResolveZplQrMagnification(0.5m));
+            Assert.AreEqual(2, ZplLabelBuilder.ResolveZplQrMagnification(1.6m));
+            Assert.AreEqual(10, ZplLabelBuilder.ResolveZplQrMagnification(10m));
+        }
+
+        [Test]
         public void Build_BarcodeOnlyLayoutCentersBarcode()
         {
             var data = new ZplLabelData

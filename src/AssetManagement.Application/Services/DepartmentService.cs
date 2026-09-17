@@ -67,6 +67,11 @@ namespace AssetManagement.Application.Services
 
         public IEnumerable<DepartmentTreeSectionVm> GetTreeSections()
         {
+            return GetTreeSections(null);
+        }
+
+        public IEnumerable<DepartmentTreeSectionVm> GetTreeSections(string domain)
+        {
             var departments = GetAll().Where(x => x.IsActive).ToList();
             var byId = departments.ToDictionary(x => x.Id);
             foreach (var dept in departments.Where(x => x.ParentDepartmentId.HasValue))
@@ -83,18 +88,32 @@ namespace AssetManagement.Application.Services
                 parent.Children = parent.Children.OrderBy(x => x.Code).ToList();
             }
 
-            var sections = new List<DepartmentTreeSectionVm>();
-            for (var grade = 1; grade <= SchoolClassCodeHelper.MaxGrade; grade++)
-            {
-                var gradeCode = SchoolClassCodeHelper.BuildGradeDepartmentCode(grade);
-                var gradeParent = departments.FirstOrDefault(x =>
-                    x.DepartmentKind == DepartmentKind.Grade
-                    && string.Equals(x.Code, gradeCode, StringComparison.OrdinalIgnoreCase));
-                if (gradeParent == null)
-                {
-                    continue;
-                }
+            var includeClasses = string.IsNullOrWhiteSpace(domain)
+                || DepartmentHierarchyRules.NormalizeDomain(domain) == DepartmentHierarchyRules.DomainClasses;
+            var includeOrg = string.IsNullOrWhiteSpace(domain)
+                || DepartmentHierarchyRules.NormalizeDomain(domain) == DepartmentHierarchyRules.DomainOrg;
 
+            var sections = new List<DepartmentTreeSectionVm>();
+            if (includeClasses)
+            {
+                sections.AddRange(BuildClassTreeSections(departments));
+            }
+
+            if (includeOrg)
+            {
+                sections.AddRange(BuildAdminTreeSections(departments));
+            }
+
+            return sections;
+        }
+
+        private static IEnumerable<DepartmentTreeSectionVm> BuildClassTreeSections(IList<DepartmentVm> departments)
+        {
+            var sections = new List<DepartmentTreeSectionVm>();
+            foreach (var gradeParent in departments
+                .Where(x => x.DepartmentKind == DepartmentKind.Grade)
+                .OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
+            {
                 sections.Add(new DepartmentTreeSectionVm
                 {
                     Title = gradeParent.Name,
@@ -102,6 +121,26 @@ namespace AssetManagement.Application.Services
                 });
             }
 
+            var ungrouped = departments
+                .Where(x => !x.ParentDepartmentId.HasValue
+                    && x.DepartmentKind == DepartmentKind.Class)
+                .OrderBy(x => x.Name)
+                .ToList();
+            if (ungrouped.Any())
+            {
+                sections.Add(new DepartmentTreeSectionVm
+                {
+                    Title = "Other",
+                    Items = ungrouped
+                });
+            }
+
+            return sections;
+        }
+
+        private static IEnumerable<DepartmentTreeSectionVm> BuildAdminTreeSections(IList<DepartmentVm> departments)
+        {
+            var sections = new List<DepartmentTreeSectionVm>();
             var adminItems = departments
                 .Where(x => x.DepartmentKind == DepartmentKind.Administrative && !x.ParentDepartmentId.HasValue)
                 .OrderBy(x => x.Name)
@@ -117,8 +156,7 @@ namespace AssetManagement.Application.Services
 
             var ungrouped = departments
                 .Where(x => !x.ParentDepartmentId.HasValue
-                    && x.DepartmentKind != DepartmentKind.Grade
-                    && x.DepartmentKind != DepartmentKind.Administrative)
+                    && x.DepartmentKind == DepartmentKind.SubDepartment)
                 .OrderBy(x => x.Name)
                 .ToList();
             if (ungrouped.Any())
@@ -141,7 +179,17 @@ namespace AssetManagement.Application.Services
                 return null;
             }
 
-            return MapDepartment(entity);
+            var model = MapDepartment(entity);
+            if (entity.ParentDepartmentId.HasValue)
+            {
+                var parent = _unitOfWork.Repository<Department>().GetById(entity.ParentDepartmentId.Value);
+                if (parent != null)
+                {
+                    model.ParentDepartmentName = parent.Name;
+                }
+            }
+
+            return model;
         }
 
         public int Create(DepartmentVm model)
@@ -184,11 +232,25 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            DepartmentHierarchyRules.AssertKindUnchanged(entity.DepartmentKind, model.DepartmentKind);
+
+            // Parent is not editable on the Edit form — preserve existing hierarchy.
+            Department parent = null;
+            if (entity.ParentDepartmentId.HasValue)
+            {
+                parent = _unitOfWork.Repository<Department>().GetById(entity.ParentDepartmentId.Value);
+            }
+
+            DepartmentHierarchyRules.AssertValidHierarchy(entity.DepartmentKind, parent);
+
+            if (entity.DepartmentKind == DepartmentKind.Grade)
+            {
+                model.IsRequisitionTarget = false;
+            }
+
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
-            entity.ParentDepartmentId = model.ParentDepartmentId;
-            entity.DepartmentKind = model.DepartmentKind;
             entity.IsRequisitionTarget = model.IsRequisitionTarget;
             entity.IsActive = model.IsActive;
             entity.UpdatedAt = DateTime.UtcNow;
@@ -222,10 +284,7 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Parent department was not found.");
             }
 
-            if (parent.DepartmentKind != DepartmentKind.Administrative || parent.ParentDepartmentId.HasValue)
-            {
-                throw new BusinessException("Sub-units can only be created under top-level administrative departments.");
-            }
+            DepartmentHierarchyRules.AssertValidHierarchy(DepartmentKind.SubDepartment, parent);
 
             var now = DateTime.UtcNow;
             if (parent.IsRequisitionTarget)
@@ -287,25 +346,36 @@ namespace AssetManagement.Application.Services
         private int CreateGradeWithStreams(DepartmentCreateVm model)
         {
             if (!model.GradeNumber.HasValue
-                || model.GradeNumber.Value < 1
+                || model.GradeNumber.Value < SchoolClassCodeHelper.MinGrade
                 || model.GradeNumber.Value > SchoolClassCodeHelper.MaxGrade)
             {
-                throw new BusinessException("Grade must be between 1 and " + SchoolClassCodeHelper.MaxGrade + ".");
+                throw new BusinessException(
+                    "Grade must be between " + SchoolClassCodeHelper.MinGrade + " and " + SchoolClassCodeHelper.MaxGrade + ".");
             }
 
-            var streams = ParseStreams(model.SelectedStreams);
-            if (streams.Count == 0)
+            var streamTokens = ParseStreams(model.SelectedStreams);
+            if (streamTokens.Count == 0)
             {
-                throw new BusinessException("Select at least one class stream.");
+                throw new BusinessException("Select at least one stream.");
             }
 
             var grade = model.GradeNumber.Value;
             var now = DateTime.UtcNow;
             var gradeEntity = EnsureGradeParent(grade, now);
             var firstClassId = 0;
-            foreach (var stream in streams)
+            foreach (var token in streamTokens)
             {
-                var classEntity = BuildClassEntity(grade, stream, gradeEntity.Id, now);
+                int streamGrade;
+                string stream;
+                if (!SchoolClassCodeHelper.TryResolveStreamEntry(grade, token, out streamGrade, out stream))
+                {
+                    throw new BusinessException("Stream '" + token + "' is not valid.");
+                }
+
+                var streamGradeEntity = streamGrade == grade
+                    ? gradeEntity
+                    : EnsureGradeParent(streamGrade, now);
+                var classEntity = BuildClassEntity(streamGrade, stream, streamGradeEntity.Id, now);
                 _unitOfWork.Repository<Department>().Add(classEntity);
                 _unitOfWork.SaveChanges();
                 WriteDepartmentAudit("Departments.Create", classEntity.Id.ToString(), null, classEntity.Name);
@@ -321,17 +391,24 @@ namespace AssetManagement.Application.Services
 
         private int CreateBulkGrades(DepartmentCreateVm model)
         {
-            var from = Math.Max(1, model.BulkGradeFrom);
-            var to = Math.Min(SchoolClassCodeHelper.MaxGrade, model.BulkGradeTo);
-            if (from > to)
+            var from = model.BulkGradeFrom;
+            var to = model.BulkGradeTo;
+            if (from < SchoolClassCodeHelper.MinGrade
+                || to > SchoolClassCodeHelper.MaxGrade
+                || from > to)
             {
-                throw new BusinessException("Bulk grade range is invalid.");
+                throw new BusinessException(
+                    "Bulk grade range must be between "
+                    + SchoolClassCodeHelper.MinGrade
+                    + " and "
+                    + SchoolClassCodeHelper.MaxGrade
+                    + ", with From less than or equal to To.");
             }
 
-            var streams = ParseStreams(model.BulkStreams);
-            if (streams.Count == 0)
+            var streamTokens = ParseStreams(model.BulkStreams);
+            if (streamTokens.Count == 0)
             {
-                throw new BusinessException("Select at least one class stream.");
+                throw new BusinessException("Select at least one stream.");
             }
 
             var now = DateTime.UtcNow;
@@ -339,16 +416,31 @@ namespace AssetManagement.Application.Services
             for (var grade = from; grade <= to; grade++)
             {
                 var gradeEntity = EnsureGradeParent(grade, now);
-                foreach (var stream in streams)
+                foreach (var token in streamTokens)
                 {
-                    var code = SchoolClassCodeHelper.BuildClassDepartmentCode(grade, stream);
+                    int streamGrade;
+                    string stream;
+                    if (!SchoolClassCodeHelper.TryResolveStreamEntry(grade, token, out streamGrade, out stream))
+                    {
+                        continue;
+                    }
+
+                    if (streamGrade < from || streamGrade > to)
+                    {
+                        continue;
+                    }
+
+                    var streamGradeEntity = streamGrade == grade
+                        ? gradeEntity
+                        : EnsureGradeParent(streamGrade, now);
+                    var code = SchoolClassCodeHelper.BuildClassDepartmentCode(streamGrade, stream);
                     if (_unitOfWork.Repository<Department>().GetAll().Any(x =>
                             x.IsActive && string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }
 
-                    var classEntity = BuildClassEntity(grade, stream, gradeEntity.Id, now);
+                    var classEntity = BuildClassEntity(streamGrade, stream, streamGradeEntity.Id, now);
                     _unitOfWork.Repository<Department>().Add(classEntity);
                     _unitOfWork.SaveChanges();
                     WriteDepartmentAudit("Departments.Create", classEntity.Id.ToString(), null, classEntity.Name);
@@ -396,7 +488,7 @@ namespace AssetManagement.Application.Services
             {
                 Name = SchoolClassCodeHelper.BuildClassDepartmentName(grade, stream),
                 Code = SchoolClassCodeHelper.BuildClassDepartmentCode(grade, stream),
-                Description = "Class " + grade + stream.Trim().ToUpperInvariant(),
+                Description = "Stream " + SchoolClassCodeHelper.BuildStreamLabel(grade, stream),
                 ParentDepartmentId = parentId,
                 DepartmentKind = DepartmentKind.Class,
                 IsRequisitionTarget = true,

@@ -199,6 +199,7 @@
         var lastClientY = null;
         var virtualMouse = { x: 0, y: 0 };
         var animationId = null;
+        var isTabVisible = !global.document.hidden;
         var clock = new THREE.Clock();
         var dummy = new THREE.Object3D();
         var trackTarget = global.document;
@@ -443,7 +444,20 @@
             dummy.updateMatrix();
         }
 
+        function onVisibilityChange() {
+            isTabVisible = !global.document.hidden;
+            if (isTabVisible && !animationId) {
+                clock.getDelta();
+                animate();
+            }
+        }
+
         function animate() {
+            if (!isTabVisible) {
+                animationId = null;
+                return;
+            }
+
             var elapsed = clock.getElapsedTime();
             var magnetActive = !opts.hoverOnlyMagnet || isMouseActive();
             var globalRotation = magnetActive ? elapsed * opts.rotationSpeed : 0;
@@ -559,6 +573,7 @@
         trackTarget.addEventListener("touchmove", onTouchMove, { passive: true });
         trackTarget.addEventListener("touchend", onTouchEnd);
         global.addEventListener("resize", onResize);
+        global.document.addEventListener("visibilitychange", onVisibilityChange);
         animate();
 
         return function destroy() {
@@ -574,6 +589,7 @@
             trackTarget.removeEventListener("touchmove", onTouchMove);
             trackTarget.removeEventListener("touchend", onTouchEnd);
             global.removeEventListener("resize", onResize);
+            global.document.removeEventListener("visibilitychange", onVisibilityChange);
 
             disposeIconLayer();
 

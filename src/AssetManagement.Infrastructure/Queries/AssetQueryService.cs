@@ -32,6 +32,7 @@ SELECT
     a.[Brand],
     a.[Model],
     st.[Name] AS AssetSubTypeName,
+    at.[Name] AS AssetTypeName,
     c.[Name] AS CategoryName,
     d.[Name] AS DepartmentName";
 
@@ -50,6 +51,7 @@ SELECT
         private const string FromClause = @"
 FROM [Asset] a
 LEFT JOIN [AssetCategory] c ON c.[Id] = a.[CategoryId]
+LEFT JOIN [AssetType] at ON at.[Id] = a.[AssetTypeId]
 LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]
 LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
 
@@ -115,6 +117,17 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
         }
 
         public AssetGroupListPageVm GetGroupedListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
+        {
+            var groupBy = AssetListGroupBy.Normalize(filter == null ? null : filter.GroupBy);
+            if (AssetListGroupBy.IsProduct(groupBy))
+            {
+                return GetProductGroupedListPage(filter, sort, direction, page, pageSize);
+            }
+
+            return GetSimpleDimensionGroupedListPage(filter, sort, direction, page, pageSize, groupBy);
+        }
+
+        private AssetGroupListPageVm GetProductGroupedListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
         {
             var scope = ResolveScope(filter);
             var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
@@ -206,7 +219,86 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                     Sort = sort,
                     Direction = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc",
                     Page = safePage,
-                    PageSize = safePageSize
+                    PageSize = safePageSize,
+                    GroupBy = AssetListGroupBy.Product
+                };
+            }
+        }
+
+        private AssetGroupListPageVm GetSimpleDimensionGroupedListPage(
+            AssetFilterVm filter,
+            string sort,
+            string direction,
+            int page,
+            int pageSize,
+            string groupBy)
+        {
+            var dimension = ResolveListGroupDimension(groupBy);
+            var scope = ResolveScope(filter);
+            var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
+            var whereClause = BuildWhereClause(filter);
+            var orderBy = BuildSimpleDimensionGroupedOrderBy(sort, direction, dimension);
+            var countSql = @"
+SELECT COUNT(*) FROM (
+    SELECT 1 AS grp
+    " + FromClause + whereClause + @"
+    GROUP BY " + dimension.GroupBySql + @"
+) grouped";
+
+            var totalCount = 0;
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var countCommand = connection.CreateCommand())
+                {
+                    countCommand.CommandText = countSql;
+                    scope.AddScopeParameters(countCommand);
+                    AddFilterParameters(countCommand, filter);
+                    totalCount = Convert.ToInt32(countCommand.ExecuteScalar());
+                }
+
+                var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / safePageSize));
+                var safePage = Math.Min(Math.Max(page, 1), totalPages);
+                var skip = (safePage - 1) * safePageSize;
+                var sql = @"
+SELECT
+    " + dimension.GroupBySql + @" AS GroupDimensionValue,
+    COUNT(*) AS UnitCount,
+    SUM(a.[AcquisitionCost]) AS TotalAcquisitionCost,
+    " + dimension.LabelSelectSql + @"
+" + FromClause + whereClause + @"
+GROUP BY " + dimension.GroupBySql + @"
+ORDER BY " + orderBy + @"
+OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+                var items = new List<AssetGroupListVm>();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    scope.AddScopeParameters(command);
+                    AddFilterParameters(command, filter);
+                    SqlQueryHelper.AddParameter(command, "@Skip", skip);
+                    SqlQueryHelper.AddParameter(command, "@Take", safePageSize);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            items.Add(MapSimpleDimensionGroupItem(reader, dimension, groupBy));
+                        }
+                    }
+                }
+
+                return new AssetGroupListPageVm
+                {
+                    Items = items,
+                    TotalCount = totalCount,
+                    Search = filter == null ? null : filter.Search,
+                    Sort = sort,
+                    Direction = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc",
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    GroupBy = groupBy
                 };
             }
         }
@@ -217,9 +309,26 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             int? assetSubTypeId,
             int? groupDepartmentId,
             AssetStatus? groupStatus,
+            int? groupCategoryId,
+            int? groupAssetTypeId,
             int skip,
             int take)
         {
+            var groupBy = AssetListGroupBy.Normalize(filter == null ? null : filter.GroupBy);
+            if (!AssetListGroupBy.IsProduct(groupBy))
+            {
+                return GetSimpleDimensionGroupMembers(
+                    filter,
+                    groupBy,
+                    groupCategoryId,
+                    groupAssetTypeId,
+                    assetSubTypeId,
+                    groupDepartmentId,
+                    groupStatus,
+                    skip,
+                    take);
+            }
+
             var scope = ResolveScope(filter);
             var safeTake = take <= 0 ? 10 : Math.Min(take, 100);
             var safeSkip = Math.Max(skip, 0);
@@ -276,6 +385,86 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             };
         }
 
+        private AssetGroupMembersPageVm GetSimpleDimensionGroupMembers(
+            AssetFilterVm filter,
+            string groupBy,
+            int? groupCategoryId,
+            int? groupAssetTypeId,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus? groupStatus,
+            int skip,
+            int take)
+        {
+            var scope = ResolveScope(filter);
+            var safeTake = take <= 0 ? 10 : Math.Min(take, 100);
+            var safeSkip = Math.Max(skip, 0);
+            var groupMemberClause = BuildSimpleDimensionMemberWhereClause(groupBy);
+            var whereClause = BuildWhereClause(filter) + groupMemberClause;
+            var countSql = "SELECT COUNT(*)" + FromClause + whereClause;
+
+            var totalCount = 0;
+            var members = new List<AssetListVm>();
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var countCommand = connection.CreateCommand())
+                {
+                    countCommand.CommandText = countSql;
+                    scope.AddScopeParameters(countCommand);
+                    AddFilterParameters(countCommand, filter);
+                    AddSimpleDimensionMemberParameters(
+                        countCommand,
+                        groupBy,
+                        groupCategoryId,
+                        groupAssetTypeId,
+                        assetSubTypeId,
+                        groupDepartmentId,
+                        groupStatus);
+                    totalCount = Convert.ToInt32(countCommand.ExecuteScalar());
+                }
+
+                if (totalCount > 0 && safeSkip < totalCount)
+                {
+                    var sql = SelectColumns + FromClause + whereClause
+                        + " ORDER BY a.[AssetTag] ASC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = sql;
+                        scope.AddScopeParameters(command);
+                        AddFilterParameters(command, filter);
+                        AddSimpleDimensionMemberParameters(
+                            command,
+                            groupBy,
+                            groupCategoryId,
+                            groupAssetTypeId,
+                            assetSubTypeId,
+                            groupDepartmentId,
+                            groupStatus);
+                        SqlQueryHelper.AddParameter(command, "@Skip", safeSkip);
+                        SqlQueryHelper.AddParameter(command, "@Take", safeTake);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                members.Add(MapAssetListItem(reader));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new AssetGroupMembersPageVm
+            {
+                Items = members,
+                TotalCount = totalCount,
+                Skip = safeSkip,
+                Take = safeTake
+            };
+        }
+
         private static string BuildGroupMemberWhereClause()
         {
             return @" AND a.[AssetName] = @GroupAssetName
@@ -308,6 +497,215 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                 + ((int)status).ToString();
         }
 
+        private static string BuildSimpleDimensionGroupKey(string prefix, string valueToken)
+        {
+            return prefix + "|" + (valueToken ?? "0");
+        }
+
+        private static string BuildSimpleDimensionMemberWhereClause(string groupBy)
+        {
+            switch (AssetListGroupBy.Normalize(groupBy))
+            {
+                case AssetListGroupBy.Category:
+                    return " AND a.[CategoryId] = @GroupCategoryId";
+                case AssetListGroupBy.Type:
+                    return " AND a.[AssetTypeId] = @GroupAssetTypeId";
+                case AssetListGroupBy.SubType:
+                    return @" AND ((@GroupAssetSubTypeId IS NULL AND a.[AssetSubTypeId] IS NULL) OR a.[AssetSubTypeId] = @GroupAssetSubTypeId)";
+                case AssetListGroupBy.Status:
+                    return " AND a.[CurrentStatus] = @GroupCurrentStatus";
+                default:
+                    return @" AND ((@GroupDepartmentId IS NULL AND a.[DepartmentId] IS NULL) OR a.[DepartmentId] = @GroupDepartmentId)";
+            }
+        }
+
+        private static void AddSimpleDimensionMemberParameters(
+            IDbCommand command,
+            string groupBy,
+            int? groupCategoryId,
+            int? groupAssetTypeId,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus? groupStatus)
+        {
+            switch (AssetListGroupBy.Normalize(groupBy))
+            {
+                case AssetListGroupBy.Category:
+                    if (!groupCategoryId.HasValue)
+                    {
+                        throw new InvalidOperationException("Category group members require groupCategoryId.");
+                    }
+
+                    SqlQueryHelper.AddParameter(command, "@GroupCategoryId", groupCategoryId.Value);
+                    return;
+                case AssetListGroupBy.Type:
+                    if (!groupAssetTypeId.HasValue)
+                    {
+                        throw new InvalidOperationException("Type group members require groupAssetTypeId.");
+                    }
+
+                    SqlQueryHelper.AddParameter(command, "@GroupAssetTypeId", groupAssetTypeId.Value);
+                    return;
+                case AssetListGroupBy.SubType:
+                    SqlQueryHelper.AddParameter(command, "@GroupAssetSubTypeId",
+                        assetSubTypeId.HasValue ? (object)assetSubTypeId.Value : DBNull.Value);
+                    return;
+                case AssetListGroupBy.Status:
+                    if (!groupStatus.HasValue)
+                    {
+                        throw new InvalidOperationException("Status group members require groupStatus.");
+                    }
+
+                    SqlQueryHelper.AddParameter(command, "@GroupCurrentStatus", (int)groupStatus.Value);
+                    return;
+                default:
+                    SqlQueryHelper.AddParameter(command, "@GroupDepartmentId",
+                        groupDepartmentId.HasValue ? (object)groupDepartmentId.Value : DBNull.Value);
+                    return;
+            }
+        }
+
+        private static ListGroupDimensionDefinition ResolveListGroupDimension(string groupBy)
+        {
+            switch (AssetListGroupBy.Normalize(groupBy))
+            {
+                case AssetListGroupBy.Category:
+                    return new ListGroupDimensionDefinition
+                    {
+                        GroupBySql = "a.[CategoryId]",
+                        LabelSelectSql = "MAX(c.[Name]) AS GroupLabel",
+                        OrderLabelSql = "MAX(c.[Name])",
+                        KeyPrefix = "cat"
+                    };
+                case AssetListGroupBy.Type:
+                    return new ListGroupDimensionDefinition
+                    {
+                        GroupBySql = "a.[AssetTypeId]",
+                        LabelSelectSql = "MAX(at.[Name]) AS GroupLabel",
+                        OrderLabelSql = "MAX(at.[Name])",
+                        KeyPrefix = "type"
+                    };
+                case AssetListGroupBy.SubType:
+                    return new ListGroupDimensionDefinition
+                    {
+                        GroupBySql = "a.[AssetSubTypeId]",
+                        LabelSelectSql = "MAX(st.[Name]) AS GroupLabel",
+                        OrderLabelSql = "MAX(st.[Name])",
+                        KeyPrefix = "subtype"
+                    };
+                case AssetListGroupBy.Status:
+                    return new ListGroupDimensionDefinition
+                    {
+                        GroupBySql = "a.[CurrentStatus]",
+                        LabelSelectSql = "a.[CurrentStatus] AS GroupStatus",
+                        OrderLabelSql = "a.[CurrentStatus]",
+                        KeyPrefix = "status",
+                        IsStatus = true
+                    };
+                default:
+                    return new ListGroupDimensionDefinition
+                    {
+                        GroupBySql = "a.[DepartmentId]",
+                        LabelSelectSql = "MAX(d.[Name]) AS GroupLabel",
+                        OrderLabelSql = "MAX(d.[Name])",
+                        KeyPrefix = "dept",
+                        AllowsNullLabel = true,
+                        NullLabel = "Company custody"
+                    };
+            }
+        }
+
+        private static AssetGroupListVm MapSimpleDimensionGroupItem(
+            IDataReader reader,
+            ListGroupDimensionDefinition dimension,
+            string groupBy)
+        {
+            var item = new AssetGroupListVm
+            {
+                Count = Convert.ToInt32(reader["UnitCount"]),
+                TotalAcquisitionCost = Convert.ToDecimal(reader["TotalAcquisitionCost"])
+            };
+
+            if (dimension.IsStatus)
+            {
+                var status = (AssetStatus)Convert.ToInt32(reader["GroupDimensionValue"]);
+                item.CurrentStatus = status;
+                item.GroupLabel = status.ToString();
+                item.GroupKey = BuildSimpleDimensionGroupKey(dimension.KeyPrefix, ((int)status).ToString());
+                return item;
+            }
+
+            int? nullableId = reader["GroupDimensionValue"] == DBNull.Value
+                ? (int?)null
+                : Convert.ToInt32(reader["GroupDimensionValue"]);
+            var label = SqlQueryHelper.GetString(reader, "GroupLabel");
+            if (dimension.AllowsNullLabel && !nullableId.HasValue)
+            {
+                label = dimension.NullLabel;
+            }
+            else if (string.Equals(groupBy, AssetListGroupBy.SubType, StringComparison.OrdinalIgnoreCase)
+                && !nullableId.HasValue)
+            {
+                label = "No sub-type";
+            }
+            else if (string.Equals(groupBy, AssetListGroupBy.Category, StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrWhiteSpace(label))
+            {
+                label = "Uncategorized";
+            }
+            else if (string.IsNullOrWhiteSpace(label))
+            {
+                label = "Unspecified";
+            }
+            else if (string.Equals(groupBy, AssetListGroupBy.SubType, StringComparison.OrdinalIgnoreCase))
+            {
+                label = AssetSubTypeNormalizer.NormalizeName(label);
+            }
+
+            item.GroupLabel = label;
+            item.AssetName = label;
+            item.GroupKey = BuildSimpleDimensionGroupKey(dimension.KeyPrefix, nullableId.HasValue ? nullableId.Value.ToString() : "0");
+
+            if (string.Equals(groupBy, AssetListGroupBy.Category, StringComparison.OrdinalIgnoreCase))
+            {
+                item.CategoryId = nullableId;
+                item.CategoryName = label;
+            }
+            else if (string.Equals(groupBy, AssetListGroupBy.Type, StringComparison.OrdinalIgnoreCase))
+            {
+                item.AssetTypeId = nullableId;
+            }
+            else if (string.Equals(groupBy, AssetListGroupBy.SubType, StringComparison.OrdinalIgnoreCase))
+            {
+                item.AssetSubTypeId = nullableId;
+                item.AssetSubTypeName = label;
+            }
+            else if (string.Equals(groupBy, AssetListGroupBy.Department, StringComparison.OrdinalIgnoreCase))
+            {
+                item.DepartmentId = nullableId;
+                item.DepartmentName = label;
+            }
+
+            return item;
+        }
+
+        private sealed class ListGroupDimensionDefinition
+        {
+            public string GroupBySql { get; set; }
+
+            public string LabelSelectSql { get; set; }
+
+            public string OrderLabelSql { get; set; }
+
+            public string KeyPrefix { get; set; }
+
+            public bool IsStatus { get; set; }
+
+            public bool AllowsNullLabel { get; set; }
+
+            public string NullLabel { get; set; }
+        }
+
         private static string BuildGroupedOrderBy(string sort, string direction)
         {
             var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
@@ -323,6 +721,26 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                     return desc ? "SUM(a.[AcquisitionCost]) DESC" : "SUM(a.[AcquisitionCost]) ASC";
                 default:
                     return desc ? "COUNT(*) DESC, a.[AssetName] DESC" : "COUNT(*) ASC, a.[AssetName] ASC";
+            }
+        }
+
+        private static string BuildSimpleDimensionGroupedOrderBy(string sort, string direction, ListGroupDimensionDefinition dimension)
+        {
+            var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+            switch ((sort ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "department":
+                case "category":
+                case "name":
+                    return desc ? dimension.OrderLabelSql + " DESC" : dimension.OrderLabelSql + " ASC";
+                case "status":
+                    return desc ? "a.[CurrentStatus] DESC" : "a.[CurrentStatus] ASC";
+                case "acquisition":
+                    return desc ? "SUM(a.[AcquisitionCost]) DESC" : "SUM(a.[AcquisitionCost]) ASC";
+                default:
+                    return desc
+                        ? "COUNT(*) DESC, " + dimension.OrderLabelSql + " DESC"
+                        : "COUNT(*) ASC, " + dimension.OrderLabelSql + " ASC";
             }
         }
 
@@ -568,6 +986,7 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                 DepartmentName = SqlQueryHelper.GetString(record, "DepartmentName"),
                 DepartmentId = record["DepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(record["DepartmentId"]),
                 AssetTypeId = Convert.ToInt32(record["AssetTypeId"]),
+                AssetTypeName = SqlQueryHelper.GetString(record, "AssetTypeName"),
                 AssetSubTypeId = record["AssetSubTypeId"] == DBNull.Value ? (int?)null : Convert.ToInt32(record["AssetSubTypeId"]),
                 Brand = SqlQueryHelper.GetString(record, "Brand"),
                 Model = SqlQueryHelper.GetString(record, "Model"),

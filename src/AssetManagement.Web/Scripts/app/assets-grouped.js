@@ -67,20 +67,119 @@
         }
     }
 
+    var contextColumnDefinitions = [
+        { id: "category", label: "Category", field: "categoryName" },
+        { id: "type", label: "Type", field: "assetTypeName" },
+        { id: "subtype", label: "Sub-type", field: "assetSubTypeName" },
+        { id: "department", label: "Department", field: "departmentName" },
+        { id: "status", label: "Status", type: "status" }
+    ];
+
+    var hiddenContextColumnsByGroup = {
+        product: ["category", "type", "subtype", "department", "status"],
+        department: ["department"],
+        category: ["category"],
+        type: ["type"],
+        subtype: ["subtype"],
+        status: ["status"]
+    };
+
+    function getContextColumns(groupBy) {
+        var hidden = hiddenContextColumnsByGroup[groupBy] || hiddenContextColumnsByGroup.product;
+        return contextColumnDefinitions.filter(function (column) {
+            return hidden.indexOf(column.id) === -1;
+        });
+    }
+
     function getMemberColspan(panel) {
-        return config.canBulkEdit ? 6 : 5;
+        return getMemberColumnCount(resolveGroupBy(panel));
+    }
+
+    function getMemberColumnCount(groupBy) {
+        var count = 4 + getContextColumns(groupBy).length;
+        if (config.canBulkEdit) {
+            count += 1;
+        }
+        return count;
+    }
+
+    function displayValue(value) {
+        if (value === null || value === undefined || value === "") {
+            return config.emptyLabel || "—";
+        }
+        return value;
+    }
+
+    function ensureMemberTableHeader(panel) {
+        var headRow = panel.querySelector("[data-am-group-member-head] tr");
+        if (!headRow) {
+            return;
+        }
+
+        var groupBy = resolveGroupBy(panel);
+        var columns = getContextColumns(groupBy);
+        var html = "";
+
+        if (config.canBulkEdit) {
+            html += '<th class="fw-normal am-bulk-col"><input type="checkbox" class="form-check-input" data-am-bulk-group-master aria-label="Select all units in group" /></th>';
+        }
+
+        html += '<th class="fw-normal">Tag</th>';
+        html += '<th class="fw-normal">Name</th>';
+        columns.forEach(function (column) {
+            html += '<th class="fw-normal">' + column.label + "</th>";
+        });
+        html += '<th class="fw-normal">Custodian</th>';
+        html += '<th class="fw-normal text-end">Cost</th>';
+        html += '<th class="fw-normal text-end">Actions</th>';
+        headRow.innerHTML = html;
+    }
+
+    function resolveGroupBy(panel) {
+        var panelGroupBy = panel ? panel.getAttribute("data-am-group-by") : "";
+        if (panelGroupBy) {
+            return panelGroupBy;
+        }
+        return config.groupBy || "product";
+    }
+
+    function isProductGroupBy(panel) {
+        return resolveGroupBy(panel) === "product";
     }
 
     function buildMembersQuery(panel, skip, take) {
         var params = [];
         var listFilter = config.listFilter || {};
+        var groupBy = resolveGroupBy(panel);
 
-        params.push("assetName=" + encodeURIComponent(panel.getAttribute("data-am-group-asset-name") || ""));
-        params.push("assetSubTypeId=" + encodeURIComponent(panel.getAttribute("data-am-group-sub-type-id") || ""));
-        params.push("groupDepartmentId=" + encodeURIComponent(panel.getAttribute("data-am-group-department-id") || ""));
-        var groupStatus = panel.getAttribute("data-am-group-status");
-        if (groupStatus) {
-            params.push("groupStatus=" + encodeURIComponent(groupStatus));
+        params.push("groupBy=" + encodeURIComponent(groupBy));
+        var groupKey = panel.getAttribute("data-am-group-key") || "";
+        if (groupKey) {
+            params.push("groupKey=" + encodeURIComponent(groupKey));
+        }
+        if (!isProductGroupBy(panel)) {
+            if (groupBy === "category") {
+                params.push("groupCategoryId=" + encodeURIComponent(panel.getAttribute("data-am-group-category-id") || ""));
+            } else if (groupBy === "type") {
+                params.push("groupAssetTypeId=" + encodeURIComponent(panel.getAttribute("data-am-group-asset-type-id") || ""));
+            } else if (groupBy === "subtype") {
+                params.push("assetSubTypeId=" + encodeURIComponent(panel.getAttribute("data-am-group-sub-type-id") || ""));
+            } else if (groupBy === "status") {
+                var groupStatus = panel.getAttribute("data-am-group-status");
+                if (groupStatus) {
+                    params.push("groupStatus=" + encodeURIComponent(groupStatus));
+                }
+            } else if (groupBy === "department") {
+                params.push("groupDepartmentId=" + encodeURIComponent(panel.getAttribute("data-am-group-department-id") || ""));
+            }
+        } else {
+            params.push("assetName=" + encodeURIComponent(panel.getAttribute("data-am-group-asset-name") || ""));
+            params.push("assetSubTypeId=" + encodeURIComponent(panel.getAttribute("data-am-group-sub-type-id") || ""));
+            params.push("groupDepartmentId=" + encodeURIComponent(panel.getAttribute("data-am-group-department-id") || ""));
+            var groupStatus = panel.getAttribute("data-am-group-status");
+            if (groupStatus) {
+                params.push("groupStatus=" + encodeURIComponent(groupStatus));
+            }
         }
         params.push("skip=" + encodeURIComponent(String(skip || 0)));
         params.push("take=" + encodeURIComponent(String(take || memberPageSize)));
@@ -98,9 +197,10 @@
         return (config.groupMembersUrl || "") + "?" + params.join("&");
     }
 
-    function renderMemberRow(item) {
+    function renderMemberRow(item, panel) {
         var row = document.createElement("tr");
         row.className = "am-group-member-row";
+        var columns = getContextColumns(resolveGroupBy(panel));
 
         if (config.canBulkEdit) {
             var bulkCell = document.createElement("td");
@@ -123,10 +223,22 @@
         nameCell.innerHTML = nameHtml;
         row.appendChild(nameCell);
 
+        columns.forEach(function (column) {
+            var cell = document.createElement("td");
+            cell.className = "align-middle text-muted small";
+            if (column.type === "status") {
+                cell.className = "align-middle";
+                cell.innerHTML = '<span class="badge bg-' + item.statusBadgeClass + ' badge-status">' + displayValue(item.statusLabel) + "</span>";
+            } else {
+                cell.textContent = displayValue(item[column.field]);
+            }
+            row.appendChild(cell);
+        });
+
         var custodianCell = document.createElement("td");
         custodianCell.className = "align-middle text-muted small";
         var custodianLabel = item.custodianName || config.unassignedLabel || "Unassigned";
-        var custodianClass = !item.custodianName ? "am-empty-custodian" : "";
+        var custodianClass = item.custodianName === config.unassignedLabel || !item.custodianName ? "am-empty-custodian" : "";
         custodianCell.innerHTML = custodianClass
             ? '<span class="' + custodianClass + '">' + custodianLabel + "</span>"
             : custodianLabel;
@@ -235,6 +347,7 @@
         panel.setAttribute("data-am-group-loading", "true");
 
         if (!append) {
+            ensureMemberTableHeader(panel);
             tbody.innerHTML = '<tr class="am-group-member-loading"><td colspan="' + getMemberColspan(panel) + '" class="text-muted small py-2">Loading units…</td></tr>';
         }
 
@@ -260,7 +373,7 @@
                     }
                 } else {
                     payload.items.forEach(function (item) {
-                        tbody.appendChild(renderMemberRow(item));
+                        tbody.appendChild(renderMemberRow(item, panel));
                     });
                 }
 
@@ -435,6 +548,9 @@
         });
     }
 
-    document.querySelectorAll("[data-am-group-panel]").forEach(wireGroupMaster);
+    document.querySelectorAll("[data-am-group-panel]").forEach(function (panel) {
+        ensureMemberTableHeader(panel);
+        wireGroupMaster(panel);
+    });
     restoreExpandedGroups();
 })();

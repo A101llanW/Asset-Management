@@ -97,12 +97,20 @@
                 </div>
                 <div class="col-md-3">
                     @Html.LabelFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-label" })
-                    @Html.TextBoxFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-control", type = "number", min = "1", max = "10" })
+                    @Html.TextBoxFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-control", type = "number", min = "0.5", max = "10", step = "0.5" })
+                    <div class="form-text">0.5 is the smallest printable size on Zebra printers.</div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-3 d-flex align-items-end">
+                    <a href="@Url.Action("LabelDesigner", "Settings")" class="btn btn-outline-primary w-100">Design label layout</a>
+                </div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">Use the label designer to choose fields, drag them into position, and preview how Zebra labels will print.</p>
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
                     @Html.LabelFor(m => m.LabelPrinter.LayoutPreset, new { @class = "form-label" })
                     @Html.DropDownListFor(m => m.LabelPrinter.LayoutPreset, new SelectList(new[]
                     {
+                        new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutCustom, Text = "Custom (label designer)" },
                         new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutQrWithMeta, Text = "QR + metadata" },
                         new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutQrCompact, Text = "QR compact" },
                         new { Value = AssetManagement.Application.Helpers.LabelPrinterSettingsHelper.LayoutQrOnly, Text = "QR only" }

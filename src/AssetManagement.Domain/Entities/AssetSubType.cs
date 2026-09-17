@@ -11,6 +11,9 @@ namespace AssetManagement.Domain.Entities
         public string Model { get; set; }
         public string Specifications { get; set; }
         public string Sku { get; set; }
+
+        public decimal? DefaultAcquisitionCost { get; set; }
+
         public virtual AssetType AssetType { get; set; }
     }
 }

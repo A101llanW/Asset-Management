@@ -1,6 +1,7 @@
 /*
- * React Bits-inspired motion utilities (vanilla CSS).
- * Adapted from: Fade Content, Animated List, Click Spark, Bounce Cards.
+ * React Bits-inspired motion utilities (vanilla CSS for ASP.NET MVC).
+ * Ports: FadeContent, AnimatedList, ClickSpark, CountUp, SplitText, LineSidebar,
+ * MagicBento, SpotlightCard, BorderGlow, GlareHover, TextType, Stepper, Waves.
  */
 
 /* ---- Page entrance (Fade Content / Animated Content) ---- */
@@ -208,6 +209,307 @@
     color: #fff;
 }
 
+/* ---- SplitText / BlurText (page titles) ---- */
+.am-split-text .am-split-word {
+    display: inline-block;
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(10px);
+    animation: amSplitWordIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--am-split-index, 0) * 0.06s);
+}
+
+@keyframes amSplitWordIn {
+    to {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+    }
+}
+
+/* ---- CountUp (KPI numbers) ---- */
+.am-count-up {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- MagicBento (dashboard KPI tiles) ---- */
+.am-magic-bento {
+    --am-bento-gap: 1rem;
+}
+
+.am-magic-bento > * {
+    position: relative;
+    border-radius: 1rem;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.am-magic-bento > *:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 32px -12px hsla(210, 70%, 15%, 0.18);
+}
+
+/* ---- SpotlightCard ---- */
+.am-spotlight-card {
+    --am-spotlight-x: 50%;
+    --am-spotlight-y: 50%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+}
+
+.am-spotlight-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(
+        420px circle at var(--am-spotlight-x) var(--am-spotlight-y),
+        hsla(200, 85%, 52%, 0.14),
+        transparent 55%
+    );
+}
+
+.am-spotlight-card:hover::before,
+.am-spotlight-card:focus-within::before {
+    opacity: 1;
+}
+
+.am-spotlight-card > .card-body,
+.am-spotlight-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ---- BorderGlow (critical / selected, hover only) ---- */
+.am-border-glow {
+    position: relative;
+    border-radius: 0.75rem;
+}
+
+.am-border-glow::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: linear-gradient(
+        135deg,
+        hsla(355, 75%, 55%, 0.55),
+        hsla(38, 92%, 50%, 0.35),
+        hsla(200, 85%, 52%, 0.45)
+    );
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    padding: 2px;
+}
+
+.am-border-glow:hover::after,
+.am-border-glow:focus-within::after,
+.am-border-glow.is-active::after {
+    opacity: 1;
+}
+
+/* ---- GlareHover (primary CTAs only) ---- */
+.am-glare-hover {
+    position: relative;
+    overflow: hidden;
+}
+
+.am-glare-hover::after {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-120%) rotate(18deg);
+    background: linear-gradient(
+        90deg,
+        transparent,
+        hsla(0, 0%, 100%, 0.35),
+        transparent
+    );
+    transition: opacity 0.2s ease;
+}
+
+.am-glare-hover:hover::after,
+.am-glare-hover:focus-visible::after {
+    opacity: 1;
+    animation: amGlareSweep 0.75s ease-out forwards;
+}
+
+@keyframes amGlareSweep {
+    from {
+        transform: translateX(-120%) rotate(18deg);
+    }
+    to {
+        transform: translateX(120%) rotate(18deg);
+    }
+}
+
+/* ---- TextType (empty states, once) ---- */
+.am-text-type::after {
+    content: "|";
+    margin-left: 1px;
+    animation: amTextTypeCaret 0.9s step-end infinite;
+}
+
+.am-text-type.is-complete::after {
+    display: none;
+}
+
+@keyframes amTextTypeCaret {
+    50% {
+        opacity: 0;
+    }
+}
+
+/* ---- LineSidebar flowing indicator ---- */
+.am-line-sidebar {
+    position: relative;
+}
+
+.am-line-sidebar-indicator {
+    position: absolute;
+    left: 0.35rem;
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--am-primary), var(--am-module-accent));
+    box-shadow: 0 0 12px hsla(200, 85%, 52%, 0.55);
+    pointer-events: none;
+    opacity: 0;
+    transition:
+        transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+        height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.25s ease;
+    z-index: 2;
+}
+
+.am-line-sidebar.has-active .am-line-sidebar-indicator {
+    opacity: 1;
+}
+
+/* ---- Stepper (workflow wizards) ---- */
+.am-stepper {
+    position: relative;
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+}
+
+.am-stepper-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: hsla(210, 70%, 15%, 0.08);
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.am-stepper-progress {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, var(--am-primary), var(--am-primary-strong));
+    border-radius: 999px;
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+}
+
+.am-stepper .am-wizard-step {
+    position: relative;
+    z-index: 1;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.am-stepper .am-wizard-step.is-complete .am-wizard-step-num {
+    background: var(--am-success);
+}
+
+/* ---- Animated list (cap handled in JS) ---- */
+.am-animated-list > tr.am-list-animate {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: amStaggerIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--am-stagger-index, 0) * 0.05s);
+}
+
+/* ---- CSS Waves background (login / splash only) ---- */
+.am-waves-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: linear-gradient(165deg, hsl(215, 40%, 97%) 0%, hsl(210, 35%, 92%) 45%, hsl(205, 45%, 88%) 100%);
+}
+
+body.am-auth-theme-dark .am-waves-bg {
+    background: linear-gradient(165deg, hsl(222, 35%, 8%) 0%, hsl(215, 40%, 12%) 50%, hsl(210, 50%, 16%) 100%);
+}
+
+.am-waves-bg__layer {
+    position: absolute;
+    left: -10%;
+    width: 120%;
+    height: 42%;
+    opacity: 0.45;
+    background-repeat: repeat-x;
+    background-size: 1200px 100%;
+    animation: amWaveDrift 22s linear infinite;
+}
+
+.am-waves-bg__layer--1 {
+    bottom: 18%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath fill='hsla(200,85%%,52%%,0.12)' d='M0,60 C150,100 350,20 600,60 C850,100 1050,20 1200,60 L1200,120 L0,120 Z'/%3E%3C/svg%3E");
+}
+
+.am-waves-bg__layer--2 {
+    bottom: 8%;
+    opacity: 0.3;
+    animation-duration: 32s;
+    animation-direction: reverse;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath fill='hsla(205,90%%,45%%,0.18)' d='M0,80 C200,40 400,100 600,70 C800,40 1000,100 1200,70 L1200,120 L0,120 Z'/%3E%3C/svg%3E");
+}
+
+body.am-auth-theme-dark .am-waves-bg__layer--1 {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath fill='hsla(200,85%%,62%%,0.14)' d='M0,60 C150,100 350,20 600,60 C850,100 1050,20 1200,60 L1200,120 L0,120 Z'/%3E%3C/svg%3E");
+}
+
+body.am-auth-theme-dark .am-waves-bg__layer--2 {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath fill='hsla(200,85%%,52%%,0.1)' d='M0,80 C200,40 400,100 600,70 C800,40 1000,100 1200,70 L1200,120 L0,120 Z'/%3E%3C/svg%3E");
+}
+
+@keyframes amWaveDrift {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-600px);
+    }
+}
+
+.am-support-session-overlay .am-waves-bg {
+    position: absolute;
+    background: linear-gradient(165deg, hsl(210, 68%, 10%) 0%, hsl(205, 55%, 18%) 100%);
+}
+
+/* ---- Tab hidden: pause decorative motion ---- */
+.am-motion-paused .am-waves-bg__layer,
+.am-motion-paused .am-stagger > *,
+.am-motion-paused .am-animated-list > tr.am-list-animate {
+    animation-play-state: paused !important;
+}
+
 /* ---- Accessibility ---- */
 @media (prefers-reduced-motion: reduce) {
     .am-page-enter,
@@ -218,7 +520,12 @@
     .am-loading-orbit::before,
     .am-loading-orbit::after,
     .am-click-ripple__wave,
-    .btn[aria-busy="true"]::after {
+    .btn[aria-busy="true"]::after,
+    .am-split-text .am-split-word,
+    .am-animated-list > tr.am-list-animate,
+    .am-glare-hover::after,
+    .am-waves-bg__layer,
+    .am-text-type::after {
         animation: none !important;
         transition: none !important;
     }
@@ -227,12 +534,28 @@
     .am-stagger > *,
     .am-stagger-list > *,
     .am-fade-content,
-    .am-fade-content.is-visible {
+    .am-fade-content.is-visible,
+    .am-split-text .am-split-word,
+    .am-animated-list > tr.am-list-animate {
         opacity: 1 !important;
         transform: none !important;
+        filter: none !important;
     }
 
     .am-skeleton {
         background: hsla(210, 20%, 92%, 1);
+    }
+
+    .am-magic-bento > *:hover {
+        transform: none;
+    }
+
+    .am-spotlight-card::before,
+    .am-border-glow::after {
+        opacity: 0 !important;
+    }
+
+    .am-line-sidebar-indicator {
+        transition: none;
     }
 }

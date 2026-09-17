@@ -1,6 +1,7 @@
 @model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
 @using System
 @using System.Linq
+@using AssetManagement.Application.Helpers
 @using AssetManagement.Application.ViewModels
 @using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
@@ -18,6 +19,11 @@
     var listViewMode = ViewBag.ListViewMode as string ?? "grouped";
     var groupedPage = ViewBag.GroupedPage as AssetGroupListPageVm;
     var isGrouped = string.Equals(listViewMode, "grouped", StringComparison.OrdinalIgnoreCase);
+    var groupBy = AssetListGroupBy.Normalize(groupedPage != null && !string.IsNullOrWhiteSpace(groupedPage.GroupBy)
+        ? groupedPage.GroupBy
+        : ViewBag.GroupBy as string);
+    var isSimpleGroupBy = AssetListGroupBy.IsSimpleDimension(groupBy);
+    var groupColumnLabel = AssetListGroupBy.GetColumnLabel(groupBy);
     var listFilter = ViewBag.Filter as AssetFilterVm ?? new AssetFilterVm();
     var canAssignAssets = Html.HasPermission("Assets.Assign");
     var showBatchAssignEntry = canAssignAssets
@@ -39,7 +45,7 @@
 
 <div class="card card-kpi border-0 shadow-sm mb-4 am-fade-content">
     <div class="card-body p-3">
-        <form class="am-list-toolbar mb-0" method="get">
+        <form class="am-list-toolbar mb-0" method="get" id="amAssetListFilterForm">
             <div class="row g-2 align-items-center">
                 <div class="col-md-4">
                     <input type="text" class="form-control" name="Search" placeholder="Search tag, name, serial, custodian..." value="@Model.Search" data-am-table-filter />
@@ -94,7 +100,7 @@
     </div>
 }
 
-@if (canBulkEdit)
+@if (canBulkEdit || isGrouped)
 {
     @Html.Partial("_ListBulkToolbar")
 }
@@ -106,11 +112,11 @@
             <div class="text-muted mb-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-info"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             </div>
-            <h5 class="fw-bold text-dark">@(string.IsNullOrWhiteSpace(Model.Search) ? "No assets yet" : "No assets match these filters")</h5>
-            <p class="text-muted mb-4">@(string.IsNullOrWhiteSpace(Model.Search) ? "Start by creating your first asset record, then use the asset profile to assign it, transfer it, or track maintenance." : "Try adjusting the search, department, or status filters to widen the results.")</p>
+            <h5 class="fw-bold text-dark am-split-text" data-am-split-text="@(string.IsNullOrWhiteSpace(Model.Search) ? "No assets yet" : "No assets match these filters")">@(string.IsNullOrWhiteSpace(Model.Search) ? "No assets yet" : "No assets match these filters")</h5>
+            <p class="text-muted mb-4 am-text-type" data-am-text-type="@(string.IsNullOrWhiteSpace(Model.Search) ? "Start by creating your first asset record, then use the asset profile to assign it, transfer it, or track maintenance." : "Try adjusting the search, department, or status filters to widen the results.")">@(string.IsNullOrWhiteSpace(Model.Search) ? "Start by creating your first asset record, then use the asset profile to assign it, transfer it, or track maintenance." : "Try adjusting the search, department, or status filters to widen the results.")</p>
             @if (canCreateAsset)
             {
-                <a class="btn btn-primary am-click-spark" href="@Url.Action("Create")">Create Asset</a>
+                <a class="btn btn-primary am-click-spark am-glare-hover" href="@Url.Action("Create")">Create Asset</a>
             }
         </div>
     </div>
@@ -137,14 +143,24 @@ else if (isGrouped && groupedPage != null)
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr class="bg-light text-secondary">
-                            <th class="ps-3">Name</th>
-                            <th>Category</th>
-                            <th>Department</th>
-                            <th>Sub-type</th>
-                            <th>Status</th>
-                            <th>Units</th>
-                            <th>Total cost</th>
-                            <th class="text-end pe-3"></th>
+                            @if (isSimpleGroupBy)
+                            {
+                                <th class="ps-3">@groupColumnLabel</th>
+                                <th>Units</th>
+                                <th>Total cost</th>
+                                <th class="text-end pe-3"></th>
+                            }
+                            else
+                            {
+                                <th class="ps-3">Name</th>
+                                <th>Category</th>
+                                <th>Department</th>
+                                <th>Sub-type</th>
+                                <th>Status</th>
+                                <th>Units</th>
+                                <th>Total cost</th>
+                                <th class="text-end pe-3"></th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
@@ -155,16 +171,38 @@ else if (isGrouped && groupedPage != null)
                     {
                         var groupCollapseId = "asset-group-" + groupIndex;
                         groupIndex++;
+                        var summaryColspan = isSimpleGroupBy ? 4 : 8;
+                        var groupLabel = isSimpleGroupBy
+                            ? (string.IsNullOrWhiteSpace(group.GroupLabel) ? group.AssetName : group.GroupLabel)
+                            : group.AssetName;
                         <tr class="am-group-summary-row">
-                            <td class="ps-3 fw-bold">@group.AssetName</td>
-                            <td>@group.CategoryName</td>
-                            <td>@(string.IsNullOrWhiteSpace(group.DepartmentName) ? "Company custody" : group.DepartmentName)</td>
-                            <td>@(string.IsNullOrWhiteSpace(group.AssetSubTypeName) ? DisplayText.Empty : group.AssetSubTypeName)</td>
-                            <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(group.CurrentStatus) badge-status">@group.CurrentStatus</span></td>
-                            <td>@group.Count</td>
-                            <td>@Html.FormatCurrency(group.TotalAcquisitionCost)</td>
+                            @if (isSimpleGroupBy)
+                            {
+                                <td class="ps-3 fw-bold">
+                                    @if (string.Equals(groupBy, AssetListGroupBy.Status, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(group.CurrentStatus) badge-status">@groupLabel</span>
+                                    }
+                                    else
+                                    {
+                                        @groupLabel
+                                    }
+                                </td>
+                                <td>@group.Count</td>
+                                <td>@Html.FormatCurrency(group.TotalAcquisitionCost)</td>
+                            }
+                            else
+                            {
+                                <td class="ps-3 fw-bold">@group.AssetName</td>
+                                <td>@group.CategoryName</td>
+                                <td>@(string.IsNullOrWhiteSpace(group.DepartmentName) ? "Company custody" : group.DepartmentName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(group.AssetSubTypeName) ? DisplayText.Empty : group.AssetSubTypeName)</td>
+                                <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(group.CurrentStatus) badge-status">@group.CurrentStatus</span></td>
+                                <td>@group.Count</td>
+                                <td>@Html.FormatCurrency(group.TotalAcquisitionCost)</td>
+                            }
                             <td class="text-end pe-3 text-nowrap">
-                                @if (canRelocateAsset && classDepartments != null && classDepartments.Any())
+                                @if (!isSimpleGroupBy && canRelocateAsset && classDepartments != null && classDepartments.Any())
                                 {
                                     var groupStatusRelocatable = group.CurrentStatus == AssetStatus.InStore
                                         || group.CurrentStatus == AssetStatus.Received
@@ -192,35 +230,23 @@ else if (isGrouped && groupedPage != null)
                             </td>
                         </tr>
                         <tr class="am-group-detail-row" hidden="hidden" data-am-group-detail-row>
-                            <td colspan="8" class="bg-light p-0 border-0">
+                            <td colspan="@summaryColspan" class="bg-light p-0 border-0">
                                 <div class="collapse"
                                      id="@groupCollapseId"
                                      data-am-group-panel
+                                     data-am-group-by="@groupBy"
                                      data-am-group-key="@group.GroupKey"
-                                     data-am-group-asset-name="@group.AssetName"
+                                     data-am-group-asset-name="@(isSimpleGroupBy ? string.Empty : group.AssetName)"
+                                     data-am-group-category-id="@(group.CategoryId.HasValue ? group.CategoryId.Value.ToString() : string.Empty)"
+                                     data-am-group-asset-type-id="@(group.AssetTypeId.HasValue ? group.AssetTypeId.Value.ToString() : string.Empty)"
                                      data-am-group-sub-type-id="@(group.AssetSubTypeId.HasValue ? group.AssetSubTypeId.Value.ToString() : string.Empty)"
                                      data-am-group-department-id="@(group.DepartmentId.HasValue ? group.DepartmentId.Value.ToString() : string.Empty)"
                                      data-am-group-status="@((int)group.CurrentStatus)"
                                      data-am-group-count="@group.Count">
                                     <div class="py-2 px-3">
                                         <table class="table table-sm table-borderless mb-0 am-group-members-table">
-                                            <thead class="text-muted small">
-                                                <tr>
-                                                    @if (canBulkEdit)
-                                                    {
-                                                        <th class="fw-normal am-bulk-col">
-                                                            <input type="checkbox"
-                                                                   class="form-check-input"
-                                                                   data-am-bulk-group-master
-                                                                   aria-label="Select all units in @group.AssetName" />
-                                                        </th>
-                                                    }
-                                                    <th class="fw-normal">Tag</th>
-                                                    <th class="fw-normal">Name</th>
-                                                    <th class="fw-normal">Custodian</th>
-                                                    <th class="fw-normal text-end">Cost</th>
-                                                    <th class="fw-normal text-end">Actions</th>
-                                                </tr>
+                                            <thead class="text-muted small" data-am-group-member-head>
+                                                <tr></tr>
                                             </thead>
                                             <tbody data-am-group-members data-am-group-key="@group.GroupKey"></tbody>
                                         </table>
@@ -262,6 +288,7 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("page", Model.Page)
                         @Html.Hidden("pageSize", Model.PageSize)
                         @Html.Hidden("view", "grouped")
+                        @Html.Hidden("groupBy", groupBy)
                         <div class="modal-header">
                             <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to class</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -297,6 +324,7 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("page", Model.Page)
                         @Html.Hidden("pageSize", Model.PageSize)
                         @Html.Hidden("view", "grouped")
+                        @Html.Hidden("groupBy", groupBy)
                         <div class="modal-header">
                             <h5 class="modal-title" id="amRelocateGroupModalLabel">Move group to class</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -338,7 +366,7 @@ else
                             <th class="text-end pe-3">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="am-animated-list">
                     @foreach (var item in Model.Items)
                     {
                         <tr class="border-bottom border-light">
@@ -386,13 +414,32 @@ else
     {
         <script src="@Url.Content("~/Scripts/app/list-bulk.js")"></script>
     }
+    @if (isGrouped)
+    {
+        <script>
+            document.querySelectorAll("[data-am-group-by-select]").forEach(function (select) {
+                select.addEventListener("change", function () {
+                    try {
+                        sessionStorage.removeItem("am-assets-grouped-expanded");
+                    } catch (e) {
+                    }
+                    var form = document.getElementById("amAssetListFilterForm");
+                    if (form) {
+                        form.submit();
+                    }
+                });
+            });
+        </script>
+    }
     @if (isGrouped && groupedPage != null && groupedPage.Items.Any())
     {
         <script>
             window.AmGroupedAssetsConfig = {
                 groupMembersUrl: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Action("GroupMembers", "Assets"))),
+                groupBy: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(groupBy)),
                 canBulkEdit: @(canBulkEdit ? "true" : "false"),
                 unassignedLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Unassigned)),
+                emptyLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Empty)),
                 memberPageSize: 10,
                 listFilter: {
                     search: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(listFilter.Search ?? "")),

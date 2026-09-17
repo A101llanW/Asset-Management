@@ -5,6 +5,7 @@ using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Enums;
@@ -21,10 +22,13 @@ namespace AssetManagement.Web.Controllers
         private const string ScanRateLimitMessage = "Too many scan requests. Please wait and try again.";
         private const int MaxSearchResults = 50;
 
+        private const int MaxPrintCandidates = 100;
+
         private readonly IAssetService _assetService;
         private readonly IAuthorizationService _authorizationService;
         private readonly ISearchService _searchService;
         private readonly IDistributedRateLimiter _rateLimiter;
+        private readonly IDepartmentService _departmentService;
 
         public AssetScanController()
         {
@@ -32,6 +36,7 @@ namespace AssetManagement.Web.Controllers
             _authorizationService = DependencyResolver.Current.GetService<IAuthorizationService>();
             _searchService = DependencyResolver.Current.GetService<ISearchService>();
             _rateLimiter = DependencyResolver.Current.GetService<IDistributedRateLimiter>();
+            _departmentService = DependencyResolver.Current.GetService<IDepartmentService>();
         }
 
         public ActionResult Lookup(string code, string q)
@@ -68,6 +73,39 @@ namespace AssetManagement.Web.Controllers
 
             var pageModel = BuildPageModel(term);
             return Json(ToJsonPayload(pageModel), JsonRequestBehavior.AllowGet);
+        }
+
+        [HttpGet]
+        [Authorize]
+        [TenantAuthorize]
+        [PermissionAuthorize("Assets.View")]
+        public JsonResult PrintCandidates(int? departmentId, AssetStatus? status, string search, int take = 50)
+        {
+            var pageSize = Math.Min(Math.Max(take, 1), MaxPrintCandidates);
+            var filter = new AssetFilterVm
+            {
+                DepartmentId = departmentId,
+                Status = status,
+                Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+                OrganizationWide = true
+            };
+
+            var page = _assetService.GetAssetListPage(filter, "tag", "asc", 1, pageSize);
+            return Json(new
+            {
+                TotalCount = page.TotalCount,
+                Assets = page.Items.Select(asset => new
+                {
+                    asset.Id,
+                    asset.AssetTag,
+                    asset.AssetName,
+                    asset.SerialNumber,
+                    asset.DepartmentName,
+                    Status = asset.CurrentStatus.ToString(),
+                    LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = asset.Id }),
+                    DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = asset.Id })
+                }).ToArray()
+            }, JsonRequestBehavior.AllowGet);
         }
 
         [Authorize]
@@ -254,8 +292,20 @@ namespace AssetManagement.Web.Controllers
                         canTransfer,
                         canReturn,
                         canReportIncident),
+                CanBatchPrintLabels = canViewDetails,
                 InitialCode = term,
-                LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan")
+                LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan"),
+                PrintCandidatesUrl = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "PrintCandidates", "AssetScan")
+                    : null,
+                LabelPrintConfigUrl = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelPrintConfig", "Assets", new { id = "__id__" })
+                    : null,
+                LabelZplUrlTemplate = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = "__id__" })
+                    : null,
+                DepartmentOptions = canViewDetails ? BuildDepartmentOptions() : null,
+                StatusOptions = canViewDetails ? BuildStatusOptions() : null
             };
 
             if (pageModel.CanViewAssetDetails)
@@ -306,6 +356,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     Found = false,
                     Message = (string)null,
+                    CanBatchPrintLabels = page.CanBatchPrintLabels,
                     SearchResults = new
                     {
                         Query = page.SearchResults.Query,
@@ -320,7 +371,8 @@ namespace AssetManagement.Web.Controllers
                             hit.CustodianName,
                             hit.Status,
                             hit.MatchReason,
-                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId })
+                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId }),
+                            LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = hit.AssetId })
                         }).ToArray()
                     },
                     EmptyDisplay = DisplayText.Empty
@@ -345,10 +397,50 @@ namespace AssetManagement.Web.Controllers
                 CustodianName = lookup.CustodianName,
                 CanViewAssetDetails = page.CanViewAssetDetails,
                 CanOpenQuickActions = page.CanOpenQuickActions,
+                CanBatchPrintLabels = page.CanBatchPrintLabels,
+                LabelZplUrl = lookup.Found && lookup.AssetId.HasValue
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = lookup.AssetId.Value })
+                    : null,
                 DetailsUrl = page.DetailsUrl,
                 QuickActionsUrl = page.QuickActionsUrl,
                 EmptyDisplay = DisplayText.Empty
             };
+        }
+
+        private System.Collections.Generic.IEnumerable<SelectListItem> BuildDepartmentOptions()
+        {
+            if (_departmentService == null)
+            {
+                return new SelectListItem[0];
+            }
+
+            var departments = _departmentService.GetAll()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Name)
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id.ToString(),
+                    Text = x.Name
+                })
+                .ToList();
+
+            departments.Insert(0, new SelectListItem { Value = string.Empty, Text = "All departments" });
+            return departments;
+        }
+
+        private static System.Collections.Generic.IEnumerable<SelectListItem> BuildStatusOptions()
+        {
+            var statuses = System.Enum.GetValues(typeof(AssetStatus))
+                .Cast<AssetStatus>()
+                .Select(status => new SelectListItem
+                {
+                    Value = status.ToString(),
+                    Text = status.ToString()
+                })
+                .ToList();
+
+            statuses.Insert(0, new SelectListItem { Value = string.Empty, Text = "Any status" });
+            return statuses;
         }
 
         private static string BuildBrandModelDisplay(AssetScanLookupVm lookup)

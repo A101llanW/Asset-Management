@@ -1,0 +1,147 @@
+@model AssetManagement.Application.ViewModels.LabelDesignerVm
+@using AssetManagement.Application.Helpers
+@{
+    ViewBag.Title = "Label designer";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Asset label designer",
+    Subtitle = "Choose which fields appear on QR labels and drag them to match your physical label stock.",
+    BackUrl = Url.Action("Index", "Settings"),
+    BackLabel = "Back to Settings"
+})
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">@TempData["Message"]</div>
+}
+
+@using (Html.BeginForm("LabelDesigner", "Settings", FormMethod.Post, new { id = "labelDesignerForm" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger" })
+
+    @Html.HiddenFor(m => m.LayoutDesignJson, new { id = "layoutDesignJson" })
+
+    @Html.HiddenFor(m => m.LabelPrinter.Model)
+
+    <div class="row g-3 am-stagger">
+        <div class="col-lg-4">
+            <div class="card card-kpi h-100">
+                <div class="card-header">Label stock</div>
+                <div class="card-body">
+                    <div class="form-check mb-3">
+                        @Html.CheckBoxFor(m => m.LabelPrinter.Enabled, new { @class = "form-check-input", id = "labelDesignerEnabled" })
+                        @Html.LabelFor(m => m.LabelPrinter.Enabled, new { @class = "form-check-label", @for = "labelDesignerEnabled" })
+                    </div>
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.LabelPrinter.WidthMm, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.LabelPrinter.WidthMm, new { @class = "form-control", type = "number", min = "15", max = "104", id = "labelWidthMm" })
+                    </div>
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.LabelPrinter.HeightMm, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.LabelPrinter.HeightMm, new { @class = "form-control", type = "number", min = "6", max = "279", id = "labelHeightMm" })
+                    </div>
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-control", type = "number", min = "1", max = "10", id = "labelQrMagnification" })
+                    </div>
+                    <div class="mb-3">
+                        @Html.LabelFor(m => m.LabelPrinter.Mode, new { @class = "form-label" })
+                        @Html.DropDownListFor(m => m.LabelPrinter.Mode, new SelectList(new[]
+                        {
+                            new { Value = LabelPrinterSettingsHelper.ModeZebraBrowserPrint, Text = "Zebra Browser Print" },
+                            new { Value = LabelPrinterSettingsHelper.ModeBrowser, Text = "Browser print only" }
+                        }, "Value", "Text", Model.LabelPrinter.Mode), new { @class = "form-select" })
+                    </div>
+                    <div class="mb-0">
+                        @Html.LabelFor(m => m.LabelPrinter.DeviceName, new { @class = "form-label" })
+                        @Html.TextBoxFor(m => m.LabelPrinter.DeviceName, new { @class = "form-control", placeholder = "Optional Windows queue name" })
+                    </div>
+                </div>
+            </div>
+
+            <div class="card card-kpi mt-3">
+                <div class="card-header">Layout templates</div>
+                <div class="card-body">
+                    <p class="text-muted small">Save the current canvas as a reusable template. Loading a template restores label size, QR magnification, field positions, and visibility.</p>
+                    <div class="mb-3">
+                        <label class="form-label" for="labelTemplateName">Template name</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="labelTemplateName" maxlength="80" placeholder="e.g. Standard asset tag" />
+                            <button type="button" class="btn btn-outline-primary" id="labelTemplateSaveBtn">Save template</button>
+                        </div>
+                        <div class="form-text">Saving with an existing name updates that template.</div>
+                    </div>
+                    <div id="labelTemplateMessage" class="small mb-2" aria-live="polite"></div>
+                    <div class="am-label-designer-templates" id="labelTemplateList"
+                         data-save-url="@Url.Action("SaveLabelLayoutTemplate", "Settings")"
+                         data-delete-url="@Url.Action("DeleteLabelLayoutTemplate", "Settings")">
+                        <p class="text-muted small mb-0" data-am-label-template-empty>No saved templates yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card card-kpi">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Layout canvas</span>
+                    <span class="text-muted small">Drag fields on the preview. Uncheck to hide from print.</span>
+                </div>
+                <div class="card-body">
+                    <div class="am-label-designer" id="labelDesignerRoot"
+                         data-sample-tag="@Model.SampleAssetTag"
+                         data-sample-name="@Model.SampleAssetName"
+                         data-sample-dept="@Model.SampleDepartmentName"
+                         data-sample-serial="@Model.SampleSerialNumber">
+                        <div class="am-label-designer-fields mb-3" id="labelDesignerFields"></div>
+                        <p class="am-label-designer-canvas-meta text-muted small mb-2" id="labelDesignerMeta"></p>
+                        <div class="am-label-designer-canvas-wrap">
+                            <div class="am-label-designer-canvas-scaler" id="labelDesignerScaler">
+                                <div class="am-label-designer-canvas" id="labelDesignerCanvas" aria-label="Label layout canvas"></div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-2 mb-0">Positions are saved in millimetres. The dashed inner box is a @LabelLayoutDesignHelper.DefaultMarginMm mm margin guide. QR preview size follows QR magnification.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = "Save label layout",
+        BackUrl = Url.Action("Index", "Settings"),
+        BackLabel = "Cancel"
+    })
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/vendor/jsbarcode.all.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/label-designer.js")"></script>
+    <script>
+        (function () {
+            if (window.LabelDesigner) {
+                window.LabelDesigner.init({
+                    rootId: "labelDesignerRoot",
+                    scalerId: "labelDesignerScaler",
+                    canvasId: "labelDesignerCanvas",
+                    metaId: "labelDesignerMeta",
+                    fieldsId: "labelDesignerFields",
+                    jsonFieldId: "layoutDesignJson",
+                    widthFieldId: "labelWidthMm",
+                    heightFieldId: "labelHeightMm",
+                    qrMagnificationFieldId: "labelQrMagnification",
+                    templateNameFieldId: "labelTemplateName",
+                    templateSaveBtnId: "labelTemplateSaveBtn",
+                    templateListId: "labelTemplateList",
+                    templateMessageId: "labelTemplateMessage",
+                    initialTemplates: @Html.Raw(string.IsNullOrWhiteSpace(Model.LayoutTemplatesJson) ? "{\"Templates\":[]}" : Model.LayoutTemplatesJson)
+                });
+            }
+        })();
+    </script>
+}

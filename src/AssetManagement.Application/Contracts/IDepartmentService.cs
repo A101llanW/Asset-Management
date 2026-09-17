@@ -9,7 +9,15 @@ namespace AssetManagement.Application.Contracts
 
         IEnumerable<DepartmentVm> GetRequisitionTargets();
 
+        /// <summary>
+        /// Full tree (org + classes). Prefer the domain overload for management Index pages.
+        /// </summary>
         IEnumerable<DepartmentTreeSectionVm> GetTreeSections();
+
+        /// <summary>
+        /// Domain-scoped tree: "org" = Administrative + SubDepartment; "classes" = Grade + Class.
+        /// </summary>
+        IEnumerable<DepartmentTreeSectionVm> GetTreeSections(string domain);
 
         DepartmentVm GetById(int id);
 

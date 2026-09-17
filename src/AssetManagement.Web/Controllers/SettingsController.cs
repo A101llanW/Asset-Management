@@ -47,7 +47,7 @@ namespace AssetManagement.Web.Controllers
             UpsertSetting(repository, settings, InsuranceThresholdKey, model.InsuranceThresholdDays.ToString(), "Days before insurance expiry to trigger alerts.");
             UpsertSetting(repository, settings, MaintenanceThresholdKey, model.MaintenanceThresholdDays.ToString(), "Days before maintenance due date to trigger alerts.");
             UpsertSetting(repository, settings, DefaultCurrencyKey, model.DefaultCurrency.ToUpperInvariant(), "Default finance currency code.");
-            UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter);
+            UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter, includeLayoutDesign: false);
 
             foreach (var process in model.ApprovalProcesses ?? new List<ApprovalProcessSettingsVm>())
             {
@@ -68,6 +68,142 @@ namespace AssetManagement.Web.Controllers
             TempData["Message"] = "Settings saved successfully.";
             TempData["Guidance"] = "Approval stage changes apply to new requisitions and other requests going forward. Existing pending items keep the approval path they were submitted with.";
             return RedirectToAction("Index");
+        }
+
+        public ActionResult LabelDesigner()
+        {
+            var repository = UnitOfWork.Repository<SystemSetting>();
+            var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
+            var labelPrinter = LabelPrinterSettingsHelper.FromDictionary(settings);
+            var design = LabelPrinterSettingsHelper.GetLayoutDesign(labelPrinter)
+                ?? LabelLayoutDesignHelper.CreateDefault(labelPrinter.WidthMm, labelPrinter.HeightMm);
+
+            var model = new LabelDesignerVm
+            {
+                LabelPrinter = labelPrinter,
+                LayoutDesignJson = LabelLayoutDesignHelper.Serialize(design, labelPrinter.WidthMm, labelPrinter.HeightMm),
+                LayoutTemplatesJson = LabelLayoutTemplateHelper.SerializeForClient(LabelLayoutTemplateHelper.ListTemplates(settings))
+            };
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public JsonResult SaveLabelLayoutTemplate(string name, string layoutDesignJson, int widthMm, int heightMm, decimal qrMagnification, string templateId = null)
+        {
+            try
+            {
+                var repository = UnitOfWork.Repository<SystemSetting>();
+                var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
+                var collection = LabelLayoutTemplateHelper.Deserialize(settings);
+                var template = LabelLayoutTemplateHelper.SaveTemplate(
+                    collection,
+                    name,
+                    layoutDesignJson,
+                    widthMm,
+                    heightMm,
+                    qrMagnification,
+                    templateId);
+
+                UpsertSetting(
+                    repository,
+                    settings,
+                    LabelLayoutTemplateHelper.TemplatesKey,
+                    LabelLayoutTemplateHelper.SerializeCollection(collection),
+                    "Saved label layout canvas templates.");
+
+                UnitOfWork.SaveChanges();
+
+                return Json(new
+                {
+                    success = true,
+                    message = "Template \"" + template.Name + "\" saved.",
+                    template = template,
+                    templates = LabelLayoutTemplateHelper.ListTemplates(settings)
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public JsonResult DeleteLabelLayoutTemplate(string templateId)
+        {
+            if (string.IsNullOrWhiteSpace(templateId))
+            {
+                return Json(new { success = false, message = "Template id is required." });
+            }
+
+            var repository = UnitOfWork.Repository<SystemSetting>();
+            var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
+            var collection = LabelLayoutTemplateHelper.Deserialize(settings);
+            if (!LabelLayoutTemplateHelper.DeleteTemplate(collection, templateId))
+            {
+                return Json(new { success = false, message = "Template not found." });
+            }
+
+            UpsertSetting(
+                repository,
+                settings,
+                LabelLayoutTemplateHelper.TemplatesKey,
+                LabelLayoutTemplateHelper.SerializeCollection(collection),
+                "Saved label layout canvas templates.");
+
+            UnitOfWork.SaveChanges();
+
+            return Json(new
+            {
+                success = true,
+                message = "Template deleted.",
+                templates = LabelLayoutTemplateHelper.ListTemplates(settings)
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult LabelDesigner(LabelDesignerVm model)
+        {
+            if (model == null)
+            {
+                model = new LabelDesignerVm();
+            }
+
+            if (model.LabelPrinter == null)
+            {
+                model.LabelPrinter = new LabelPrinterSettingsVm();
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var repository = UnitOfWork.Repository<SystemSetting>();
+            var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
+            var design = LabelLayoutDesignHelper.Deserialize(
+                model.LayoutDesignJson,
+                model.LabelPrinter.WidthMm,
+                model.LabelPrinter.HeightMm);
+
+            model.LabelPrinter.LayoutPreset = LabelPrinterSettingsHelper.LayoutCustom;
+            model.LabelPrinter.LayoutDesignJson = LabelLayoutDesignHelper.Serialize(
+                design,
+                model.LabelPrinter.WidthMm,
+                model.LabelPrinter.HeightMm);
+
+            UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter, includeLayoutDesign: true);
+            UnitOfWork.SaveChanges();
+
+            TempData["Message"] = "Label layout saved successfully.";
+            return RedirectToAction("LabelDesigner");
         }
 
         private SettingsVm BuildViewModel()
@@ -182,7 +318,11 @@ namespace AssetManagement.Web.Controllers
             settings[key] = newSetting;
         }
 
-        private static void UpsertLabelPrinterSettings(IRepository<SystemSetting> repository, IDictionary<string, SystemSetting> settings, LabelPrinterSettingsVm labelPrinter)
+        private static void UpsertLabelPrinterSettings(
+            IRepository<SystemSetting> repository,
+            IDictionary<string, SystemSetting> settings,
+            LabelPrinterSettingsVm labelPrinter,
+            bool includeLayoutDesign)
         {
             if (labelPrinter == null)
             {
@@ -195,8 +335,17 @@ namespace AssetManagement.Web.Controllers
             UpsertSetting(repository, settings, LabelPrinterSettingsHelper.DeviceNameKey, labelPrinter.DeviceName ?? string.Empty, "Optional Windows printer name for Zebra Browser Print.");
             UpsertSetting(repository, settings, LabelPrinterSettingsHelper.WidthMmKey, labelPrinter.WidthMm.ToString(), "Label width in millimeters.");
             UpsertSetting(repository, settings, LabelPrinterSettingsHelper.HeightMmKey, labelPrinter.HeightMm.ToString(), "Label height in millimeters.");
-            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.QrMagnificationKey, labelPrinter.QrMagnification.ToString(), "ZPL QR magnification factor (1-10).");
-            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.LayoutPresetKey, labelPrinter.LayoutPreset ?? LabelPrinterSettingsHelper.LayoutQrWithMeta, "Label layout preset.");
+            UpsertSetting(repository, settings, LabelPrinterSettingsHelper.QrMagnificationKey, labelPrinter.QrMagnification.ToString(System.Globalization.CultureInfo.InvariantCulture), "ZPL QR magnification factor (0.5-10).");
+
+            if (includeLayoutDesign)
+            {
+                UpsertSetting(repository, settings, LabelPrinterSettingsHelper.LayoutPresetKey, LabelPrinterSettingsHelper.LayoutCustom, "Label layout preset.");
+                UpsertSetting(repository, settings, LabelPrinterSettingsHelper.LayoutDesignKey, labelPrinter.LayoutDesignJson ?? string.Empty, "Custom label layout design JSON.");
+            }
+            else
+            {
+                UpsertSetting(repository, settings, LabelPrinterSettingsHelper.LayoutPresetKey, labelPrinter.LayoutPreset ?? LabelPrinterSettingsHelper.LayoutQrWithMeta, "Label layout preset.");
+            }
         }
     }
 }

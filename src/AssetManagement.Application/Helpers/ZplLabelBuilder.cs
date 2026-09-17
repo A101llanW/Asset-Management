@@ -31,6 +31,12 @@ namespace AssetManagement.Application.Helpers
                 return string.Empty;
             }
 
+            if (LabelPrinterSettingsHelper.UsesCustomLayout(settings))
+            {
+                var design = LabelPrinterSettingsHelper.GetLayoutDesign(settings);
+                return BuildCustomLayout(data, settings, design, codeType);
+            }
+
             var resolvedCodeType = ResolveCodeType(codeType);
             if (string.Equals(resolvedCodeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase))
             {
@@ -46,7 +52,10 @@ namespace AssetManagement.Application.Helpers
 
             var widthDots = MmToDots(settings.WidthMm);
             var heightDots = MmToDots(settings.HeightMm);
-            var magnification = Clamp(settings.QrMagnification, 1, 10);
+            var magnification = ClampDecimal(
+                settings.QrMagnification,
+                LabelPrinterSettingsHelper.MinQrMagnification,
+                LabelPrinterSettingsHelper.MaxQrMagnification);
             var preset = string.IsNullOrWhiteSpace(settings.LayoutPreset)
                 ? LabelPrinterSettingsHelper.LayoutQrWithMeta
                 : settings.LayoutPreset;
@@ -96,6 +105,129 @@ namespace AssetManagement.Application.Helpers
             return sb.ToString();
         }
 
+        public static string BuildCustomLayout(ZplLabelData data, LabelPrinterSettingsVm settings, LabelLayoutDesign design, string codeType)
+        {
+            if (data == null || settings == null)
+            {
+                return string.Empty;
+            }
+
+            design = LabelLayoutDesignHelper.Normalize(design, settings.WidthMm, settings.HeightMm);
+            var resolvedCodeType = ResolveCodeType(codeType);
+            var useBarcode = string.Equals(resolvedCodeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase);
+
+            if (useBarcode && string.IsNullOrWhiteSpace(data.BarcodePayload))
+            {
+                return string.Empty;
+            }
+
+            if (!useBarcode && string.IsNullOrWhiteSpace(data.ScanUrl))
+            {
+                return string.Empty;
+            }
+
+            var widthDots = MmToDots(settings.WidthMm);
+            var heightDots = MmToDots(settings.HeightMm);
+            var magnification = ClampDecimal(
+                settings.QrMagnification,
+                LabelPrinterSettingsHelper.MinQrMagnification,
+                LabelPrinterSettingsHelper.MaxQrMagnification);
+            var sb = new StringBuilder();
+            sb.AppendLine("^XA");
+            sb.AppendLine("^CI28");
+            sb.AppendLine("^PW" + widthDots);
+            sb.AppendLine("^LL" + heightDots);
+
+            foreach (var element in design.Elements)
+            {
+                if (element == null || !element.Enabled)
+                {
+                    continue;
+                }
+
+                var x = MmToDots(ToMmInt(element.XMm));
+                var y = MmToDots(ToMmInt(element.YMm));
+
+                if (string.Equals(element.Id, LabelLayoutDesignHelper.ScanCodeId, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (useBarcode)
+                    {
+                        var barcodeWidth = Math.Min(widthDots - x - 10, 320);
+                        AppendBarcode(sb, x, y, data.BarcodePayload, barcodeWidth, DefaultBarcodeHeightDots);
+                    }
+                    else
+                    {
+                        AppendQr(sb, x, y, data.ScanUrl, magnification);
+                    }
+
+                    continue;
+                }
+
+                var text = GetTextForElement(element.Id, data);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                var fontHeight = element.FontHeight > 0 ? element.FontHeight : GetDefaultFontHeight(element.Id);
+                var fontWidth = Math.Max(12, (int)Math.Round(fontHeight * 0.85));
+                AppendText(sb, x, y, text, fontHeight, fontWidth);
+            }
+
+            sb.AppendLine("^XZ");
+            return sb.ToString();
+        }
+
+        private static string GetTextForElement(string elementId, ZplLabelData data)
+        {
+            if (string.Equals(elementId, LabelLayoutDesignHelper.AssetTagId, StringComparison.OrdinalIgnoreCase))
+            {
+                return data.AssetTag;
+            }
+
+            if (string.Equals(elementId, LabelLayoutDesignHelper.AssetNameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return Truncate(data.AssetName, 28);
+            }
+
+            if (string.Equals(elementId, LabelLayoutDesignHelper.DepartmentNameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return Truncate(data.DepartmentName, 28);
+            }
+
+            if (string.Equals(elementId, LabelLayoutDesignHelper.SerialNumberId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(data.SerialNumber))
+                {
+                    return string.Empty;
+                }
+
+                return "S/N: " + Truncate(data.SerialNumber, 24);
+            }
+
+            return string.Empty;
+        }
+
+        private static int GetDefaultFontHeight(string elementId)
+        {
+            if (string.Equals(elementId, LabelLayoutDesignHelper.AssetTagId, StringComparison.OrdinalIgnoreCase))
+            {
+                return 24;
+            }
+
+            if (string.Equals(elementId, LabelLayoutDesignHelper.AssetNameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return 18;
+            }
+
+            return 14;
+        }
+
+        private static int ToMmInt(double value)
+        {
+            return (int)Math.Round(value, MidpointRounding.AwayFromZero);
+        }
+
         public static string ResolveCodeType(string codeType)
         {
             if (string.Equals(codeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase))
@@ -106,7 +238,7 @@ namespace AssetManagement.Application.Helpers
             return LabelPrinterSettingsHelper.CodeTypeQr;
         }
 
-        private static void AppendQrOnly(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, int magnification)
+        private static void AppendQrOnly(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, decimal magnification)
         {
             var qrSize = EstimateQrSizeDots(magnification);
             var x = Math.Max(10, (widthDots - qrSize) / 2);
@@ -122,9 +254,9 @@ namespace AssetManagement.Application.Helpers
             AppendBarcode(sb, x, y, data.BarcodePayload, barcodeWidth, DefaultBarcodeHeightDots);
         }
 
-        private static void AppendQrCompact(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, int magnification)
+        private static void AppendQrCompact(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, decimal magnification)
         {
-            var mag = Clamp(magnification, 1, 8);
+            var mag = ClampDecimal(magnification, LabelPrinterSettingsHelper.MinQrMagnification, 8m);
             var qrX = 10;
             var qrY = 8;
             var qrSize = EstimateQrSizeDots(mag);
@@ -168,7 +300,7 @@ namespace AssetManagement.Application.Helpers
             }
         }
 
-        private static void AppendQrWithMeta(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, int magnification)
+        private static void AppendQrWithMeta(StringBuilder sb, ZplLabelData data, int widthDots, int heightDots, decimal magnification)
         {
             var qrX = 15;
             var qrY = 15;
@@ -212,9 +344,26 @@ namespace AssetManagement.Application.Helpers
             }
         }
 
-        private static void AppendQr(StringBuilder sb, int x, int y, string payload, int magnification)
+        public static int ResolveZplQrMagnification(decimal magnification)
         {
-            sb.AppendLine("^FO" + x + "," + y + "^BQN,2," + magnification + "^FDMA," + EscapeZplField(payload) + "^FS");
+            var clamped = ClampDecimal(
+                magnification,
+                LabelPrinterSettingsHelper.MinQrMagnification,
+                LabelPrinterSettingsHelper.MaxQrMagnification);
+            var rounded = (int)Math.Round(clamped, MidpointRounding.AwayFromZero);
+            return Clamp(rounded, 1, 10);
+        }
+
+        public static int ResolveZplQrModel(decimal magnification)
+        {
+            return magnification < 1m ? 1 : 2;
+        }
+
+        private static void AppendQr(StringBuilder sb, int x, int y, string payload, decimal magnification)
+        {
+            var model = ResolveZplQrModel(magnification);
+            var zplMagnification = ResolveZplQrMagnification(magnification);
+            sb.AppendLine("^FO" + x + "," + y + "^BQN," + model + "," + zplMagnification + "^FDMA," + EscapeZplField(payload) + "^FS");
         }
 
         private static void AppendBarcode(StringBuilder sb, int x, int y, string payload, int widthDots, int heightDots)
@@ -250,9 +399,25 @@ namespace AssetManagement.Application.Helpers
             return Math.Max(1, mm) * DotsPerMm;
         }
 
-        private static int EstimateQrSizeDots(int magnification)
+        private static int EstimateQrSizeDots(decimal magnification)
         {
-            return 25 * magnification + 30;
+            var effectiveMagnification = Math.Max(LabelPrinterSettingsHelper.MinQrMagnification, magnification);
+            return (int)Math.Round(25m * effectiveMagnification + 30m, MidpointRounding.AwayFromZero);
+        }
+
+        private static decimal ClampDecimal(decimal value, decimal min, decimal max)
+        {
+            if (value < min)
+            {
+                return min;
+            }
+
+            if (value > max)
+            {
+                return max;
+            }
+
+            return value;
         }
 
         private static int Clamp(int value, int min, int max)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using System.Globalization;
 
@@ -275,27 +276,7 @@ namespace AssetManagement.Web.Helpers
 
             {
 
-                object id = null;
-
-                if (routeValues != null)
-
-                {
-
-                    var values = new RouteValueDictionary(routeValues);
-
-                    if (values.ContainsKey("id"))
-
-                    {
-
-                        id = values["id"];
-
-                    }
-
-                }
-
-
-
-                return BuildTenantPath(tenant, controller, action, id);
+                return BuildTenantPathWithExtraQuery(tenant, controller, action, routeValues);
 
             }
 
@@ -343,31 +324,60 @@ namespace AssetManagement.Web.Helpers
 
 
 
-            object id = null;
-
-            if (routeValues != null)
-
-            {
-
-                var values = new RouteValueDictionary(routeValues);
-
-                if (values.ContainsKey("id"))
-
-                {
-
-                    id = values["id"];
-
-                }
-
-            }
-
-
-
-            return BuildTenantPath(organizationSlug, controller, action, id);
+            return BuildTenantPathWithExtraQuery(organizationSlug, controller, action, routeValues);
 
         }
 
 
+
+
+        static string BuildTenantPathWithExtraQuery(string tenantSlug, string controller, string action, object routeValues)
+        {
+            var values = new RouteValueDictionary(routeValues ?? new { });
+            object id = null;
+            if (values.ContainsKey("id"))
+            {
+                id = values["id"];
+                values.Remove("id");
+            }
+            values.Remove("controller");
+            values.Remove("action");
+            values.Remove("organizationSlug");
+            return AppendQueryString(BuildTenantPath(tenantSlug, controller, action, id), values);
+        }
+
+        static string AppendQueryString(string path, RouteValueDictionary values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return path;
+            }
+
+            var parts = new List<string>();
+            foreach (var pair in values)
+            {
+                if (pair.Value == null)
+                {
+                    continue;
+                }
+
+                var text = Convert.ToString(pair.Value, CultureInfo.InvariantCulture);
+                if (string.IsNullOrEmpty(text))
+                {
+                    continue;
+                }
+
+                parts.Add(HttpUtility.UrlEncode(pair.Key) + "=" + HttpUtility.UrlEncode(text));
+            }
+
+            if (parts.Count == 0)
+            {
+                return path;
+            }
+
+            var sep = path.IndexOf('?') >= 0 ? "&" : "?";
+            return path + sep + string.Join("&", parts);
+        }
 
         public static RouteValueDictionary CreateTenantRouteValues(
 

@@ -1,32 +1,54 @@
 @model AssetManagement.Application.ViewModels.DepartmentCreateVm
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Application.Services
 @{
-    ViewBag.Title = "Create Department";
+    var createTitle = ViewBag.CreateTitle as string ?? "Add department";
+    ViewBag.Title = createTitle;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var domain = ViewBag.Domain as string ?? DepartmentHierarchyRules.DomainOrg;
     var setupModes = ViewBag.SetupModes as System.Web.Mvc.SelectList;
     var adminParents = ViewBag.AdminParentDepartments as System.Web.Mvc.SelectList;
+    var setupModeLocked = ViewBag.SetupModeLocked as bool? ?? false;
+    var mode = Model != null && !string.IsNullOrWhiteSpace(Model.SetupMode) ? Model.SetupMode : DepartmentService.SetupModeNormal;
+    var indexLabel = domain == DepartmentHierarchyRules.DomainClasses ? "Grades & Streams" : "Departments";
+    var subtitle = domain == DepartmentHierarchyRules.DomainClasses
+        ? "Add a grade with streams (e.g. Grade 2 → 2A, 2B), or bulk-create a grade range."
+        : "Add an administrative unit or a sub-unit under a top-level department.";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Create Department",
-    Subtitle = "Add an administrative unit, a sub-unit, a grade with class streams, or bulk grades 1–6.",
+    Title = createTitle,
+    Subtitle = subtitle,
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
     {
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Department" }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = indexLabel, Url = Url.Action("Index", new { domain = domain }) },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = createTitle }
     }
 })
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
+    <input type="hidden" name="domain" value="@domain" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-    <div class="mb-3">
-        <label class="form-label">Setup type</label>
-        @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
-    </div>
-    <div id="setup-normal">
+    if (setupModeLocked)
+    {
+        @Html.HiddenFor(m => m.SetupMode)
+        <div class="mb-3">
+            <label class="form-label">Setup type</label>
+            <input type="text" class="form-control" readonly="readonly" value="@createTitle" />
+        </div>
+    }
+    else
+    {
+        <div class="mb-3">
+            <label class="form-label">Setup type</label>
+            @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
+        </div>
+    }
+    <div id="setup-normal" style="@(mode == DepartmentService.SetupModeNormal ? "" : "display:none;")">
         <div class="mb-3">
             @Html.LabelFor(m => m.Name, new { @class = "form-label" })
             @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
@@ -44,11 +66,11 @@
             <label class="form-check-label" for="requisition-target-normal">Requisition target</label>
         </div>
     </div>
-    <div id="setup-sub-department" style="display:none;">
+    <div id="setup-sub-department" style="@(mode == DepartmentService.SetupModeSubDepartment ? "" : "display:none;")">
         <div class="mb-3">
             <label class="form-label">Parent department</label>
             @Html.DropDownListFor(m => m.ParentDepartmentId, adminParents, "-- Select parent department --", new { @class = "form-select" })
-            <div class="form-text">Example: Information Technology, Administration.</div>
+            <div class="form-text">Sub-units sit under top-level admin departments (CODE — Name), not classes.</div>
         </div>
         <div class="mb-3">
             @Html.LabelFor(m => m.Name, "Sub-unit name", new { @class = "form-label" })
@@ -59,38 +81,38 @@
             @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
         </div>
     </div>
-    <div id="setup-grade-streams" style="display:none;">
+    <div id="setup-grade-streams" style="@(mode == DepartmentService.SetupModeGradeStreams ? "" : "display:none;")">
         <div class="mb-3">
             <label class="form-label">Grade number</label>
-            @Html.TextBoxFor(m => m.GradeNumber, new { @class = "form-control", type = "number", min = "1", max = "6" })
-            <div class="form-text">Grades are capped at 6 for school clients.</div>
+            @Html.TextBoxFor(m => m.GradeNumber, new { @class = "form-control", type = "number", min = "1" })
+            <div class="form-text">Enter any grade number your school uses (for example 1, 7, or 12).</div>
         </div>
         <div class="mb-3">
             <label class="form-label">Streams</label>
-            @Html.TextBoxFor(m => m.SelectedStreams, new { @class = "form-control", placeholder = "A,B,C" })
-            <div class="form-text">Enter streams separated by commas (example: A,B,C).</div>
+            @Html.TextBoxFor(m => m.SelectedStreams, new { @class = "form-control", placeholder = "A,B,C or 2A,2B,2C" })
+            <div class="form-text">Enter stream letters (A,B,C) or full codes (2A,2B). With grade 2 and A,B,C the system creates 2A, 2B, 2C.</div>
         </div>
     </div>
-    <div id="setup-bulk-grades" style="display:none;">
+    <div id="setup-bulk-grades" style="@(mode == DepartmentService.SetupModeBulkGrades ? "" : "display:none;")">
         <div class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">From grade</label>
-                @Html.TextBoxFor(m => m.BulkGradeFrom, new { @class = "form-control", type = "number", min = "1", max = "6" })
+                @Html.TextBoxFor(m => m.BulkGradeFrom, new { @class = "form-control", type = "number", min = "1" })
             </div>
             <div class="col-md-3">
                 <label class="form-label">To grade</label>
-                @Html.TextBoxFor(m => m.BulkGradeTo, new { @class = "form-control", type = "number", min = "1", max = "6" })
+                @Html.TextBoxFor(m => m.BulkGradeTo, new { @class = "form-control", type = "number", min = "1" })
             </div>
             <div class="col-md-6">
                 <label class="form-label">Streams per grade</label>
-                @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C,D" })
+                @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C" })
             </div>
         </div>
-        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template. Maximum grade is 6.</div>
+        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template.</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
-        SubmitLabel = "Create Department",
+        SubmitLabel = createTitle,
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
@@ -104,13 +126,27 @@
             GradeWithStreams: document.getElementById('setup-grade-streams'),
             BulkGrades: document.getElementById('setup-bulk-grades')
         };
+        var titles = {
+            Normal: 'Add department',
+            SubDepartment: 'Add sub-unit',
+            GradeWithStreams: 'Add grade & streams',
+            BulkGrades: 'Bulk create grades'
+        };
         function syncSections() {
-            var mode = modeSelect ? modeSelect.value : 'Normal';
+            var mode = modeSelect ? modeSelect.value : '@mode';
             Object.keys(sections).forEach(function (key) {
                 if (sections[key]) {
                     sections[key].style.display = key === mode ? '' : 'none';
                 }
             });
+            var submit = document.querySelector('button[type="submit"], input[type="submit"]');
+            if (submit && titles[mode]) {
+                if (submit.tagName === 'INPUT') {
+                    submit.value = titles[mode];
+                } else {
+                    submit.textContent = titles[mode];
+                }
+            }
         }
         if (modeSelect) {
             modeSelect.addEventListener('change', syncSections);

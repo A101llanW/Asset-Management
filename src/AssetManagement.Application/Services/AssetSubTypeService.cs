@@ -56,6 +56,7 @@ namespace AssetManagement.Application.Services
         }
         public int Create(AssetSubTypeEditVm model)
         {
+            NormalizeSubTypeIdentity(model);
             ValidateModel(model, null);
             var entity = MapToEntity(model);
             entity.CreatedAt = DateTime.UtcNow;
@@ -71,6 +72,7 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Asset sub-type not found.");
             }
+            NormalizeSubTypeIdentity(model);
             ValidateModel(model, entity.Id);
             ApplyModel(entity, model);
             entity.UpdatedAt = DateTime.UtcNow;
@@ -118,6 +120,7 @@ namespace AssetManagement.Application.Services
                 Name = AssetSubTypeNormalizer.NormalizeName(entity.Name),
                 Brand = entity.Brand,
                 Model = entity.Model,
+                DefaultAcquisitionCost = entity.DefaultAcquisitionCost,
                 IsActive = entity.IsActive,
                 StockCount = _assetStockService.GetAvailableQuantity(entity.Id, null)
             };
@@ -140,6 +143,7 @@ namespace AssetManagement.Application.Services
                 Model = entity.Model,
                 Specifications = entity.Specifications,
                 Sku = entity.Sku,
+                DefaultAcquisitionCost = entity.DefaultAcquisitionCost,
                 IsActive = entity.IsActive,
                 StockCount = _assetStockService.GetAvailableQuantity(entity.Id, null)
             };
@@ -158,8 +162,29 @@ namespace AssetManagement.Application.Services
             entity.Model = AssetSubTypeNormalizer.NormalizeModel(model.ItemModel);
             entity.Specifications = model.Specifications;
             entity.Sku = model.Sku;
+            entity.DefaultAcquisitionCost = model.DefaultAcquisitionCost;
             entity.IsActive = model.IsActive;
         }
+        private static void NormalizeSubTypeIdentity(AssetSubTypeEditVm model)
+        {
+            if (model == null)
+            {
+                return;
+            }
+
+            model.Brand = AssetSubTypeNormalizer.NormalizeBrand(model.Brand);
+            model.ItemModel = AssetSubTypeNormalizer.NormalizeModel(model.ItemModel);
+            if (string.IsNullOrWhiteSpace(model.Name))
+            {
+                model.Name = AssetSubTypeNormalizer.BuildSuggestedName(model.Brand, model.ItemModel);
+            }
+
+            if (string.IsNullOrEmpty(model.ItemModel) && !string.IsNullOrWhiteSpace(model.Name))
+            {
+                model.ItemModel = AssetSubTypeNormalizer.NormalizeModel(model.Name);
+            }
+        }
+
         private void ValidateModel(AssetSubTypeEditVm model, int? currentId)
         {
             if (model == null)
@@ -172,7 +197,7 @@ namespace AssetManagement.Application.Services
             }
             if (string.IsNullOrWhiteSpace(model.Name))
             {
-                throw new BusinessException("Sub-type name is required.");
+                throw new BusinessException("Sub-type display name is required.");
             }
             var brand = AssetSubTypeNormalizer.NormalizeBrand(model.Brand);
             var modelName = AssetSubTypeNormalizer.NormalizeModel(model.ItemModel);
