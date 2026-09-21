@@ -29,22 +29,6 @@ Browser-based asset management built with **ASP.NET MVC** on **.NET Framework 4.
 - Dashboard KPIs, audit logs, notifications, depreciation engine (service-level)
 - **Phase 4 — UX & productivity:** global search (tag, serial, custodian, department); list UX with search/filter/pagination/sort on Assets, Assignments, and Asset Requests with role-aware defaults; bulk asset actions (permission-gated, audited); mobile-friendly return/transfer wizards; custodian self-service (My Assets, report issue, request return, acknowledge receipt); dashboard v2 trends (assignments/month, approval backlog, department book value, loss/damage rate); lifecycle panel on asset details linking depreciation, insurance, and disposal flows
 
-## Demo Credentials
-
-After running migration `database/scripts/004_Migrations/005_Multitenancy.sql`:
-
-- **Platform admin:** `superadmin@asset.local` / `P@ssw0rd!` at `/Account/Login` (platform only — not a tenant company login)
-- **Tenant users:** sign in at `/{organization-slug}/Account/Login` (primary demo org: `/nanosoft/Account/Login`)
-- **Company admin:** `{slug}@asset.local` / `P@ssw0rd!` (e.g. `nanosoft@asset.local` for slug `nanosoft`)
-- Legacy tenant users at `/default/Account/Login`: asset manager, procurement, finance, department head, staff, auditor — all `P@ssw0rd!`
-- Additional staff users: `itstaff@asset.local`, `opsstaff@asset.local`, `labtech@asset.local` — all `P@ssw0rd!`
-
-### Demo data (default tenant)
-
-Re-run `tools/database/Initialize-Database.ps1` to apply the diverse seed (`017_DiverseDemoAssets.sql`). The default org includes **19 assets** across IT, Finance, HR, Operations, and Admin — laptops, desktops, printers, routers, furniture, lab equipment, and a fleet vehicle — with linked assignments, incidents, maintenance, insurance claims, asset requests, and purchase requests.
-
-Example asset tags for scan/label testing: `IT-LTP-001` (barcode `BC-IT-LTP-001`), `OPS-MED-001` (under maintenance), `IT-LTP-003` (damaged + claim `CLM-2026-003`).
-
 ### Asset import template
 
 Download the Excel template from **Assets → Import from Excel → Download template**. The workbook has three sheets:
