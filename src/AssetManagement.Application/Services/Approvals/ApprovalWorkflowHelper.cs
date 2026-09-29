@@ -86,13 +86,21 @@ namespace AssetManagement.Application.Services
 
             if (isSelfApproval)
             {
-                if (!bypassesApprovalRoleCheck || !IsAdminSelfApprovalAllowed(unitOfWork))
+                // Purchase/Requisition: creator may approve own request when stage/role checks pass.
+                // Transfer/Disposal keep the hard self-approval block (admin break-glass only).
+                if (AllowsEligibleSelfApproval(processCode))
+                {
+                    // Fall through to normal stage role/user checks below.
+                }
+                else if (!bypassesApprovalRoleCheck || !IsAdminSelfApprovalAllowed(unitOfWork))
                 {
                     throw new BusinessException(GetSelfApprovalMessage(processCode));
                 }
-
-                WriteBreakGlassAudit(auditWriter, "Approval.SelfApprove", processCode, actor, requester);
-                return;
+                else
+                {
+                    WriteBreakGlassAudit(auditWriter, "Approval.SelfApprove", processCode, actor, requester);
+                    return;
+                }
             }
 
             if (bypassesApprovalRoleCheck)
@@ -222,13 +230,14 @@ namespace AssetManagement.Application.Services
             bool bypassesApprovalRoleCheck,
             int? currentRoleId,
             int? stageRoleId,
-            string stageUserId = null)
+            string stageUserId = null,
+            bool allowEligibleSelfApproval = false)
         {
             var isMine = !string.IsNullOrWhiteSpace(requesterUserId)
                 && !string.IsNullOrWhiteSpace(currentUserId)
                 && string.Equals(NormalizeUserId(requesterUserId), NormalizeUserId(currentUserId), StringComparison.OrdinalIgnoreCase);
 
-            if (isMine)
+            if (isMine && !allowEligibleSelfApproval)
             {
                 return bypassesApprovalRoleCheck && IsAdminSelfApprovalAllowed(unitOfWork);
             }
@@ -250,9 +259,23 @@ namespace AssetManagement.Application.Services
             bool bypassesApprovalRoleCheck,
             int? currentRoleId,
             int? stageRoleId,
-            string stageUserId = null)
+            string stageUserId = null,
+            bool allowEligibleSelfApproval = false)
         {
-            return CanUserActOnStage(null, requesterUserId, currentUserId, bypassesApprovalRoleCheck, currentRoleId, stageRoleId, stageUserId);
+            return CanUserActOnStage(
+                null,
+                requesterUserId,
+                currentUserId,
+                bypassesApprovalRoleCheck,
+                currentRoleId,
+                stageRoleId,
+                stageUserId,
+                allowEligibleSelfApproval);
+        }
+
+        public static bool AllowsEligibleSelfApproval(string processCode)
+        {
+            return string.Equals(processCode, ApprovalProcessCodes.Purchase, StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool ShouldIncludePendingItem(bool bypassesApprovalRoleCheck, bool canAct, bool isMine)
