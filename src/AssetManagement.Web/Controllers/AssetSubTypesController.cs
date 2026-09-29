@@ -17,6 +17,69 @@ namespace AssetManagement.Web.Controllers
         {
             _assetSubTypeService = BuildAssetSubTypeService();
         }
+        public ActionResult Index(int? assetTypeId = null, string search = null, bool? activeOnly = true)
+        {
+            var query = UnitOfWork.Repository<AssetSubType>().GetAll().AsQueryable();
+            if (assetTypeId.HasValue && assetTypeId.Value > 0)
+            {
+                query = query.Where(x => x.AssetTypeId == assetTypeId.Value);
+            }
+
+            if (activeOnly != false)
+            {
+                query = query.Where(x => x.IsActive);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(x =>
+                    (x.Name != null && x.Name.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (x.Brand != null && x.Brand.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (x.Model != null && x.Model.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (x.Sku != null && x.Sku.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0));
+            }
+
+            var types = UnitOfWork.Repository<AssetType>().GetAll().ToDictionary(x => x.Id, x => x);
+            var categories = UnitOfWork.Repository<AssetCategory>().GetAll().ToDictionary(x => x.Id, x => x.Name);
+            var items = query
+                .OrderBy(x => x.Name)
+                .ToList()
+                .Select(x =>
+                {
+                    AssetType assetType;
+                    types.TryGetValue(x.AssetTypeId, out assetType);
+                    string categoryName = null;
+                    if (assetType != null)
+                    {
+                        categories.TryGetValue(assetType.AssetCategoryId, out categoryName);
+                    }
+
+                    return new AssetSubTypeIndexItemVm
+                    {
+                        Id = x.Id,
+                        Name = x.Name,
+                        Brand = x.Brand,
+                        Model = x.Model,
+                        Sku = x.Sku,
+                        AssetTypeId = x.AssetTypeId,
+                        AssetTypeName = assetType != null ? assetType.Name : null,
+                        AssetCategoryName = categoryName,
+                        IsActive = x.IsActive
+                    };
+                })
+                .ToList();
+
+            ViewBag.AssetTypeId = assetTypeId;
+            ViewBag.Search = search;
+            ViewBag.ActiveOnly = activeOnly != false;
+            ViewBag.AssetTypes = new SelectList(
+                UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
+                "Id", "Name", assetTypeId);
+            return View(items);
+        }
+
+
         public ActionResult Create(int assetTypeId, string returnUrl = null)
         {
             var assetType = UnitOfWork.Repository<AssetType>().GetById(assetTypeId);
