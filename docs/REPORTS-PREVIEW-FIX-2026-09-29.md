@@ -73,3 +73,29 @@ SoT bin mirrors the same stamps under `src\AssetManagement.Web\bin\`.
 - Confirm dated assets still respect period From/To.
 
 **READY_FOR_QA:** yes
+
+---
+
+## Git handoff (for Github PR bot — no PR opened by implementer)
+
+| Item | Value |
+|------|-------|
+| Branch | `fix/reports-preview-dbnull-2026-09-29` |
+| Base | `origin/main` @ `44915ec` |
+| Commit | `8dca0a0` |
+| Remote | `origin` = `https://github.com/A101llanW/Asset-Management.git` |
+| Push | **OK** — branch on origin |
+| PR | **NOT opened** (handoff only) |
+| Worktree | `C:\Users\allan\Documents\Examples\CodexAsset-reports-dbnull` |
+
+### Files on branch (7)
+
+- `src/AssetManagement.Infrastructure/Queries/SqlQueryHelper.cs`
+- `src/AssetManagement.Infrastructure/Queries/AssetQueryService.cs`
+- `src/AssetManagement.Application/ViewModels/Assets/AssetExportViewModels.cs`
+- `src/AssetManagement.Application/Services/ReportDocumentService.cs`
+- `src/AssetManagement.Application/Services/ReportService.cs`
+- `docs/REPORTS-PREVIEW-FIX-2026-09-29.md`
+- `docs/REPORTS-PREVIEW-DBNULL-2026-09-29.md`
+
+PR create URL: https://github.com/A101llanW/Asset-Management/pull/new/fix/reports-preview-dbnull-2026-09-29
