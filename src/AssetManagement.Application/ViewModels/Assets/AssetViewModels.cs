@@ -95,6 +95,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string AssetSubTypeName { get; set; }
 
+        /// <summary>When true, Create may omit AssetSubTypeId (e.g. Purchases Receive — classify after create).</summary>
+        public bool AllowDeferredSubTypeClassification { get; set; }
+
         [StringLength(120)]
         public string Brand { get; set; }
 

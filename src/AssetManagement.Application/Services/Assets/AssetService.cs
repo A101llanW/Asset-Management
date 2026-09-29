@@ -1352,6 +1352,20 @@ namespace AssetManagement.Application.Services
 
             if (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0)
             {
+                if (model.AllowDeferredSubTypeClassification)
+                {
+                    entity.AssetSubTypeId = null;
+                    if (!string.IsNullOrWhiteSpace(model.Brand))
+                    {
+                        entity.Brand = model.Brand.Trim();
+                    }
+                    if (!string.IsNullOrWhiteSpace(model.Model))
+                    {
+                        entity.Model = model.Model.Trim();
+                    }
+                    return;
+                }
+
                 throw new BusinessException("Choose an asset sub-type in classification before saving.");
             }
 

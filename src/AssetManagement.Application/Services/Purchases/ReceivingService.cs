@@ -166,27 +166,24 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Unable to prepare " + model.QuantityReceived + " unit(s) for receiving.");
             }
-            if (!context.AssetTypeId.HasValue || context.AssetTypeId.Value <= 0)
-            {
-                throw new BusinessException("Asset type could not be resolved for this receipt. Assign an asset sub-type first.");
-            }
-            var assetType = _unitOfWork.Repository<AssetType>().GetById(context.AssetTypeId.Value);
-            if (assetType == null)
-            {
-                throw new BusinessException("Asset type was not found.");
-            }
-            if (subType == null && (!context.AssetSubTypeId.HasValue || context.AssetSubTypeId.Value <= 0))
-            {
-                throw new BusinessException("Assign an asset sub-type before recording this receipt.");
-            }
             var resolvedSubType = subType;
-            if (resolvedSubType == null && context.AssetSubTypeId.HasValue)
+            if (resolvedSubType == null && context.AssetSubTypeId.HasValue && context.AssetSubTypeId.Value > 0)
             {
                 resolvedSubType = _assetSubTypeService.GetById(context.AssetSubTypeId.Value);
             }
-            if (resolvedSubType == null)
+            var resolvedAssetTypeId = context.AssetTypeId;
+            if ((!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0) && resolvedSubType != null)
             {
-                throw new BusinessException("Selected asset sub-type was not found.");
+                resolvedAssetTypeId = resolvedSubType.AssetTypeId;
+            }
+            if (!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0)
+            {
+                throw new BusinessException("Asset type could not be resolved for this receipt. Confirm a catalog match or link a target asset so classification context is available; subtype can be set on the asset after create.");
+            }
+            var assetType = _unitOfWork.Repository<AssetType>().GetById(resolvedAssetTypeId.Value);
+            if (assetType == null)
+            {
+                throw new BusinessException("Asset type was not found.");
             }
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
@@ -213,9 +210,9 @@ namespace AssetManagement.Application.Services
                         AssetTag = null,
                         CategoryId = assetType.AssetCategoryId,
                         AssetTypeId = assetType.Id,
-                        AssetSubTypeId = resolvedSubType.Id,
-                        Brand = resolvedSubType.Brand,
-                        Model = resolvedSubType.Model,
+                        AssetSubTypeId = resolvedSubType != null ? resolvedSubType.Id : (int?)null,
+                        Brand = resolvedSubType != null ? resolvedSubType.Brand : context.Brand,
+                        Model = resolvedSubType != null ? resolvedSubType.Model : context.Model,
                         SerialNumber = unit.SerialNumber,
                         Description = itemDescription,
                         PurchaseDate = model.ReceivedDate,
@@ -224,7 +221,8 @@ namespace AssetManagement.Application.Services
                         SupplierId = purchase.SupplierId > 0 ? purchase.SupplierId : (int?)null,
                         DepartmentId = receiveDepartmentId,
                         ConditionOnReceipt = model.ConditionOnReceipt,
-                        CurrentStatus = AssetStatus.InStore
+                        CurrentStatus = AssetStatus.InStore,
+                        AllowDeferredSubTypeClassification = resolvedSubType == null
                     };
                     var assetId = _assetService.Create(createModel);
                     var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
@@ -332,10 +330,7 @@ namespace AssetManagement.Application.Services
                     return inferred;
                 }
             }
-            if (context.RequiresSubTypeAssignment)
-            {
-                throw new BusinessException("Assign an asset sub-type before recording this receipt.");
-            }
+            // Classification Assign during receive removed — allow blank subtype; classify after create when type context exists.
             return null;
         }
         private static void ApplyReceivePlacementChoice(AssetReceiveVm model)
