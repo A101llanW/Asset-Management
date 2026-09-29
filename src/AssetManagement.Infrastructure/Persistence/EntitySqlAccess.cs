@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Data.SqlTypes;
 using System.Linq;
 using System.Reflection;
 using AssetManagement.Application.DTOs;
@@ -410,12 +411,32 @@ WHERE pr.[Id] = @PurchaseRecordId";
             {
                 parameter.Value = (int)value;
             }
+            else if (value is DateTime)
+            {
+                // NULL SQL datetime columns hydrate as DateTime.MinValue on non-nullable
+                // properties (see ReadRow/GetDefault). Writing that back overflows SqlDateTime.
+                parameter.Value = ToSqlDateTimeValue((DateTime)value);
+            }
             else
             {
                 parameter.Value = value;
             }
 
             command.Parameters.Add(parameter);
+        }
+
+        /// <summary>
+        /// SQL Server datetime range is 1753-01-01 .. 9999-12-31. Unset CLR defaults
+        /// (DateTime.MinValue) and other out-of-range values are omitted as NULL.
+        /// </summary>
+        private static object ToSqlDateTimeValue(DateTime value)
+        {
+            if (value < SqlDateTime.MinValue.Value || value > SqlDateTime.MaxValue.Value)
+            {
+                return DBNull.Value;
+            }
+
+            return value;
         }
     }
 }

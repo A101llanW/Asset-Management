@@ -23,3 +23,25 @@ Deployed message: **Selected user does not belong to the target department.**
 
 ## Base
 Branch based on `origin/cursor/multi-row-assign-b374` (`0ce9c11`) because `origin/main` does not contain Option C BatchAssign.
+
+## Follow-up 2026-09-29 — SqlDateTime overflow on BatchAssign Save (QA re-prove)
+
+### Symptom
+After dept-skip fix (`3d4abe2`), BatchAssign Save YSOD:
+`SqlDateTime overflow. Must be between 1/1/1753 and 12/31/9999.`
+Stack: `AuditLogAttribute.OnActionExecuted` → `AuditWriter.Write` → `EntitySqlWriter.Update`.
+Preferred assets 24967 / 25002 remained Unassigned.
+
+### Root cause (file:line)
+1. Live DB `Asset.PurchaseDate` / `DepreciationStartDate` are **NULLABLE** (schema drift vs scripts) and NULL on Test-WF InStore rows 24967/25002.
+2. `EntitySqlAccess.ReadRow` (~187-189) maps `DBNull` → `GetDefault(DateTime)` = **`DateTime.MinValue`** (`0001-01-01`).
+3. `AssignWithoutSave` marks that `Asset` Modified; `ExecuteInTransaction` → `EntitySqlWriter.Update` → `AddParameter` (~401-416) sent `DateTime.MinValue` → SqlDateTime overflow.
+4. Exception is not a `BusinessException`, so it bubbled; `OnActionExecuted` still wrote HTTP audit and `SaveChanges` re-flushed the dirty Asset (`Update`), producing the YSOD stack on the audit filter.
+
+### Fix
+1. `EntitySqlWriter.AddParameter` / `ToSqlDateTimeValue`: out-of-range `DateTime` (incl. `MinValue`) → `DBNull` (omit unset dates).
+2. `AuditWriter` sync path: `ClearTracking()` before inserting `AuditLog` so HTTP audit never flushes leftover Modified entities.
+
+### Files
+- `src/AssetManagement.Infrastructure/Persistence/EntitySqlAccess.cs`
+- `src/AssetManagement.Infrastructure/Services/AuditWriter.cs`

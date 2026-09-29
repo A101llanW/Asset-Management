@@ -58,6 +58,11 @@ namespace AssetManagement.Infrastructure.Services
             if (ShouldWriteAuditSynchronously())
             {
                 var parsed = OutboxPayloadBuilder.ParseAuditPayload(payload);
+                // Isolate the audit row from any leftover Modified entities in this
+                // request UoW (e.g. Asset after a failed Assign SaveChanges). Otherwise
+                // SaveChanges can re-flush those rows and surface SqlDateTime overflow
+                // on the HTTP AuditLogAttribute path.
+                _unitOfWork.ClearTracking();
                 _unitOfWork.Repository<AuditLog>().Add(new AuditLog
                 {
                     OrganizationId = parsed.OrganizationId ?? organizationId,
