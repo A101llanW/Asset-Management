@@ -41,6 +41,39 @@ namespace AssetManagement.Infrastructure.Queries
             return value == DBNull.Value ? null : value.ToString();
         }
 
+        public static DateTime? GetDateTimeNullable(IDataRecord record, string columnName)
+        {
+            var value = record[columnName];
+            if (value == null || value == DBNull.Value)
+            {
+                return null;
+            }
+
+            return Convert.ToDateTime(value);
+        }
+
+        public static decimal GetDecimal(IDataRecord record, string columnName, decimal defaultValue = 0m)
+        {
+            var value = record[columnName];
+            if (value == null || value == DBNull.Value)
+            {
+                return defaultValue;
+            }
+
+            return Convert.ToDecimal(value);
+        }
+
+        public static int GetInt32(IDataRecord record, string columnName, int defaultValue = 0)
+        {
+            var value = record[columnName];
+            if (value == null || value == DBNull.Value)
+            {
+                return defaultValue;
+            }
+
+            return Convert.ToInt32(value);
+        }
+
         public static string BuildPrefixPattern(string term)
         {
             if (string.IsNullOrWhiteSpace(term))
