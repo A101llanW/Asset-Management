@@ -68,35 +68,18 @@
                         }
                     </div>
                 </div>
-                @if (hasRequisitionDepartment)
-                {
-                    <div class="col-md-12">
-                        <div class="card border bg-light">
-                            <div class="card-body py-3">
-                                <p class="mb-2"><strong>Placement (required):</strong> choose where received goods should be recorded.</p>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="ReceivePlacementChoice" id="placement-requisition" value="RequisitionDepartment" @(Model.ReceivePlacementChoice == "RequisitionDepartment" ? "checked" : null) />
-                                    <label class="form-check-label" for="placement-requisition">
-                                        Assign to <strong>@requisitionDepartmentName</strong>
-                                    </label>
-                                </div>
-                                <div class="form-check mt-2">
-                                    <input class="form-check-input" type="radio" name="ReceivePlacementChoice" id="placement-company" value="CompanyCustody" @(Model.ReceivePlacementChoice == "CompanyCustody" ? "checked" : null) />
-                                    <label class="form-check-label" for="placement-company">
-                                        Keep in <strong>company custody</strong> for later assignment
-                                    </label>
-                                </div>
-                                @Html.ValidationMessage("ReceivePlacementChoice", "", new { @class = "text-danger small" })
-                            </div>
-                        </div>
+                @* Custody Assign is post-receive only (Purchases Details "Assign these units"). Receive always keeps units In Store / company custody. *@
+                <input type="hidden" name="ReceivePlacementChoice" value="CompanyCustody" />
+                <div class="col-md-12">
+                    <div class="form-text">
+                        Received items are recorded under <strong>company custody</strong> (In Store, no custodian).
+                        After create, you can optionally assign from Purchase Details, or keep them in store.
+                        @if (hasRequisitionDepartment)
+                        {
+                            <span>Intended requisition destination: <strong>@requisitionDepartmentName</strong> (assign later if needed).</span>
+                        }
                     </div>
-                }
-                else
-                {
-                    <div class="col-md-12">
-                        <div class="form-text">Received items are recorded under <strong>company custody</strong> (no department, no custodian) until explicitly assigned.</div>
-                    </div>
-                }
+                </div>
                 <div class="col-md-3">
                     <label class="form-label">Received Date</label>
                     @Html.TextBoxFor(m => m.ReceivedDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
