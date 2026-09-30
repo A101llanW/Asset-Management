@@ -239,6 +239,45 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        public void EnsureCanCreateForRequisitionTarget(Department department)
+        {
+            if (department == null)
+            {
+                throw new BusinessException("Department not found.");
+            }
+
+            if (!department.IsActive)
+            {
+                throw new BusinessException("Requisition target department is not active.");
+            }
+
+            if (!department.IsRequisitionTarget)
+            {
+                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
+            }
+
+            if (BypassesDepartmentScope || CanCreateForAnyDepartment())
+            {
+                return;
+            }
+
+            var scopedDepartmentId = ScopedDepartmentId;
+            if (!scopedDepartmentId.HasValue)
+            {
+                return;
+            }
+
+            EnsureCanAccessDepartment(department);
+        }
+
+        private bool CanCreateForAnyDepartment()
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return !string.IsNullOrWhiteSpace(userId)
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Purchases.CreateForAnyDepartment");
+        }
+
         private bool ResolveIncludesClassDepartmentAssets()
         {
             var userId = _currentUser == null ? null : _currentUser.UserId;

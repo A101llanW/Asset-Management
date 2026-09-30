@@ -83,6 +83,7 @@ namespace AssetManagement.Infrastructure.Services
                             SafeDelete("AssetReceiving"),
                             SafeDelete("PurchaseRecord"),
                             SafeDelete("PurchaseApprovalAction"),
+                            SafeDelete("PurchaseRequestLine"),
                             SafeDelete("PurchaseRequest"),
                             SafeDelete("AssetRequest"),
                             "IF OBJECT_ID(N'[SupplierCatalogItem]', N'U') IS NOT NULL UPDATE [SupplierCatalogItem] SET [TaggedAssetId] = NULL WHERE [OrganizationId] = @OrgId",

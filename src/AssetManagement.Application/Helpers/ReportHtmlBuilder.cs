@@ -156,7 +156,24 @@ namespace AssetManagement.Application.Helpers
                 sb.Append(BuildDetailRow("Order by", string.IsNullOrWhiteSpace(model.OrderByUserName) ? model.OrderByUserId : model.OrderByUserName));
             }
 
-            sb.Append(BuildDetailRow("Item", model.ItemDescription));
+            if (model.LineItems != null && model.LineItems.Count > 1)
+            {
+                sb.Append("<div class=\"detail-row\"><span class=\"detail-label\">Items</span><span class=\"detail-value\"><ul>");
+                foreach (var line in model.LineItems)
+                {
+                    sb.AppendFormat(
+                        "<li>{0} <span class=\"text-muted\">(qty {1})</span></li>",
+                        Encode(line.Description),
+                        line.Quantity);
+                }
+
+                sb.Append("</ul></span></div>");
+            }
+            else
+            {
+                sb.Append(BuildDetailRow("Item", model.ItemDescription));
+            }
+
             if (model.TargetAssetId.HasValue)
             {
                 var assetLabel = string.IsNullOrWhiteSpace(model.TargetAssetTag)

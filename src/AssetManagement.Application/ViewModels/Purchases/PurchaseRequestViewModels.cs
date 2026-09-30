@@ -1,10 +1,29 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 
 namespace AssetManagement.Application.ViewModels
 {
-    public class PurchaseRequestCreateVm
+    public class PurchaseRequestLineCreateVm
+    {
+        [StringLength(2000)]
+        public string Description { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
+        public int Quantity { get; set; } = 1;
+    }
+
+    public class PurchaseRequestLineVm
+    {
+        public int LineNumber { get; set; }
+
+        public string Description { get; set; }
+
+        public int Quantity { get; set; }
+    }
+
+    public class PurchaseRequestCreateVm : IValidatableObject
     {
         [Required(ErrorMessage = "Department is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "Department is required.")]
@@ -14,11 +33,11 @@ namespace AssetManagement.Application.ViewModels
 
         public string OrderByUserId { get; set; }
 
-        [Required(ErrorMessage = "Item description is required.")]
+        /// <summary>Legacy single-line field; populated from line items on submit when lines are used.</summary>
         [StringLength(2000)]
         public string ItemDescription { get; set; }
 
-        [Required]
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Justification is required.")]
         [StringLength(2000)]
         public string Justification { get; set; }
 
@@ -27,9 +46,8 @@ namespace AssetManagement.Application.ViewModels
         public DateTime? RequiredDate { get; set; }
 
         [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
-        public int Quantity { get; set; }
+        public int Quantity { get; set; } = 1;
 
-        [Required]
         [StringLength(10)]
         public string Currency { get; set; }
 
@@ -38,6 +56,68 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>Optional existing asset to tag for easier assignment after purchase.</summary>
         public int? TargetAssetId { get; set; }
+
+        public IList<PurchaseRequestLineCreateVm> Lines { get; set; } = new List<PurchaseRequestLineCreateVm>();
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (string.IsNullOrWhiteSpace(Justification))
+            {
+                yield return new ValidationResult(
+                    "Justification is required.",
+                    new[] { "Justification" });
+            }
+
+            var effectiveLines = ResolveEffectiveLines();
+            if (effectiveLines.Count == 0)
+            {
+                yield return new ValidationResult(
+                    "Describe at least one item to order.",
+                    new[] { "Lines" });
+            }
+            else
+            {
+                for (var i = 0; i < effectiveLines.Count; i++)
+                {
+                    if (effectiveLines[i].Quantity < 1)
+                    {
+                        yield return new ValidationResult(
+                            "Quantity must be at least 1.",
+                            new[] { "Lines[" + i + "].Quantity" });
+                    }
+                }
+            }
+        }
+
+        public IList<PurchaseRequestLineCreateVm> ResolveEffectiveLines()
+        {
+            var fromLines = (Lines ?? new List<PurchaseRequestLineCreateVm>())
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Description))
+                .Select(x => new PurchaseRequestLineCreateVm
+                {
+                    Description = x.Description.Trim(),
+                    Quantity = x.Quantity > 0 ? x.Quantity : 1
+                })
+                .ToList();
+            if (fromLines.Count > 0)
+            {
+                return fromLines;
+            }
+
+            if (!string.IsNullOrWhiteSpace(ItemDescription))
+            {
+                return new List<PurchaseRequestLineCreateVm>
+                {
+                    new PurchaseRequestLineCreateVm
+                    {
+                        Description = ItemDescription.Trim(),
+                        Quantity = Quantity > 0 ? Quantity : 1
+                    }
+                };
+            }
+
+            return new List<PurchaseRequestLineCreateVm>();
+        }
     }
 
     public class PurchaseRequestListItemVm
@@ -132,6 +212,8 @@ namespace AssetManagement.Application.ViewModels
         public string TargetAssetTag { get; set; }
 
         public string TargetAssetName { get; set; }
+
+        public IList<PurchaseRequestLineVm> LineItems { get; set; } = new List<PurchaseRequestLineVm>();
 
         public IEnumerable<ApprovalDecisionHistoryVm> ApprovalHistory { get; set; } = new List<ApprovalDecisionHistoryVm>();
     }

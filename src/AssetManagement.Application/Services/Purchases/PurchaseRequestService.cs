@@ -153,6 +153,16 @@ namespace AssetManagement.Application.Services
             var targetAsset = entity.TargetAssetId.HasValue
                 ? _unitOfWork.Repository<Asset>().GetById(entity.TargetAssetId.Value)
                 : null;
+            var lineItems = _unitOfWork.Repository<PurchaseRequestLine>()
+                .Find(x => x.PurchaseRequestId == id && x.IsActive)
+                .OrderBy(x => x.LineNumber)
+                .Select(x => new PurchaseRequestLineVm
+                {
+                    LineNumber = x.LineNumber,
+                    Description = x.Description,
+                    Quantity = x.Quantity
+                })
+                .ToList();
 
             return new PurchaseRequestDetailVm
             {
@@ -188,6 +198,7 @@ namespace AssetManagement.Application.Services
                 TargetAssetId = entity.TargetAssetId,
                 TargetAssetTag = targetAsset?.AssetTag,
                 TargetAssetName = targetAsset?.AssetName,
+                LineItems = lineItems,
                 ApprovalHistory = ApprovalWorkflowHelper.MapDecisionHistory(
                     actions.Select(x => ApprovalWorkflowHelper.ToSnapshot(
                         x.StageNumber, x.RoleId, x.ApproverUserId, x.Decision, x.Notes, x.DecisionDate)),
@@ -213,18 +224,20 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Department not found.");
             }
 
-            if (!department.IsRequisitionTarget)
+            _departmentScope.EnsureCanCreateForRequisitionTarget(department);
+
+            if (string.IsNullOrWhiteSpace(model.Justification))
             {
-                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
+                throw new BusinessException("Justification is required.");
             }
 
-            _departmentScope.EnsureCanAccessDepartment(department);
-            _departmentScope.EnsureCanAccessDepartmentId(model.DepartmentId);
-
-            if (string.IsNullOrWhiteSpace(model.ItemDescription))
+            var effectiveLines = model.ResolveEffectiveLines();
+            if (effectiveLines.Count == 0)
             {
-                throw new BusinessException("Item description is required.");
+                throw new BusinessException("Describe at least one item to order.");
             }
+
+            ApplyHeaderSummaryFromLines(model, effectiveLines);
 
             if (!string.IsNullOrWhiteSpace(model.OrderByUserId))
             {
@@ -282,6 +295,7 @@ namespace AssetManagement.Application.Services
                 _unitOfWork.SaveChanges();
                 entity.RequestNumber = "PR-" + entity.Id.ToString("D6");
                 entity.UpdatedAt = DateTime.UtcNow;
+                PersistLineItems(entity, effectiveLines);
                 _unitOfWork.Repository<PurchaseRequest>().Update(entity);
                 _unitOfWork.SaveChanges();
                 NotificationHelper.AddNotification(
@@ -308,6 +322,7 @@ namespace AssetManagement.Application.Services
             _unitOfWork.SaveChanges();
             entity.RequestNumber = "PR-" + entity.Id.ToString("D6");
             entity.UpdatedAt = DateTime.UtcNow;
+            PersistLineItems(entity, effectiveLines);
             _unitOfWork.Repository<PurchaseRequest>().Update(entity);
             _unitOfWork.SaveChanges();
             NotificationHelper.AddNotification(
@@ -686,6 +701,54 @@ namespace AssetManagement.Application.Services
             }
 
             return asset.Id;
+        }
+
+        private static void ApplyHeaderSummaryFromLines(PurchaseRequestCreateVm model, IList<PurchaseRequestLineCreateVm> lines)
+        {
+            if (model == null || lines == null || lines.Count == 0)
+            {
+                return;
+            }
+
+            model.Quantity = lines.Sum(x => x.Quantity);
+            if (lines.Count == 1)
+            {
+                model.ItemDescription = lines[0].Description;
+                return;
+            }
+
+            var summary = string.Join("; ", lines.Select(x => x.Description));
+            if (summary.Length > 2000)
+            {
+                summary = summary.Substring(0, 1997) + "...";
+            }
+
+            model.ItemDescription = summary;
+        }
+
+        private void PersistLineItems(PurchaseRequest entity, IList<PurchaseRequestLineCreateVm> lines)
+        {
+            if (entity == null || lines == null || lines.Count == 0)
+            {
+                return;
+            }
+
+            var organizationId = entity.OrganizationId ?? _organizationScope.GetCurrentOrganizationId();
+            var lineNumber = 1;
+            foreach (var line in lines)
+            {
+                _unitOfWork.Repository<PurchaseRequestLine>().Add(new PurchaseRequestLine
+                {
+                    OrganizationId = organizationId,
+                    PurchaseRequestId = entity.Id,
+                    LineNumber = lineNumber,
+                    Description = line.Description,
+                    Quantity = line.Quantity,
+                    CreatedAt = DateTime.UtcNow,
+                    IsActive = true
+                });
+                lineNumber++;
+            }
         }
     }
 }
