@@ -8,9 +8,9 @@
 
     <p class="mb-3">
 
-        Configure procurement under <strong>Settings &rarr; Approval Matrix</strong> (process: <strong>Requisition</strong>).
+        Configure leaf targets under <strong>Organization &rarr; Requisition flows</strong> (Inherit or Custom per room/sub-unit/admin). The organization <strong>Settings &rarr; Approval Matrix</strong> is the fallback when a target inherits all the way up.
 
-        Stage 1 approver is typically <strong>Procurement Manager</strong>.
+        Org-matrix Stage 1 is typically <strong>Procurement Manager</strong>; Custom/Inherited stages on a room may differ.
 
         Teachers do not log in; Facilities transcribes offline class needs into requisitions.
 
@@ -20,7 +20,7 @@
 
     <ol class="small text-muted mb-3 ps-3">
 
-        <li><strong>Facilities Manager</strong> submits a requisition for a leaf department (class or admin).</li>
+        <li><strong>Facilities Manager</strong> submits a requisition for a leaf target (room, leaf sub-unit, leaf admin, or class/stream).</li>
 
         <li><strong>Procurement Manager</strong> approves, records a purchase order, and selects a supplier.</li>
 
@@ -56,7 +56,7 @@
 
                     <td class="fw-semibold">Facilities Manager</td>
 
-                    <td>Submit requisitions for any class/admin department; assign or transfer assets after receipt</td>
+                    <td>Submit requisitions for any leaf target (including rooms); assign or transfer assets after receipt</td>
 
                     <td class="small text-muted"><code>Purchases.Create</code>, <code>Purchases.CreateForAnyDepartment</code>, <code>Assets.Assign</code>, <code>Assets.Transfer</code></td>
 
@@ -76,7 +76,7 @@
 
                     <td class="fw-semibold">Company Admin</td>
 
-                    <td>Configure departments, classes, users, and approval matrix</td>
+                    <td>Configure departments/rooms, requisition flows (Inherit/Custom), users, and approval matrix</td>
 
                     <td class="small text-muted"><code>Settings.Manage</code>, <code>Departments.*</code>, <code>Users.*</code></td>
 
@@ -100,9 +100,9 @@
 
     <p class="text-muted small mt-3 mb-0">
 
-        Requisitions require a leaf target department.
+        Requisitions require a leaf requisition target (room, leaf sub-unit, leaf admin, or class/stream).
 
-        Users cannot approve their own submitted requisitions.
+        Requisition creators may approve their own request when they match the current stage role or pinned user. Transfer and disposal keep the self-approval block.
 
         Opening-balance assets are imported separately via <strong>Import Assets</strong>.
 

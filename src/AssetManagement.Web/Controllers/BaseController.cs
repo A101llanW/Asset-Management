@@ -367,36 +367,73 @@ namespace AssetManagement.Web.Controllers
             return groups;
         }
 
-        protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null)
+        protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null, int? scopeRootDepartmentId = null)
         {
             var items = new List<SelectListItem>();
             foreach (var section in BuildDepartmentService().GetTreeSections())
             {
-                foreach (var parent in section.Items)
+                if (section == null || section.Items == null)
                 {
-                    if (parent.IsRequisitionTarget)
-                    {
-                        items.Add(new SelectListItem
-                        {
-                            Value = parent.Id.ToString(),
-                            Text = parent.Name,
-                            Selected = selectedDepartmentId.HasValue && parent.Id == selectedDepartmentId.Value
-                        });
-                    }
+                    continue;
+                }
 
-                    foreach (var child in parent.Children.Where(x => x.IsRequisitionTarget))
-                    {
-                        items.Add(new SelectListItem
-                        {
-                            Value = child.Id.ToString(),
-                            Text = parent.Name + " \u2192 " + child.Name,
-                            Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
-                        });
-                    }
+                foreach (var root in section.Items)
+                {
+                    CollectRequisitionTargetSelectItems(
+                        root,
+                        ancestorNames: new List<string>(),
+                        items: items,
+                        selectedDepartmentId: selectedDepartmentId,
+                        scopeRootDepartmentId: scopeRootDepartmentId,
+                        underScope: !scopeRootDepartmentId.HasValue);
                 }
             }
 
             return new SelectList(items, "Value", "Text", selectedDepartmentId);
+        }
+
+        private static void CollectRequisitionTargetSelectItems(
+            DepartmentVm node,
+            IList<string> ancestorNames,
+            IList<SelectListItem> items,
+            int? selectedDepartmentId,
+            int? scopeRootDepartmentId,
+            bool underScope)
+        {
+            if (node == null || !node.IsActive)
+            {
+                return;
+            }
+
+            var path = new List<string>(ancestorNames ?? new List<string>());
+            path.Add(node.Name ?? ("#" + node.Id));
+            var nowUnderScope = underScope || (scopeRootDepartmentId.HasValue && node.Id == scopeRootDepartmentId.Value);
+
+            if (node.IsRequisitionTarget && nowUnderScope)
+            {
+                items.Add(new SelectListItem
+                {
+                    Value = node.Id.ToString(),
+                    Text = string.Join(" \u2192 ", path),
+                    Selected = selectedDepartmentId.HasValue && node.Id == selectedDepartmentId.Value
+                });
+            }
+
+            if (node.Children == null)
+            {
+                return;
+            }
+
+            foreach (var child in node.Children)
+            {
+                CollectRequisitionTargetSelectItems(
+                    child,
+                    path,
+                    items,
+                    selectedDepartmentId,
+                    scopeRootDepartmentId,
+                    nowUnderScope);
+            }
         }
 
         protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)

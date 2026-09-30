@@ -5,6 +5,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -134,10 +135,13 @@ namespace AssetManagement.Application.Services
                 .Where(x => !organizationId.HasValue || x.OrganizationId == organizationId.Value)
                 .GroupBy(x => x.Id)
                 .ToDictionary(g => g.Key, g => g.First().Name);
-            var departmentLookup = _unitOfWork.Repository<Department>().GetAll()
+            var departments = _unitOfWork.Repository<Department>().GetAll()
                 .Where(x => !organizationId.HasValue || x.OrganizationId == organizationId.Value)
                 .GroupBy(x => x.Id)
-                .ToDictionary(g => g.Key, g => g.First().Name);
+                .Select(g => g.First())
+                .ToList();
+            var departmentNameLookup = departments.ToDictionary(x => x.Id, x => x.Name);
+            var departmentKindLookup = departments.ToDictionary(x => x.Id, x => x.DepartmentKind);
             var actions = _unitOfWork.Repository<PurchaseApprovalAction>().Find(x => x.PurchaseRequestId == id)
                 .OrderBy(x => x.StageNumber).ThenBy(x => x.DecisionDate).ToList();
             var stageRoleIds = ResolveStageRoleIds(entity, persistBackfill: false);
@@ -153,6 +157,42 @@ namespace AssetManagement.Application.Services
             var targetAsset = entity.TargetAssetId.HasValue
                 ? _unitOfWork.Repository<Asset>().GetById(entity.TargetAssetId.Value)
                 : null;
+            DepartmentKind? departmentKind = null;
+            string departmentKindLabel = null;
+            if (departmentKindLookup.ContainsKey(entity.DepartmentId))
+            {
+                departmentKind = departmentKindLookup[entity.DepartmentId];
+                departmentKindLabel = DepartmentHierarchyRules.DisplayLabel(departmentKind.Value);
+            }
+
+            var approvalStages = new List<PurchaseRequestApprovalStageVm>();
+            for (var i = 0; i < stageRoleIds.Count; i++)
+            {
+                var roleId = stageRoleIds[i];
+                var roleName = ApprovalWorkflowSettingsHelper.ResolveRoleName(roleLookup, roleId);
+                var userId = i < stageUserIds.Count ? stageUserIds[i] : null;
+                var userName = ResolveApproverDisplayName(userId);
+                var label = roleName;
+                if (!string.IsNullOrWhiteSpace(userName))
+                {
+                    label = roleName + " (" + userName + ")";
+                }
+                else if (!string.IsNullOrWhiteSpace(userId))
+                {
+                    label = roleName + " (" + userId + ")";
+                }
+
+                approvalStages.Add(new PurchaseRequestApprovalStageVm
+                {
+                    StageNumber = i + 1,
+                    RoleId = roleId,
+                    RoleName = roleName,
+                    UserId = userId,
+                    UserName = userName,
+                    IsCurrent = entity.ApprovalStatus == ApprovalStatus.Pending && (i + 1) == stageNumber,
+                    DisplayLabel = label
+                });
+            }
 
             return new PurchaseRequestDetailVm
             {
@@ -162,7 +202,9 @@ namespace AssetManagement.Application.Services
                 ApprovedById = entity.ApprovedById,
                 ApprovalStatus = entity.ApprovalStatus.ToString(),
                 DepartmentId = entity.DepartmentId,
-                DepartmentName = departmentLookup.ContainsKey(entity.DepartmentId) ? departmentLookup[entity.DepartmentId] : null,
+                DepartmentName = departmentNameLookup.ContainsKey(entity.DepartmentId) ? departmentNameLookup[entity.DepartmentId] : null,
+                DepartmentKind = departmentKind,
+                DepartmentKindLabel = departmentKindLabel,
                 Justification = entity.Justification,
                 ItemDescription = entity.ItemDescription,
                 QuantityInStock = entity.QuantityInStock,
@@ -181,6 +223,7 @@ namespace AssetManagement.Application.Services
                 CurrentStageRoleName = ApprovalWorkflowSettingsHelper.ResolveRoleName(roleLookup, stageRoleId),
                 CurrentStageUserId = stageUserId,
                 CurrentStageUserName = ResolveApproverDisplayName(stageUserId),
+                ApprovalStages = approvalStages,
                 IsPending = entity.ApprovalStatus == ApprovalStatus.Pending,
                 IsApproved = entity.ApprovalStatus == ApprovalStatus.Approved,
                 HasPurchaseRecord = linkedRecord != null,

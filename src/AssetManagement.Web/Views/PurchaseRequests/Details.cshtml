@@ -3,7 +3,6 @@
 @{
     ViewBag.Title = "Requisition " + Model.RequestNumber;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
-    var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
     var canApprove = Model.CanCurrentUserApprove && Html.HasPermission("Purchases.Approve");
     var canCreatePo = Model.IsApproved && !Model.HasPurchaseRecord && Html.HasPermission("Purchases.Create");
 }
@@ -21,9 +20,32 @@
     }
 })
 
-@if (!string.IsNullOrWhiteSpace(approvalSummary))
+@if (Model.ApprovalStages != null && Model.ApprovalStages.Any())
 {
-    <div class="alert alert-light border mb-3"><strong>Configured approval path:</strong> @approvalSummary</div>
+    <div class="alert alert-light border mb-3">
+        <strong>Approval path (snapshotted on submit):</strong>
+        <span class="text-muted">@(string.IsNullOrWhiteSpace(Model.ApprovalPathSourceLabel) ? "Stages stored on this request" : Model.ApprovalPathSourceLabel)</span>
+        <ol class="mb-0 mt-2">
+            @foreach (var stage in Model.ApprovalStages)
+            {
+                <li class="@(stage.IsCurrent ? "fw-semibold" : "")">
+                    Stage @stage.StageNumber — @(string.IsNullOrWhiteSpace(stage.DisplayLabel) ? stage.RoleName : stage.DisplayLabel)
+                    @if (stage.IsCurrent)
+                    {
+                        <span class="badge bg-primary ms-1">Current</span>
+                        if (!string.IsNullOrWhiteSpace(Model.CurrentStageUserName))
+                        {
+                            <span class="text-muted small">Pinned: @Model.CurrentStageUserName</span>
+                        }
+                    }
+                </li>
+            }
+        </ol>
+    </div>
+}
+else if (Model.IsPending)
+{
+    <div class="alert alert-light border mb-3"><strong>Approval path:</strong> No stages were snapshotted on this request.</div>
 }
 
 <div class="row g-3">
@@ -34,8 +56,14 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8"><span class="badge bg-secondary">@Model.ApprovalStatus</span></dd>
-                    <dt class="col-sm-4">Department</dt>
-                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
+                    <dt class="col-sm-4">Requisition target</dt>
+                    <dd class="col-sm-8">
+                        @(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)
+                        @if (Model.DepartmentKind.HasValue)
+                        {
+                            <span class="ms-1">@Html.DepartmentKindBadge(Model.DepartmentKind.Value)</span>
+                        }
+                    </dd>
                     <dt class="col-sm-4">Submitted by</dt>
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.RequestedByName) ? Model.RequestedById : Model.RequestedByName)</dd>
                     @if (!string.IsNullOrWhiteSpace(Model.OrderByUserName) || !string.IsNullOrWhiteSpace(Model.OrderByUserId))
@@ -100,7 +128,15 @@
             <div class="card-body">
                 @if (Model.IsPending)
                 {
-                    <p class="mb-2"><strong>Current stage:</strong> Stage @Model.CurrentApprovalStage - @(string.IsNullOrWhiteSpace(Model.CurrentStageRoleName) ? DisplayText.Empty : Model.CurrentStageRoleName)</p>
+                    <p class="mb-2">
+                        <strong>Current stage:</strong>
+                        Stage @Model.CurrentApprovalStage —
+                        @(string.IsNullOrWhiteSpace(Model.CurrentStageRoleName) ? DisplayText.Empty : Model.CurrentStageRoleName)
+                        @if (!string.IsNullOrWhiteSpace(Model.CurrentStageUserName))
+                        {
+                            <span class="text-muted">(@Model.CurrentStageUserName)</span>
+                        }
+                    </p>
                 }
                 @if (canCreatePo)
                 {
@@ -123,7 +159,7 @@
                     @Html.Partial("_ApprovalActions")
                     if (!canApprove)
                     {
-                        <p class="text-muted mb-0">You are not the current stage approver, or you submitted this request.</p>
+                        <p class="text-muted mb-0">@(string.IsNullOrWhiteSpace(Model.CannotApproveReason) ? "You are not authorized to act on this stage." : Model.CannotApproveReason)</p>
                     }
                 }
             </div>

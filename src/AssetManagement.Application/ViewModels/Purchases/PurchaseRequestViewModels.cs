@@ -1,16 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.ViewModels
 {
     public class PurchaseRequestCreateVm
     {
-        [Required(ErrorMessage = "Department is required.")]
-        [Range(1, int.MaxValue, ErrorMessage = "Department is required.")]
+        [Required(ErrorMessage = "Requisition target is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Requisition target is required.")]
         public int DepartmentId { get; set; }
-
-        public bool RequestForSelf { get; set; } = true;
 
         public string OrderByUserId { get; set; }
 
@@ -48,6 +47,10 @@ namespace AssetManagement.Application.ViewModels
 
         public string DepartmentName { get; set; }
 
+        public DepartmentKind? DepartmentKind { get; set; }
+
+        public string DepartmentKindLabel { get; set; }
+
         public string RequestedById { get; set; }
 
         public string ApprovalStatus { get; set; }
@@ -82,6 +85,10 @@ namespace AssetManagement.Application.ViewModels
         public int DepartmentId { get; set; }
 
         public string DepartmentName { get; set; }
+
+        public DepartmentKind? DepartmentKind { get; set; }
+
+        public string DepartmentKindLabel { get; set; }
 
         public string ItemDescription { get; set; }
 
@@ -119,6 +126,12 @@ namespace AssetManagement.Application.ViewModels
 
         public bool CanCurrentUserApprove { get; set; }
 
+        public string CannotApproveReason { get; set; }
+
+        public IList<PurchaseRequestApprovalStageVm> ApprovalStages { get; set; } = new List<PurchaseRequestApprovalStageVm>();
+
+        public string ApprovalPathSourceLabel { get; set; }
+
         public bool IsPending { get; set; }
 
         public bool IsApproved { get; set; }
@@ -134,6 +147,24 @@ namespace AssetManagement.Application.ViewModels
         public string TargetAssetName { get; set; }
 
         public IEnumerable<ApprovalDecisionHistoryVm> ApprovalHistory { get; set; } = new List<ApprovalDecisionHistoryVm>();
+    }
+
+
+    public class PurchaseRequestApprovalStageVm
+    {
+        public int StageNumber { get; set; }
+
+        public int? RoleId { get; set; }
+
+        public string RoleName { get; set; }
+
+        public string UserId { get; set; }
+
+        public string UserName { get; set; }
+
+        public bool IsCurrent { get; set; }
+
+        public string DisplayLabel { get; set; }
     }
 
     public class PurchaseRequestApprovalVm

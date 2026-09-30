@@ -329,6 +329,20 @@
             return form && form.getAttribute("data-am-lock-department") === "true";
         }
 
+        function showTargetDeptWarning(message) {
+            var warn = byId("target-asset-dept-warning");
+            if (!warn) {
+                return;
+            }
+            if (message) {
+                warn.textContent = message;
+                warn.style.display = "";
+            } else {
+                warn.textContent = "";
+                warn.style.display = "none";
+            }
+        }
+
         function applyAssetToForm(button) {
             if (!button) {
                 return;
@@ -346,6 +360,7 @@
                 quantityInput.value = quantityInStock;
             }
 
+            showTargetDeptWarning("");
             if (isDepartmentLocked()) {
                 return;
             }
@@ -366,6 +381,11 @@
 
             if (hasOption) {
                 departmentSelect.value = String(departmentId);
+                if (typeof window.amRefreshPurchaseApprovalPath === "function") {
+                    window.amRefreshPurchaseApprovalPath();
+                }
+            } else {
+                showTargetDeptWarning("Tagged asset department is not a requisition leaf target. Pick a requisition target separately before submit.");
             }
         }
 
@@ -470,8 +490,79 @@
         }
     }
 
+    function refreshPurchaseApprovalPath() {
+        var banner = byId("purchase-approval-path-banner");
+        var sourceEl = byId("purchase-approval-path-source");
+        var stagesEl = byId("purchase-approval-path-stages");
+        var departmentSelect = byId("DepartmentId");
+        if (!banner || !sourceEl) {
+            return;
+        }
+
+        var previewUrl = banner.getAttribute("data-am-preview-url") || "";
+        var departmentId = departmentSelect ? departmentSelect.value : "";
+        if (!previewUrl || !departmentId) {
+            sourceEl.textContent = "Select a requisition target to see the approval path submit will use.";
+            if (stagesEl) {
+                stagesEl.innerHTML = "";
+                stagesEl.style.display = "none";
+            }
+            return;
+        }
+
+        var url = previewUrl + (previewUrl.indexOf("?") >= 0 ? "&" : "?") + "departmentId=" + encodeURIComponent(departmentId);
+        fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("preview failed");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                var label = (data && data.sourceLabel) ? data.sourceLabel : "Organization Approval Matrix";
+                if (data && data.summary) {
+                    label = label + " — " + data.summary;
+                }
+                sourceEl.textContent = label;
+                if (!stagesEl) {
+                    return;
+                }
+                stagesEl.innerHTML = "";
+                var stages = (data && data.stages) ? data.stages : [];
+                if (!stages.length) {
+                    stagesEl.style.display = "none";
+                    return;
+                }
+                for (var i = 0; i < stages.length; i++) {
+                    var stage = stages[i] || {};
+                    var li = document.createElement("li");
+                    var title = stage.displayLabel || stage.roleName || ("Stage " + (stage.stageNumber || (i + 1)));
+                    li.textContent = "Stage " + (stage.stageNumber || (i + 1)) + " — " + title;
+                    stagesEl.appendChild(li);
+                }
+                stagesEl.style.display = "";
+            })
+            .catch(function () {
+                sourceEl.textContent = "Could not load approval path for this target.";
+                if (stagesEl) {
+                    stagesEl.innerHTML = "";
+                    stagesEl.style.display = "none";
+                }
+            });
+    }
+
+    window.amRefreshPurchaseApprovalPath = refreshPurchaseApprovalPath;
+
+    function initApprovalPathPreview() {
+        var departmentSelect = byId("DepartmentId");
+        if (departmentSelect) {
+            departmentSelect.addEventListener("change", refreshPurchaseApprovalPath);
+        }
+    }
+
     function boot() {
         initTargetAssetPicker();
+        initApprovalPathPreview();
     }
 
     if (document.readyState === "loading") {

@@ -4,14 +4,16 @@
     var departments = ViewBag.Departments as SelectList;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
+    var approvalPath = ViewBag.PurchaseApprovalPath as AssetManagement.Application.ViewModels.ResolvedRequisitionFlowPreviewVm;
     var lockDepartment = ViewBag.LockDepartment == true;
     var departmentName = ViewBag.DepartmentName as string;
     var selectedTargetAssetLabel = ViewBag.SelectedTargetAssetLabel as string ?? string.Empty;
+    var previewUrl = ViewBag.PreviewApprovalPathUrl as string ?? Url.Action("PreviewApprovalPath");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "New requisition",
-    Subtitle = "Describe the item needed, stock on hand, and when it is required. Optionally tag an existing asset in the system for easier assignment after purchase. Requisition approvers are configured under Settings &rarr; Approval Matrix (typically Procurement Officer).",
+    Subtitle = "Describe the item needed, stock on hand, and when it is required. Optionally tag an existing asset for easier assignment after purchase. Approvers follow the target's Inherit/Custom requisition flow (Organization → Requisition flows), falling back to the organization Approval Matrix.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -22,10 +24,24 @@
     }
 })
 
-@if (!string.IsNullOrWhiteSpace(approvalSummary))
-{
-    <div class="alert alert-light border mb-3"><strong>Approval path:</strong> @approvalSummary</div>
-}
+<div id="purchase-approval-path-banner" class="alert alert-light border mb-3"
+     data-am-preview-url="@previewUrl">
+    <strong>Approval path:</strong>
+    <span id="purchase-approval-path-source">@(string.IsNullOrWhiteSpace(approvalSummary) ? "Select a requisition target to see the approval path submit will use." : approvalSummary)</span>
+    @if (approvalPath != null && approvalPath.Stages != null && approvalPath.Stages.Any())
+    {
+        <ol id="purchase-approval-path-stages" class="mb-0 mt-2 small">
+            @foreach (var stage in approvalPath.Stages)
+            {
+                <li>Stage @stage.StageNumber — @(string.IsNullOrWhiteSpace(stage.DisplayLabel) ? stage.RoleName : stage.DisplayLabel)</li>
+            }
+        </ol>
+    }
+    else
+    {
+        <ol id="purchase-approval-path-stages" class="mb-0 mt-2 small" style="display:none;"></ol>
+    }
+</div>
 
 @using (Html.BeginForm("Create", "PurchaseRequests", FormMethod.Post, new
 {
@@ -37,7 +53,6 @@
 {
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
-    @Html.HiddenFor(m => m.RequestForSelf)
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3">
         <div class="col-md-8">
@@ -57,10 +72,11 @@
                         id="open-target-asset-picker">Browse assets</button>
                 <button type="button" class="btn btn-outline-secondary" id="clear-target-asset" title="Clear selection">&times;</button>
             </div>
-            <div id="target-asset-hint" class="form-text">Optional: browse the asset register to tag an existing asset. Selecting an asset fills department, description, and qty in stock when available.</div>
+            <div id="target-asset-hint" class="form-text">Optional: browse the asset register to tag an existing asset. Selecting an asset fills description and qty in stock when available. Department is only filled when the asset belongs to a requisition leaf target.</div>
+            <div id="target-asset-dept-warning" class="text-warning small mt-1" style="display:none;"></div>
         </div>
         <div class="col-md-4">
-            <label class="form-label">Department <span class="text-danger">*</span></label>
+            <label class="form-label">Requisition target <span class="text-danger">*</span></label>
             @if (lockDepartment)
             {
                 @Html.HiddenFor(m => m.DepartmentId)
@@ -68,10 +84,10 @@
             }
             else
             {
-                @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select target department --", new { @class = "form-select" })
+                @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select requisition target --", new { @class = "form-select", id = "DepartmentId" })
                 @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
             }
-            <div class="form-text">Select the class or admin unit that will receive these goods.</div>
+            <div class="form-text">Room, leaf sub-unit, leaf admin, or class/stream that will receive these goods.</div>
         </div>
         @if (ViewBag.CanCreateForAnyDepartment == true)
         {
@@ -79,7 +95,7 @@
             <div class="col-md-4">
                 <label class="form-label">Order by (optional)</label>
                 @Html.DropDownListFor(m => m.OrderByUserId, orderByUsers, "-- Teacher / class contact (optional) --", new { @class = "form-select" })
-                <div class="form-text">Teacher or class contact in the selected department. They do not need login access.</div>
+                <div class="form-text">Teacher or class contact for the selected target. They do not need login access. This is not the approver.</div>
             </div>
         }
         <div class="col-md-8">
