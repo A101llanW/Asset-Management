@@ -80,20 +80,29 @@ namespace AssetManagement.Web.Controllers
         }
 
 
-        public ActionResult Create(int assetTypeId, string returnUrl = null)
+        public ActionResult Create(int? assetTypeId = null, string returnUrl = null)
         {
-            var assetType = UnitOfWork.Repository<AssetType>().GetById(assetTypeId);
+            if (!assetTypeId.HasValue || assetTypeId.Value <= 0)
+            {
+                ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index", "AssetTypes");
+                ViewBag.AssetTypes = new SelectList(
+                    UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
+                    "Id", "Name");
+                return View("CreateSelectType");
+            }
+
+            var assetType = UnitOfWork.Repository<AssetType>().GetById(assetTypeId.Value);
             if (assetType == null)
             {
                 return HttpNotFound();
             }
             var model = new AssetSubTypeEditVm
             {
-                AssetTypeId = assetTypeId,
+                AssetTypeId = assetTypeId.Value,
                 IsActive = true
             };
             PopulateAssetTypeContext(assetType);
-            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = assetTypeId });
+            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = assetTypeId.Value });
             return View(model);
         }
         [HttpPost]

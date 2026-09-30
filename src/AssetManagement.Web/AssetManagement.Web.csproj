@@ -340,6 +340,7 @@
     <Content Include="Views\AssetCategories\Index.cshtml" />
     <Content Include="Views\AssetSubTypes\Create.cshtml" />
     <Content Include="Views\AssetSubTypes\Index.cshtml" />
+    <Content Include="Views\AssetSubTypes\CreateSelectType.cshtml" />
     <Content Include="Views\AssetSubTypes\Edit.cshtml" />
     <Content Include="Views\AssetTypes\Create.cshtml" />
     <Content Include="Views\AssetTypes\Details.cshtml" />

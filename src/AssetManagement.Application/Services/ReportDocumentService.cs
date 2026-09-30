@@ -106,7 +106,9 @@ namespace AssetManagement.Application.Services
 
             var exportResult = _assetQueryService.StreamExport(filter, sortBy, sortDirection, asset =>
             {
-                if (asset.PurchaseDate.Date < period.From || asset.PurchaseDate.Date > period.To)
+                // INCLUDE rows with null/blank PurchaseDate; only apply From/To when date has a value.
+                if (asset.PurchaseDate.HasValue &&
+                    (asset.PurchaseDate.Value.Date < period.From || asset.PurchaseDate.Value.Date > period.To))
                 {
                     return;
                 }
@@ -128,7 +130,7 @@ namespace AssetManagement.Application.Services
                     asset.DepartmentName ?? string.Empty,
                     asset.CurrentCustodianId ?? string.Empty,
                     CurrencyFormatter.Format(asset.AcquisitionCost),
-                    asset.PurchaseDate.ToString("yyyy-MM-dd"),
+                    asset.PurchaseDate.HasValue ? asset.PurchaseDate.Value.ToString("yyyy-MM-dd") : string.Empty,
                     asset.SerialNumber ?? string.Empty
                 };
                 csvRows.Add(row);
