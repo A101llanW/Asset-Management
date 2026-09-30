@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Script.Serialization;
@@ -66,7 +66,18 @@ namespace AssetManagement.Web.Helpers
             var user = users == null
                 ? null
                 : users.FirstOrDefault(x => string.Equals(x.Id, userId, StringComparison.OrdinalIgnoreCase));
-            return user != null && user.DepartmentId == departmentId.Value;
+            if (user == null)
+            {
+                return false;
+            }
+
+            // Org-level users (null home department) may be assigned assets in any department.
+            if (!user.DepartmentId.HasValue)
+            {
+                return true;
+            }
+
+            return user.DepartmentId.Value == departmentId.Value;
         }
 
         public static string BuildUserLabel(UserVm user)

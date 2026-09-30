@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -283,7 +283,7 @@ namespace AssetManagement.Application.Services
                     {
                         AssetId = item.AssetId,
                         ToUserId = item.ToUserId,
-                        ToDepartmentId = request.ToDepartmentId ?? asset.DepartmentId,
+                        ToDepartmentId = ResolveBatchAssignDepartmentId(request.ToDepartmentId, item.ToUserId, asset.DepartmentId),
                         HandedOverById = request.HandedOverById,
                         AssignmentType = AssignmentType.Permanent.ToString(),
                         AssignedDate = DateTime.UtcNow,
@@ -334,6 +334,35 @@ namespace AssetManagement.Application.Services
             return asset?.AssetTag;
         }
 
+        /// <summary>
+        /// Option C multi-row: when the page department is blank, target each row into the
+        /// custodian's home department. Do not force the asset's current department — that
+        /// made Company Admin / org-level custodians (null DepartmentId) fail membership checks
+        /// against InStore class assets (e.g. Grade 9A / Grade 11D).
+        /// </summary>
+        private int? ResolveBatchAssignDepartmentId(int? requestDepartmentId, string toUserId, int? assetDepartmentId)
+        {
+            if (requestDepartmentId.HasValue)
+            {
+                return requestDepartmentId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(toUserId))
+            {
+                var user = _userService.GetById(toUserId);
+                if (user != null && user.DepartmentId.HasValue)
+                {
+                    return user.DepartmentId;
+                }
+
+                // Custodian has no home department: leave target department unset so
+                // EnsureUserBelongsToDepartment is skipped and the asset keeps its location.
+                return null;
+            }
+
+            return assetDepartmentId;
+        }
+
         private void EnsureUserBelongsToDepartment(string userId, int? departmentId)
         {
             if (string.IsNullOrWhiteSpace(userId) || !departmentId.HasValue)
@@ -347,7 +376,14 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Selected user was not found or is inactive.");
             }
 
-            if (!user.DepartmentId.HasValue || user.DepartmentId.Value != departmentId.Value)
+            // Org-level users (no home department), including Company Admins, may receive
+            // assets that still sit in a departmental / class store location.
+            if (!user.DepartmentId.HasValue)
+            {
+                return;
+            }
+
+            if (user.DepartmentId.Value != departmentId.Value)
             {
                 throw new BusinessException("Selected user does not belong to the target department.");
             }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
@@ -138,7 +138,71 @@ namespace AssetManagement.Tests.Assignments
             Assert.IsFalse(result.Rows[0].Success);
         }
 
-        private static void SeedAssignableAsset(FakeUnitOfWork unitOfWork, int id, string tag)
+
+        [Test]
+        public void BatchAssign_AllowsOrgLevelCustodianWhenAssetHasDepartment()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            SeedAssignableAsset(unitOfWork, 10, "AST-010", departmentId: 282);
+
+            var users = new FakeUserService();
+            users.Seed(new UserVm
+            {
+                Id = "admin-org",
+                FirstName = "Org",
+                LastName = "Admin",
+                DepartmentId = null,
+                IsActive = true
+            });
+
+            var service = TestServiceFactory.CreateAssignmentService(unitOfWork, users);
+            var result = service.BatchAssign(new BatchAssignRequestVm
+            {
+                HandedOverById = "admin-1",
+                ToDepartmentId = null,
+                Items = new List<BatchAssignItemVm>
+                {
+                    new BatchAssignItemVm { AssetId = 10, ToUserId = "admin-org" }
+                }
+            });
+
+            Assert.AreEqual(1, result.ProcessedCount);
+            Assert.AreEqual(0, result.SkippedCount);
+            Assert.IsTrue(result.Rows[0].Success);
+            var asset = unitOfWork.Repository<Asset>().GetById(10);
+            Assert.AreEqual("admin-org", asset.CurrentCustodianId);
+            Assert.AreEqual(282, asset.DepartmentId);
+        }
+
+        [Test]
+        public void BatchAssign_UsesEachCustodianDepartmentWhenPageDepartmentBlank()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            SeedAssignableAsset(unitOfWork, 21, "AST-021", departmentId: 282);
+            SeedAssignableAsset(unitOfWork, 22, "AST-022", departmentId: 290);
+
+            var users = new FakeUserService();
+            users.Seed(new UserVm { Id = "u-a", FirstName = "Al", LastName = "Wam", DepartmentId = 100, IsActive = true });
+            users.Seed(new UserVm { Id = "u-b", FirstName = "Tester", LastName = "Admin", DepartmentId = 200, IsActive = true });
+
+            var service = TestServiceFactory.CreateAssignmentService(unitOfWork, users);
+            var result = service.BatchAssign(new BatchAssignRequestVm
+            {
+                HandedOverById = "admin-1",
+                ToDepartmentId = null,
+                Items = new List<BatchAssignItemVm>
+                {
+                    new BatchAssignItemVm { AssetId = 21, ToUserId = "u-a" },
+                    new BatchAssignItemVm { AssetId = 22, ToUserId = "u-b" }
+                }
+            });
+
+            Assert.AreEqual(2, result.ProcessedCount);
+            Assert.AreEqual(0, result.SkippedCount);
+            Assert.AreEqual(100, unitOfWork.Repository<Asset>().GetById(21).DepartmentId);
+            Assert.AreEqual(200, unitOfWork.Repository<Asset>().GetById(22).DepartmentId);
+        }
+        private static void SeedAssignableAsset(FakeUnitOfWork unitOfWork, int id, string tag, int? departmentId = 1)
         {
             unitOfWork.Seed(new Asset
             {
@@ -148,7 +212,7 @@ namespace AssetManagement.Tests.Assignments
                 CategoryId = 1,
                 AssetTypeId = 1,
                 SupplierId = 1,
-                DepartmentId = 1,
+                DepartmentId = departmentId,
                 Currency = "USD",
                 AcquisitionCost = 1000,
                 CurrentStatus = AssetStatus.InStore,
