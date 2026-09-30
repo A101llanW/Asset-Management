@@ -49,7 +49,11 @@ namespace AssetManagement.Web.Controllers
             {
                 Currency = GetDefaultCurrencyCode(),
                 Quantity = 1,
-                RequestForSelf = true
+                RequestForSelf = true,
+                Lines = new List<PurchaseRequestLineCreateVm>
+                {
+                    new PurchaseRequestLineCreateVm { Quantity = 1 }
+                }
             };
 
             ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
@@ -70,9 +74,18 @@ namespace AssetManagement.Web.Controllers
                         model.DepartmentId = assetRequest.DepartmentId.Value;
                     }
 
-                    model.ItemDescription = !string.IsNullOrWhiteSpace(assetRequest.RequestedAssetName)
+                    var prefilledDescription = !string.IsNullOrWhiteSpace(assetRequest.RequestedAssetName)
                         ? assetRequest.RequestedAssetName
                         : assetRequest.CategoryName;
+                    model.ItemDescription = prefilledDescription;
+                    model.Lines = new List<PurchaseRequestLineCreateVm>
+                    {
+                        new PurchaseRequestLineCreateVm
+                        {
+                            Description = prefilledDescription,
+                            Quantity = 1
+                        }
+                    };
                     model.Justification = assetRequest.Justification;
                     if (assetRequest.RequestedAssetId.HasValue)
                     {
@@ -101,9 +114,22 @@ namespace AssetManagement.Web.Controllers
             });
 
             model.RequestForSelf = true;
+            model.Currency = GetDefaultCurrencyCode();
             if (!HasPermission("Purchases.CreateForAnyDepartment"))
             {
                 model.OrderByUserId = null;
+            }
+
+            if (model.Lines == null || model.Lines.Count == 0)
+            {
+                model.Lines = new List<PurchaseRequestLineCreateVm>
+                {
+                    new PurchaseRequestLineCreateVm
+                    {
+                        Description = model.ItemDescription,
+                        Quantity = model.Quantity > 0 ? model.Quantity : 1
+                    }
+                };
             }
 
             PopulateCreateLookups(model);
@@ -117,11 +143,12 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 var id = _purchaseRequestService.Submit(model, User.GetUserId());
-                if (!HasPermission("Purchases.CreateForAnyDepartment"))
-                {
-                    SaveOptionalAttachment(id, attachment);
-                }
-                TempData["Message"] = "Requisition submitted.";
+                SaveOptionalAttachment(id, attachment);
+                var created = _purchaseRequestService.GetById(id);
+                var requestNumber = created == null || string.IsNullOrWhiteSpace(created.RequestNumber)
+                    ? ("#" + id)
+                    : created.RequestNumber;
+                TempData["Message"] = "Submitted — awaiting approval. Requisition " + requestNumber + " is in the approval queue.";
                 return RedirectToAction("Details", new { id, returnUrl = ViewBag.ReturnUrl });
             }
             catch (BusinessException ex)
@@ -286,6 +313,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Purchases.Create")]
+        public JsonResult PreviewApprovalPath(int? departmentId = null)
+        {
+            return Json(new
+            {
+                summary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase)
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [PermissionAuthorize("Purchases.Create")]
         public JsonResult SearchTargetAssets(string search = null, int? departmentId = null, AssetStatus? status = null, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
         {
             var filter = new AssetFilterVm
@@ -360,7 +396,12 @@ namespace AssetManagement.Web.Controllers
                 : BuildDepartmentSelectList(departmentId);
             ViewBag.OrderByUsers = BuildOrderByUserSelectList(departmentId, model?.OrderByUserId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
+            ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
             ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
+            var profile = GetCurrentUserProfile();
+            ViewBag.RequestingAsDisplayName = profile == null
+                ? (User != null && User.Identity != null ? User.Identity.Name : "Current user")
+                : BuildUserLabel(profile);
         }
 
         private SelectList BuildOrderByUserSelectList(int? departmentId, string selectedUserId)

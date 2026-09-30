@@ -258,5 +258,84 @@ namespace AssetManagement.Tests.Requisitions
 
             Assert.AreEqual(50, unitOfWork.Repository<PurchaseRequest>().GetById(id).TargetAssetId);
         }
+
+        [Test]
+        public void PurchaseRequestService_Submit_PersistsMultipleLineItems()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true, IsRequisitionTarget = true });
+            unitOfWork.Seed(new SystemSetting
+            {
+                Id = 1,
+                SettingKey = "Approval.Purchase.Enabled",
+                SettingValue = "false",
+                IsActive = true
+            });
+
+            var service = new PurchaseRequestService(
+                unitOfWork,
+                new NoOpAuditWriter(),
+                new FakeUserService(),
+                new NoOpDepartmentScopeService(),
+                new FakeOrganizationScopeService(organizationId: 1),
+                new NoOpOutboxWriter(),
+                new NoOpWebhookService(),
+                new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
+                new FakeOperationsQueryRepository());
+
+            var id = service.Submit(new PurchaseRequestCreateVm
+            {
+                DepartmentId = 3,
+                Justification = "Class supplies",
+                Currency = "KES",
+                Lines = new List<PurchaseRequestLineCreateVm>
+                {
+                    new PurchaseRequestLineCreateVm { Description = "Markers", Quantity = 2 },
+                    new PurchaseRequestLineCreateVm { Description = "Chart paper", Quantity = 5 }
+                }
+            }, "dept-head");
+
+            var entity = unitOfWork.Repository<PurchaseRequest>().GetById(id);
+            Assert.AreEqual(7, entity.Quantity);
+            Assert.IsTrue(entity.ItemDescription.Contains("Markers"));
+            Assert.IsTrue(entity.ItemDescription.Contains("Chart paper"));
+
+            var lines = unitOfWork.Repository<PurchaseRequestLine>()
+                .Find(x => x.PurchaseRequestId == id)
+                .OrderBy(x => x.LineNumber)
+                .ToList();
+            Assert.AreEqual(2, lines.Count);
+            Assert.AreEqual("Markers", lines[0].Description);
+            Assert.AreEqual(2, lines[0].Quantity);
+            Assert.AreEqual("Chart paper", lines[1].Description);
+            Assert.AreEqual(5, lines[1].Quantity);
+        }
+
+        [Test]
+        public void PurchaseRequestService_Submit_RejectsMissingJustification()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Department { Id = 3, Name = "HR", Code = "HR", IsActive = true, IsRequisitionTarget = true });
+
+            var service = new PurchaseRequestService(
+                unitOfWork,
+                new NoOpAuditWriter(),
+                new FakeUserService(),
+                new NoOpDepartmentScopeService(),
+                new FakeOrganizationScopeService(organizationId: 1),
+                new NoOpOutboxWriter(),
+                new NoOpWebhookService(),
+                new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
+                new FakeOperationsQueryRepository());
+
+            Assert.Throws<BusinessException>(() => service.Submit(new PurchaseRequestCreateVm
+            {
+                DepartmentId = 3,
+                Justification = "   ",
+                ItemDescription = "Desk",
+                Quantity = 1,
+                Currency = "KES"
+            }, "dept-head"));
+        }
     }
 }
