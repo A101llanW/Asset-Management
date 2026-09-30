@@ -143,6 +143,10 @@ namespace AssetManagement.Tests.Helpers
         {
         }
 
+        public void EnsureCanCreateForRequisitionTarget(Department department)
+        {
+        }
+
         public int CountVisibleDepartments(bool activeOnly = true) => 0;
     }
 
@@ -167,6 +171,10 @@ namespace AssetManagement.Tests.Helpers
         }
 
         public void EnsureCanAccessDepartmentId(int departmentId)
+        {
+        }
+
+        public void EnsureCanCreateForRequisitionTarget(Department department)
         {
         }
 
@@ -250,6 +258,26 @@ namespace AssetManagement.Tests.Helpers
             {
                 throw new BusinessException("This department is outside your scope. Only administrators can access it.");
             }
+        }
+
+        public void EnsureCanCreateForRequisitionTarget(Department department)
+        {
+            if (department == null)
+            {
+                throw new BusinessException("Department not found.");
+            }
+
+            if (!department.IsRequisitionTarget)
+            {
+                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
+            }
+
+            if (!_departmentId.HasValue)
+            {
+                return;
+            }
+
+            EnsureCanAccessDepartment(department);
         }
 
         public int CountVisibleDepartments(bool activeOnly = true) => _departmentId.HasValue ? 1 : 0;

@@ -215,6 +215,10 @@ namespace AssetManagement.PerformanceTests.Helpers
         {
         }
 
+        public void EnsureCanCreateForRequisitionTarget(Department department)
+        {
+        }
+
         public int CountVisibleDepartments(bool activeOnly = true)
         {
             return 0;

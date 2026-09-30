@@ -224,13 +224,7 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Department not found.");
             }
 
-            if (!department.IsRequisitionTarget)
-            {
-                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
-            }
-
-            _departmentScope.EnsureCanAccessDepartment(department);
-            _departmentScope.EnsureCanAccessDepartmentId(model.DepartmentId);
+            _departmentScope.EnsureCanCreateForRequisitionTarget(department);
 
             if (string.IsNullOrWhiteSpace(model.Justification))
             {

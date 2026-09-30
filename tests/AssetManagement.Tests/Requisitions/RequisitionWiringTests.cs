@@ -1,11 +1,13 @@
 using System;
 using System.Linq;
+using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Tests.Helpers;
+using Moq;
 using NUnit.Framework;
 
 namespace AssetManagement.Tests.Requisitions
@@ -309,6 +311,55 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(2, lines[0].Quantity);
             Assert.AreEqual("Chart paper", lines[1].Description);
             Assert.AreEqual(5, lines[1].Quantity);
+        }
+
+        [Test]
+        public void PurchaseRequestService_Submit_AllowsNullHomeDepartmentWithValidRequisitionTarget()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Department { Id = 3, Name = "Grade 4B", Code = "G4B", IsActive = true, IsRequisitionTarget = true });
+            unitOfWork.Seed(new SystemSetting
+            {
+                Id = 1,
+                SettingKey = "Approval.Purchase.Enabled",
+                SettingValue = "false",
+                IsActive = true
+            });
+
+            var users = new FakeUserService();
+            users.Seed(new UserVm { Id = "staff-null-dept", DepartmentId = null, IsActive = true, RoleId = 5, FirstName = "Staff", LastName = "NoDept" });
+            unitOfWork.Seed(new Role { Id = 5, Name = "Staff", IsSystemRole = false, IsActive = true });
+
+            var currentUser = new Mock<ICurrentUserContext>();
+            currentUser.Setup(x => x.UserId).Returns("staff-null-dept");
+
+            var departmentScope = new DepartmentScopeService(
+                unitOfWork,
+                currentUser.Object,
+                users,
+                new FakeOrganizationScopeService(organizationId: 1));
+
+            var service = new PurchaseRequestService(
+                unitOfWork,
+                new NoOpAuditWriter(),
+                users,
+                departmentScope,
+                new FakeOrganizationScopeService(organizationId: 1),
+                new NoOpOutboxWriter(),
+                new NoOpWebhookService(),
+                new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
+                new FakeOperationsQueryRepository());
+
+            var id = service.Submit(new PurchaseRequestCreateVm
+            {
+                DepartmentId = 3,
+                ItemDescription = "Whiteboard markers",
+                Justification = "Class supplies",
+                Quantity = 2,
+                Currency = "KES"
+            }, "staff-null-dept");
+
+            Assert.AreEqual(3, unitOfWork.Repository<PurchaseRequest>().GetById(id).DepartmentId);
         }
 
         [Test]
