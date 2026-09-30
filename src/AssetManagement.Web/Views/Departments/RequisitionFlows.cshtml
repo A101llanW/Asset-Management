@@ -1,8 +1,8 @@
-﻿@model IList<AssetManagement.Application.ViewModels.DepartmentVm>
+@model IList<AssetManagement.Application.ViewModels.DepartmentVm>
 @using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
-    ViewBag.Title = "Room requisition flows";
+    ViewBag.Title = "Requisition flows";
     var canEditDepartment = Html.HasPermission("Departments.Edit");
     var statusFilter = ViewBag.StatusFilter as string ?? "active";
     var search = ViewBag.Search as string;
@@ -15,8 +15,8 @@
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Room requisition flows",
-    Subtitle = "Review each room's requisition approval flow. Edit opens the room editor; Save returns here. Showing " + statusLabel + "."
+    Title = "Requisition flows",
+    Subtitle = "Review each requisition leaf (rooms and requisition-target sub-units). Edit opens the department editor; Save returns here. Showing " + statusLabel + "."
 })
 <form class="am-list-toolbar" method="get">
     <div class="row g-2 align-items-center">
@@ -40,7 +40,7 @@
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
             <h5>No rooms found</h5>
-            <p class="text-muted mb-3">Create rooms under Organization &rarr; Departments (Add room), then configure their requisition flow here.</p>
+            <p class="text-muted mb-3">Create rooms or requisition-target sub-units under Organization &rarr; Departments (Add room / Add sub-unit), then configure their requisition flow here.</p>
             <a class="btn btn-outline-primary" href="@Url.Action("Index", new { domain = "org" })">Go to Departments</a>
         </div>
     </div>

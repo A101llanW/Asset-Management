@@ -346,3 +346,19 @@
 .am-main-content #amSavedTemplates .btn-group-sm .btn {
     min-width: 2rem;
 }
+
+/* Departments Index: single hierarchy panel (not stacked mini-dashboards) */
+.am-list-panel.card-kpi:hover {
+    transform: none;
+}
+.am-dept-tree-section th {
+    background: var(--am-surface-muted, #f3f6f9);
+    color: var(--am-text-muted, #5b6b7c);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--am-border-soft, #e3e8ef);
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+}

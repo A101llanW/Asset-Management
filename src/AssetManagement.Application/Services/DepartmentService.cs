@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -141,15 +141,18 @@ namespace AssetManagement.Application.Services
 
         private static IEnumerable<DepartmentTreeSectionVm> BuildAdminTreeSections(IList<DepartmentVm> departments)
         {
+            // One org section (all Admin roots) + optional Independent rooms -- Index renders a single panel.
             var sections = new List<DepartmentTreeSectionVm>();
-            foreach (var topLevel in departments
+            var topLevel = departments
                 .Where(x => x.DepartmentKind == DepartmentKind.Administrative && !x.ParentDepartmentId.HasValue)
-                .OrderBy(x => x.Name))
+                .OrderBy(x => x.Name)
+                .ToList();
+            if (topLevel.Any())
             {
                 sections.Add(new DepartmentTreeSectionVm
                 {
-                    Title = topLevel.Name,
-                    Items = new List<DepartmentVm> { topLevel }
+                    Title = "Organization",
+                    Items = topLevel
                 });
             }
 
@@ -200,8 +203,13 @@ namespace AssetManagement.Application.Services
         
         public IEnumerable<DepartmentVm> GetRoomRequisitionFlows()
         {
+            // Product: EVERY org requisition leaf — Kind=Room plus SubDept/Admin IsRequisitionTarget leaves
+            // (historical trees used SubDept as operational "rooms"; Kind=Room alone hid them).
             var rooms = _departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
-                .Where(x => x.DepartmentKind == DepartmentKind.Room)
+                .Where(x => x.DepartmentKind == DepartmentKind.Room
+                    || (x.IsRequisitionTarget
+                        && (x.DepartmentKind == DepartmentKind.SubDepartment
+                            || x.DepartmentKind == DepartmentKind.Administrative)))
                 .OrderBy(x => x.Name)
                 .ToList();
 
@@ -770,42 +778,29 @@ namespace AssetManagement.Application.Services
 
         private string BuildEffectiveRequisitionFlowSummary(Department entity)
         {
+            var orgDefault = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var detailed = DepartmentRequisitionFlowResolver.ResolveDetailed(
+                entity,
+                id => _unitOfWork.Repository<Department>().GetById(id),
+                orgDefault);
+            var config = detailed.Configuration ?? orgDefault;
+            var roles = config.StageRoleIds ?? new List<int>();
+            var roleLookup = _unitOfWork.Repository<Role>().GetAll()
+                .Where(x => x != null && x.Id > 0)
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First().Name);
+            var stageSummary = roles.Count == 0
+                ? "No approvers configured"
+                : ApprovalWorkflowSettingsHelper.BuildStageSummary(roles, roleLookup);
+
             if (entity.RequisitionFlowMode == RequisitionFlowMode.Custom)
             {
-                var roles = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(entity.CustomStageRoleIds);
-                if (roles.Count == 0)
-                {
-                    return "Custom (auto-approve)";
-                }
-
-                return "Custom (" + roles.Count + " stage" + (roles.Count == 1 ? string.Empty : "s") + ")";
+                return roles.Count == 0
+                    ? "Custom (auto-approve)"
+                    : "Custom: " + stageSummary;
             }
 
-            var current = entity;
-            var guard = 0;
-            while (current != null && current.ParentDepartmentId.HasValue && guard < 50)
-            {
-                var parent = _unitOfWork.Repository<Department>().GetById(current.ParentDepartmentId.Value);
-                if (parent == null)
-                {
-                    break;
-                }
-
-                if (parent.RequisitionFlowMode == RequisitionFlowMode.Custom)
-                {
-                    return "Inherit (via " + parent.Name + ")";
-                }
-
-                current = parent;
-                guard++;
-            }
-
-            if (entity.DepartmentKind == DepartmentKind.Room && !entity.ParentDepartmentId.HasValue)
-            {
-                return "Inherit (independent room -> org default)";
-            }
-
-            return "Inherit (Room -> Sub-department -> Department -> org default)";
+            return "Inherit (" + detailed.SourceLabel + "): " + stageSummary;
         }
     }
 }

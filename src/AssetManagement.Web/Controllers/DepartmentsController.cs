@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
@@ -7,6 +7,7 @@ using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 
@@ -108,7 +109,7 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Admin list: every room in the org with current requisition-flow setup. Edit opens Departments/Edit; Save returns here via returnUrl.
+        /// Admin list: every org requisition leaf (Room + SubDept/Admin IsRequisitionTarget) with current flow setup. Edit opens Departments/Edit; Save returns here via returnUrl.
         /// </summary>
         public ActionResult RequisitionFlows(string search = null, string status = "active")
         {
@@ -230,6 +231,7 @@ namespace AssetManagement.Web.Controllers
             {
                 ViewBag.ParentDepartments = BuildOrganizationalParentSelectList(model.Id, model.ParentDepartmentId);
                 ViewBag.RoleOptions = BuildRoleOptionList();
+                PopulateInheritedFlowPreview(model.Id, model.ParentDepartmentId, model.RequisitionFlowMode);
             }
             return View(model);
         }
@@ -247,16 +249,33 @@ namespace AssetManagement.Web.Controllers
             {
                 ViewBag.ParentDepartments = BuildOrganizationalParentSelectList(model.Id, model.ParentDepartmentId);
                 ViewBag.RoleOptions = BuildRoleOptionList();
+                PopulateInheritedFlowPreview(model.Id, model.ParentDepartmentId, model.RequisitionFlowMode);
             }
             if (model != null
                 && !DepartmentHierarchyRules.IsAcademic(model.DepartmentKind)
-                && model.RequisitionFlowMode == RequisitionFlowMode.Custom
                 && model.CustomStages != null)
             {
-                model.CustomStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(
+                var serializedRoles = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(
                     model.CustomStages.Select(x => x.RoleId));
-                model.CustomStageUserIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(
+                var serializedUsers = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(
                     model.CustomStages.Select(x => x.UserId));
+                var hasConfiguredStages = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(serializedRoles).Count > 0;
+
+                // Inherit with empty hierarchy: Admin may set stages on this Edit screen -> store as Custom.
+                if (model.RequisitionFlowMode == RequisitionFlowMode.Custom
+                    || (model.RequisitionFlowMode == RequisitionFlowMode.InheritParent && hasConfiguredStages))
+                {
+                    if (hasConfiguredStages && model.RequisitionFlowMode == RequisitionFlowMode.InheritParent)
+                    {
+                        model.RequisitionFlowMode = RequisitionFlowMode.Custom;
+                    }
+
+                    if (model.RequisitionFlowMode == RequisitionFlowMode.Custom)
+                    {
+                        model.CustomStageRoleIds = serializedRoles;
+                        model.CustomStageUserIds = serializedUsers;
+                    }
+                }
             }
             if (!ModelState.IsValid)
             {
@@ -401,6 +420,147 @@ namespace AssetManagement.Web.Controllers
             }
 
             return new SelectList(items, "Value", "Text", selected);
+        }
+
+
+        [HttpGet]
+        [PermissionAuthorize("Departments.Edit")]
+        public ActionResult PreviewRequisitionFlow(int id, int? parentDepartmentId = null, string mode = null)
+        {
+            RequisitionFlowMode parsedMode;
+            if (!Enum.TryParse(mode, true, out parsedMode))
+            {
+                parsedMode = RequisitionFlowMode.InheritParent;
+            }
+
+            var preview = BuildInheritedFlowPreview(id, parentDepartmentId, parsedMode, parentExplicit: true);
+            if (preview == null)
+            {
+                return HttpNotFound();
+            }
+
+            return Json(new
+            {
+                hasApprovers = preview.HasApprovers,
+                sourceKind = preview.SourceKind,
+                sourceLabel = preview.SourceLabel,
+                summary = preview.Summary,
+                stages = preview.Stages.Select(s => new
+                {
+                    stageNumber = s.StageNumber,
+                    roleId = s.RoleId,
+                    roleName = s.RoleName,
+                    userId = s.UserId,
+                    userName = s.UserName,
+                    displayLabel = s.DisplayLabel
+                }).ToList()
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        private void PopulateInheritedFlowPreview(int departmentId, int? parentDepartmentId, RequisitionFlowMode mode)
+        {
+            var preview = BuildInheritedFlowPreview(departmentId, parentDepartmentId, mode, parentExplicit: false);
+            ViewBag.InheritedFlowPreview = preview;
+        }
+
+        private ResolvedRequisitionFlowPreviewVm BuildInheritedFlowPreview(
+            int departmentId,
+            int? parentDepartmentId,
+            RequisitionFlowMode mode,
+            bool parentExplicit)
+        {
+            var entity = UnitOfWork.Repository<Department>().GetById(departmentId);
+            if (entity == null)
+            {
+                return null;
+            }
+
+            var probe = new Department
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                Code = entity.Code,
+                DepartmentKind = entity.DepartmentKind,
+                ParentDepartmentId = parentExplicit ? parentDepartmentId : entity.ParentDepartmentId,
+                RequisitionFlowMode = mode,
+                CustomStageRoleIds = entity.CustomStageRoleIds,
+                CustomStageUserIds = entity.CustomStageUserIds,
+                IsRequisitionTarget = entity.IsRequisitionTarget,
+                IsActive = entity.IsActive,
+                OrganizationId = entity.OrganizationId
+            };
+
+            if (mode == RequisitionFlowMode.Custom)
+            {
+                var roles = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(probe.CustomStageRoleIds);
+                var users = ApprovalWorkflowSettingsHelper.ParseStageUserIds(probe.CustomStageUserIds);
+                var roleLookup = BuildRoleNameLookup();
+                var summary = roles.Count == 0
+                    ? "No approval stages configured (auto-approve)."
+                    : ApprovalWorkflowSettingsHelper.BuildStageSummary(roles, roleLookup);
+                return new ResolvedRequisitionFlowPreviewVm
+                {
+                    HasApprovers = roles.Count > 0,
+                    SourceKind = "CustomDepartment",
+                    SourceLabel = "Custom stages on " + (probe.Name ?? "this department"),
+                    Summary = summary,
+                    Stages = BuildResolvedStages(roles, users, roleLookup)
+                };
+            }
+
+            var orgDefault = ApprovalWorkflowHelper.GetProcessConfiguration(UnitOfWork, ApprovalProcessCodes.Purchase);
+            var detailed = DepartmentRequisitionFlowResolver.ResolveDetailed(
+                probe,
+                id => UnitOfWork.Repository<Department>().GetById(id),
+                orgDefault);
+            var config = detailed.Configuration ?? orgDefault;
+            var stageRoles = config.StageRoleIds ?? new List<int>();
+            var stageUsers = config.StageUserIds ?? new List<string>();
+            var lookup = BuildRoleNameLookup();
+            var inheritSummary = stageRoles.Count == 0
+                ? "No approvers configured for this inheritance path."
+                : ApprovalWorkflowSettingsHelper.BuildStageSummary(stageRoles, lookup);
+
+            return new ResolvedRequisitionFlowPreviewVm
+            {
+                HasApprovers = stageRoles.Count > 0,
+                SourceKind = detailed.SourceKind,
+                SourceLabel = detailed.SourceLabel,
+                Summary = inheritSummary,
+                Stages = BuildResolvedStages(stageRoles, stageUsers, lookup)
+            };
+        }
+
+        private static IList<ResolvedRequisitionFlowStageVm> BuildResolvedStages(
+            IList<int> roleIds,
+            IList<string> userIds,
+            IDictionary<int, string> roleLookup)
+        {
+            var stages = new List<ResolvedRequisitionFlowStageVm>();
+            var roles = roleIds ?? new List<int>();
+            var users = userIds ?? new List<string>();
+            for (var i = 0; i < roles.Count; i++)
+            {
+                var roleId = roles[i];
+                var roleName = ApprovalWorkflowSettingsHelper.ResolveRoleName(roleLookup, roleId);
+                var userId = i < users.Count ? users[i] : null;
+                var label = roleName;
+                if (!string.IsNullOrWhiteSpace(userId))
+                {
+                    label = roleName + " (" + userId + ")";
+                }
+
+                stages.Add(new ResolvedRequisitionFlowStageVm
+                {
+                    StageNumber = i + 1,
+                    RoleId = roleId,
+                    RoleName = roleName,
+                    UserId = userId,
+                    DisplayLabel = label
+                });
+            }
+
+            return stages;
         }
 
         private SelectList BuildOrganizationalParentSelectList(int excludeDepartmentId, int? selectedParentDepartmentId)
