@@ -151,7 +151,8 @@ namespace AssetManagement.Web.Controllers
                     isSuperAdmin,
                     currentRoleId,
                     model.CurrentStageRoleId,
-                    model.CurrentStageUserId);
+                    model.CurrentStageUserId,
+                    allowEligibleSelfApproval: true);
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
