@@ -35,7 +35,7 @@
     </div>
     @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionLabel) || !string.IsNullOrWhiteSpace(Model.SecondaryActionLabel))
     {
-        <div class="am-page-header-actions d-flex gap-2">
+        <div class="am-page-header-actions d-flex flex-wrap gap-2">
             @if (!string.IsNullOrWhiteSpace(Model.SecondaryActionUrl) && !string.IsNullOrWhiteSpace(Model.SecondaryActionLabel))
             {
                 <a class="btn btn-outline-primary" href="@Model.SecondaryActionUrl">@Model.SecondaryActionLabel</a>
