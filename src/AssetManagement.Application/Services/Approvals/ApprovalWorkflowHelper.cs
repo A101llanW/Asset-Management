@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -31,6 +32,22 @@ namespace AssetManagement.Application.Services
                 StageUserIds = ApprovalWorkflowSettingsHelper.ParseStageUserIds(
                     ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageUserIdsSettingKey(processCode)))
             };
+        }
+
+        public static ApprovalProcessConfiguration GetPurchaseProcessConfiguration(
+            IUnitOfWork unitOfWork,
+            Department department)
+        {
+            var orgDefault = GetProcessConfiguration(unitOfWork, ApprovalProcessCodes.Purchase);
+            if (department == null)
+            {
+                return orgDefault;
+            }
+
+            return DepartmentRequisitionFlowResolver.Resolve(
+                department,
+                id => unitOfWork.Repository<Department>().GetById(id),
+                orgDefault);
         }
 
         public static ApprovalProcessConfiguration GetAssetProcessConfiguration(IUnitOfWork unitOfWork, Asset asset, string processCode)

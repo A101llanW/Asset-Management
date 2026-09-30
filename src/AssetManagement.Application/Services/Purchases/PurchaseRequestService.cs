@@ -215,7 +215,7 @@ namespace AssetManagement.Application.Services
 
             if (!department.IsRequisitionTarget)
             {
-                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
+                throw new BusinessException("Requisition target must be a leaf department (class, admin unit, or room).");
             }
 
             _departmentScope.EnsureCanAccessDepartment(department);
@@ -242,7 +242,7 @@ namespace AssetManagement.Application.Services
 
             var targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
 
-            var approvalConfig = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var approvalConfig = ApprovalWorkflowHelper.GetPurchaseProcessConfiguration(_unitOfWork, department);
             var entity = new PurchaseRequest
             {
                 RequestNumber = "PENDING",

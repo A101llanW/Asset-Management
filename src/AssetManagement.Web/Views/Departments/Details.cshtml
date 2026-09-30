@@ -40,6 +40,11 @@
                     <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.ParentDepartmentName) ? "—" : Model.ParentDepartmentName)</dd>
                     <dt class="col-sm-5">Requisition</dt>
                     <dd class="col-sm-7">@(Model.IsRequisitionTarget ? "Yes" : "No")</dd>
+                    @if (!DepartmentHierarchyRules.IsAcademic(Model.DepartmentKind))
+                    {
+                        <dt class="col-sm-5">Requisition flow</dt>
+                        <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.EffectiveRequisitionFlowSummary) ? "—" : Model.EffectiveRequisitionFlowSummary)</dd>
+                    }
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Users</dt>

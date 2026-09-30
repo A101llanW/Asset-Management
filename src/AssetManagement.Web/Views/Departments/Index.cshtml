@@ -17,7 +17,7 @@
     var availableKinds = ViewBag.AvailableKinds as DepartmentKind[]
         ?? (isClasses
             ? new[] { DepartmentKind.Grade, DepartmentKind.Class }
-            : new[] { DepartmentKind.Administrative, DepartmentKind.SubDepartment });
+            : new[] { DepartmentKind.Administrative, DepartmentKind.SubDepartment, DepartmentKind.Room });
     var statusLabel = statusFilter == "all"
         ? (isClasses ? "grades and streams" : "departments")
         : statusFilter == "inactive"
@@ -124,6 +124,10 @@ else if (viewMode == "tree")
                             <th>Code</th>
                             <th>Name</th>
                             <th>Kind</th>
+                            @if (!isClasses)
+                            {
+                                <th>Flow</th>
+                            }
                             <th>Requisition</th>
                             <th>Status</th>
                             <th></th>
@@ -136,6 +140,10 @@ else if (viewMode == "tree")
                             <td>@parent.Code</td>
                             <td>@parent.Name</td>
                             <td>@Html.DepartmentKindBadge(parent.DepartmentKind)</td>
+                            @if (!isClasses)
+                            {
+                                <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                            }
                             <td>@(parent.IsRequisitionTarget ? "Yes" : "No")</td>
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(parent.IsActive) badge-status">@(parent.IsActive ? "Active" : "Inactive")</span></td>
                             <td class="text-end">
@@ -148,6 +156,10 @@ else if (viewMode == "tree")
                                 <td class="ps-4">@child.Code</td>
                                 <td class="ps-4">@child.Name</td>
                                 <td>@Html.DepartmentKindBadge(child.DepartmentKind)</td>
+                                @if (!isClasses)
+                                {
+                                    <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                                }
                                 <td>@(child.IsRequisitionTarget ? "Yes" : "No")</td>
                                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(child.IsActive) badge-status">@(child.IsActive ? "Active" : "Inactive")</span></td>
                                 <td class="text-end">
@@ -158,6 +170,27 @@ else if (viewMode == "tree")
                                     }
                                 </td>
                             </tr>
+                            foreach (var grandchild in child.Children)
+                            {
+                                <tr>
+                                    <td class="ps-5">@grandchild.Code</td>
+                                    <td class="ps-5">@grandchild.Name</td>
+                                    <td>@Html.DepartmentKindBadge(grandchild.DepartmentKind)</td>
+                                    @if (!isClasses)
+                                    {
+                                        <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                                    }
+                                    <td>@(grandchild.IsRequisitionTarget ? "Yes" : "No")</td>
+                                    <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(grandchild.IsActive) badge-status">@(grandchild.IsActive ? "Active" : "Inactive")</span></td>
+                                    <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = grandchild.Id, returnUrl = Request.RawUrl })">Details</a>
+                                        @if (canEditDepartment)
+                                        {
+                                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = grandchild.Id, returnUrl = Request.RawUrl })">Edit</a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
                         }
                     }
                     </tbody>
@@ -171,7 +204,7 @@ else
     <div class="card card-kpi">
         <div class="card-body p-0">
             <table class="table mb-0">
-                <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Kind</th><th>Requisition</th><th>Description</th><th>Status</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Kind</th>@if (!isClasses) { <th>Flow</th> }<th>Requisition</th><th>Description</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
@@ -179,6 +212,10 @@ else
                         <td>@item.Code</td>
                         <td>@item.Name</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
+                        @if (!isClasses)
+                        {
+                            <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                        }
                         <td>@(item.IsRequisitionTarget ? "Yes" : "No")</td>
                         <td>@item.Description</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>

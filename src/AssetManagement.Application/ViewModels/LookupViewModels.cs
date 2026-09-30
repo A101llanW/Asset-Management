@@ -29,6 +29,16 @@ namespace AssetManagement.Application.ViewModels
 
         public bool IsActive { get; set; }
 
+        public RequisitionFlowMode RequisitionFlowMode { get; set; }
+
+        public string CustomStageRoleIds { get; set; }
+
+        public string CustomStageUserIds { get; set; }
+
+        public string EffectiveRequisitionFlowSummary { get; set; }
+
+        public IList<ApprovalStageSettingsVm> CustomStages { get; set; } = new List<ApprovalStageSettingsVm>();
+
         public IList<DepartmentVm> Children { get; set; } = new List<DepartmentVm>();
     }
 

@@ -8,12 +8,13 @@
     var domain = ViewBag.Domain as string ?? DepartmentHierarchyRules.DomainOrg;
     var setupModes = ViewBag.SetupModes as System.Web.Mvc.SelectList;
     var adminParents = ViewBag.AdminParentDepartments as System.Web.Mvc.SelectList;
+    var orgParents = ViewBag.OrganizationalParentDepartments as System.Web.Mvc.SelectList;
     var setupModeLocked = ViewBag.SetupModeLocked as bool? ?? false;
     var mode = Model != null && !string.IsNullOrWhiteSpace(Model.SetupMode) ? Model.SetupMode : DepartmentService.SetupModeNormal;
     var indexLabel = domain == DepartmentHierarchyRules.DomainClasses ? "Grades & Streams" : "Departments";
     var subtitle = domain == DepartmentHierarchyRules.DomainClasses
         ? "Add a grade with streams (e.g. Grade 2 → 2A, 2B), or bulk-create a grade range."
-        : "Add an administrative unit or a sub-unit under a top-level department.";
+        : "Add an administrative unit, sub-unit, or room (rooms may be independent).";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -81,6 +82,21 @@
             @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
         </div>
     </div>
+    <div id="setup-room" style="@(mode == DepartmentService.SetupModeRoom ? "" : "display:none;")">
+        <div class="mb-3">
+            <label class="form-label">Parent department or sub-unit (optional)</label>
+            @Html.DropDownListFor(m => m.ParentDepartmentId, orgParents, "-- Independent room (no parent) --", new { @class = "form-select" })
+            <div class="form-text">Rooms can stand alone or sit under a department or sub-unit. Each of Room / Sub-department / Department can define its own requisition flow; resolution is Room -> Sub-department -> Department -> org Approval Matrix.</div>
+        </div>
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Name, "Room name", new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Dining Hall" })
+        </div>
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        </div>
+    </div>
     <div id="setup-grade-streams" style="@(mode == DepartmentService.SetupModeGradeStreams ? "" : "display:none;")">
         <div class="mb-3">
             <label class="form-label">Grade number</label>
@@ -123,12 +139,14 @@
         var sections = {
             Normal: document.getElementById('setup-normal'),
             SubDepartment: document.getElementById('setup-sub-department'),
+            Room: document.getElementById('setup-room'),
             GradeWithStreams: document.getElementById('setup-grade-streams'),
             BulkGrades: document.getElementById('setup-bulk-grades')
         };
         var titles = {
             Normal: 'Add department',
             SubDepartment: 'Add sub-unit',
+            Room: 'Add room',
             GradeWithStreams: 'Add grade & streams',
             BulkGrades: 'Bulk create grades'
         };

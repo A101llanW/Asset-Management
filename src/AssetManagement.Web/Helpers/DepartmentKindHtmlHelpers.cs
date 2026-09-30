@@ -24,6 +24,9 @@ namespace AssetManagement.Web.Helpers
                 case DepartmentKind.Class:
                     css = "bg-info";
                     break;
+                case DepartmentKind.Room:
+                    css = "bg-warning";
+                    break;
                 default:
                     css = "bg-secondary";
                     break;

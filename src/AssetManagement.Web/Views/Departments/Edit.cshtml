@@ -1,5 +1,7 @@
 @model AssetManagement.Application.ViewModels.DepartmentVm
 @using AssetManagement.Application.Helpers
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Edit Department";
@@ -9,11 +11,19 @@
             ? DepartmentHierarchyRules.DomainClasses
             : DepartmentHierarchyRules.DomainOrg);
     var indexLabel = domain == DepartmentHierarchyRules.DomainClasses ? "Grades & Streams" : "Departments";
+    var isOrgKind = !DepartmentHierarchyRules.IsAcademic(Model.DepartmentKind);
+    var parentDepartments = ViewBag.ParentDepartments as System.Web.Mvc.SelectList;
+    var roleOptions = ViewBag.RoleOptions as IEnumerable<System.Web.Mvc.SelectListItem> ?? Enumerable.Empty<System.Web.Mvc.SelectListItem>();
+    var customStages = Model.CustomStages ?? ApprovalWorkflowSettingsHelper.CreateStageSettings(
+        ApprovalWorkflowSettingsHelper.ParseStageRoleIds(Model.CustomStageRoleIds),
+        ApprovalWorkflowSettingsHelper.ParseStageUserIds(Model.CustomStageUserIds),
+        ensureBlankRowWhenEmpty: true);
+    var maxStages = ApprovalWorkflowSettingsHelper.MaxApprovalStages;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Edit Department",
-    Subtitle = "Update the department details used across users, assignments, and reporting. Kind is locked after create.",
+    Subtitle = "Update the department details used across users, assignments, and reporting.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -28,7 +38,6 @@
     @Html.AntiForgeryToken()
     @Html.HiddenFor(m => m.Id)
     @Html.HiddenFor(m => m.DepartmentKind)
-    @Html.HiddenFor(m => m.ParentDepartmentId)
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="mb-3">
@@ -46,14 +55,59 @@
     <div class="mb-3">
         <label class="form-label">Department kind</label>
         <div>@Html.DepartmentKindBadge(Model.DepartmentKind)</div>
-        <div class="form-text">Kind is set at create time and cannot be changed.</div>
+        <div class="form-text">Kind is set at create time. Assigning a parent to a top-level admin unit converts it to a room. Assets stay on this record.</div>
     </div>
-    if (!string.IsNullOrWhiteSpace(Model.ParentDepartmentName) || Model.ParentDepartmentId.HasValue)
+    if (isOrgKind)
     {
+        var parentEmptyLabel = Model.DepartmentKind == DepartmentKind.Room
+            ? "-- Independent room (no parent) --"
+            : (Model.DepartmentKind == DepartmentKind.Administrative ? "-- Top-level department --" : "-- Select parent --");
+        var thisLevelLabel = Model.DepartmentKind == DepartmentKind.Room
+            ? "Room"
+            : (Model.DepartmentKind == DepartmentKind.SubDepartment ? "Sub-department" : "Department");
         <div class="mb-3">
             <label class="form-label">Parent</label>
-            <input type="text" class="form-control" readonly="readonly" value="@(Model.ParentDepartmentName ?? ("#" + Model.ParentDepartmentId))" />
+            @Html.DropDownListFor(m => m.ParentDepartmentId, parentDepartments, parentEmptyLabel, new { @class = "form-select" })
+            <div class="form-text">Rooms may stand alone or sit under a department or sub-unit. Sub-units still require a top-level department.</div>
         </div>
+        <div class="mb-3">
+            <label class="form-label">Which setting applies for this requisition flow?</label>
+            <div class="form-text mb-2">Resolution order when inheriting: Room (if configured) -> Sub-department -> Department -> organization Approval Matrix.</div>
+            <div class="form-check">
+                @Html.RadioButtonFor(m => m.RequisitionFlowMode, RequisitionFlowMode.Custom, new { @class = "form-check-input", id = "flow-custom" })
+                <label class="form-check-label" for="flow-custom">@thisLevelLabel setting (custom approval stages below)</label>
+            </div>
+            <div class="form-check">
+                @Html.RadioButtonFor(m => m.RequisitionFlowMode, RequisitionFlowMode.InheritParent, new { @class = "form-check-input", id = "flow-inherit" })
+                <label class="form-check-label" for="flow-inherit">Inherit hierarchy (Room -> Sub-department -> Department -> org matrix)</label>
+            </div>
+        </div>
+        <div id="custom-flow-stages" class="mb-3 border rounded p-3" style="@(Model.RequisitionFlowMode == RequisitionFlowMode.Custom ? "" : "display:none;")">
+            <label class="form-label">@thisLevelLabel custom approval stages</label>
+            <div class="form-text mb-2">Leave all stages blank to auto-approve requisitions for this @(thisLevelLabel.ToLowerInvariant()).</div>
+            @for (var j = 0; j < customStages.Count; j++)
+            {
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-2"><span class="fw-semibold">Stage @(j + 1)</span></div>
+                    <div class="col-md-8">
+                        @Html.DropDownList("CustomStages[" + j + "].RoleId", new System.Web.Mvc.SelectList(roleOptions, "Value", "Text", customStages[j].RoleId), "-- Select approver role --", new { @class = "form-select" })
+                    </div>
+                </div>
+            }
+            @if (customStages.Count < maxStages)
+            {
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-2"><span class="fw-semibold">Stage @(customStages.Count + 1)</span></div>
+                    <div class="col-md-8">
+                        @Html.DropDownList("CustomStages[" + customStages.Count + "].RoleId", new System.Web.Mvc.SelectList(roleOptions, "Value", "Text"), "-- Select approver role --", new { @class = "form-select" })
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        @Html.HiddenFor(m => m.ParentDepartmentId)
     }
     <div class="form-check mb-3">
         @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input" })
@@ -70,3 +124,16 @@
         BackLabel = "Back"
     })
 }
+<script>
+    (function () {
+        var inherit = document.getElementById('flow-inherit');
+        var custom = document.getElementById('flow-custom');
+        var panel = document.getElementById('custom-flow-stages');
+        function syncFlowPanel() {
+            if (!panel) return;
+            panel.style.display = custom && custom.checked ? '' : 'none';
+        }
+        if (inherit) inherit.addEventListener('change', syncFlowPanel);
+        if (custom) custom.addEventListener('change', syncFlowPanel);
+    })();
+</script>
