@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -16,6 +16,7 @@ namespace AssetManagement.Application.Services
     {
         public const string SetupModeNormal = "Normal";
         public const string SetupModeSubDepartment = "SubDepartment";
+        public const string SetupModeRoom = "Room";
         public const string SetupModeGradeStreams = "GradeWithStreams";
         public const string SetupModeBulkGrades = "BulkGrades";
 
@@ -141,29 +142,27 @@ namespace AssetManagement.Application.Services
         private static IEnumerable<DepartmentTreeSectionVm> BuildAdminTreeSections(IList<DepartmentVm> departments)
         {
             var sections = new List<DepartmentTreeSectionVm>();
-            var adminItems = departments
+            foreach (var topLevel in departments
                 .Where(x => x.DepartmentKind == DepartmentKind.Administrative && !x.ParentDepartmentId.HasValue)
-                .OrderBy(x => x.Name)
-                .ToList();
-            if (adminItems.Any())
+                .OrderBy(x => x.Name))
             {
                 sections.Add(new DepartmentTreeSectionVm
                 {
-                    Title = "Administration",
-                    Items = adminItems
+                    Title = topLevel.Name,
+                    Items = new List<DepartmentVm> { topLevel }
                 });
             }
 
             var ungrouped = departments
                 .Where(x => !x.ParentDepartmentId.HasValue
-                    && x.DepartmentKind == DepartmentKind.SubDepartment)
+                    && (x.DepartmentKind == DepartmentKind.SubDepartment || x.DepartmentKind == DepartmentKind.Room))
                 .OrderBy(x => x.Name)
                 .ToList();
             if (ungrouped.Any())
             {
                 sections.Add(new DepartmentTreeSectionVm
                 {
-                    Title = "Other",
+                    Title = "Independent rooms",
                     Items = ungrouped
                 });
             }
@@ -189,7 +188,71 @@ namespace AssetManagement.Application.Services
                 }
             }
 
+            model.EffectiveRequisitionFlowSummary = BuildEffectiveRequisitionFlowSummary(entity);
+            model.CustomStages = ApprovalWorkflowSettingsHelper.CreateStageSettings(
+                ApprovalWorkflowSettingsHelper.ParseStageRoleIds(entity.CustomStageRoleIds),
+                ApprovalWorkflowSettingsHelper.ParseStageUserIds(entity.CustomStageUserIds),
+                ensureBlankRowWhenEmpty: true);
+
             return model;
+        }
+
+        
+        public IEnumerable<DepartmentVm> GetRoomRequisitionFlows()
+        {
+            var rooms = _departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
+                .Where(x => x.DepartmentKind == DepartmentKind.Room)
+                .OrderBy(x => x.Name)
+                .ToList();
+
+            var parentIds = rooms
+                .Where(x => x.ParentDepartmentId.HasValue)
+                .Select(x => x.ParentDepartmentId.Value)
+                .Distinct()
+                .ToList();
+
+            var parentsById = parentIds.Count == 0
+                ? new Dictionary<int, Department>()
+                : _unitOfWork.Repository<Department>().Query()
+                    .Where(x => parentIds.Contains(x.Id))
+                    .ToDictionary(x => x.Id);
+
+            var result = new List<DepartmentVm>();
+            foreach (var entity in rooms)
+            {
+                var model = MapDepartment(entity);
+                if (entity.ParentDepartmentId.HasValue)
+                {
+                    Department parent;
+                    if (parentsById.TryGetValue(entity.ParentDepartmentId.Value, out parent) && parent != null)
+                    {
+                        model.ParentDepartmentName = parent.Name;
+                    }
+                }
+
+                model.EffectiveRequisitionFlowSummary = BuildEffectiveRequisitionFlowSummary(entity);
+                result.Add(model);
+            }
+
+            return result
+                .OrderBy(x => x.ParentDepartmentName ?? string.Empty)
+                .ThenBy(x => x.Name)
+                .ToList();
+        }
+
+        public IEnumerable<DepartmentVm> GetOrganizationalParentCandidates(int excludeDepartmentId)
+        {
+            var all = GetAll().Where(x => x.IsActive).ToList();
+            return all.Where(x =>
+                    (x.DepartmentKind == DepartmentKind.Administrative
+                        || x.DepartmentKind == DepartmentKind.SubDepartment)
+                    && x.Id != excludeDepartmentId
+                    && !DepartmentHierarchyRules.WouldCreateCycle(excludeDepartmentId, x.Id, id =>
+                    {
+                        var match = all.FirstOrDefault(d => d.Id == id);
+                        return match == null ? (int?)null : match.ParentDepartmentId;
+                    }))
+                .OrderBy(x => x.Name);
         }
 
         public int Create(DepartmentVm model)
@@ -215,6 +278,8 @@ namespace AssetManagement.Application.Services
             {
                 case SetupModeSubDepartment:
                     return CreateSubDepartment(model);
+                case SetupModeRoom:
+                    return CreateRoom(model);
                 case SetupModeGradeStreams:
                     return CreateGradeWithStreams(model);
                 case SetupModeBulkGrades:
@@ -232,15 +297,56 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
-            DepartmentHierarchyRules.AssertKindUnchanged(entity.DepartmentKind, model.DepartmentKind);
+            var requestedKind = model.DepartmentKind;
+            var requestedParentId = model.ParentDepartmentId;
 
-            // Parent is not editable on the Edit form — preserve existing hierarchy.
-            Department parent = null;
-            if (entity.ParentDepartmentId.HasValue)
+            if (DepartmentHierarchyRules.IsAcademic(entity.DepartmentKind))
             {
-                parent = _unitOfWork.Repository<Department>().GetById(entity.ParentDepartmentId.Value);
+                requestedParentId = entity.ParentDepartmentId;
+                requestedKind = entity.DepartmentKind;
+            }
+            else if (requestedParentId.HasValue && requestedParentId.Value > 0
+                && entity.DepartmentKind == DepartmentKind.Administrative
+                && entity.DepartmentKind != DepartmentKind.Room)
+            {
+                var hasChildren = _unitOfWork.Repository<Department>().GetAll()
+                    .Any(x => x.IsActive && x.ParentDepartmentId == entity.Id);
+                if (hasChildren)
+                {
+                    throw new BusinessException("This department has sub-units or rooms. Move or remove them before converting it to a room.");
+                }
+
+                DepartmentHierarchyRules.AssertCanConvertToRoom(entity);
+                requestedKind = DepartmentKind.Room;
+            }
+            else
+            {
+                DepartmentHierarchyRules.AssertKindUnchanged(entity.DepartmentKind, requestedKind);
             }
 
+            Department parent = null;
+            if (requestedParentId.HasValue && requestedParentId.Value > 0)
+            {
+                if (DepartmentHierarchyRules.WouldCreateCycle(entity.Id, requestedParentId.Value, id =>
+                {
+                    var node = _unitOfWork.Repository<Department>().GetById(id);
+                    return node == null ? (int?)null : node.ParentDepartmentId;
+                }))
+                {
+                    throw new BusinessException("A department cannot sit under itself or one of its rooms.");
+                }
+
+                parent = _unitOfWork.Repository<Department>().GetById(requestedParentId.Value);
+                if (parent == null || !parent.IsActive)
+                {
+                    throw new BusinessException("Parent department was not found.");
+                }
+            }
+
+            entity.DepartmentKind = requestedKind;
+            entity.ParentDepartmentId = (requestedParentId.HasValue && requestedParentId.Value > 0)
+                ? requestedParentId
+                : null;
             DepartmentHierarchyRules.AssertValidHierarchy(entity.DepartmentKind, parent);
 
             if (entity.DepartmentKind == DepartmentKind.Grade)
@@ -248,10 +354,27 @@ namespace AssetManagement.Application.Services
                 model.IsRequisitionTarget = false;
             }
 
+            if (parent != null && parent.IsRequisitionTarget)
+            {
+                parent.IsRequisitionTarget = false;
+                parent.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<Department>().Update(parent);
+            }
+
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
             entity.IsRequisitionTarget = model.IsRequisitionTarget;
+            if (!DepartmentHierarchyRules.IsAcademic(entity.DepartmentKind))
+            {
+                entity.RequisitionFlowMode = model.RequisitionFlowMode;
+                entity.CustomStageRoleIds = model.RequisitionFlowMode == RequisitionFlowMode.Custom
+                    ? model.CustomStageRoleIds
+                    : null;
+                entity.CustomStageUserIds = model.RequisitionFlowMode == RequisitionFlowMode.Custom
+                    ? model.CustomStageUserIds
+                    : null;
+            }
             entity.IsActive = model.IsActive;
             entity.UpdatedAt = DateTime.UtcNow;
 
@@ -311,6 +434,67 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = parent.Id,
                 DepartmentKind = DepartmentKind.SubDepartment,
                 IsRequisitionTarget = true,
+                IsActive = true,
+                CreatedAt = now
+            };
+            ApplyOrganization(entity);
+            _unitOfWork.Repository<Department>().Add(entity);
+            _unitOfWork.SaveChanges();
+            InvalidateDepartmentCache();
+            WriteDepartmentAudit("Departments.Create", entity.Id.ToString(), null, entity.Name);
+            return entity.Id;
+        }
+
+        private int CreateRoom(DepartmentCreateVm model)
+        {
+            if (string.IsNullOrWhiteSpace(model.Name))
+            {
+                throw new BusinessException("Name is required.");
+            }
+
+            Department parent = null;
+            if (model.ParentDepartmentId.HasValue && model.ParentDepartmentId.Value > 0)
+            {
+                parent = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
+                if (parent == null || !parent.IsActive)
+                {
+                    throw new BusinessException("Parent department was not found.");
+                }
+            }
+
+            DepartmentHierarchyRules.AssertValidHierarchy(DepartmentKind.Room, parent);
+
+            var now = DateTime.UtcNow;
+            if (parent != null && parent.IsRequisitionTarget)
+            {
+                parent.IsRequisitionTarget = false;
+                parent.UpdatedAt = now;
+                _unitOfWork.Repository<Department>().Update(parent);
+            }
+
+            var roomCode = parent != null
+                ? SchoolDepartmentCodeHelper.BuildSubDepartmentCode(parent.Code, model.Name.Trim())
+                : SchoolDepartmentCodeHelper.BuildSubDepartmentCode("ROOM", model.Name.Trim());
+            if (_unitOfWork.Repository<Department>().GetAll().Any(x =>
+                    x.IsActive && string.Equals(x.Code, roomCode, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new BusinessException("A room with code '" + roomCode + "' already exists.");
+            }
+
+            var defaultDescription = parent != null
+                ? model.Name.Trim() + " (" + parent.Name + ")"
+                : model.Name.Trim();
+            var entity = new Department
+            {
+                Name = model.Name.Trim(),
+                Code = roomCode,
+                Description = string.IsNullOrWhiteSpace(model.Description)
+                    ? defaultDescription
+                    : model.Description.Trim(),
+                ParentDepartmentId = parent != null ? (int?)parent.Id : null,
+                DepartmentKind = DepartmentKind.Room,
+                IsRequisitionTarget = true,
+                RequisitionFlowMode = RequisitionFlowMode.InheritParent,
                 IsActive = true,
                 CreatedAt = now
             };
@@ -554,6 +738,9 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = model.ParentDepartmentId,
                 DepartmentKind = model.DepartmentKind,
                 IsRequisitionTarget = model.IsRequisitionTarget,
+                RequisitionFlowMode = model.RequisitionFlowMode,
+                CustomStageRoleIds = model.CustomStageRoleIds,
+                CustomStageUserIds = model.CustomStageUserIds,
                 IsActive = model.IsActive
             };
         }
@@ -574,8 +761,51 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = entity.ParentDepartmentId,
                 DepartmentKind = entity.DepartmentKind,
                 IsRequisitionTarget = entity.IsRequisitionTarget,
+                RequisitionFlowMode = entity.RequisitionFlowMode,
+                CustomStageRoleIds = entity.CustomStageRoleIds,
+                CustomStageUserIds = entity.CustomStageUserIds,
                 IsActive = entity.IsActive
             };
+        }
+
+        private string BuildEffectiveRequisitionFlowSummary(Department entity)
+        {
+            if (entity.RequisitionFlowMode == RequisitionFlowMode.Custom)
+            {
+                var roles = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(entity.CustomStageRoleIds);
+                if (roles.Count == 0)
+                {
+                    return "Custom (auto-approve)";
+                }
+
+                return "Custom (" + roles.Count + " stage" + (roles.Count == 1 ? string.Empty : "s") + ")";
+            }
+
+            var current = entity;
+            var guard = 0;
+            while (current != null && current.ParentDepartmentId.HasValue && guard < 50)
+            {
+                var parent = _unitOfWork.Repository<Department>().GetById(current.ParentDepartmentId.Value);
+                if (parent == null)
+                {
+                    break;
+                }
+
+                if (parent.RequisitionFlowMode == RequisitionFlowMode.Custom)
+                {
+                    return "Inherit (via " + parent.Name + ")";
+                }
+
+                current = parent;
+                guard++;
+            }
+
+            if (entity.DepartmentKind == DepartmentKind.Room && !entity.ParentDepartmentId.HasValue)
+            {
+                return "Inherit (independent room -> org default)";
+            }
+
+            return "Inherit (Room -> Sub-department -> Department -> org default)";
         }
     }
 }

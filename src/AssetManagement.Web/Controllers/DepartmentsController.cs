@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
@@ -66,7 +66,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.SelectedKinds = selectedKinds.Select(x => x.ToString()).ToList();
             ViewBag.AvailableKinds = domain == DepartmentHierarchyRules.DomainClasses
                 ? new[] { DepartmentKind.Grade, DepartmentKind.Class }
-                : new[] { DepartmentKind.Administrative, DepartmentKind.SubDepartment };
+                : new[] { DepartmentKind.Administrative, DepartmentKind.SubDepartment, DepartmentKind.Room };
             ViewBag.TreeSections = _departmentService.GetTreeSections(domain)
                 .Select(section => new DepartmentTreeSectionVm
                 {
@@ -93,6 +93,7 @@ namespace AssetManagement.Web.Controllers
                                 ParentDepartmentName = item.ParentDepartmentName,
                                 DepartmentKind = item.DepartmentKind,
                                 IsRequisitionTarget = item.IsRequisitionTarget,
+                                RequisitionFlowMode = item.RequisitionFlowMode,
                                 IsActive = item.IsActive,
                                 Children = filteredChildren
                             };
@@ -104,6 +105,37 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
 
             return View(itemList.OrderBy(x => x.DepartmentKind).ThenBy(x => x.Name).ToList());
+        }
+
+        /// <summary>
+        /// Admin list: every room in the org with current requisition-flow setup. Edit opens Departments/Edit; Save returns here via returnUrl.
+        /// </summary>
+        public ActionResult RequisitionFlows(string search = null, string status = "active")
+        {
+            var items = _departmentService.GetRoomRequisitionFlows();
+
+            items = FilterBySearch(items, search, (x, term) =>
+                (x.Name ?? string.Empty).ToLowerInvariant().Contains(term)
+                || (x.Code ?? string.Empty).ToLowerInvariant().Contains(term)
+                || (x.ParentDepartmentName ?? string.Empty).ToLowerInvariant().Contains(term)
+                || (x.EffectiveRequisitionFlowSummary ?? string.Empty).ToLowerInvariant().Contains(term));
+
+            switch ((status ?? "active").ToLowerInvariant())
+            {
+                case "all":
+                    break;
+                case "inactive":
+                    items = items.Where(x => !x.IsActive);
+                    break;
+                default:
+                    status = "active";
+                    items = items.Where(x => x.IsActive);
+                    break;
+            }
+
+            ViewBag.StatusFilter = status;
+            ViewBag.Search = search;
+            return View(items.ToList());
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -142,6 +174,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.SetupModeLocked = !string.IsNullOrWhiteSpace(setupMode);
             ViewBag.SetupModes = BuildSetupModeSelectList(mode, domain);
             ViewBag.AdminParentDepartments = BuildAdminParentDepartmentSelectList(null);
+            ViewBag.OrganizationalParentDepartments = BuildOrganizationalParentSelectList(0, null);
             ViewBag.CreateTitle = GetCreateTitle(mode);
             return View(new DepartmentCreateVm { SetupMode = mode });
         }
@@ -158,6 +191,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.SetupModeLocked = false;
             ViewBag.SetupModes = BuildSetupModeSelectList(mode, domain);
             ViewBag.AdminParentDepartments = BuildAdminParentDepartmentSelectList(model == null ? null : model.ParentDepartmentId);
+            ViewBag.OrganizationalParentDepartments = BuildOrganizationalParentSelectList(0, model == null ? null : model.ParentDepartmentId);
             ViewBag.CreateTitle = GetCreateTitle(mode);
             if (model == null)
             {
@@ -192,6 +226,11 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Domain = DepartmentHierarchyRules.IsAcademic(model.DepartmentKind)
                 ? DepartmentHierarchyRules.DomainClasses
                 : DepartmentHierarchyRules.DomainOrg;
+            if (!DepartmentHierarchyRules.IsAcademic(model.DepartmentKind))
+            {
+                ViewBag.ParentDepartments = BuildOrganizationalParentSelectList(model.Id, model.ParentDepartmentId);
+                ViewBag.RoleOptions = BuildRoleOptionList();
+            }
             return View(model);
         }
 
@@ -204,6 +243,21 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Domain = DepartmentHierarchyRules.IsAcademic(model.DepartmentKind)
                 ? DepartmentHierarchyRules.DomainClasses
                 : DepartmentHierarchyRules.DomainOrg;
+            if (!DepartmentHierarchyRules.IsAcademic(model.DepartmentKind))
+            {
+                ViewBag.ParentDepartments = BuildOrganizationalParentSelectList(model.Id, model.ParentDepartmentId);
+                ViewBag.RoleOptions = BuildRoleOptionList();
+            }
+            if (model != null
+                && !DepartmentHierarchyRules.IsAcademic(model.DepartmentKind)
+                && model.RequisitionFlowMode == RequisitionFlowMode.Custom
+                && model.CustomStages != null)
+            {
+                model.CustomStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(
+                    model.CustomStages.Select(x => x.RoleId));
+                model.CustomStageUserIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(
+                    model.CustomStages.Select(x => x.UserId));
+            }
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -281,6 +335,8 @@ namespace AssetManagement.Web.Controllers
             {
                 case DepartmentService.SetupModeSubDepartment:
                     return "Add sub-unit";
+                case DepartmentService.SetupModeRoom:
+                    return "Add room";
                 case DepartmentService.SetupModeGradeStreams:
                     return "Add grade & streams";
                 case DepartmentService.SetupModeBulkGrades:
@@ -296,6 +352,8 @@ namespace AssetManagement.Web.Controllers
             {
                 case DepartmentService.SetupModeSubDepartment:
                     return "Sub-unit created.";
+                case DepartmentService.SetupModeRoom:
+                    return "Room created.";
                 case DepartmentService.SetupModeGradeStreams:
                     return "Grade and streams created.";
                 case DepartmentService.SetupModeBulkGrades:
@@ -311,6 +369,8 @@ namespace AssetManagement.Web.Controllers
             {
                 case DepartmentService.SetupModeSubDepartment:
                     return "Next step: assign users or assets to this sub-unit.";
+                case DepartmentService.SetupModeRoom:
+                    return "Next step: assign assets to this room or adjust its requisition flow.";
                 case DepartmentService.SetupModeGradeStreams:
                 case DepartmentService.SetupModeBulkGrades:
                     return "Next step: review grades and streams, then relocate or assign classroom assets.";
@@ -335,24 +395,35 @@ namespace AssetManagement.Web.Controllers
                 items = new[]
                 {
                     new { Value = DepartmentService.SetupModeNormal, Text = "Normal (administrative)" },
-                    new { Value = DepartmentService.SetupModeSubDepartment, Text = "Sub-unit under admin department" }
+                    new { Value = DepartmentService.SetupModeSubDepartment, Text = "Sub-unit under admin department" },
+                    new { Value = DepartmentService.SetupModeRoom, Text = "Room (optional parent / independent)" }
                 };
             }
 
             return new SelectList(items, "Value", "Text", selected);
         }
 
+        private SelectList BuildOrganizationalParentSelectList(int excludeDepartmentId, int? selectedParentDepartmentId)
+        {
+            var parents = _departmentService.GetOrganizationalParentCandidates(excludeDepartmentId)
+                .Select(x => new
+                {
+                    x.Id,
+                    Display = (x.Code ?? string.Empty) + " â€” " + (x.Name ?? string.Empty)
+                })
+                .ToList();
+            return new SelectList(parents, "Id", "Display", selectedParentDepartmentId);
+        }
+
         private SelectList BuildAdminParentDepartmentSelectList(int? selectedParentDepartmentId)
         {
-            var parents = _departmentService.GetAll()
-                .Where(x => x.IsActive
-                    && x.DepartmentKind == DepartmentKind.Administrative
-                    && !x.ParentDepartmentId.HasValue)
+            var parents = _departmentService.GetOrganizationalParentCandidates(0)
+                .Where(x => x.DepartmentKind == DepartmentKind.Administrative && !x.ParentDepartmentId.HasValue)
                 .OrderBy(x => x.Name)
                 .Select(x => new
                 {
                     x.Id,
-                    Display = (x.Code ?? string.Empty) + " — " + (x.Name ?? string.Empty)
+                    Display = (x.Code ?? string.Empty) + " â€” " + (x.Name ?? string.Empty)
                 })
                 .ToList();
             return new SelectList(parents, "Id", "Display", selectedParentDepartmentId);

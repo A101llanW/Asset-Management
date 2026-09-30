@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using AssetManagement.Application.ViewModels;
 
 namespace AssetManagement.Application.Contracts
@@ -21,10 +21,17 @@ namespace AssetManagement.Application.Contracts
 
         DepartmentVm GetById(int id);
 
+        /// <summary>
+        /// All rooms (Kind=Room) with parent name and effective requisition-flow summary for Admin setup list.
+        /// </summary>
+        IEnumerable<DepartmentVm> GetRoomRequisitionFlows();
+
         int Create(DepartmentVm model);
 
         int CreateFromWizard(DepartmentCreateVm model);
 
         void Update(DepartmentVm model);
+
+        IEnumerable<DepartmentVm> GetOrganizationalParentCandidates(int excludeDepartmentId);
     }
 }

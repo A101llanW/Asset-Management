@@ -1,0 +1,86 @@
+﻿@model IList<AssetManagement.Application.ViewModels.DepartmentVm>
+@using AssetManagement.Domain.Enums
+@using AssetManagement.Web.Helpers
+@{
+    ViewBag.Title = "Room requisition flows";
+    var canEditDepartment = Html.HasPermission("Departments.Edit");
+    var statusFilter = ViewBag.StatusFilter as string ?? "active";
+    var search = ViewBag.Search as string;
+    var listReturnUrl = Request.RawUrl;
+    var statusLabel = statusFilter == "all"
+        ? "all rooms"
+        : statusFilter == "inactive"
+            ? "inactive rooms"
+            : "active rooms";
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Room requisition flows",
+    Subtitle = "Review each room's requisition approval flow. Edit opens the room editor; Save returns here. Showing " + statusLabel + "."
+})
+<form class="am-list-toolbar" method="get">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-6">
+            <input type="text" class="form-control" name="search" placeholder="Search by room, code, parent, or flow summary" value="@search" />
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" name="status">
+                <option value="active" selected="@(statusFilter == "active")">Active only</option>
+                <option value="inactive" selected="@(statusFilter == "inactive")">Inactive only</option>
+                <option value="all" selected="@(statusFilter == "all")">All statuses</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Apply</button>
+        </div>
+    </div>
+</form>
+@if (Model == null || !Model.Any())
+{
+    <div class="card card-kpi">
+        <div class="card-body am-empty-state">
+            <h5>No rooms found</h5>
+            <p class="text-muted mb-3">Create rooms under Organization &rarr; Departments (Add room), then configure their requisition flow here.</p>
+            <a class="btn btn-outline-primary" href="@Url.Action("Index", new { domain = "org" })">Go to Departments</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card card-kpi"><div class="card-body p-0">
+    <table class="table mb-0 align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Code</th>
+                <th>Room</th>
+                <th>Parent</th>
+                <th>Mode</th>
+                <th>Flow summary</th>
+                <th>Requisition target</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var room in Model)
+        {
+            <tr>
+                <td>@room.Code</td>
+                <td>@room.Name</td>
+                <td>@(string.IsNullOrWhiteSpace(room.ParentDepartmentName) ? "Independent" : room.ParentDepartmentName)</td>
+                <td>@(room.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                <td>@(string.IsNullOrWhiteSpace(room.EffectiveRequisitionFlowSummary) ? "-" : room.EffectiveRequisitionFlowSummary)</td>
+                <td>@(room.IsRequisitionTarget ? "Yes" : "No")</td>
+                <td>@(room.IsActive ? "Active" : "Inactive")</td>
+                <td class="text-end text-nowrap">
+                    @if (canEditDepartment)
+                    {
+                        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = room.Id, returnUrl = listReturnUrl })">Edit</a>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div></div>
+}
