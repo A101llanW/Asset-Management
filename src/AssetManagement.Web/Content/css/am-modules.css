@@ -346,3 +346,33 @@
 .am-main-content #amSavedTemplates .btn-group-sm .btn {
     min-width: 2rem;
 }
+
+@media (max-width: 767.98px) {
+    .am-main-content .am-page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .am-main-content .am-page-header-actions {
+        width: 100%;
+    }
+
+    .am-main-content .am-page-header-actions .btn {
+        flex: 1 1 auto;
+    }
+
+    .am-users-table .am-inline-assign-form {
+        flex-wrap: wrap;
+    }
+
+    .am-users-table .am-users-assign-col {
+        min-width: 0;
+        white-space: normal;
+    }
+
+    .am-users-table .am-inline-assign-form .form-select {
+        max-width: none;
+        min-width: 0;
+        width: 100%;
+    }
+}

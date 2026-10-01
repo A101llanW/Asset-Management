@@ -28,7 +28,7 @@
     }
 
     <header class="am-shell-header">
-        <div class="am-header-inner">
+        <div class="am-header-inner flex-wrap">
             <div class="am-header-branding">
                 @if (Request.IsAuthenticated)
                 {
@@ -49,7 +49,7 @@
 
             @if (Request.IsAuthenticated)
             {
-                <div class="am-header-actions d-flex align-items-center gap-3">
+                <div class="am-header-actions d-flex flex-wrap align-items-center gap-2 gap-md-3">
                     <div class="am-header-user">
                         <span class="am-header-user-label">Welcome</span>
                         <strong class="am-header-user-name">@User.Identity.Name</strong>
@@ -82,7 +82,7 @@
         </aside>
     }
 
-    <main class="container-fluid px-4 py-3 am-main-content">
+    <main class="container-fluid px-3 px-md-4 py-3 am-main-content">
         @Html.Partial("~/Views/Shared/_Alerts.cshtml")
         @RenderBody()
     </main>
