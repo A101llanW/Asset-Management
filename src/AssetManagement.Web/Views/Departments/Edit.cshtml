@@ -5,10 +5,13 @@
 @using AssetManagement.Application.ViewModels
 @using AssetManagement.Domain.Enums
 @{
-    ViewBag.Title = "Edit Department";
-    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
     var isRoom = Model.DepartmentKind == DepartmentKind.Room;
     var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
+    var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
+    var editPageTitle = DepartmentLabelHelper.GetEditActionLabel(Model.DepartmentKind, isTopLevelAdmin);
+    ViewBag.Title = editPageTitle;
+    var editSubmitLabel = isRoom ? "Update room" : isSubDepartment ? "Update sub-department" : "Update Department";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
     var roomCandidates = ViewBag.RoomParentCandidates as IList<DepartmentVm> ?? new List<DepartmentVm>();
     var roomOtherGroups = ViewBag.RoomOtherParentGroups as IList<RoomOtherParentGroupVm> ?? new List<RoomOtherParentGroupVm>();
     var roomOtherValue = ViewBag.RoomParentOtherValue as string ?? DepartmentLabelHelper.RoomParentOtherOptionValue;
@@ -26,15 +29,17 @@
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Edit Department",
-    Subtitle = "Update the department details used across users, assignments, and reporting.",
+    Title = editPageTitle,
+    Subtitle = isRoom
+        ? "Update room details, parent department, and requisition approval used for this room."
+        : "Update the department details used across users, assignments, and reporting.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name, Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }) },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Edit Department" }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = editPageTitle }
     }
 })
 @using (Html.BeginForm())
@@ -106,94 +111,41 @@
         @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
         @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
     </div>
+    if (isRoom)
+    {
+        @Html.Partial("_RoomRequisitionApproval", Model)
+    }
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
-        SubmitLabel = "Update Department",
+        SubmitLabel = editSubmitLabel,
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
 }
-@if (isRoom)
+@section modals
 {
-    @Html.Partial("_RoomParentOtherModal", roomOtherGroups)
-    <script>
-        (function () {
-            var select = document.getElementById('room-parent-select');
-            var hidden = document.getElementById('room-parent-id-hidden');
-            var otherValue = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue));
-            var modalEl = document.getElementById('roomParentOtherModal');
-            var adminSelect = document.getElementById('room-other-admin');
-            var subSelect = document.getElementById('room-other-sub');
-            var applyBtn = document.getElementById('room-other-apply');
-            if (!select || !hidden) {
-                return;
-            }
-
-            function ensureCandidateOption(id, label) {
-                var idText = String(id);
-                var match = Array.prototype.find.call(select.options, function (opt) { return opt.value === idText; });
-                if (!match) {
-                    var option = document.createElement('option');
-                    option.value = idText;
-                    option.textContent = label;
-                    var otherOption = select.querySelector('option[value="' + otherValue + '"]');
-                    select.insertBefore(option, otherOption);
+    if (isRoom)
+    {
+        @Html.Partial("_RoomParentOtherModal", roomOtherGroups)
+    }
+}
+@section scripts
+{
+    if (isRoom)
+    {
+        <script src="@Url.Content("~/Scripts/app/room-custom-approval-stages.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/room-custom-approval-stages.js")).Ticks"></script>
+        <script src="@Url.Content("~/Scripts/app/room-parent-other-modal.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/room-parent-other-modal.js")).Ticks"></script>
+        <script>
+            (function () {
+                if (window.AmRoomCustomApprovalStages) {
+                    window.AmRoomCustomApprovalStages.init();
                 }
-                select.value = idText;
-            }
-
-            function syncHiddenFromSelect() {
-                if (select.value === otherValue) {
-                    return;
-                }
-                hidden.value = select.value || '';
-            }
-
-            select.addEventListener('change', function () {
-                if (select.value === otherValue) {
-                    if (modalEl && window.bootstrap) {
-                        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                        modal.show();
-                    }
-                    return;
-                }
-                syncHiddenFromSelect();
-            });
-
-            if (adminSelect && subSelect) {
-                adminSelect.addEventListener('change', function () {
-                    var adminId = adminSelect.value;
-                    Array.prototype.forEach.call(subSelect.options, function (opt) {
-                        if (!opt.value) {
-                            opt.hidden = false;
-                            return;
-                        }
-                        opt.hidden = opt.getAttribute('data-admin-id') !== adminId;
+                if (window.AmRoomParentOtherModal) {
+                    window.AmRoomParentOtherModal.init({
+                        otherValue: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue))
                     });
-                    subSelect.value = '';
-                });
-            }
-
-            if (applyBtn) {
-                applyBtn.addEventListener('click', function () {
-                    var adminId = adminSelect ? adminSelect.value : '';
-                    var subId = subSelect ? subSelect.value : '';
-                    var parentId = subId || adminId;
-                    if (!parentId) {
-                        return;
-                    }
-                    var label = subId
-                        ? subSelect.options[subSelect.selectedIndex].text
-                        : adminSelect.options[adminSelect.selectedIndex].text;
-                    hidden.value = parentId;
-                    ensureCandidateOption(parentId, label);
-                    if (modalEl && window.bootstrap) {
-                        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    }
-                });
-            }
-
-            syncHiddenFromSelect();
-        })();
-    </script>
+                }
+            })();
+        </script>
+    }
 }

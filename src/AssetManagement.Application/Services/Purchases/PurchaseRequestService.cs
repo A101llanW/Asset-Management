@@ -255,7 +255,7 @@ namespace AssetManagement.Application.Services
 
             var targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
 
-            var approvalConfig = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var approvalConfig = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
             var entity = new PurchaseRequest
             {
                 RequestNumber = "PENDING",
@@ -564,7 +564,8 @@ namespace AssetManagement.Application.Services
                 return stageRoleIds;
             }
 
-            var config = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var department = _unitOfWork.Repository<Department>().GetById(request.DepartmentId);
+            var config = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
             if (!config.UsesApproval)
             {
                 throw new BusinessException(
@@ -601,7 +602,8 @@ namespace AssetManagement.Application.Services
                 return stageUserIds;
             }
 
-            var config = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var department = _unitOfWork.Repository<Department>().GetById(request.DepartmentId);
+            var config = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
             if (!config.UsesApproval)
             {
                 return stageUserIds;

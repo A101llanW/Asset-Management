@@ -29,6 +29,10 @@ namespace AssetManagement.Application.ViewModels
 
         public bool IsActive { get; set; }
 
+        public bool UseCustomRequisitionApproval { get; set; }
+
+        public IList<ApprovalProcessSettingsVm> RequisitionApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
+
         public IList<DepartmentVm> Children { get; set; } = new List<DepartmentVm>();
     }
 

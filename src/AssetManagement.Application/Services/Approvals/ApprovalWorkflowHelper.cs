@@ -33,6 +33,31 @@ namespace AssetManagement.Application.Services
             };
         }
 
+        public static ApprovalProcessConfiguration GetDepartmentRequisitionConfiguration(
+            IUnitOfWork unitOfWork,
+            Department department)
+        {
+            var systemConfig = GetProcessConfiguration(unitOfWork, ApprovalProcessCodes.Purchase);
+            if (department == null || !department.UseCustomRequisitionApproval)
+            {
+                return systemConfig;
+            }
+
+            var configuredStages = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(department.RequisitionApprovalStageRoleIds);
+            var configuredUsers = ApprovalWorkflowSettingsHelper.ParseStageUserIds(department.RequisitionApprovalStageUserIds);
+            var stageRoleIds = configuredStages.Count > 0 ? configuredStages : systemConfig.StageRoleIds;
+            var stageUserIds = configuredStages.Count > 0 ? configuredUsers : systemConfig.StageUserIds;
+
+            return new ApprovalProcessConfiguration
+            {
+                ProcessCode = ApprovalProcessCodes.Purchase,
+                DisplayName = ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
+                RequiresApproval = true,
+                StageRoleIds = stageRoleIds,
+                StageUserIds = stageUserIds ?? new List<string>()
+            };
+        }
+
         public static ApprovalProcessConfiguration GetAssetProcessConfiguration(IUnitOfWork unitOfWork, Asset asset, string processCode)
         {
             if (asset == null

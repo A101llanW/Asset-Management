@@ -22,6 +22,12 @@ namespace AssetManagement.Domain.Entities
 
         public bool IsRequisitionTarget { get; set; }
 
+        public bool UseCustomRequisitionApproval { get; set; }
+
+        public string RequisitionApprovalStageRoleIds { get; set; }
+
+        public string RequisitionApprovalStageUserIds { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }

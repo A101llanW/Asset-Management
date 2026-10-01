@@ -527,8 +527,51 @@ body.modal-open .am-main-content.am-page-enter {
     transform: none !important;
 }
 
-#targetAssetPickerModal.modal.show {
-    z-index: 1060;
+body.modal-open .am-main-content {
+    transform: none !important;
+}
+
+#targetAssetPickerModal.modal.show,
+#roomParentOtherModal.modal.show,
+body.am-room-parent-modal-open #roomParentOtherModal.modal.show {
+    z-index: 1060 !important;
+    opacity: 1 !important;
+    pointer-events: none;
+}
+
+#roomParentOtherModal.modal.show .modal-dialog {
+    pointer-events: auto;
+}
+
+body.am-room-parent-modal-open .am-room-parent-backdrop,
+body.am-room-parent-modal-open .modal-backdrop {
+    z-index: 1055 !important;
+    opacity: 0.5 !important;
+    background-color: #000 !important;
+}
+
+body.am-room-parent-modal-open .am-sidebar-overlay {
+    pointer-events: none !important;
+    opacity: 0 !important;
+}
+
+#room-requisition-approval-panel #custom-flow-stage-count-group,
+#room-requisition-approval-panel .am-room-custom-flow-stage-count {
+    display: block;
+}
+
+#room-requisition-approval-panel #custom-flow-approval-custom-panel.d-none #custom-flow-stage-count-group {
+    display: none;
+}
+
+.room-custom-approval-matrix .am-approval-process > .row > .col-md-2:has(.am-approval-requires-approval),
+.room-custom-approval-matrix .am-approval-add-stage {
+    display: none;
+}
+
+.room-custom-approval-matrix .am-approval-process > .row > .col-md-6.am-approval-stages-panel {
+    flex: 0 0 100%;
+    max-width: 100%;
 }
 
 .card-kpi {

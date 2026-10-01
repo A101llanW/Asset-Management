@@ -213,6 +213,7 @@ namespace AssetManagement.Application.Services
             entity.DepartmentKind = model.DepartmentKind;
             entity.IsRequisitionTarget = model.IsRequisitionTarget;
             entity.IsActive = model.IsActive;
+            DepartmentRequisitionApprovalSettingsHelper.ApplyToDepartment(entity, model);
             entity.UpdatedAt = DateTime.UtcNow;
 
             _unitOfWork.Repository<Department>().Update(entity);
@@ -574,7 +575,8 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = entity.ParentDepartmentId,
                 DepartmentKind = entity.DepartmentKind,
                 IsRequisitionTarget = entity.IsRequisitionTarget,
-                IsActive = entity.IsActive
+                IsActive = entity.IsActive,
+                UseCustomRequisitionApproval = entity.UseCustomRequisitionApproval
             };
         }
     }

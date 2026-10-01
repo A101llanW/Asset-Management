@@ -7,6 +7,7 @@ using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 
@@ -179,6 +180,13 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Edit(DepartmentVm model, string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+            if (model != null && model.DepartmentKind == DepartmentKind.Room)
+            {
+                DepartmentRequisitionApprovalSettingsHelper.ValidateCustomApproval(
+                    model,
+                    (key, message) => ModelState.AddModelError(key, message));
+            }
+
             if (!ModelState.IsValid)
             {
                 ApplyEditViewBag(model);
@@ -360,6 +368,7 @@ namespace AssetManagement.Web.Controllers
                 ViewBag.RoomParentCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(model, scopedDepartments);
                 ViewBag.RoomOtherParentGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
                 ViewBag.RoomParentOtherValue = DepartmentLabelHelper.RoomParentOtherOptionValue;
+                PopulateRoomRequisitionApproval(model);
             }
             else if (model.DepartmentKind == DepartmentKind.SubDepartment)
             {
@@ -397,6 +406,29 @@ namespace AssetManagement.Web.Controllers
                 })
                 .ToList();
             return new SelectList(items, "Value", "Text", selectedParentDepartmentId);
+        }
+
+        private void PopulateRoomRequisitionApproval(DepartmentVm model)
+        {
+            if (model == null)
+            {
+                return;
+            }
+
+            var entity = UnitOfWork.Repository<Department>().GetById(model.Id);
+            if (entity != null)
+            {
+                model.UseCustomRequisitionApproval = entity.UseCustomRequisitionApproval;
+            }
+
+            if (model.RequisitionApprovalProcesses == null || model.RequisitionApprovalProcesses.Count == 0)
+            {
+                model.RequisitionApprovalProcesses = DepartmentRequisitionApprovalSettingsHelper
+                    .BuildForDepartment(entity, UnitOfWork, GetRolesForOrganization())
+                    .ToList();
+            }
+
+            ViewBag.RoleOptions = BuildRoleOptionList();
         }
 
         private static SelectList BuildSetupModeSelectList(string selected, bool includeOrgModes)
