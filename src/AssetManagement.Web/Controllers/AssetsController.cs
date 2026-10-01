@@ -826,8 +826,8 @@ namespace AssetManagement.Web.Controllers
 
             var organizationId = ResolveCurrentOrganizationId();
             ViewBag.AssetTypeOptions = organizationId.HasValue
-                ? (object)BuildReferenceDataCache().GetAssetTypes(organizationId.Value, false).OrderBy(x => x.Name).ToList()
-                : (object)UnitOfWork.Repository<AssetType>().GetAll().OrderBy(x => x.Name).ToList();
+                ? BuildReferenceDataCache().GetAssetTypes(organizationId.Value, false).OrderBy(x => x.Name).ToList()
+                : UnitOfWork.Repository<AssetType>().GetAll().OrderBy(x => x.Name).Select(ToAssetTypeLookupVm).ToList();
 
             ViewBag.Departments = BuildDepartmentSelectList(model?.DepartmentId, activeOnly: false);
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId, activeOnly: false);

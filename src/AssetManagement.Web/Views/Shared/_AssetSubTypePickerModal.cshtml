@@ -1,10 +1,9 @@
 @using System.Linq
-@using AssetManagement.Application.ViewModels
 @using AssetManagement.Web.Helpers
 @{
     var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Domain.Entities.AssetType>
-        ?? Enumerable.Empty<AssetManagement.Domain.Entities.AssetType>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Application.ViewModels.AssetTypeLookupVm>
+        ?? Enumerable.Empty<AssetManagement.Application.ViewModels.AssetTypeLookupVm>();
     var lookupUrl = ViewBag.SubTypeLookupUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
     var byTypeUrl = ViewBag.SubTypeByTypeUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
     var createUrl = ViewBag.SubTypeCreateUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");

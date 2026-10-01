@@ -1,9 +1,9 @@
 @using System.Linq
 @model AssetManagement.Application.ViewModels.AssetCreateVm
-@using AssetManagement.Domain.Entities
 @{
     var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetType> ?? Enumerable.Empty<AssetType>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Application.ViewModels.AssetTypeLookupVm>
+        ?? Enumerable.Empty<AssetManagement.Application.ViewModels.AssetTypeLookupVm>();
     var categoryItems = categories != null
         ? categories.Cast<SelectListItem>().Where(i => !string.IsNullOrEmpty(i.Value)).ToList()
         : new List<SelectListItem>();
@@ -34,7 +34,7 @@
                     continue;
                 }
 
-                List<AssetType> typesForCategory;
+                List<AssetManagement.Application.ViewModels.AssetTypeLookupVm> typesForCategory;
                 if (!typesByCategory.TryGetValue(categoryId, out typesForCategory) || typesForCategory.Count == 0)
                 {
                     continue;
