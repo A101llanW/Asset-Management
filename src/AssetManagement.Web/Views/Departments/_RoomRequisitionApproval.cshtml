@@ -1,0 +1,65 @@
+@model AssetManagement.Application.ViewModels.DepartmentVm
+@using AssetManagement.Application.ViewModels
+@if (Model.IsRequisitionTarget)
+{
+    <div class="card card-kpi mb-3" id="room-requisition-approval-panel">
+        <div class="card-header">Requisition approval</div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Choose how requisitions for this room move through approval. Changes apply to new requisitions submitted after you save.</p>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-org" value="org" @(!Model.UseCustomRequisitionApproval ? "checked=\"checked\"" : null) />
+                <label class="form-check-label" for="requisition-approval-org">Use organization default requisition approval stages</label>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-custom" value="custom" @(Model.UseCustomRequisitionApproval ? "checked=\"checked\"" : null) />
+                <label class="form-check-label" for="requisition-approval-custom">Custom approval stages (at least one role required)</label>
+            </div>
+            <input type="hidden" name="UseCustomRequisitionApproval" id="use-custom-requisition-approval" value="@(Model.UseCustomRequisitionApproval ? "true" : "false")" />
+            <div id="room-custom-approval-stages" class="@(Model.UseCustomRequisitionApproval ? "" : "d-none")">
+                @{
+                    ViewData.TemplateInfo.HtmlFieldPrefix = "RequisitionApprovalProcesses";
+                }
+                @Html.Partial("_ApprovalProcessMatrix", Model.RequisitionApprovalProcesses)
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var orgRadio = document.getElementById('requisition-approval-org');
+            var customRadio = document.getElementById('requisition-approval-custom');
+            var hiddenFlag = document.getElementById('use-custom-requisition-approval');
+            var stagesPanel = document.getElementById('room-custom-approval-stages');
+            var requisitionTarget = document.getElementById('IsRequisitionTarget');
+            var approvalPanel = document.getElementById('room-requisition-approval-panel');
+
+            function syncApprovalMode() {
+                var useCustom = customRadio && customRadio.checked;
+                if (hiddenFlag) {
+                    hiddenFlag.value = useCustom ? 'true' : 'false';
+                }
+                if (stagesPanel) {
+                    stagesPanel.classList.toggle('d-none', !useCustom);
+                }
+            }
+
+            function syncPanelVisibility() {
+                if (!approvalPanel || !requisitionTarget) {
+                    return;
+                }
+                approvalPanel.classList.toggle('d-none', !requisitionTarget.checked);
+            }
+
+            if (orgRadio) {
+                orgRadio.addEventListener('change', syncApprovalMode);
+            }
+            if (customRadio) {
+                customRadio.addEventListener('change', syncApprovalMode);
+            }
+            if (requisitionTarget) {
+                requisitionTarget.addEventListener('change', syncPanelVisibility);
+                syncPanelVisibility();
+            }
+            syncApprovalMode();
+        })();
+    </script>
+}

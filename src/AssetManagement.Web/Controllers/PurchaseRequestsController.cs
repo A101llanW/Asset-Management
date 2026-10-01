@@ -317,7 +317,7 @@ namespace AssetManagement.Web.Controllers
         {
             return Json(new
             {
-                summary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase)
+                summary = BuildDepartmentRequisitionApprovalSummary(departmentId)
             }, JsonRequestBehavior.AllowGet);
         }
 

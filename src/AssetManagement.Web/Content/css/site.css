@@ -527,7 +527,8 @@ body.modal-open .am-main-content.am-page-enter {
     transform: none !important;
 }
 
-#targetAssetPickerModal.modal.show {
+#targetAssetPickerModal.modal.show,
+#roomParentOtherModal.modal.show {
     z-index: 1060;
 }
 

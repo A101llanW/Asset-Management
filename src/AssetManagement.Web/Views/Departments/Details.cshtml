@@ -11,8 +11,13 @@
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditDepartment = Html.HasPermission("Departments.Edit");
     var canCreateDepartment = Html.HasPermission("Departments.Create");
+    var isRoom = Model.DepartmentKind == DepartmentKind.Room;
     var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
     var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
+    var editActionLabel = isRoom ? "Edit room" : isSubDepartment ? "Edit sub-department" : "Edit Department";
+    var detailsSubtitle = isRoom
+        ? "Room code: " + Model.Code
+        : "Department code: " + Model.Code;
     var subDepartments = ViewBag.SubDepartments as IList<DepartmentVm> ?? new List<DepartmentVm>();
     var directRooms = ViewBag.DirectRooms as IList<DepartmentVm> ?? new List<DepartmentVm>();
     var childRooms = ViewBag.ChildRooms as IList<DepartmentVm> ?? new List<DepartmentVm>();
@@ -52,11 +57,11 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = Model.Name,
-    Subtitle = "Department code: " + Model.Code,
+    Subtitle = detailsSubtitle,
     BackUrl = returnUrl,
     BackLabel = "Back",
     PrimaryActionUrl = canEditDepartment ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
-    PrimaryActionLabel = canEditDepartment ? "Edit Department" : null,
+    PrimaryActionLabel = canEditDepartment ? editActionLabel : null,
     SecondaryActionUrl = secondaryCreateUrl,
     SecondaryActionLabel = secondaryCreateLabel,
     TertiaryActionUrl = tertiaryCreateUrl,
