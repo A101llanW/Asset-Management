@@ -49,6 +49,11 @@ namespace AssetManagement.Application.ViewModels
 
         public int? ParentDepartmentId { get; set; }
 
+        /// <summary>
+        /// When set, POST must use the same parent department (deep-link create flows).
+        /// </summary>
+        public int? LockedParentDepartmentId { get; set; }
+
         public int? GradeNumber { get; set; }
 
         public string SelectedStreams { get; set; }

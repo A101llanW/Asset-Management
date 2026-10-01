@@ -1,31 +1,62 @@
 @model AssetManagement.Application.ViewModels.DepartmentCreateVm
+@using AssetManagement.Application.Services
 @{
     ViewBag.Title = "Create Department";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var setupModes = ViewBag.SetupModes as System.Web.Mvc.SelectList;
     var adminParents = ViewBag.AdminParentDepartments as System.Web.Mvc.SelectList;
+    var showSetupModePicker = ViewBag.ShowSetupModePicker as bool? ?? true;
+    var lockedParentName = ViewBag.LockedParentName as string;
+    var lockedParentId = ViewBag.LockedParentDepartmentId as int?;
+    var createSetupMode = ViewBag.CreateSetupMode as string ?? Model.SetupMode ?? DepartmentService.SetupModeNormal;
+    var pageTitle = createSetupMode == DepartmentService.SetupModeSubDepartment
+        ? "Create Sub-department"
+        : createSetupMode == DepartmentService.SetupModeRoom
+            ? (lockedParentId.HasValue ? "Create Room" : "Create independent Room")
+            : "Create Department";
+    var pageSubtitle = createSetupMode == DepartmentService.SetupModeSubDepartment
+        ? "Add a sub-department under " + lockedParentName + "."
+        : createSetupMode == DepartmentService.SetupModeRoom
+            ? (lockedParentId.HasValue
+                ? "Add a room under sub-department " + lockedParentName + "."
+                : "Add a standalone room with no parent department.")
+            : showSetupModePicker
+                ? "Add an administrative department, a grade with class streams, or bulk grades 1–6."
+                : "Add a top-level administrative department for your organization.";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Create Department",
-    Subtitle = "Add an administrative unit, a sub-unit, a grade with class streams, or bulk grades 1–6.",
+    Title = pageTitle,
+    Subtitle = pageSubtitle,
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Department" }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = pageTitle }
     }
 })
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @if (!showSetupModePicker)
+    {
+        @Html.HiddenFor(m => m.SetupMode)
+    }
+    @if (lockedParentId.HasValue)
+    {
+        @Html.HiddenFor(m => m.LockedParentDepartmentId)
+        @Html.HiddenFor(m => m.ParentDepartmentId)
+    }
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-    <div class="mb-3">
-        <label class="form-label">Setup type</label>
-        @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
-    </div>
+    if (showSetupModePicker)
+    {
+        <div class="mb-3">
+            <label class="form-label">Setup type</label>
+            @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
+        </div>
+    }
     <div id="setup-normal">
         <div class="mb-3">
             @Html.LabelFor(m => m.Name, new { @class = "form-label" })
@@ -45,19 +76,57 @@
         </div>
     </div>
     <div id="setup-sub-department" style="display:none;">
+        @if (lockedParentId.HasValue)
+        {
+            <div class="mb-3">
+                <label class="form-label">Parent department</label>
+                <input type="text" class="form-control" value="@lockedParentName" readonly="readonly" />
+            </div>
+        }
         <div class="mb-3">
-            <label class="form-label">Parent department</label>
-            @Html.DropDownListFor(m => m.ParentDepartmentId, adminParents, "-- Select parent department --", new { @class = "form-select" })
-            <div class="form-text">Example: Information Technology, Administration.</div>
-        </div>
-        <div class="mb-3">
-            @Html.LabelFor(m => m.Name, "Sub-unit name", new { @class = "form-label" })
+            @Html.LabelFor(m => m.Name, "Sub-department name", new { @class = "form-label" })
             @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Comp Lab - Senior" })
         </div>
         <div class="mb-3">
             @Html.LabelFor(m => m.Description, new { @class = "form-label" })
             @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
         </div>
+    </div>
+    <div id="setup-room" style="display:none;">
+        @if (lockedParentId.HasValue)
+        {
+            <div class="mb-3">
+                <label class="form-label">Sub-department</label>
+                <input type="text" class="form-control" value="@lockedParentName" readonly="readonly" />
+            </div>
+        }
+        <div class="mb-3">
+            @Html.LabelFor(m => m.Name, "Room name", new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Conference Room A" })
+        </div>
+        @if (!lockedParentId.HasValue)
+        {
+            <div class="mb-3">
+                @Html.LabelFor(m => m.Code, new { @class = "form-label" })
+                @Html.TextBoxFor(m => m.Code, new { @class = "form-control" })
+                <div class="form-text">Independent rooms require a unique code.</div>
+            </div>
+            <div class="mb-3">
+                @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+                @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+            </div>
+            <div class="form-check mb-3">
+                @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input", id = "requisition-target-room" })
+                <label class="form-check-label" for="requisition-target-room">Requisition target</label>
+            </div>
+        }
+        else
+        {
+            <div class="mb-3">
+                @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+                @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+            </div>
+        }
     </div>
     <div id="setup-grade-streams" style="display:none;">
         <div class="mb-3">
@@ -90,7 +159,7 @@
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
-        SubmitLabel = "Create Department",
+        SubmitLabel = pageTitle,
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
@@ -98,14 +167,16 @@
 <script>
     (function () {
         var modeSelect = document.getElementById('department-setup-mode');
+        var fixedMode = @Html.Raw Newtonsoft.Json.JsonConvert.SerializeObject(createSetupMode));
         var sections = {
             Normal: document.getElementById('setup-normal'),
             SubDepartment: document.getElementById('setup-sub-department'),
+            Room: document.getElementById('setup-room'),
             GradeWithStreams: document.getElementById('setup-grade-streams'),
             BulkGrades: document.getElementById('setup-bulk-grades')
         };
         function syncSections() {
-            var mode = modeSelect ? modeSelect.value : 'Normal';
+            var mode = modeSelect ? modeSelect.value : fixedMode;
             Object.keys(sections).forEach(function (key) {
                 if (sections[key]) {
                     sections[key].style.display = key === mode ? '' : 'none';
@@ -114,7 +185,7 @@
         }
         if (modeSelect) {
             modeSelect.addEventListener('change', syncSections);
-            syncSections();
         }
+        syncSections();
     })();
 </script>

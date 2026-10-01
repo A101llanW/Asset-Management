@@ -3,6 +3,7 @@ using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Enums;
@@ -48,7 +49,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     Title = section.Title,
                     Items = section.Items
-                        .Where(item => items.Any(x => x.Id == item.Id || item.Children.Any(child => child.Id == x.Id)))
+                        .Where(item => items.Any(x => x.Id == item.Id || item.Children.Any(child => child.Id == x.Id || child.Children.Any(grandchild => grandchild.Id == x.Id))))
                         .ToList()
                 })
                 .Where(section => section.Items.Any())
@@ -76,12 +77,17 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Departments.Create")]
-        public ActionResult Create(string returnUrl = null)
+        public ActionResult Create(string setupMode = null, int? parentId = null, string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.SetupModes = BuildSetupModeSelectList(DepartmentService.SetupModeNormal);
-            ViewBag.AdminParentDepartments = BuildAdminParentDepartmentSelectList(null);
-            return View(new DepartmentCreateVm { SetupMode = DepartmentService.SetupModeNormal });
+            var createContext = ResolveCreateContext(setupMode, parentId);
+            if (createContext == null)
+            {
+                return HttpNotFound();
+            }
+
+            ApplyCreateViewBag(createContext);
+            return View(createContext.InitialModel);
         }
 
         [HttpPost]
@@ -90,18 +96,45 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Create(DepartmentCreateVm model, string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.SetupModes = BuildSetupModeSelectList(model == null ? DepartmentService.SetupModeNormal : model.SetupMode);
-            ViewBag.AdminParentDepartments = BuildAdminParentDepartmentSelectList(model == null ? null : model.ParentDepartmentId);
+            int? contextParentId = null;
+            if (model != null && model.LockedParentDepartmentId.HasValue)
+            {
+                contextParentId = model.LockedParentDepartmentId;
+            }
+            else if (model != null && model.ParentDepartmentId.HasValue)
+            {
+                contextParentId = model.ParentDepartmentId;
+            }
+
+            var createContext = ResolveCreateContext(model == null ? null : model.SetupMode, contextParentId);
+            if (createContext == null)
+            {
+                return HttpNotFound();
+            }
+
+            ApplyCreateViewBag(createContext);
+
             if (model == null)
             {
                 ModelState.AddModelError("", "Department details are required.");
-                return View(new DepartmentCreateVm { SetupMode = DepartmentService.SetupModeNormal });
+                return View(createContext.InitialModel);
+            }
+
+            if (createContext.LockedParentDepartmentId.HasValue)
+            {
+                model.LockedParentDepartmentId = createContext.LockedParentDepartmentId;
+                model.ParentDepartmentId = createContext.LockedParentDepartmentId;
+                model.SetupMode = createContext.SetupMode;
+            }
+            else if (!createContext.ShowSetupModePicker)
+            {
+                model.SetupMode = createContext.SetupMode;
             }
 
             try
             {
                 var departmentId = _departmentService.CreateFromWizard(model);
-                TempData["Message"] = "Department created.";
+                TempData["Message"] = BuildCreateSuccessMessage(model.SetupMode);
                 TempData["Guidance"] = "Next step: review the department details and then add users or assign assets to this department.";
                 return RedirectToAction("Details", new { id = departmentId, returnUrl = ViewBag.ReturnUrl });
             }
@@ -141,15 +174,161 @@ namespace AssetManagement.Web.Controllers
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
         }
 
-        private static SelectList BuildSetupModeSelectList(string selected)
+        private sealed class DepartmentCreateContext
         {
-            var items = new[]
+            public string SetupMode { get; set; }
+            public int? LockedParentDepartmentId { get; set; }
+            public string LockedParentName { get; set; }
+            public bool ShowSetupModePicker { get; set; }
+            public DepartmentCreateVm InitialModel { get; set; }
+        }
+
+        private DepartmentCreateContext ResolveCreateContext(string setupMode, int? parentId)
+        {
+            var normalizedMode = string.IsNullOrWhiteSpace(setupMode)
+                ? null
+                : setupMode.Trim();
+
+            if (parentId.HasValue && parentId.Value > 0)
             {
-                new { Value = DepartmentService.SetupModeNormal, Text = "Normal (administrative)" },
-                new { Value = DepartmentService.SetupModeSubDepartment, Text = "Sub-unit under admin department" },
-                new { Value = DepartmentService.SetupModeGradeStreams, Text = "Grade with class streams" },
-                new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1–6" }
+                var parent = _departmentService.GetById(parentId.Value);
+                if (parent == null || !parent.IsActive)
+                {
+                    return null;
+                }
+
+                if (DepartmentHierarchyRules.CanCreateSubDepartmentUnder(MapToDepartment(parent)))
+                {
+                    normalizedMode = DepartmentService.SetupModeSubDepartment;
+                }
+                else if (DepartmentHierarchyRules.CanCreateRoomUnderSubDepartment(MapToDepartment(parent)))
+                {
+                    normalizedMode = DepartmentService.SetupModeRoom;
+                }
+                else
+                {
+                    return null;
+                }
+
+                return BuildLockedContext(normalizedMode, parent);
+            }
+
+            if (string.Equals(normalizedMode, DepartmentService.SetupModeNormal, StringComparison.OrdinalIgnoreCase))
+            {
+                return new DepartmentCreateContext
+                {
+                    SetupMode = DepartmentService.SetupModeNormal,
+                    ShowSetupModePicker = false,
+                    InitialModel = new DepartmentCreateVm { SetupMode = DepartmentService.SetupModeNormal }
+                };
+            }
+
+            if (string.Equals(normalizedMode, DepartmentService.SetupModeRoom, StringComparison.OrdinalIgnoreCase))
+            {
+                return new DepartmentCreateContext
+                {
+                    SetupMode = DepartmentService.SetupModeRoom,
+                    ShowSetupModePicker = false,
+                    InitialModel = new DepartmentCreateVm
+                    {
+                        SetupMode = DepartmentService.SetupModeRoom,
+                        IsRequisitionTarget = true
+                    }
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedMode)
+                && !string.Equals(normalizedMode, DepartmentService.SetupModeGradeStreams, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(normalizedMode, DepartmentService.SetupModeBulkGrades, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var defaultMode = string.IsNullOrWhiteSpace(normalizedMode)
+                ? DepartmentService.SetupModeNormal
+                : normalizedMode;
+            return new DepartmentCreateContext
+            {
+                SetupMode = defaultMode,
+                ShowSetupModePicker = true,
+                InitialModel = new DepartmentCreateVm { SetupMode = defaultMode }
             };
+        }
+
+        private DepartmentCreateContext BuildLockedContext(string setupMode, DepartmentVm parent)
+        {
+            if (!DepartmentHierarchyRules.IsValidLockedParentForSetupMode(setupMode, MapToDepartment(parent)))
+            {
+                return null;
+            }
+
+            return new DepartmentCreateContext
+            {
+                SetupMode = setupMode,
+                LockedParentDepartmentId = parent.Id,
+                LockedParentName = parent.Name,
+                ShowSetupModePicker = false,
+                InitialModel = new DepartmentCreateVm
+                {
+                    SetupMode = setupMode,
+                    ParentDepartmentId = parent.Id,
+                    LockedParentDepartmentId = parent.Id,
+                    IsRequisitionTarget = setupMode == DepartmentService.SetupModeRoom
+                }
+            };
+        }
+
+        private void ApplyCreateViewBag(DepartmentCreateContext context)
+        {
+            ViewBag.SetupModes = BuildSetupModeSelectList(context.SetupMode, context.ShowSetupModePicker);
+            ViewBag.AdminParentDepartments = BuildAdminParentDepartmentSelectList(context.InitialModel.ParentDepartmentId);
+            ViewBag.ShowSetupModePicker = context.ShowSetupModePicker;
+            ViewBag.LockedParentDepartmentId = context.LockedParentDepartmentId;
+            ViewBag.LockedParentName = context.LockedParentName;
+            ViewBag.CreateSetupMode = context.SetupMode;
+        }
+
+        private static Domain.Entities.Department MapToDepartment(DepartmentVm model)
+        {
+            return new Domain.Entities.Department
+            {
+                Id = model.Id,
+                Name = model.Name,
+                Code = model.Code,
+                IsActive = model.IsActive,
+                DepartmentKind = model.DepartmentKind,
+                ParentDepartmentId = model.ParentDepartmentId
+            };
+        }
+
+        private static string BuildCreateSuccessMessage(string setupMode)
+        {
+            if (setupMode == DepartmentService.SetupModeSubDepartment)
+            {
+                return "Sub-department created.";
+            }
+
+            if (setupMode == DepartmentService.SetupModeRoom)
+            {
+                return "Room created.";
+            }
+
+            return "Department created.";
+        }
+
+        private static SelectList BuildSetupModeSelectList(string selected, bool includeOrgModes)
+        {
+            var items = new System.Collections.Generic.List<object>
+            {
+                new { Value = DepartmentService.SetupModeNormal, Text = "Administrative department" }
+            };
+
+            if (includeOrgModes)
+            {
+                items.Add(new { Value = DepartmentService.SetupModeGradeStreams, Text = "Grade with class streams" });
+                items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1–6" });
+            }
+
             return new SelectList(items, "Value", "Text", selected);
         }
 

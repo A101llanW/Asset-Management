@@ -1,9 +1,26 @@
 @model AssetManagement.Application.ViewModels.DepartmentVm
+@using AssetManagement.Application.Services
+@using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Department Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditDepartment = Html.HasPermission("Departments.Edit");
+    var canCreateDepartment = Html.HasPermission("Departments.Create");
+    var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
+    var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
+    string secondaryCreateUrl = null;
+    string secondaryCreateLabel = null;
+    if (canCreateDepartment && isTopLevelAdmin)
+    {
+        secondaryCreateUrl = Url.Action("Create", new { parentId = Model.Id, returnUrl = Request.RawUrl });
+        secondaryCreateLabel = "Create sub-department";
+    }
+    else if (canCreateDepartment && isSubDepartment)
+    {
+        secondaryCreateUrl = Url.Action("Create", new { parentId = Model.Id, returnUrl = Request.RawUrl });
+        secondaryCreateLabel = "Create room";
+    }
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -13,6 +30,8 @@
     BackLabel = "Back",
     PrimaryActionUrl = canEditDepartment ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
     PrimaryActionLabel = canEditDepartment ? "Edit Department" : null,
+    SecondaryActionUrl = secondaryCreateUrl,
+    SecondaryActionLabel = secondaryCreateLabel,
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
@@ -28,6 +47,8 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-5">Code</dt>
                     <dd class="col-sm-7">@Model.Code</dd>
+                    <dt class="col-sm-5">Kind</dt>
+                    <dd class="col-sm-7">@Model.DepartmentKind</dd>
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Users</dt>
