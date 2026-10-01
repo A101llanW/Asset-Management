@@ -14,7 +14,7 @@
     var isRoom = Model.DepartmentKind == DepartmentKind.Room;
     var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
     var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
-    var editActionLabel = isRoom ? "Edit room" : isSubDepartment ? "Edit sub-department" : "Edit Department";
+    var editActionLabel = DepartmentLabelHelper.GetEditActionLabel(Model.DepartmentKind, isTopLevelAdmin);
     var detailsSubtitle = isRoom
         ? "Room code: " + Model.Code
         : "Department code: " + Model.Code;

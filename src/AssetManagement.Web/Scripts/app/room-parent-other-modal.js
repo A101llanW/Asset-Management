@@ -1,8 +1,8 @@
 /* eslint-env browser */
 (function () {
-    function cleanupStaleModalState() {
+    function cleanupStaleModalState(force) {
         var openModals = document.querySelectorAll(".modal.show");
-        if (openModals.length > 0) {
+        if (!force && openModals.length > 0) {
             return;
         }
 
@@ -28,10 +28,17 @@
         }
 
         ensureModalInBody(modal);
-        cleanupStaleModalState();
+        cleanupStaleModalState(true);
+        modal.style.zIndex = "1060";
 
         if (window.bootstrap && window.bootstrap.Modal) {
             window.bootstrap.Modal.getOrCreateInstance(modal).show();
+            window.setTimeout(function () {
+                var backdrop = document.querySelector(".modal-backdrop");
+                if (backdrop) {
+                    backdrop.style.zIndex = "1055";
+                }
+            }, 0);
         }
     }
 
@@ -144,7 +151,7 @@
 
         if (modalEl) {
             modalEl.addEventListener("hidden.bs.modal", function () {
-                cleanupStaleModalState();
+                cleanupStaleModalState(true);
                 if (!appliedFromModal && select.value === otherValue) {
                     restoreSelectFromCommitted();
                 }

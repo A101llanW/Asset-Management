@@ -7,8 +7,9 @@
 @{
     var isRoom = Model.DepartmentKind == DepartmentKind.Room;
     var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
-    ViewBag.Title = isRoom ? "Edit room" : isSubDepartment ? "Edit sub-department" : "Edit Department";
-    var editPageTitle = ViewBag.Title as string;
+    var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
+    var editPageTitle = DepartmentLabelHelper.GetEditActionLabel(Model.DepartmentKind, isTopLevelAdmin);
+    ViewBag.Title = editPageTitle;
     var editSubmitLabel = isRoom ? "Update room" : isSubDepartment ? "Update sub-department" : "Update Department";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
     var roomCandidates = ViewBag.RoomParentCandidates as IList<DepartmentVm> ?? new List<DepartmentVm>();

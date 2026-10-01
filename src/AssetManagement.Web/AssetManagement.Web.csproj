@@ -290,6 +290,7 @@
     <Content Include="Scripts\app\approval-approver-picker.js" />
     <Content Include="Scripts\app\approval-process-matrix.js" />
     <Content Include="Scripts\app\room-parent-other-modal.js" />
+    <Content Include="Scripts\app\room-custom-approval-stages.js" />
     <Content Include="Scripts\app\anti-gravity-bubbles.js" />
     <Content Include="Scripts\app\antigravity-three.js" />
     <Content Include="Scripts\app\auth-theme.js" />
