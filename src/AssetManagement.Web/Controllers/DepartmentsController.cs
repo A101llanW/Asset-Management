@@ -197,11 +197,23 @@ namespace AssetManagement.Web.Controllers
                     return null;
                 }
 
-                if (DepartmentHierarchyRules.CanCreateSubDepartmentUnder(MapToDepartment(parent)))
+                var parentEntity = MapToDepartment(parent);
+                if (string.IsNullOrWhiteSpace(normalizedMode))
+                {
+                    if (DepartmentHierarchyRules.CanCreateRoomUnderSubDepartment(parentEntity))
+                    {
+                        normalizedMode = DepartmentService.SetupModeRoom;
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+                else if (string.Equals(normalizedMode, DepartmentService.SetupModeSubDepartment, StringComparison.OrdinalIgnoreCase))
                 {
                     normalizedMode = DepartmentService.SetupModeSubDepartment;
                 }
-                else if (DepartmentHierarchyRules.CanCreateRoomUnderSubDepartment(MapToDepartment(parent)))
+                else if (string.Equals(normalizedMode, DepartmentService.SetupModeRoom, StringComparison.OrdinalIgnoreCase))
                 {
                     normalizedMode = DepartmentService.SetupModeRoom;
                 }
@@ -286,6 +298,13 @@ namespace AssetManagement.Web.Controllers
             ViewBag.LockedParentDepartmentId = context.LockedParentDepartmentId;
             ViewBag.LockedParentName = context.LockedParentName;
             ViewBag.CreateSetupMode = context.SetupMode;
+            if (context.LockedParentDepartmentId.HasValue)
+            {
+                var lockedParent = _departmentService.GetById(context.LockedParentDepartmentId.Value);
+                ViewBag.LockedParentDepartmentKind = lockedParent == null
+                    ? (DepartmentKind?)null
+                    : lockedParent.DepartmentKind;
+            }
         }
 
         private static Domain.Entities.Department MapToDepartment(DepartmentVm model)

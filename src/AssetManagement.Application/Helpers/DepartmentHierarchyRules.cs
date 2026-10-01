@@ -25,6 +25,12 @@ namespace AssetManagement.Application.Helpers
                 && parent.DepartmentKind == DepartmentKind.SubDepartment;
         }
 
+        public static bool CanCreateRoomUnder(Department parent)
+        {
+            return CanCreateRoomUnderSubDepartment(parent)
+                || IsTopLevelAdministrative(parent);
+        }
+
         public static bool AllowsIndependentRoomCreate()
         {
             return true;
@@ -44,7 +50,7 @@ namespace AssetManagement.Application.Helpers
 
             if (setupMode == DepartmentSetupModes.Room)
             {
-                return CanCreateRoomUnderSubDepartment(parent);
+                return CanCreateRoomUnder(parent);
             }
 
             return false;

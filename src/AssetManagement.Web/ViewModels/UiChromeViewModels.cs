@@ -25,6 +25,10 @@ namespace AssetManagement.Web.ViewModels
 
         public string SecondaryActionLabel { get; set; }
 
+        public string TertiaryActionUrl { get; set; }
+
+        public string TertiaryActionLabel { get; set; }
+
         /// <summary>When set, primary action opens this Bootstrap modal instead of navigating away.</summary>
         public string PrimaryActionModalTarget { get; set; }
 

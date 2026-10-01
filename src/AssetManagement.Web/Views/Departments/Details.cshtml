@@ -11,14 +11,33 @@
     var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
     string secondaryCreateUrl = null;
     string secondaryCreateLabel = null;
+    string tertiaryCreateUrl = null;
+    string tertiaryCreateLabel = null;
     if (canCreateDepartment && isTopLevelAdmin)
     {
-        secondaryCreateUrl = Url.Action("Create", new { parentId = Model.Id, returnUrl = Request.RawUrl });
+        secondaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeSubDepartment,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
         secondaryCreateLabel = "Create sub-department";
+        tertiaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeRoom,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
+        tertiaryCreateLabel = "Create room";
     }
     else if (canCreateDepartment && isSubDepartment)
     {
-        secondaryCreateUrl = Url.Action("Create", new { parentId = Model.Id, returnUrl = Request.RawUrl });
+        secondaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeRoom,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
         secondaryCreateLabel = "Create room";
     }
 }
@@ -32,6 +51,8 @@
     PrimaryActionLabel = canEditDepartment ? "Edit Department" : null,
     SecondaryActionUrl = secondaryCreateUrl,
     SecondaryActionLabel = secondaryCreateLabel,
+    TertiaryActionUrl = tertiaryCreateUrl,
+    TertiaryActionLabel = tertiaryCreateLabel,
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },

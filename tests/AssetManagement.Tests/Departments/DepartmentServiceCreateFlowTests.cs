@@ -93,6 +93,35 @@ namespace AssetManagement.Tests.Departments
         }
 
         [Test]
+        public void CreateFromWizard_CreatesRoomUnderAdministrativeParent()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Department
+            {
+                Id = 5,
+                Name = "Facilities",
+                Code = "FAC",
+                IsActive = true,
+                DepartmentKind = DepartmentKind.Administrative,
+                IsRequisitionTarget = true
+            });
+
+            var service = CreateService(unitOfWork);
+            var id = service.CreateFromWizard(new DepartmentCreateVm
+            {
+                SetupMode = DepartmentService.SetupModeRoom,
+                ParentDepartmentId = 5,
+                LockedParentDepartmentId = 5,
+                Name = "Store Room"
+            });
+
+            var created = unitOfWork.Repository<Department>().GetById(id);
+            Assert.AreEqual(DepartmentKind.Room, created.DepartmentKind);
+            Assert.AreEqual(5, created.ParentDepartmentId);
+            Assert.AreEqual("FAC-STOREROOM", created.Code);
+        }
+
+        [Test]
         public void CreateFromWizard_RejectsTamperedLockedParent()
         {
             var unitOfWork = new FakeUnitOfWork();

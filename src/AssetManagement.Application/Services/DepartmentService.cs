@@ -320,9 +320,9 @@ namespace AssetManagement.Application.Services
             }
 
             var parent = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
-            if (!DepartmentHierarchyRules.CanCreateRoomUnderSubDepartment(parent))
+            if (!DepartmentHierarchyRules.CanCreateRoomUnder(parent))
             {
-                throw new BusinessException("Rooms with a parent must be created under a sub-department.");
+                throw new BusinessException("Rooms with a parent must be created under an administrative department or a sub-department.");
             }
 
             var roomCode = SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, model.Name.Trim());

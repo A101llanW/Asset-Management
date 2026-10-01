@@ -37,6 +37,18 @@ namespace AssetManagement.Tests.Departments
         }
 
         [Test]
+        public void CanCreateRoomUnder_AllowsAdministrativeOrSubDepartment()
+        {
+            var admin = new Department { Id = 1, IsActive = true, DepartmentKind = DepartmentKind.Administrative };
+            var sub = new Department { Id = 2, IsActive = true, DepartmentKind = DepartmentKind.SubDepartment };
+            var grade = new Department { Id = 3, IsActive = true, DepartmentKind = DepartmentKind.Grade };
+
+            Assert.IsTrue(DepartmentHierarchyRules.CanCreateRoomUnder(admin));
+            Assert.IsTrue(DepartmentHierarchyRules.CanCreateRoomUnder(sub));
+            Assert.IsFalse(DepartmentHierarchyRules.CanCreateRoomUnder(grade));
+        }
+
+        [Test]
         public void IsValidLockedParentForSetupMode_MatchesCreateFlows()
         {
             var admin = new Department { Id = 1, IsActive = true, DepartmentKind = DepartmentKind.Administrative };
@@ -44,7 +56,7 @@ namespace AssetManagement.Tests.Departments
 
             Assert.IsTrue(DepartmentHierarchyRules.IsValidLockedParentForSetupMode(DepartmentSetupModes.SubDepartment, admin));
             Assert.IsTrue(DepartmentHierarchyRules.IsValidLockedParentForSetupMode(DepartmentSetupModes.Room, sub));
-            Assert.IsFalse(DepartmentHierarchyRules.IsValidLockedParentForSetupMode(DepartmentSetupModes.Room, admin));
+            Assert.IsTrue(DepartmentHierarchyRules.IsValidLockedParentForSetupMode(DepartmentSetupModes.Room, admin));
         }
     }
 }
