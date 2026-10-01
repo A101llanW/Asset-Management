@@ -198,6 +198,13 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            var allDepartments = _unitOfWork.Repository<Department>().GetAll().ToList();
+            DepartmentHierarchyRules.AssertValidHierarchy(
+                model.Id,
+                model.DepartmentKind,
+                model.ParentDepartmentId,
+                allDepartments);
+
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
@@ -314,7 +321,7 @@ namespace AssetManagement.Application.Services
             }
 
             var parent = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
-            if (!DepartmentHierarchyRules.CanCreateRoomUnder(parent))
+            if (!DepartmentHierarchyRules.IsValidRoomParentDepartment(parent))
             {
                 throw new BusinessException("Rooms with a parent must be created under an administrative department or a sub-department.");
             }

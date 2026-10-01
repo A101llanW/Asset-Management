@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
@@ -168,6 +169,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id });
+            ApplyEditViewBag(model);
             return View(model);
         }
 
@@ -179,12 +181,22 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
             if (!ModelState.IsValid)
             {
+                ApplyEditViewBag(model);
                 return View(model);
             }
 
-            _departmentService.Update(model);
-            TempData["Message"] = "Department updated.";
-            return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+            try
+            {
+                _departmentService.Update(model);
+                TempData["Message"] = "Department updated.";
+                return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+            }
+            catch (BusinessException ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+                ApplyEditViewBag(model);
+                return View(model);
+            }
         }
 
         private sealed class DepartmentCreateContext
@@ -333,6 +345,58 @@ namespace AssetManagement.Web.Controllers
             };
         }
 
+        private void ApplyEditViewBag(DepartmentVm model)
+        {
+            if (model == null)
+            {
+                return;
+            }
+
+            var scopedDepartments = _departmentService.GetAll().ToList();
+            EnsureParentDepartmentName(model, scopedDepartments);
+
+            if (model.DepartmentKind == DepartmentKind.Room)
+            {
+                ViewBag.RoomParentCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(model, scopedDepartments);
+                ViewBag.RoomOtherParentGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
+                ViewBag.RoomParentOtherValue = DepartmentLabelHelper.RoomParentOtherOptionValue;
+            }
+            else if (model.DepartmentKind == DepartmentKind.SubDepartment)
+            {
+                ViewBag.SubDepartmentParentSelectList = BuildTopLevelAdminParentSelectList(
+                    scopedDepartments,
+                    model.ParentDepartmentId);
+            }
+        }
+
+        private static void EnsureParentDepartmentName(DepartmentVm model, IList<DepartmentVm> scopedDepartments)
+        {
+            if (!model.ParentDepartmentId.HasValue || !string.IsNullOrWhiteSpace(model.ParentDepartmentName))
+            {
+                return;
+            }
+
+            var parent = scopedDepartments.FirstOrDefault(x => x.Id == model.ParentDepartmentId.Value);
+            if (parent != null)
+            {
+                model.ParentDepartmentName = DepartmentLabelHelper.FormatCodeName(parent.Code, parent.Name);
+            }
+        }
+
+        private static SelectList BuildTopLevelAdminParentSelectList(
+            IList<DepartmentVm> scopedDepartments,
+            int? selectedParentDepartmentId)
+        {
+            var items = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id.ToString(),
+                    Text = DepartmentLabelHelper.FormatCodeName(x.Code, x.Name)
+                })
+                .ToList();
+            return new SelectList(items, "Value", "Text", selectedParentDepartmentId);
+        }
+
         private static SelectList BuildSetupModeSelectList(string selected, bool includeOrgModes)
         {
             var items = new System.Collections.Generic.List<object>
@@ -357,7 +421,14 @@ namespace AssetManagement.Web.Controllers
                     && !x.ParentDepartmentId.HasValue)
                 .OrderBy(x => x.Name)
                 .ToList();
-            return new SelectList(parents, "Id", "Name", selectedParentDepartmentId);
+            var items = parents
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id.ToString(),
+                    Text = DepartmentLabelHelper.FormatCodeName(x.Code, x.Name)
+                })
+                .ToList();
+            return new SelectList(items, "Value", "Text", selectedParentDepartmentId);
         }
     }
 }

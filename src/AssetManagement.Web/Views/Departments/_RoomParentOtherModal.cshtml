@@ -1,0 +1,42 @@
+@model IList<AssetManagement.Application.ViewModels.RoomOtherParentGroupVm>
+@using AssetManagement.Application.Helpers
+<div class="modal fade" id="roomParentOtherModal" tabindex="-1" aria-labelledby="roomParentOtherModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="roomParentOtherModalLabel">Choose parent department</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Select a core administrative department, or a sub-department under it. Rooms cannot be placed under another room, grade, or class.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="room-other-admin">Administrative department</label>
+                    <select class="form-select" id="room-other-admin">
+                        <option value="">-- Select administrative department --</option>
+                        @foreach (var group in Model ?? new List<AssetManagement.Application.ViewModels.RoomOtherParentGroupVm>())
+                        {
+                            <option value="@group.AdminId">@group.AdminLabel</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="room-other-sub">Sub-department (optional)</label>
+                    <select class="form-select" id="room-other-sub">
+                        <option value="">Direct under selected administrative department</option>
+                        @foreach (var group in Model ?? new List<AssetManagement.Application.ViewModels.RoomOtherParentGroupVm>())
+                        {
+                            foreach (var sub in group.SubDepartments)
+                            {
+                                <option value="@sub.SubDepartmentId" data-admin-id="@group.AdminId">@sub.Label</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="room-other-apply">Apply parent</button>
+            </div>
+        </div>
+    </div>
+</div>
