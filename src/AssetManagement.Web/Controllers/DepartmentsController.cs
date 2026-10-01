@@ -303,7 +303,7 @@ namespace AssetManagement.Web.Controllers
             {
                 SetupMode = setupMode,
                 LockedParentDepartmentId = parent.Id,
-                LockedParentName = parent.Name,
+                LockedParentName = DepartmentLabelHelper.FormatCodeName(parent.Code, parent.Name),
                 ShowSetupModePicker = false,
                 InitialModel = new DepartmentCreateVm
                 {
@@ -352,7 +352,7 @@ namespace AssetManagement.Web.Controllers
                 return;
             }
 
-            var scopedDepartments = _departmentService.GetAll().ToList();
+            var scopedDepartments = DepartmentListHelper.DeduplicateById(_departmentService.GetAll());
             EnsureParentDepartmentName(model, scopedDepartments);
 
             if (model.DepartmentKind == DepartmentKind.Room)
@@ -388,6 +388,8 @@ namespace AssetManagement.Web.Controllers
             int? selectedParentDepartmentId)
         {
             var items = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
                 .Select(x => new SelectListItem
                 {
                     Value = x.Id.ToString(),
@@ -422,6 +424,8 @@ namespace AssetManagement.Web.Controllers
                 .OrderBy(x => x.Name)
                 .ToList();
             var items = parents
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
                 .Select(x => new SelectListItem
                 {
                     Value = x.Id.ToString(),

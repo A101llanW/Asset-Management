@@ -41,6 +41,21 @@ namespace AssetManagement.Tests.Departments
         }
 
         [Test]
+        public void GetRoomParentCandidates_DoesNotThrowWhenScopedListHasDuplicateIds()
+        {
+            var flat = new List<DepartmentVm>
+            {
+                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 1, Code = "IT", Name = "Information Technology", DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
+                new DepartmentVm { Id = 3, Code = "R1", Name = "Room", DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 2 }
+            };
+
+            var candidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(flat[3], flat);
+            Assert.AreEqual(1, candidates.Count);
+        }
+
+        [Test]
         public void BuildOtherParentPickerGroups_IncludesOnlyAdminAndSubDepartments()
         {
             var flat = new List<DepartmentVm>

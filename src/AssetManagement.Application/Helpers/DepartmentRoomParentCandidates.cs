@@ -14,7 +14,7 @@ namespace AssetManagement.Application.Helpers
                 return null;
             }
 
-            var byId = scopedDepartments.ToDictionary(x => x.Id);
+            var byId = DepartmentListHelper.ToDictionaryById(scopedDepartments);
             return ResolveAdministrativeAncestorId(room.ParentDepartmentId.Value, byId);
         }
 
@@ -85,13 +85,13 @@ namespace AssetManagement.Application.Helpers
 
         public static IList<DepartmentVm> GetRoomParentCandidates(DepartmentVm room, IEnumerable<DepartmentVm> scopedDepartments)
         {
-            var list = (scopedDepartments ?? Enumerable.Empty<DepartmentVm>()).ToList();
+            var list = DepartmentListHelper.DeduplicateById(scopedDepartments);
             if (room == null)
             {
                 return new List<DepartmentVm>();
             }
 
-            var byId = list.ToDictionary(x => x.Id);
+            var byId = DepartmentListHelper.ToDictionaryById(list);
             var adminAncestorId = ResolveAdministrativeAncestorId(room, list);
             var candidates = new List<DepartmentVm>();
             if (adminAncestorId.HasValue)
@@ -138,7 +138,7 @@ namespace AssetManagement.Application.Helpers
 
         public static IList<RoomOtherParentGroupVm> BuildOtherParentPickerGroups(IEnumerable<DepartmentVm> scopedDepartments)
         {
-            var list = (scopedDepartments ?? Enumerable.Empty<DepartmentVm>()).ToList();
+            var list = DepartmentListHelper.DeduplicateById(scopedDepartments);
             var groups = new List<RoomOtherParentGroupVm>();
             foreach (var admin in GetTopLevelAdministrativeParents(list))
             {

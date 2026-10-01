@@ -42,8 +42,9 @@ namespace AssetManagement.Application.Services
 
         public IEnumerable<DepartmentVm> GetAll()
         {
-            return MapDepartments(_departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
+            var mapped = MapDepartments(_departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
                 .OrderBy(x => x.Name));
+            return DepartmentListHelper.DeduplicateById(mapped).OrderBy(x => x.Name);
         }
 
         public IEnumerable<DepartmentVm> GetRequisitionTargets()
