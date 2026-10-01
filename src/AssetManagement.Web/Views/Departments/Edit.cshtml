@@ -1,9 +1,28 @@
 @model AssetManagement.Application.ViewModels.DepartmentVm
 @using System.Linq
 @using System.Web.Mvc
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Domain.Enums
 @{
     ViewBag.Title = "Edit Department";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
+    var isRoom = Model.DepartmentKind == DepartmentKind.Room;
+    var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
+    var roomCandidates = ViewBag.RoomParentCandidates as IList<DepartmentVm> ?? new List<DepartmentVm>();
+    var roomOtherGroups = ViewBag.RoomOtherParentGroups as IList<RoomOtherParentGroupVm> ?? new List<RoomOtherParentGroupVm>();
+    var roomOtherValue = ViewBag.RoomParentOtherValue as string ?? DepartmentLabelHelper.RoomParentOtherOptionValue;
+    var subParentSelectList = ViewBag.SubDepartmentParentSelectList as SelectList;
+    var candidateIds = roomCandidates.Select(x => x.Id).ToList();
+    string roomParentSelectValue = string.Empty;
+    if (Model.ParentDepartmentId.HasValue && candidateIds.Contains(Model.ParentDepartmentId.Value))
+    {
+        roomParentSelectValue = Model.ParentDepartmentId.Value.ToString();
+    }
+    else if (Model.ParentDepartmentId.HasValue)
+    {
+        roomParentSelectValue = roomOtherValue;
+    }
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -36,13 +55,47 @@
         @Html.LabelFor(m => m.Description, new { @class = "form-label" })
         @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
     </div>
+    if (isRoom)
+    {
+        @Html.HiddenFor(m => m.ParentDepartmentId, new { id = "room-parent-id-hidden" })
+        <div class="mb-3">
+            <label class="form-label" for="room-parent-select">Parent department</label>
+            <select class="form-select" id="room-parent-select" name="roomParentSelector">
+                <option value="" @(roomParentSelectValue == string.Empty ? "selected=\"selected\"" : null)>Independent room (no parent)</option>
+                @foreach (var candidate in roomCandidates)
+                {
+                    <option value="@candidate.Id" @(roomParentSelectValue == candidate.Id.ToString() ? "selected=\"selected\"" : null)>
+                        @DepartmentLabelHelper.FormatCodeName(candidate.Code, candidate.Name)
+                    </option>
+                }
+                <option value="@roomOtherValue" @(roomParentSelectValue == roomOtherValue ? "selected=\"selected\"" : null)>Other administrative department or sub-department...</option>
+            </select>
+            <div class="form-text">Rooms may sit under a core administrative department, a sub-department, or remain independent. A room cannot be parented by another room, grade, or class.</div>
+        </div>
+    }
+    else if (isSubDepartment)
+    {
+        <div class="mb-3">
+            <label class="form-label">Parent department</label>
+            @Html.DropDownListFor(
+                m => m.ParentDepartmentId,
+                subParentSelectList,
+                "-- Select administrative parent --",
+                new { @class = "form-select" })
+            <div class="form-text">Sub-departments must belong to a top-level administrative department.</div>
+        </div>
+    }
     <div class="mb-3">
         <label class="form-label">Department kind</label>
         @Html.DropDownListFor(
             m => m.DepartmentKind,
-            Enum.GetValues(typeof(AssetManagement.Domain.Enums.DepartmentKind))
-                .Cast<AssetManagement.Domain.Enums.DepartmentKind>()
-                .Select(value => new SelectListItem { Value = ((int)value).ToString(), Text = value.ToString() }),
+            Enum.GetValues(typeof(DepartmentKind))
+                .Cast<DepartmentKind>()
+                .Select(value => new SelectListItem
+                {
+                    Value = ((int)value).ToString(),
+                    Text = DepartmentOrgHierarchyDisplay.FormatDepartmentKind(value)
+                }),
             new { @class = "form-select" })
     </div>
     <div class="form-check mb-3">
@@ -59,4 +112,88 @@
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+@if (isRoom)
+{
+    @Html.Partial("_RoomParentOtherModal", roomOtherGroups)
+    <script>
+        (function () {
+            var select = document.getElementById('room-parent-select');
+            var hidden = document.getElementById('room-parent-id-hidden');
+            var otherValue = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue));
+            var modalEl = document.getElementById('roomParentOtherModal');
+            var adminSelect = document.getElementById('room-other-admin');
+            var subSelect = document.getElementById('room-other-sub');
+            var applyBtn = document.getElementById('room-other-apply');
+            if (!select || !hidden) {
+                return;
+            }
+
+            function ensureCandidateOption(id, label) {
+                var idText = String(id);
+                var match = Array.prototype.find.call(select.options, function (opt) { return opt.value === idText; });
+                if (!match) {
+                    var option = document.createElement('option');
+                    option.value = idText;
+                    option.textContent = label;
+                    var otherOption = select.querySelector('option[value="' + otherValue + '"]');
+                    select.insertBefore(option, otherOption);
+                }
+                select.value = idText;
+            }
+
+            function syncHiddenFromSelect() {
+                if (select.value === otherValue) {
+                    return;
+                }
+                hidden.value = select.value || '';
+            }
+
+            select.addEventListener('change', function () {
+                if (select.value === otherValue) {
+                    if (modalEl && window.bootstrap) {
+                        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modal.show();
+                    }
+                    return;
+                }
+                syncHiddenFromSelect();
+            });
+
+            if (adminSelect && subSelect) {
+                adminSelect.addEventListener('change', function () {
+                    var adminId = adminSelect.value;
+                    Array.prototype.forEach.call(subSelect.options, function (opt) {
+                        if (!opt.value) {
+                            opt.hidden = false;
+                            return;
+                        }
+                        opt.hidden = opt.getAttribute('data-admin-id') !== adminId;
+                    });
+                    subSelect.value = '';
+                });
+            }
+
+            if (applyBtn) {
+                applyBtn.addEventListener('click', function () {
+                    var adminId = adminSelect ? adminSelect.value : '';
+                    var subId = subSelect ? subSelect.value : '';
+                    var parentId = subId || adminId;
+                    if (!parentId) {
+                        return;
+                    }
+                    var label = subId
+                        ? subSelect.options[subSelect.selectedIndex].text
+                        : adminSelect.options[adminSelect.selectedIndex].text;
+                    hidden.value = parentId;
+                    ensureCandidateOption(parentId, label);
+                    if (modalEl && window.bootstrap) {
+                        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    }
+                });
+            }
+
+            syncHiddenFromSelect();
+        })();
+    </script>
 }

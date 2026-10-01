@@ -14,10 +14,11 @@ namespace AssetManagement.Application.Services
 {
     public class DepartmentService : IDepartmentService
     {
-        public const string SetupModeNormal = "Normal";
-        public const string SetupModeSubDepartment = "SubDepartment";
-        public const string SetupModeGradeStreams = "GradeWithStreams";
-        public const string SetupModeBulkGrades = "BulkGrades";
+        public const string SetupModeNormal = DepartmentSetupModes.Normal;
+        public const string SetupModeSubDepartment = DepartmentSetupModes.SubDepartment;
+        public const string SetupModeRoom = DepartmentSetupModes.Room;
+        public const string SetupModeGradeStreams = DepartmentSetupModes.GradeStreams;
+        public const string SetupModeBulkGrades = DepartmentSetupModes.BulkGrades;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly IDepartmentScopeService _departmentScope;
@@ -41,8 +42,9 @@ namespace AssetManagement.Application.Services
 
         public IEnumerable<DepartmentVm> GetAll()
         {
-            return MapDepartments(_departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
+            var mapped = MapDepartments(_departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
                 .OrderBy(x => x.Name));
+            return DepartmentListHelper.DeduplicateById(mapped).OrderBy(x => x.Name);
         }
 
         public IEnumerable<DepartmentVm> GetRequisitionTargets()
@@ -67,21 +69,18 @@ namespace AssetManagement.Application.Services
 
         public IEnumerable<DepartmentTreeSectionVm> GetTreeSections()
         {
-            var departments = GetAll().Where(x => x.IsActive).ToList();
-            var byId = departments.ToDictionary(x => x.Id);
-            foreach (var dept in departments.Where(x => x.ParentDepartmentId.HasValue))
+            return GetTreeSections(GetAll().Where(x => x.IsActive));
+        }
+
+        public IEnumerable<DepartmentTreeSectionVm> GetTreeSections(IEnumerable<DepartmentVm> scopedDepartments)
+        {
+            var departments = (scopedDepartments ?? Enumerable.Empty<DepartmentVm>()).ToList();
+            foreach (var department in departments)
             {
-                DepartmentVm parent;
-                if (byId.TryGetValue(dept.ParentDepartmentId.Value, out parent))
-                {
-                    parent.Children.Add(dept);
-                }
+                department.Children = new List<DepartmentVm>();
             }
 
-            foreach (var parent in byId.Values)
-            {
-                parent.Children = parent.Children.OrderBy(x => x.Code).ToList();
-            }
+            DepartmentOrgHierarchyDisplay.AttachGradeClassChildren(departments);
 
             var sections = new List<DepartmentTreeSectionVm>();
             for (var grade = 1; grade <= SchoolClassCodeHelper.MaxGrade; grade++)
@@ -102,10 +101,7 @@ namespace AssetManagement.Application.Services
                 });
             }
 
-            var adminItems = departments
-                .Where(x => x.DepartmentKind == DepartmentKind.Administrative && !x.ParentDepartmentId.HasValue)
-                .OrderBy(x => x.Name)
-                .ToList();
+            var adminItems = DepartmentOrgHierarchyDisplay.BuildAdministrativeSectionItems(departments);
             if (adminItems.Any())
             {
                 sections.Add(new DepartmentTreeSectionVm
@@ -118,7 +114,8 @@ namespace AssetManagement.Application.Services
             var ungrouped = departments
                 .Where(x => !x.ParentDepartmentId.HasValue
                     && x.DepartmentKind != DepartmentKind.Grade
-                    && x.DepartmentKind != DepartmentKind.Administrative)
+                    && x.DepartmentKind != DepartmentKind.Administrative
+                    && x.DepartmentKind != DepartmentKind.SubDepartment)
                 .OrderBy(x => x.Name)
                 .ToList();
             if (ungrouped.Any())
@@ -162,17 +159,35 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Department details are required.");
             }
 
+            EnforceLockedParent(model);
+
             var setupMode = (model.SetupMode ?? SetupModeNormal).Trim();
             switch (setupMode)
             {
                 case SetupModeSubDepartment:
                     return CreateSubDepartment(model);
+                case SetupModeRoom:
+                    return CreateRoom(model);
                 case SetupModeGradeStreams:
                     return CreateGradeWithStreams(model);
                 case SetupModeBulkGrades:
                     return CreateBulkGrades(model);
                 default:
                     return CreateNormal(model);
+            }
+        }
+
+        private static void EnforceLockedParent(DepartmentCreateVm model)
+        {
+            if (!model.LockedParentDepartmentId.HasValue || model.LockedParentDepartmentId.Value <= 0)
+            {
+                return;
+            }
+
+            if (!model.ParentDepartmentId.HasValue
+                || model.ParentDepartmentId.Value != model.LockedParentDepartmentId.Value)
+            {
+                throw new BusinessException("Parent department cannot be changed for this create flow.");
             }
         }
 
@@ -183,6 +198,13 @@ namespace AssetManagement.Application.Services
             {
                 return;
             }
+
+            var allDepartments = _unitOfWork.Repository<Department>().GetAll().ToList();
+            DepartmentHierarchyRules.AssertValidHierarchy(
+                model.Id,
+                model.DepartmentKind,
+                model.ParentDepartmentId,
+                allDepartments);
 
             entity.Name = model.Name;
             entity.Code = model.Code;
@@ -222,9 +244,9 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Parent department was not found.");
             }
 
-            if (parent.DepartmentKind != DepartmentKind.Administrative || parent.ParentDepartmentId.HasValue)
+            if (!DepartmentHierarchyRules.CanCreateSubDepartmentUnder(parent))
             {
-                throw new BusinessException("Sub-units can only be created under top-level administrative departments.");
+                throw new BusinessException("Sub-departments can only be created under top-level administrative departments.");
             }
 
             var now = DateTime.UtcNow;
@@ -239,7 +261,7 @@ namespace AssetManagement.Application.Services
             if (_unitOfWork.Repository<Department>().GetAll().Any(x =>
                     x.IsActive && string.Equals(x.Code, subCode, StringComparison.OrdinalIgnoreCase)))
             {
-                throw new BusinessException("A sub-unit with code '" + subCode + "' already exists.");
+                throw new BusinessException("A sub-department with code '" + subCode + "' already exists.");
             }
 
             var entity = new Department
@@ -251,6 +273,76 @@ namespace AssetManagement.Application.Services
                     : model.Description.Trim(),
                 ParentDepartmentId = parent.Id,
                 DepartmentKind = DepartmentKind.SubDepartment,
+                IsRequisitionTarget = true,
+                IsActive = true,
+                CreatedAt = now
+            };
+            ApplyOrganization(entity);
+            _unitOfWork.Repository<Department>().Add(entity);
+            _unitOfWork.SaveChanges();
+            InvalidateDepartmentCache();
+            WriteDepartmentAudit("Departments.Create", entity.Id.ToString(), null, entity.Name);
+            return entity.Id;
+        }
+
+        private int CreateRoom(DepartmentCreateVm model)
+        {
+            if (string.IsNullOrWhiteSpace(model.Name))
+            {
+                throw new BusinessException("Name is required.");
+            }
+
+            var now = DateTime.UtcNow;
+            if (!model.ParentDepartmentId.HasValue || model.ParentDepartmentId.Value <= 0)
+            {
+                ValidateRequiredNameAndCode(model);
+                var independentCode = model.Code.Trim().ToUpperInvariant();
+                if (_unitOfWork.Repository<Department>().GetAll().Any(x =>
+                        x.IsActive && string.Equals(x.Code, independentCode, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new BusinessException("A room with code '" + independentCode + "' already exists.");
+                }
+
+                var independentEntity = new Department
+                {
+                    Name = model.Name.Trim(),
+                    Code = independentCode,
+                    Description = model.Description,
+                    DepartmentKind = DepartmentKind.Room,
+                    IsRequisitionTarget = model.IsRequisitionTarget,
+                    IsActive = true,
+                    CreatedAt = now
+                };
+                ApplyOrganization(independentEntity);
+                _unitOfWork.Repository<Department>().Add(independentEntity);
+                _unitOfWork.SaveChanges();
+                InvalidateDepartmentCache();
+                WriteDepartmentAudit("Departments.Create", independentEntity.Id.ToString(), null, independentEntity.Name);
+                return independentEntity.Id;
+            }
+
+            var parent = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
+            if (!DepartmentHierarchyRules.IsValidRoomParentDepartment(parent))
+            {
+                throw new BusinessException("Rooms with a parent must be created under an administrative department or a sub-department.");
+            }
+
+            var roomCode = SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, model.Name.Trim());
+            if (_unitOfWork.Repository<Department>().GetAll().Any(x =>
+                    x.IsActive && string.Equals(x.Code, roomCode, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new BusinessException("A room with code '" + roomCode + "' already exists.");
+            }
+
+            var entity = new Department
+            {
+                Name = model.Name.Trim(),
+                Code = roomCode,
+                Description = string.IsNullOrWhiteSpace(model.Description)
+                    ? model.Name.Trim() + " (" + parent.Name + ")"
+                    : model.Description.Trim(),
+                ParentDepartmentId = parent.Id,
+                DepartmentKind = DepartmentKind.Room,
                 IsRequisitionTarget = true,
                 IsActive = true,
                 CreatedAt = now

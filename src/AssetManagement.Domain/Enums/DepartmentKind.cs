@@ -5,6 +5,7 @@ namespace AssetManagement.Domain.Enums
         Administrative = 0,
         Grade = 1,
         Class = 2,
-        SubDepartment = 3
+        SubDepartment = 3,
+        Room = 4
     }
 }

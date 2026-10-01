@@ -1,9 +1,53 @@
 @model AssetManagement.Application.ViewModels.DepartmentVm
+@using System.Collections.Generic
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Application.Services
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
+@using AssetManagement.Web.ViewModels
 @{
     ViewBag.Title = "Department Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditDepartment = Html.HasPermission("Departments.Edit");
+    var canCreateDepartment = Html.HasPermission("Departments.Create");
+    var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
+    var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
+    var subDepartments = ViewBag.SubDepartments as IList<DepartmentVm> ?? new List<DepartmentVm>();
+    var directRooms = ViewBag.DirectRooms as IList<DepartmentVm> ?? new List<DepartmentVm>();
+    var childRooms = ViewBag.ChildRooms as IList<DepartmentVm> ?? new List<DepartmentVm>();
+    var detailsReturnUrl = Request.RawUrl;
+    string secondaryCreateUrl = null;
+    string secondaryCreateLabel = null;
+    string tertiaryCreateUrl = null;
+    string tertiaryCreateLabel = null;
+    if (canCreateDepartment && isTopLevelAdmin)
+    {
+        secondaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeSubDepartment,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
+        secondaryCreateLabel = "Create sub-department";
+        tertiaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeRoom,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
+        tertiaryCreateLabel = "Create room";
+    }
+    else if (canCreateDepartment && isSubDepartment)
+    {
+        secondaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeRoom,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
+        secondaryCreateLabel = "Create room";
+    }
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -13,6 +57,10 @@
     BackLabel = "Back",
     PrimaryActionUrl = canEditDepartment ? Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) : null,
     PrimaryActionLabel = canEditDepartment ? "Edit Department" : null,
+    SecondaryActionUrl = secondaryCreateUrl,
+    SecondaryActionLabel = secondaryCreateLabel,
+    TertiaryActionUrl = tertiaryCreateUrl,
+    TertiaryActionLabel = tertiaryCreateLabel,
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
@@ -28,6 +76,8 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-5">Code</dt>
                     <dd class="col-sm-7">@Model.Code</dd>
+                    <dt class="col-sm-5">Kind</dt>
+                    <dd class="col-sm-7">@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(Model.DepartmentKind)</dd>
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Users</dt>
@@ -54,3 +104,70 @@
         </div>
     </div>
 </div>
+
+@if (isTopLevelAdmin)
+{
+    <div class="row g-3 mt-1">
+        <div class="col-lg-6">
+            <div class="card card-kpi h-100">
+                <div class="card-header">Sub-departments</div>
+                <div class="card-body">
+                    @Html.Partial("_DepartmentChildList", new DepartmentChildListViewModel
+                    {
+                        ListDomId = "admin-sub-departments",
+                        ReturnUrl = detailsReturnUrl,
+                        EmptyMessage = "No sub-departments have been added under this department yet.",
+                        Items = subDepartments
+                    })
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card card-kpi h-100">
+                <div class="card-header">Rooms (direct)</div>
+                <div class="card-body">
+                    @Html.Partial("_DepartmentChildList", new DepartmentChildListViewModel
+                    {
+                        ListDomId = "admin-direct-rooms",
+                        ReturnUrl = detailsReturnUrl,
+                        EmptyMessage = "No rooms sit directly under this administrative department.",
+                        Items = directRooms
+                    })
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (isSubDepartment)
+{
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="card card-kpi">
+                <div class="card-header">Rooms</div>
+                <div class="card-body">
+                    @Html.Partial("_DepartmentChildList", new DepartmentChildListViewModel
+                    {
+                        ListDomId = "sub-department-rooms",
+                        ReturnUrl = detailsReturnUrl,
+                        EmptyMessage = "No rooms have been added under this sub-department yet.",
+                        Items = childRooms
+                    })
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<script>
+    (function () {
+        document.querySelectorAll('[data-am-dept-view-more]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var listId = button.getAttribute('data-am-dept-view-more');
+                document.querySelectorAll('[data-am-dept-child-extra="' + listId + '"]').forEach(function (row) {
+                    row.classList.remove('d-none');
+                });
+                button.classList.add('d-none');
+            });
+        });
+    })();
+</script>

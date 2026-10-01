@@ -25,10 +25,29 @@ namespace AssetManagement.Web.ViewModels
 
         public string SecondaryActionLabel { get; set; }
 
+        public string TertiaryActionUrl { get; set; }
+
+        public string TertiaryActionLabel { get; set; }
+
         /// <summary>When set, primary action opens this Bootstrap modal instead of navigating away.</summary>
         public string PrimaryActionModalTarget { get; set; }
 
         public System.Collections.Generic.IEnumerable<BreadcrumbItemViewModel> Breadcrumbs { get; set; }
+    }
+
+    public class DepartmentChildListViewModel
+    {
+        public string Title { get; set; }
+
+        public string EmptyMessage { get; set; }
+
+        public string ReturnUrl { get; set; }
+
+        public string ListDomId { get; set; }
+
+        public int InitialVisibleCount { get; set; }
+
+        public System.Collections.Generic.IList<AssetManagement.Application.ViewModels.DepartmentVm> Items { get; set; }
     }
 
     public class FormActionsViewModel
