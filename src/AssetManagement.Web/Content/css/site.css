@@ -27,15 +27,14 @@
 }
 
 html {
-    overflow-x: clip;
+    width: 100%;
 }
 
 body {
     background: radial-gradient(at top left, hsl(210, 40%, 98%), var(--am-bg));
     margin: 0;
     min-height: 100vh;
-    max-width: 100%;
-    overflow-x: clip;
+    width: 100%;
     color: var(--am-primary-contrast);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 0.925rem;
@@ -69,6 +68,9 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     position: sticky;
     top: 0;
     z-index: 1035;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
     background-color: var(--am-sidebar-bg);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.24);
@@ -228,7 +230,7 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
 .am-sidebar {
     position: fixed;
     top: 0;
-    left: 0;
+    left: calc(-1 * var(--am-sidebar-width));
     width: var(--am-sidebar-width);
     max-width: calc(100vw - 2rem);
     height: 100vh;
@@ -236,14 +238,14 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     color: #ffffff;
     display: flex;
     flex-direction: column;
-    transform: translateX(-100%);
-    transition: transform 0.22s ease;
+    transform: none;
+    transition: left 0.22s ease;
     box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.35);
     z-index: 1040;
 }
 
 .am-sidebar-open .am-sidebar {
-    transform: translateX(0);
+    left: 0;
 }
 
 .am-sidebar-open .am-sidebar-overlay {
@@ -451,7 +453,8 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
 .am-main-content {
     min-height: calc(100vh - 62px);
     min-width: 0;
-    max-width: 100%;
+    width: 100%;
+    max-width: none;
     padding-top: 1.5rem !important;
     padding-bottom: 2rem !important;
     box-sizing: border-box;
@@ -710,6 +713,12 @@ body.modal-open .am-main-content.am-page-enter {
         align-items: flex-start;
         border-left: 0;
         padding-left: 0;
+    }
+}
+
+@media (max-width: 991.98px) {
+    body {
+        overflow-x: hidden;
     }
 }
 
