@@ -145,6 +145,14 @@ namespace AssetManagement.PerformanceTests.Helpers
         {
         }
 
+        public void SetExecutionContext(TenantExecutionContext context)
+        {
+        }
+
+        public void ClearExecutionContext()
+        {
+        }
+
         public bool IsImpersonating()
         {
             return false;
