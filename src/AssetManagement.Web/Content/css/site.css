@@ -555,6 +555,15 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
     opacity: 0 !important;
 }
 
+#room-requisition-approval-panel #custom-flow-stage-count-group,
+#room-requisition-approval-panel .am-room-custom-flow-stage-count {
+    display: block;
+}
+
+#room-requisition-approval-panel #custom-flow-approval-custom-panel.d-none #custom-flow-stage-count-group {
+    display: none;
+}
+
 .room-custom-approval-matrix .am-approval-process > .row > .col-md-2:has(.am-approval-requires-approval),
 .room-custom-approval-matrix .am-approval-add-stage {
     display: none;

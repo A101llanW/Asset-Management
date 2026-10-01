@@ -5,6 +5,10 @@
         return isNaN(parsed) ? fallback : parsed;
     }
 
+    function getCustomPanel() {
+        return document.getElementById("custom-flow-approval-custom-panel");
+    }
+
     function getCustomStagesRoot() {
         return document.getElementById("custom-flow-stages");
     }
@@ -69,7 +73,7 @@
         countSelect.value = String(getStageCount(processEl));
     }
 
-    function initRoomCustomApprovalStages() {
+    function syncMatrixFromCountSelect() {
         var root = getCustomStagesRoot();
         var countSelect = document.getElementById("custom-flow-stage-count");
         if (!root || !countSelect) {
@@ -80,23 +84,88 @@
         forceRequiresApproval(processEl);
         setStageCount(processEl, parseIntSafe(countSelect.value, 1));
         syncStageCountSelect(processEl, countSelect);
+    }
 
-        countSelect.addEventListener("change", function () {
-            var target = parseIntSafe(countSelect.value, 1);
-            setStageCount(processEl, target);
-            syncStageCountSelect(processEl, countSelect);
-            forceRequiresApproval(processEl);
-        });
+    function wireStageCountSelect() {
+        var countSelect = document.getElementById("custom-flow-stage-count");
+        if (!countSelect || countSelect.getAttribute("data-am-room-stage-count-wired") === "true") {
+            return;
+        }
+
+        countSelect.setAttribute("data-am-room-stage-count-wired", "true");
+        countSelect.addEventListener("change", syncMatrixFromCountSelect);
+    }
+
+    function syncApprovalMode() {
+        var orgRadio = document.getElementById("requisition-approval-org");
+        var customRadio = document.getElementById("requisition-approval-custom");
+        var hiddenFlag = document.getElementById("use-custom-requisition-approval");
+        var customPanel = getCustomPanel();
+        var useCustom = customRadio && customRadio.checked;
+
+        if (hiddenFlag) {
+            hiddenFlag.value = useCustom ? "true" : "false";
+        }
+        if (customPanel) {
+            customPanel.classList.toggle("d-none", !useCustom);
+        }
+        if (useCustom) {
+            syncMatrixFromCountSelect();
+        }
+    }
+
+    function syncPanelVisibility() {
+        var approvalPanel = document.getElementById("room-requisition-approval-panel");
+        var requisitionTarget = document.getElementById("IsRequisitionTarget");
+        if (!approvalPanel || !requisitionTarget) {
+            return;
+        }
+        approvalPanel.classList.toggle("d-none", !requisitionTarget.checked);
+    }
+
+    function initRoomCustomApprovalStages() {
+        var approvalPanel = document.getElementById("room-requisition-approval-panel");
+        if (!approvalPanel) {
+            return;
+        }
+
+        wireStageCountSelect();
+        syncApprovalMode();
+        syncPanelVisibility();
+        syncMatrixFromCountSelect();
+
+        var orgRadio = document.getElementById("requisition-approval-org");
+        var customRadio = document.getElementById("requisition-approval-custom");
+        var requisitionTarget = document.getElementById("IsRequisitionTarget");
+
+        if (orgRadio && orgRadio.getAttribute("data-am-room-approval-wired") !== "true") {
+            orgRadio.setAttribute("data-am-room-approval-wired", "true");
+            orgRadio.addEventListener("change", syncApprovalMode);
+        }
+        if (customRadio && customRadio.getAttribute("data-am-room-approval-wired") !== "true") {
+            customRadio.setAttribute("data-am-room-approval-wired", "true");
+            customRadio.addEventListener("change", syncApprovalMode);
+        }
+        if (requisitionTarget && requisitionTarget.getAttribute("data-am-room-approval-wired") !== "true") {
+            requisitionTarget.setAttribute("data-am-room-approval-wired", "true");
+            requisitionTarget.addEventListener("change", syncPanelVisibility);
+        }
     }
 
     function scheduleInit() {
         if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", initRoomCustomApprovalStages);
+            document.addEventListener("DOMContentLoaded", function () {
+                window.setTimeout(initRoomCustomApprovalStages, 0);
+            });
             return;
         }
 
         window.setTimeout(initRoomCustomApprovalStages, 0);
     }
+
+    window.AmRoomCustomApprovalStages = {
+        init: initRoomCustomApprovalStages
+    };
 
     scheduleInit();
 })();

@@ -133,9 +133,13 @@
 {
     if (isRoom)
     {
-        <script src="@Url.Content("~/Scripts/app/room-parent-other-modal.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/room-custom-approval-stages.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/room-custom-approval-stages.js")).Ticks"></script>
+        <script src="@Url.Content("~/Scripts/app/room-parent-other-modal.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/room-parent-other-modal.js")).Ticks"></script>
         <script>
             (function () {
+                if (window.AmRoomCustomApprovalStages) {
+                    window.AmRoomCustomApprovalStages.init();
+                }
                 if (window.AmRoomParentOtherModal) {
                     window.AmRoomParentOtherModal.init({
                         otherValue: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue))

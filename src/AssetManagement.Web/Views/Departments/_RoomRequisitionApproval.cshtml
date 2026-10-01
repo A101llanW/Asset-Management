@@ -19,33 +19,33 @@
     {
         customStageCount = maxStages;
     }
+    var showCustomPanel = Model.UseCustomRequisitionApproval;
 }
-@if (Model.IsRequisitionTarget)
-{
-    <div class="card card-kpi mb-3" id="room-requisition-approval-panel">
-        <div class="card-header">Requisition approval</div>
-        <div class="card-body">
-            <p class="text-muted mb-3">Choose how requisitions for this room move through approval. Changes apply to new requisitions submitted after you save.</p>
-            <div class="form-check mb-2">
-                <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-org" value="org" @(!Model.UseCustomRequisitionApproval ? "checked=\"checked\"" : null) />
-                <label class="form-check-label" for="requisition-approval-org">Use organization default requisition approval stages</label>
+<div class="card card-kpi mb-3" id="room-requisition-approval-panel" data-am-room-requisition-approval="true">
+    <div class="card-header">Requisition approval</div>
+    <div class="card-body">
+        <p class="text-muted mb-3">Choose how requisitions for this room move through approval. Applies when this room is a requisition target. Changes apply to new requisitions submitted after you save.</p>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-org" value="org" @(!showCustomPanel ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="requisition-approval-org">Use organization default requisition approval stages</label>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-custom" value="custom" @(showCustomPanel ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="requisition-approval-custom">Custom approval stages (at least one role required)</label>
+        </div>
+        <input type="hidden" name="UseCustomRequisitionApproval" id="use-custom-requisition-approval" value="@(Model.UseCustomRequisitionApproval ? "true" : "false")" />
+        <div id="custom-flow-approval-custom-panel" class="@(showCustomPanel ? "" : "d-none")">
+            <div class="mb-3 am-room-custom-flow-stage-count" id="custom-flow-stage-count-group">
+                <label class="form-label" for="custom-flow-stage-count">Number of approval stages</label>
+                <select class="form-select" id="custom-flow-stage-count" name="custom-flow-stage-count" aria-describedby="custom-flow-stage-count-help">
+                    @for (var stageOption = 1; stageOption <= maxStages; stageOption++)
+                    {
+                        <option value="@stageOption" @(stageOption == customStageCount ? "selected=\"selected\"" : null)>@stageOption</option>
+                    }
+                </select>
+                <div class="form-text" id="custom-flow-stage-count-help">Choose 1–@maxStages stages, then assign an approver role for each stage below.</div>
             </div>
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-custom" value="custom" @(Model.UseCustomRequisitionApproval ? "checked=\"checked\"" : null) />
-                <label class="form-check-label" for="requisition-approval-custom">Custom approval stages (at least one role required)</label>
-            </div>
-            <input type="hidden" name="UseCustomRequisitionApproval" id="use-custom-requisition-approval" value="@(Model.UseCustomRequisitionApproval ? "true" : "false")" />
-            <div id="custom-flow-stages" class="@(Model.UseCustomRequisitionApproval ? "" : "d-none")">
-                <div class="mb-3" id="custom-flow-stage-count-group">
-                    <label class="form-label" for="custom-flow-stage-count">Number of approval stages</label>
-                    <select class="form-select" id="custom-flow-stage-count" aria-describedby="custom-flow-stage-count-help">
-                        @for (var stageOption = 1; stageOption <= maxStages; stageOption++)
-                        {
-                            <option value="@stageOption" @(stageOption == customStageCount ? "selected=\"selected\"" : null)>@stageOption</option>
-                        }
-                    </select>
-                    <div class="form-text" id="custom-flow-stage-count-help">Assign an approver role for each stage below. Stages run in order for new requisitions from this room.</div>
-                </div>
+            <div id="custom-flow-stages">
                 <div class="room-custom-approval-matrix">
                     @{
                         ViewData.TemplateInfo.HtmlFieldPrefix = "RequisitionApprovalProcesses";
@@ -55,44 +55,4 @@
             </div>
         </div>
     </div>
-    <script>
-        (function () {
-            var orgRadio = document.getElementById('requisition-approval-org');
-            var customRadio = document.getElementById('requisition-approval-custom');
-            var hiddenFlag = document.getElementById('use-custom-requisition-approval');
-            var stagesPanel = document.getElementById('custom-flow-stages');
-            var requisitionTarget = document.getElementById('IsRequisitionTarget');
-            var approvalPanel = document.getElementById('room-requisition-approval-panel');
-
-            function syncApprovalMode() {
-                var useCustom = customRadio && customRadio.checked;
-                if (hiddenFlag) {
-                    hiddenFlag.value = useCustom ? 'true' : 'false';
-                }
-                if (stagesPanel) {
-                    stagesPanel.classList.toggle('d-none', !useCustom);
-                }
-            }
-
-            function syncPanelVisibility() {
-                if (!approvalPanel || !requisitionTarget) {
-                    return;
-                }
-                approvalPanel.classList.toggle('d-none', !requisitionTarget.checked);
-            }
-
-            if (orgRadio) {
-                orgRadio.addEventListener('change', syncApprovalMode);
-            }
-            if (customRadio) {
-                customRadio.addEventListener('change', syncApprovalMode);
-            }
-            if (requisitionTarget) {
-                requisitionTarget.addEventListener('change', syncPanelVisibility);
-                syncPanelVisibility();
-            }
-            syncApprovalMode();
-        })();
-    </script>
-    <script src="@Url.Content("~/Scripts/app/room-custom-approval-stages.js")"></script>
-}
+</div>
