@@ -5,7 +5,7 @@ using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
-using AssetManagement.Tests.Support;
+using AssetManagement.Tests.Helpers;
 using NUnit.Framework;
 
 namespace AssetManagement.Tests.Departments
