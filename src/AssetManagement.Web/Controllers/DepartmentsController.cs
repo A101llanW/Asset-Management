@@ -44,18 +44,20 @@ namespace AssetManagement.Web.Controllers
             ViewBag.StatusFilter = status;
             ViewBag.ViewMode = string.Equals(view, "list", StringComparison.OrdinalIgnoreCase) ? "list" : "tree";
             ViewBag.Search = search;
-            ViewBag.TreeSections = _departmentService.GetTreeSections()
+            var itemsList = items.OrderBy(x => x.Name).ToList();
+            var visibleIds = new System.Collections.Generic.HashSet<int>(itemsList.Select(x => x.Id));
+            ViewBag.TreeSections = _departmentService.GetTreeSections(itemsList)
                 .Select(section => new DepartmentTreeSectionVm
                 {
                     Title = section.Title,
                     Items = section.Items
-                        .Where(item => items.Any(x => x.Id == item.Id || item.Children.Any(child => child.Id == x.Id || child.Children.Any(grandchild => grandchild.Id == x.Id))))
+                        .Where(item => DepartmentOrgHierarchyDisplay.IsNodeOrDescendantInSet(item, visibleIds))
                         .ToList()
                 })
                 .Where(section => section.Items.Any())
                 .ToList();
 
-            return View(items.OrderBy(x => x.Name).ToList());
+            return View(itemsList);
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -73,6 +75,17 @@ namespace AssetManagement.Web.Controllers
                     .CountActiveUsersForDepartment(organizationId.Value, id)
                 : 0;
             ViewBag.AssetCount = BuildAssetService().CountAssets(new AssetFilterVm { DepartmentId = model.Id });
+            var scopedDepartments = _departmentService.GetAll().ToList();
+            if (model.DepartmentKind == DepartmentKind.Administrative && !model.ParentDepartmentId.HasValue)
+            {
+                ViewBag.SubDepartments = DepartmentOrgHierarchyDisplay.GetSubDepartmentsUnder(scopedDepartments, model.Id);
+                ViewBag.DirectRooms = DepartmentOrgHierarchyDisplay.GetDirectRoomsUnderAdministrative(scopedDepartments, model.Id);
+            }
+            else if (model.DepartmentKind == DepartmentKind.SubDepartment)
+            {
+                ViewBag.ChildRooms = DepartmentOrgHierarchyDisplay.GetRoomsUnderSubDepartment(scopedDepartments, model.Id);
+            }
+
             return View(model);
         }
 

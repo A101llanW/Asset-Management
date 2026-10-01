@@ -68,21 +68,18 @@ namespace AssetManagement.Application.Services
 
         public IEnumerable<DepartmentTreeSectionVm> GetTreeSections()
         {
-            var departments = GetAll().Where(x => x.IsActive).ToList();
-            var byId = departments.ToDictionary(x => x.Id);
-            foreach (var dept in departments.Where(x => x.ParentDepartmentId.HasValue))
+            return GetTreeSections(GetAll().Where(x => x.IsActive));
+        }
+
+        public IEnumerable<DepartmentTreeSectionVm> GetTreeSections(IEnumerable<DepartmentVm> scopedDepartments)
+        {
+            var departments = (scopedDepartments ?? Enumerable.Empty<DepartmentVm>()).ToList();
+            foreach (var department in departments)
             {
-                DepartmentVm parent;
-                if (byId.TryGetValue(dept.ParentDepartmentId.Value, out parent))
-                {
-                    parent.Children.Add(dept);
-                }
+                department.Children = new List<DepartmentVm>();
             }
 
-            foreach (var parent in byId.Values)
-            {
-                parent.Children = parent.Children.OrderBy(x => x.Code).ToList();
-            }
+            DepartmentOrgHierarchyDisplay.AttachGradeClassChildren(departments);
 
             var sections = new List<DepartmentTreeSectionVm>();
             for (var grade = 1; grade <= SchoolClassCodeHelper.MaxGrade; grade++)
@@ -103,10 +100,7 @@ namespace AssetManagement.Application.Services
                 });
             }
 
-            var adminItems = departments
-                .Where(x => x.DepartmentKind == DepartmentKind.Administrative && !x.ParentDepartmentId.HasValue)
-                .OrderBy(x => x.Name)
-                .ToList();
+            var adminItems = DepartmentOrgHierarchyDisplay.BuildAdministrativeSectionItems(departments);
             if (adminItems.Any())
             {
                 sections.Add(new DepartmentTreeSectionVm

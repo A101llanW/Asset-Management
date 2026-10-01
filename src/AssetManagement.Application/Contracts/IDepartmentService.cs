@@ -11,6 +11,8 @@ namespace AssetManagement.Application.Contracts
 
         IEnumerable<DepartmentTreeSectionVm> GetTreeSections();
 
+        IEnumerable<DepartmentTreeSectionVm> GetTreeSections(IEnumerable<DepartmentVm> scopedDepartments);
+
         DepartmentVm GetById(int id);
 
         int Create(DepartmentVm model);
