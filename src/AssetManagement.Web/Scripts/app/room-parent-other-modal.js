@@ -1,15 +1,14 @@
 /* eslint-env browser */
 (function () {
-    function cleanupStaleModalState(force) {
-        var openModals = document.querySelectorAll(".modal.show");
-        if (!force && openModals.length > 0) {
-            return;
-        }
+    var MODAL_Z_INDEX = 1060;
+    var BACKDROP_Z_INDEX = 1055;
+    var BACKDROP_ATTR = "data-am-room-parent-backdrop";
 
-        document.querySelectorAll(".modal-backdrop").forEach(function (backdrop) {
-            backdrop.remove();
+    function purgeModalArtifacts() {
+        document.querySelectorAll(".modal-backdrop, [" + BACKDROP_ATTR + "]").forEach(function (node) {
+            node.remove();
         });
-        document.body.classList.remove("modal-open");
+        document.body.classList.remove("modal-open", "am-room-parent-modal-open");
         document.body.style.removeProperty("overflow");
         document.body.style.removeProperty("padding-right");
     }
@@ -22,32 +21,72 @@
         document.body.appendChild(modal);
     }
 
-    function showModal(modal) {
-        if (!modal) {
-            return;
-        }
-
-        ensureModalInBody(modal);
-        cleanupStaleModalState(true);
-        modal.style.zIndex = "1060";
-
-        if (window.bootstrap && window.bootstrap.Modal) {
-            window.bootstrap.Modal.getOrCreateInstance(modal).show();
-            window.setTimeout(function () {
-                var backdrop = document.querySelector(".modal-backdrop");
-                if (backdrop) {
-                    backdrop.style.zIndex = "1055";
-                }
-            }, 0);
-        }
-    }
-
-    function hideModal(modal) {
+    function disposeBootstrapModal(modal) {
         if (!modal || !window.bootstrap || !window.bootstrap.Modal) {
             return;
         }
 
-        window.bootstrap.Modal.getOrCreateInstance(modal).hide();
+        var instance = window.bootstrap.Modal.getInstance(modal);
+        if (instance) {
+            instance.dispose();
+        }
+    }
+
+    function closeSidebarOverlay() {
+        document.body.classList.remove("am-sidebar-open");
+        var sidebar = document.getElementById("amSidebar");
+        var overlay = document.getElementById("amSidebarOverlay");
+        if (sidebar) {
+            sidebar.setAttribute("aria-hidden", "true");
+        }
+        if (overlay) {
+            overlay.setAttribute("aria-hidden", "true");
+        }
+    }
+
+    function openControlledModal(modal, onBackdropDismiss) {
+        if (!modal) {
+            return;
+        }
+
+        disposeBootstrapModal(modal);
+        purgeModalArtifacts();
+        closeSidebarOverlay();
+        ensureModalInBody(modal);
+
+        document.body.classList.add("modal-open", "am-room-parent-modal-open");
+
+        var backdrop = document.createElement("div");
+        backdrop.className = "modal-backdrop fade show am-room-parent-backdrop";
+        backdrop.setAttribute(BACKDROP_ATTR, "true");
+        backdrop.style.zIndex = String(BACKDROP_Z_INDEX);
+        backdrop.style.opacity = "0.5";
+        backdrop.style.backgroundColor = "#000";
+        backdrop.addEventListener("click", function () {
+            if (typeof onBackdropDismiss === "function") {
+                onBackdropDismiss();
+            }
+        });
+        document.body.appendChild(backdrop);
+
+        modal.classList.add("show");
+        modal.style.display = "block";
+        modal.style.zIndex = String(MODAL_Z_INDEX);
+        modal.removeAttribute("aria-hidden");
+        modal.setAttribute("aria-modal", "true");
+        modal.setAttribute("role", "dialog");
+    }
+
+    function closeControlledModal(modal) {
+        if (modal) {
+            modal.classList.remove("show");
+            modal.style.display = "none";
+            modal.setAttribute("aria-hidden", "true");
+            modal.removeAttribute("aria-modal");
+            modal.removeAttribute("role");
+        }
+
+        purgeModalArtifacts();
     }
 
     function initRoomParentOtherModal(config) {
@@ -59,11 +98,12 @@
         var subSelect = document.getElementById("room-other-sub");
         var applyBtn = document.getElementById("room-other-apply");
 
-        if (!select || !hidden || !otherValue) {
+        if (!select || !hidden || !otherValue || !modalEl) {
             return;
         }
 
         ensureModalInBody(modalEl);
+        disposeBootstrapModal(modalEl);
 
         var lastCommittedValue = select.value === otherValue ? hidden.value || "" : select.value;
         var appliedFromModal = false;
@@ -107,13 +147,35 @@
             hidden.value = "";
         }
 
+        function dismissModal() {
+            appliedFromModal = false;
+            closeControlledModal(modalEl);
+            if (select.value === otherValue) {
+                restoreSelectFromCommitted();
+            }
+        }
+
         select.addEventListener("change", function () {
             if (select.value === otherValue) {
                 appliedFromModal = false;
-                showModal(modalEl);
+                openControlledModal(modalEl, dismissModal);
                 return;
             }
             syncHiddenFromSelect();
+        });
+
+        modalEl.querySelectorAll("[data-am-room-parent-dismiss]").forEach(function (button) {
+            button.addEventListener("click", function (event) {
+                event.preventDefault();
+                dismissModal();
+            });
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape" && modalEl.classList.contains("show")) {
+                event.preventDefault();
+                dismissModal();
+            }
         });
 
         if (adminSelect && subSelect) {
@@ -145,16 +207,7 @@
                 ensureCandidateOption(parentId, label);
                 lastCommittedValue = parentId;
                 appliedFromModal = true;
-                hideModal(modalEl);
-            });
-        }
-
-        if (modalEl) {
-            modalEl.addEventListener("hidden.bs.modal", function () {
-                cleanupStaleModalState(true);
-                if (!appliedFromModal && select.value === otherValue) {
-                    restoreSelectFromCommitted();
-                }
+                closeControlledModal(modalEl);
             });
         }
 
@@ -164,9 +217,14 @@
         } else if (hidden.value) {
             lastCommittedValue = hidden.value;
         }
+
+        window.addEventListener("pagehide", function () {
+            closeControlledModal(modalEl);
+        });
     }
 
     window.AmRoomParentOtherModal = {
-        init: initRoomParentOtherModal
+        init: initRoomParentOtherModal,
+        purgeModalArtifacts: purgeModalArtifacts
     };
 })();

@@ -122,17 +122,26 @@
         BackLabel = "Back"
     })
 }
-@if (isRoom)
+@section modals
 {
-    @Html.Partial("_RoomParentOtherModal", roomOtherGroups)
-    <script src="@Url.Content("~/Scripts/app/room-parent-other-modal.js")"></script>
-    <script>
-        (function () {
-            if (window.AmRoomParentOtherModal) {
-                window.AmRoomParentOtherModal.init({
-                    otherValue: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue))
-                });
-            }
-        })();
-    </script>
+    if (isRoom)
+    {
+        @Html.Partial("_RoomParentOtherModal", roomOtherGroups)
+    }
+}
+@section scripts
+{
+    if (isRoom)
+    {
+        <script src="@Url.Content("~/Scripts/app/room-parent-other-modal.js")"></script>
+        <script>
+            (function () {
+                if (window.AmRoomParentOtherModal) {
+                    window.AmRoomParentOtherModal.init({
+                        otherValue: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue))
+                    });
+                }
+            })();
+        </script>
+    }
 }
