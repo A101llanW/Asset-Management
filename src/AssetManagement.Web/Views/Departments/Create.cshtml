@@ -91,6 +91,7 @@
         <div class="mb-3">
             @Html.LabelFor(m => m.Name, "Sub-department name", new { @class = "form-label" })
             @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Comp Lab - Senior" })
+            <div class="form-text">Creates a sub-department under the locked administrative parent.</div>
         </div>
         <div class="mb-3">
             @Html.LabelFor(m => m.Description, new { @class = "form-label" })

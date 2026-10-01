@@ -147,8 +147,8 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 var departmentId = _departmentService.CreateFromWizard(model);
-                TempData["Message"] = BuildCreateSuccessMessage(model.SetupMode);
-                TempData["Guidance"] = "Next step: review the department details and then add users or assign assets to this department.";
+                TempData["Message"] = DepartmentCreateUserMessages.GetCreateSuccessMessage(model.SetupMode);
+                TempData["Guidance"] = DepartmentCreateUserMessages.GetCreateGuidance(model.SetupMode);
                 return RedirectToAction("Details", new { id = departmentId, returnUrl = ViewBag.ReturnUrl });
             }
             catch (BusinessException ex)
@@ -331,21 +331,6 @@ namespace AssetManagement.Web.Controllers
                 DepartmentKind = model.DepartmentKind,
                 ParentDepartmentId = model.ParentDepartmentId
             };
-        }
-
-        private static string BuildCreateSuccessMessage(string setupMode)
-        {
-            if (setupMode == DepartmentService.SetupModeSubDepartment)
-            {
-                return "Sub-department created.";
-            }
-
-            if (setupMode == DepartmentService.SetupModeRoom)
-            {
-                return "Room created.";
-            }
-
-            return "Department created.";
         }
 
         private static SelectList BuildSetupModeSelectList(string selected, bool includeOrgModes)

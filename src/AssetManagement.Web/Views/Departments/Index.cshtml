@@ -17,7 +17,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Departments",
-    Subtitle = "Maintain business units and school class structure. Showing " + statusLabel + ".",
+    Subtitle = "Maintain administrative departments, sub-departments, rooms, and school class structure. Showing " + statusLabel + ".",
     PrimaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeNormal }) : null,
     PrimaryActionLabel = canCreateDepartment ? "Create department" : null,
     SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom }) : null,
