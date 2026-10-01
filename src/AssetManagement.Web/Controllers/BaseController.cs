@@ -421,6 +421,22 @@ namespace AssetManagement.Web.Controllers
             return new SelectList(cachedCategories.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedCategoryId);
         }
 
+        protected static AssetTypeLookupVm ToAssetTypeLookupVm(AssetType entity)
+        {
+            if (entity == null)
+            {
+                return null;
+            }
+
+            return new AssetTypeLookupVm
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                AssetCategoryId = entity.AssetCategoryId,
+                IsActive = entity.IsActive
+            };
+        }
+
         protected SelectList BuildRoleSelectList(int? selectedRoleId = null)
         {
             var orgId = ResolveCurrentOrganizationId();
