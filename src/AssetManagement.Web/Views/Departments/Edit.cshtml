@@ -1,4 +1,4 @@
-@model AssetManagement.Application.ViewModels.DepartmentVm
+﻿@model AssetManagement.Application.ViewModels.DepartmentVm
 @using System.Linq
 @using System.Web.Mvc
 @using AssetManagement.Application.Contracts
@@ -237,7 +237,7 @@
                 if (roomApproval) { roomApproval.style.display = showApproval ? '' : 'none'; }
                 if (classTeacher) { classTeacher.style.display = showClass ? '' : 'none'; }
                 if (roomCustodian) { roomCustodian.style.display = showRoom ? '' : 'none'; }
-                if (roomParentHidden) { roomParentHidden.disabled = !showRoom; }
+                if (roomParentHidden) { roomParentHidden.disabled = showSub; } // keep ParentDepartmentId for Class/Grade/Admin/Room; Sub uses its own select
                 if (subParentSelect) { subParentSelect.disabled = !showSub; }
                 if (classTeacherSelect) { classTeacherSelect.disabled = !showClass; }
                 if (roomCustodianSelect) { roomCustodianSelect.disabled = !showRoom; }

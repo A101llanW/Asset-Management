@@ -22,11 +22,11 @@ namespace AssetManagement.Domain.Entities
 
         public bool IsRequisitionTarget { get; set; }
 
-        public bool UseCustomRequisitionApproval { get; set; }
+        public RequisitionFlowMode RequisitionFlowMode { get; set; }
 
-        public string RequisitionApprovalStageRoleIds { get; set; }
+        public string CustomStageRoleIds { get; set; }
 
-        public string RequisitionApprovalStageUserIds { get; set; }
+        public string CustomStageUserIds { get; set; }
 
         // PR14 / room-approval columns (IIS migration 065)
         public bool UseCustomRequisitionApproval { get; set; }

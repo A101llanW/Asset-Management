@@ -1,4 +1,4 @@
-@using System.Linq
+﻿@using System.Linq
 @model AssetManagement.Application.ViewModels.DepartmentCreateVm
 @using AssetManagement.Application.Services
 @using AssetManagement.Domain.Enums
@@ -6,8 +6,7 @@
     ViewBag.Title = "Create Department";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var setupModes = ViewBag.SetupModes as System.Web.Mvc.SelectList;
-    var adminParents = ViewBag.AdminParentDepartments as System.Web.Mvc.SelectList;
-    var showSetupModePicker = ViewBag.ShowSetupModePicker as bool? ?? true;
+        var showSetupModePicker = ViewBag.ShowSetupModePicker as bool? ?? true;
     var lockedParentName = ViewBag.LockedParentName as string;
     var lockedParentId = ViewBag.LockedParentDepartmentId as int?;
     var createSetupMode = ViewBag.CreateSetupMode as string ?? Model.SetupMode ?? DepartmentService.SetupModeNormal;

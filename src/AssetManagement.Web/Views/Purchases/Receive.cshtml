@@ -1,4 +1,4 @@
-@model AssetManagement.Application.ViewModels.AssetReceiveVm
+﻿@model AssetManagement.Application.ViewModels.AssetReceiveVm
 @using AssetManagement.Domain.Enums
 @{
     ViewBag.Title = "Receive Asset";
@@ -41,7 +41,7 @@
             @Html.AntiForgeryToken()
             @Html.HiddenFor(m => m.PurchaseRecordId)
             @* When type context is resolved, keep subtype as hidden; when unresolved, the selector binds AssetTypeId/AssetSubTypeId. *@
-            @if (!requiresTypeSelection)
+            if (!requiresTypeSelection)
             {
                 @Html.HiddenFor(m => m.AssetSubTypeId)
             }
@@ -58,7 +58,7 @@
                 {
                     <div class="col-md-12" id="receive-type-selector">
                         <div class="alert alert-warning py-2">
-                            This purchase has no linked requisition/catalog type. Select classification before receive — create-without-type is not allowed here.
+                            This purchase has no linked requisition/catalog type. Select classification before receive â€” create-without-type is not allowed here.
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -105,7 +105,7 @@
                                 }
                                 else if (requiresSubType)
                                 {
-                                    <text>Not assigned — classify after create on the asset</text>
+                                    <text>Not assigned â€” classify after create on the asset</text>
                                 }
                                 else
                                 {

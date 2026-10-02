@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
@@ -106,7 +106,8 @@ namespace AssetManagement.Web.Controllers
             };
 
             ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId => model.ToDepartmentId = deptId);
-            PrefillToUserFromDepartmentPic(model);
+            // Do not prefill ToUserId from PIC — empty To + PIC must show Pic vs Pool prompt (never silent pool/PIC).
+            // PrefillToUserFromDepartmentPic(model);
             PopulateLookups(model);
             ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
             return View(model);
