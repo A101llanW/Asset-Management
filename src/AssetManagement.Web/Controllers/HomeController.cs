@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Web.Mvc;
 using AssetManagement.Application.Security;
 using AssetManagement.Infrastructure.Identity;
@@ -10,6 +10,13 @@ namespace AssetManagement.Web.Controllers
 {
     public class HomeController : Controller
     {
+        public ActionResult Forbidden()
+        {
+            Response.StatusCode = 403;
+            ViewBag.HideNavbar = true;
+            return View();
+        }
+
         public ActionResult Privacy()
         {
             return BuildLegalDocumentView(true);

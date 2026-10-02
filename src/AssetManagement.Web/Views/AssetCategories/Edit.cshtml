@@ -3,6 +3,7 @@
     ViewBag.Title = "Edit Asset Category";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
     ViewData["UsefulLifeFormMode"] = "category";
+    ViewData["DepreciationFormMode"] = "category";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -37,9 +38,6 @@
         @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
     </div>
     @Html.Partial("_TaxonomyUsefulLifeFields")
-    @{
-        ViewData["DepreciationFormMode"] = "category";
-    }
     @Html.Partial("_TaxonomyDepreciationFields")
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {

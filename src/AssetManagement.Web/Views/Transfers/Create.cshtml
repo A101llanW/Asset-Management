@@ -2,6 +2,9 @@
 @using System.Web.Mvc
 @using System.Web.Script.Serialization
 @model AssetManagement.Application.ViewModels.AssetTransferVm
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Web.ViewModels
+@using System.Collections.Generic
 @{
     ViewBag.Title = "Transfer Asset";
     var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
@@ -43,6 +46,7 @@
 {
     @Html.AntiForgeryToken()
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.Partial("_DepartmentDispositionPrompt")
     @Html.HiddenFor(m => m.AssetId)
     <div class="row g-3">
         <div class="col-md-3">
@@ -50,7 +54,7 @@
             @if (lockFromFields)
             {
                 @Html.HiddenFor(m => m.FromUserId)
-                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(fromUserName) ? "Current custodian not set" : fromUserName)" />
+                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(fromUserName) ? DisplayText.DepartmentPool : fromUserName)" />
             }
             else
             {
@@ -87,7 +91,7 @@
             }
             else
             {
-                @Html.DropDownListFor(m => m.ToDepartmentId, ViewBag.AllDepartments as IEnumerable<SelectListItem> ?? departments, "-- Select department --", new { @class = "form-select" })
+                @Html.GroupedDepartmentDropDown("ToDepartmentId", ViewBag.DepartmentGroups as IList<DepartmentSelectGroupVm>, "-- Select department --", new { @class = "form-select" })
             }
             @Html.ValidationMessageFor(m => m.ToDepartmentId, "", new { @class = "text-danger" })
         </div>

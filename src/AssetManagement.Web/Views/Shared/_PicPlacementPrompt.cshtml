@@ -1,0 +1,44 @@
+@* Shown when assigning into Class/Room with PIC set but no To user chosen. *@
+@{
+    var require = ViewBag.RequirePicPlacement == true;
+    var picName = ViewBag.PicUserName as string ?? "the person in charge";
+    var picRole = ViewBag.PicRoleLabel as string ?? "PIC";
+    var targetName = ViewBag.PicTargetDepartmentName as string ?? "this location";
+    var chosen = ViewBag.PicPlacementValue as string ?? "";
+}
+@if (require)
+{
+    <div class="alert alert-info" id="am-pic-placement-prompt" role="alert">
+        <strong>Person in charge is set.</strong>
+        <em>@targetName</em> has @picRole <em>@picName</em>, but no person was selected on this form.
+        <div class="mt-2">
+            <div class="form-check">
+                @if (chosen == "Pic")
+                {
+                    <input class="form-check-input" type="radio" name="PicPlacementChoice" id="picPlacementPic" value="Pic" checked="checked" />
+                }
+                else
+                {
+                    <input class="form-check-input" type="radio" name="PicPlacementChoice" id="picPlacementPic" value="Pic" />
+                }
+                <label class="form-check-label" for="picPlacementPic">
+                    Put under <strong>@picName</strong> (@picRole).
+                </label>
+            </div>
+            <div class="form-check">
+                @if (chosen == "Pool")
+                {
+                    <input class="form-check-input" type="radio" name="PicPlacementChoice" id="picPlacementPool" value="Pool" checked="checked" />
+                }
+                else
+                {
+                    <input class="form-check-input" type="radio" name="PicPlacementChoice" id="picPlacementPool" value="Pool" />
+                }
+                <label class="form-check-label" for="picPlacementPool">
+                    Leave as <strong>department pool</strong> (Assigned, no custodian).
+                </label>
+            </div>
+        </div>
+        <div class="form-text text-danger mt-1">Choose one, then submit again. Do not silently leave pool when a PIC exists.</div>
+    </div>
+}

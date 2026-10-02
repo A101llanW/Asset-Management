@@ -26,11 +26,46 @@ namespace AssetManagement.Tests.Helpers
         }
 
         [Test]
-        public void TryParseClass_RejectsGradesAboveSix()
+        public void TryParseClass_ParsesGradesAboveSix()
         {
             int grade;
             string stream;
-            Assert.IsFalse(SchoolClassCodeHelper.TryParseClass("7A", out grade, out stream));
+            Assert.IsTrue(SchoolClassCodeHelper.TryParseClass("7A", out grade, out stream));
+            Assert.AreEqual(7, grade);
+            Assert.AreEqual("A", stream);
+            Assert.AreEqual("G07A", SchoolClassCodeHelper.BuildClassDepartmentCode("7A"));
+        }
+
+        [Test]
+        public void TryParseClass_ParsesStreamsBeyondD()
+        {
+            int grade;
+            string stream;
+            Assert.IsTrue(SchoolClassCodeHelper.TryParseClass("8E", out grade, out stream));
+            Assert.AreEqual(8, grade);
+            Assert.AreEqual("E", stream);
+            Assert.AreEqual("G08E", SchoolClassCodeHelper.BuildClassDepartmentCode("8E"));
+        }
+
+        [Test]
+        public void BuildStreamLabel_FormatsGradeAndStream()
+        {
+            Assert.AreEqual("2A", SchoolClassCodeHelper.BuildStreamLabel(2, "A"));
+            Assert.AreEqual("2B", SchoolClassCodeHelper.BuildClassDepartmentName(2, "B"));
+        }
+
+        [Test]
+        public void TryResolveStreamEntry_AcceptsLetterOrFullCode()
+        {
+            int grade;
+            string stream;
+            Assert.IsTrue(SchoolClassCodeHelper.TryResolveStreamEntry(2, "A", out grade, out stream));
+            Assert.AreEqual(2, grade);
+            Assert.AreEqual("A", stream);
+
+            Assert.IsTrue(SchoolClassCodeHelper.TryResolveStreamEntry(2, "3C", out grade, out stream));
+            Assert.AreEqual(3, grade);
+            Assert.AreEqual("C", stream);
         }
 
         [Test]

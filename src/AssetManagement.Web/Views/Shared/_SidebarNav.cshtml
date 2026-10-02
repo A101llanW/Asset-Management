@@ -179,13 +179,26 @@
             <ul class="am-nav-module-items nav flex-column" id="am-nav-organization">
                 @if (Html.HasPermission("Departments.View"))
                 {
-                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlDepartments)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments)">Departments</a></li>
+                    var currentDeptController = ViewContext.RouteData.Values["controller"] as string ?? string.Empty;
+                    var onDepartments = string.Equals(currentDeptController, ctrlDepartments, System.StringComparison.OrdinalIgnoreCase);
+                    var currentDeptAction = ViewContext.RouteData.Values["action"] as string ?? string.Empty;
+                    var onRequisitionFlows = onDepartments
+                        && string.Equals(currentDeptAction, "RequisitionFlows", System.StringComparison.OrdinalIgnoreCase);
+                    var deptDomain = Request["domain"];
+                    var orgActive = onDepartments && !onRequisitionFlows
+                        && (string.IsNullOrEmpty(deptDomain) || string.Equals(deptDomain, "org", System.StringComparison.OrdinalIgnoreCase))
+                        ? "active" : string.Empty;
+                    var classesActive = onDepartments && !onRequisitionFlows
+                        && string.Equals(deptDomain, "classes", System.StringComparison.OrdinalIgnoreCase)
+                        ? "active" : string.Empty;
+                    <li class="nav-item"><a class="nav-link @orgActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments, new { domain = "org" })">Departments</a></li>
+                    <li class="nav-item"><a class="nav-link @classesActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments, new { domain = "classes" })">Grades &amp; Streams</a></li>
                 }
                 @if (Html.HasPermission("Assets.Edit"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlAssetCategories, ctrlAssetTypes)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlAssetCategories)">Asset Categories</a></li>
                 }
-                @if (Html.HasPermission("Users.View") || Html.HasPermission("Users.ViewDepartment"))
+                @if (Html.HasPermission("Users.View"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlUsers)">Users</a></li>
                 }
@@ -197,7 +210,7 @@
         </li>
     }
 
-    @if (Html.HasPermission("Reports.View") || Html.HasPermission("AuditLogs.View") || Html.HasPermission("SecurityLogs.View") || Html.HasPermission("Settings.Manage"))
+    @if (Html.HasPermission("Reports.View") || Html.HasPermission("AuditLogs.View") || Html.HasPermission("SecurityLogs.View") || Html.HasPermission("Settings.Manage") || Html.HasPermission("Departments.View"))
     {
         <li class="am-nav-module" data-am-module="administration">
             <div class="am-nav-module-header">
@@ -218,6 +231,10 @@
                 @if (Html.HasPermission("SecurityLogs.View"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlSecurityLogs)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlSecurityLogs)">Security Logs</a></li>
+                }
+                @if (Html.HasPermission("Departments.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlDepartments, "RequisitionFlows")" href="@TenantUrlHelper.TenantRouteUrl(Url, "RequisitionFlows", ctrlDepartments)">Requisition flows</a></li>
                 }
                 @if (Html.HasPermission("Settings.Manage"))
                 {

@@ -18,6 +18,8 @@ namespace AssetManagement.Application.Contracts
             int? assetSubTypeId,
             int? groupDepartmentId,
             AssetStatus? groupStatus,
+            int? groupCategoryId,
+            int? groupAssetTypeId,
             int skip,
             int take);
 
@@ -32,6 +34,15 @@ namespace AssetManagement.Application.Contracts
         int Create(AssetCreateVm model);
 
         void Update(AssetEditVm model);
+
+        int CountAcquisitionCostApplyCandidates(int sourceAssetId, string scope, AssetFilterVm filter);
+
+        AssetBulkActionResultVm ApplyAcquisitionCost(
+            int sourceAssetId,
+            decimal acquisitionCost,
+            string scope,
+            AssetFilterVm filter,
+            string actorUserId);
 
         void RelocateToClassDepartment(int assetId, int targetDepartmentId, string actorUserId);
 

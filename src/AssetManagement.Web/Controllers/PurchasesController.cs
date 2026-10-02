@@ -31,7 +31,7 @@ namespace AssetManagement.Web.Controllers
 
         public ActionResult Index(string search = null, int? supplierId = null, string sort = "date", string direction = "desc", int page = 1, int pageSize = 10)
         {
-            var suppliers = _supplierService.GetAll().ToList();
+            var suppliers = _supplierService.GetAll().Where(x => x.IsActive).ToList();
             var pageResult = _purchaseService.GetListPage(search, supplierId, sort, direction, page, pageSize);
 
             ViewBag.SupplierFilter = new SelectList(suppliers, "Id", "SupplierName", supplierId);
@@ -49,8 +49,36 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.ReceiveDetail = _receivingService.GetReceiveDetail(id);
+            var receiveDetail = _receivingService.GetReceiveDetail(id);
+            ViewBag.ReceiveDetail = receiveDetail;
+            ViewBag.AssignableAssetIds = ResolveAssignableAssetIdsForPurchase(receiveDetail);
             return View(model);
+        }
+
+        private System.Collections.Generic.IList<int> ResolveAssignableAssetIdsForPurchase(PurchaseReceiveDetailVm detail)
+        {
+            if (detail == null || detail.Receivings == null || detail.Receivings.Count == 0)
+            {
+                return new System.Collections.Generic.List<int>();
+            }
+
+            var ids = detail.Receivings
+                .Where(x => x != null && x.AssetId > 0)
+                .Select(x => x.AssetId)
+                .Distinct()
+                .ToList();
+            if (ids.Count == 0)
+            {
+                return ids;
+            }
+
+            return UnitOfWork.Repository<Asset>().GetAll()
+                .Where(a => ids.Contains(a.Id) && a.CurrentStatus == AssetStatus.InStore)
+                .ToList()
+                .Where(a => string.IsNullOrWhiteSpace(a.CurrentCustodianId))
+                .Select(a => a.Id)
+                .OrderBy(a => a)
+                .ToList();
         }
 
         [PermissionAuthorize("Assets.Receive")]
@@ -97,6 +125,12 @@ namespace AssetManagement.Web.Controllers
             }
 
             PopulateReceiveLookups(model, _receivingService.GetReceiveAssetLookup(model.PurchaseRecordId, model.AssetId > 0 ? model.AssetId : (int?)null, model.CatalogMatchConfirmed), detail);
+            if (detail != null && detail.RequiresTypeSelection
+                && (!model.AssetTypeId.HasValue || model.AssetTypeId.Value <= 0)
+                && (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0))
+            {
+                ModelState.AddModelError("AssetTypeId", "Select an asset type before receiving. Classification cannot be deferred when this purchase has no requisition/catalog type context.");
+            }
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id = model.PurchaseRecordId });
 
             ModelState.Remove("AssetId");
@@ -233,10 +267,8 @@ namespace AssetManagement.Web.Controllers
                 categoryId = assetType?.AssetCategoryId;
             }
             ViewBag.Categories = BuildCategorySelectList(categoryId);
-            ViewBag.AssetTypeOptions = UnitOfWork.Repository<AssetType>()
-                .Find(x => x.IsActive)
-                .OrderBy(x => x.Name)
-                .ToList();
+            // Prefer grouped Web lookup VMs for receive classification selector.
+            ViewBag.AssetTypeOptions = BuildAssetTypeLookupList(activeOnly: true);
             ViewBag.SubTypeLookupUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
             ViewBag.SubTypeByTypeUrl = TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
             ViewBag.SubTypeCreateUrl = TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");

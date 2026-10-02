@@ -26,7 +26,7 @@
                 <tr>
                     <th>Request #</th>
                     <th>Item</th>
-                    <th>Department</th>
+                    <th>Requisition target</th>
                     <th>Requested by</th>
                     <th>Status</th>
                     <th>Submitted</th>
@@ -41,7 +41,13 @@
                     <tr>
                         <td><strong>@r.RequestNumber</strong></td>
                         <td>@(string.IsNullOrWhiteSpace(r.ItemDescription) ? DisplayText.Empty : r.ItemDescription)</td>
-                        <td>@(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : r.DepartmentName)</td>
+                        <td>
+                            @(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : r.DepartmentName)
+                            @if (r.DepartmentKind.HasValue)
+                            {
+                                <span class="ms-1">@Html.DepartmentKindBadge(r.DepartmentKind.Value)</span>
+                            }
+                        </td>
                         <td>@r.RequestedById</td>
                         <td><span class="badge bg-secondary">@r.ApprovalStatus</span></td>
                         <td>@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>

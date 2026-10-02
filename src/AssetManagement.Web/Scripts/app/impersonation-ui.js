@@ -74,17 +74,8 @@
         return modalElement.classList.contains("show");
     }
 
-    function initSupportSessionCanvas() {
-        if (!global.AmAntigravityThree || !global.AmAntigravityThree.init) {
-            return null;
-        }
-
-        var canvas = global.document.getElementById("amSupportSessionCanvas");
-        if (!canvas || canvas.amAntigravityInitialized) {
-            return canvas;
-        }
-
-        global.AmAntigravityThree.init(canvas, {
+    function getSupportSessionOptions() {
+        return {
             color: "#f5c26b",
             count: 180,
             magnetRadius: 10,
@@ -107,7 +98,20 @@
             idleWanderAmplitude: 0.014,
             homeLerpSpeed: 0.014,
             iconPixelSize: 56
-        });
+        };
+    }
+
+    function initSupportSessionCanvas() {
+        if (!global.AmAntigravityThree || !global.AmAntigravityThree.init) {
+            return null;
+        }
+
+        var canvas = global.document.getElementById("amSupportSessionCanvas");
+        if (!canvas || canvas.amAntigravityInitialized) {
+            return canvas;
+        }
+
+        global.AmAntigravityThree.init(canvas, getSupportSessionOptions());
         return canvas;
     }
 

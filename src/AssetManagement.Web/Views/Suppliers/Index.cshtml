@@ -17,7 +17,7 @@
 <form class="am-list-toolbar" method="get">
     <div class="row g-2">
         <div class="col-md-8">
-            <input type="text" class="form-control" name="search" placeholder="Search by supplier, contact, email, or phone" value="@Model.Search" />
+            <input type="text" class="form-control" name="search" placeholder="Search by supplier, contact, email, or phone" value="@Model.Search" data-am-table-filter autocomplete="off" />
         </div>
         <div class="col-md-2">
             <select class="form-select" name="pageSize">
@@ -48,7 +48,7 @@
 else
 {
     <div class="card card-kpi"><div class="card-body p-0">
-    <table class="table mb-0">
+    <table class="table mb-0 am-filterable-table" data-am-filterable>
         <thead class="table-light"><tr><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>@Html.SortLink("Contact", "contact", currentSort, currentDirection)</th><th>Email</th><th>Phone</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
         <tbody>
         @foreach (var item in Model.Items)

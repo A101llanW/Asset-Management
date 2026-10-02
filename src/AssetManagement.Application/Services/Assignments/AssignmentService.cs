@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
@@ -173,13 +174,31 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Asset is already assigned to the selected user.");
             }
 
+            var disposition = CrossDepartmentDisposition.Normalize(model.DepartmentDisposition);
+            var isCrossDeptPerson = CrossDepartmentDisposition.IsCrossDepartmentPerson(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId);
+            if (isCrossDeptPerson && disposition == null)
+            {
+                throw new BusinessException(
+                    "This person belongs to a different department than the asset. Choose Move (update the asset department) or Keep (leave the asset in its current department).");
+            }
+
+            // Validate person against the selected/teacher department on the form.
             EnsureUserBelongsToDepartment(toUserId, model.ToDepartmentId);
             EnsureUserBelongsToDepartment(receivedById, model.ToDepartmentId);
+
+            var effectiveDepartmentId = CrossDepartmentDisposition.ResolveEffectiveDepartmentId(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId,
+                disposition);
 
             var assignment = new AssetAssignment
             {
                 AssetId = model.AssetId,
-                ToDepartmentId = model.ToDepartmentId,
+                ToDepartmentId = effectiveDepartmentId,
                 ToUserId = toUserId,
                 AssignmentType = type,
                 AssignedDate = assignedDate,
@@ -204,7 +223,7 @@ namespace AssetManagement.Application.Services
                 FromUserId = asset.CurrentCustodianId,
                 ToUserId = toUserId,
                 FromDepartmentId = asset.DepartmentId,
-                ToDepartmentId = model.ToDepartmentId,
+                ToDepartmentId = effectiveDepartmentId,
                 ConditionBefore = NormalizeText(model.ConditionBeforeHandover),
                 ConditionAfter = NormalizeText(model.ConditionBeforeHandover),
                 Notes = NormalizeText(model.HandoverNotes),
@@ -212,15 +231,128 @@ namespace AssetManagement.Application.Services
             };
             _unitOfWork.Repository<AssetCustodyEvent>().Add(custody);
 
+            // Department-only assign: leave CurrentCustodianId null intentionally (status Assigned = department pool).
             asset.CurrentCustodianId = toUserId;
-            if (model.ToDepartmentId.HasValue)
+            if (effectiveDepartmentId.HasValue
+                && !(isCrossDeptPerson && disposition == CrossDepartmentDisposition.Keep))
             {
-                asset.DepartmentId = model.ToDepartmentId.Value;
+                asset.DepartmentId = effectiveDepartmentId.Value;
             }
             asset.CurrentStatus = AssetStatus.Assigned;
             asset.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Asset>().Update(asset);
             return assignment;
+        }
+
+        public BatchAssignResultVm BatchAssign(BatchAssignRequestVm request)
+        {
+            if (request == null)
+            {
+                throw new BusinessException("Batch assignment request is required.");
+            }
+
+            var items = request.Items ?? new List<BatchAssignItemVm>();
+            if (items.Count == 0)
+            {
+                throw new BusinessException("Select at least one asset to assign.");
+            }
+
+            var rowResults = new List<BatchAssignRowResultVm>();
+            var processed = 0;
+            var skipped = 0;
+
+            foreach (var item in items)
+            {
+                var assetTag = ResolveAssetTag(item?.AssetId ?? 0);
+                if (item == null || item.AssetId <= 0)
+                {
+                    skipped++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item?.AssetId ?? 0,
+                        AssetTag = assetTag,
+                        Success = false,
+                        Message = "Asset is required."
+                    });
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(item.ToUserId))
+                {
+                    skipped++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item.AssetId,
+                        AssetTag = assetTag,
+                        Success = false,
+                        Message = "Select a custodian for this asset."
+                    });
+                    continue;
+                }
+
+                try
+                {
+                    AssetAssignment assignment = null;
+                    var asset = _unitOfWork.Repository<Asset>().GetById(item.AssetId);
+                    if (asset == null)
+                    {
+                        throw new BusinessException("Asset not found.");
+                    }
+
+                    assetTag = asset.AssetTag;
+                    var model = new AssetAssignmentVm
+                    {
+                        AssetId = item.AssetId,
+                        ToUserId = item.ToUserId,
+                        ToDepartmentId = request.ToDepartmentId ?? asset.DepartmentId,
+                        HandedOverById = request.HandedOverById,
+                        AssignmentType = AssignmentType.Permanent.ToString(),
+                        AssignedDate = DateTime.UtcNow,
+                        ConditionBeforeHandover = asset.Condition.ToString(),
+                        HandoverNotes = request.HandoverNotes
+                    };
+
+                    _unitOfWork.ExecuteInTransaction(() => { assignment = AssignWithoutSave(model); });
+                    RecordAssignmentAudit(assignment, item.AssetId);
+                    processed++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item.AssetId,
+                        AssetTag = assetTag,
+                        Success = true,
+                        Message = "Assigned successfully."
+                    });
+                }
+                catch (BusinessException ex)
+                {
+                    skipped++;
+                    rowResults.Add(new BatchAssignRowResultVm
+                    {
+                        AssetId = item.AssetId,
+                        AssetTag = assetTag,
+                        Success = false,
+                        Message = ex.Message
+                    });
+                }
+            }
+
+            return new BatchAssignResultVm
+            {
+                ProcessedCount = processed,
+                SkippedCount = skipped,
+                Rows = rowResults
+            };
+        }
+
+        private string ResolveAssetTag(int assetId)
+        {
+            if (assetId <= 0)
+            {
+                return null;
+            }
+
+            var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+            return asset?.AssetTag;
         }
 
         private void EnsureUserBelongsToDepartment(string userId, int? departmentId)

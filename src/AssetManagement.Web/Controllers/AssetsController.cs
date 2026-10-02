@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application;
@@ -35,7 +36,7 @@ namespace AssetManagement.Web.Controllers
             _authorizationService = BuildAuthorizationService();
         }
 
-        public ActionResult Index(AssetFilterVm filter, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10, string view = "grouped")
+        public ActionResult Index(AssetFilterVm filter, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10, string view = "grouped", string groupBy = "product")
         {
             filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
                 filter,
@@ -48,7 +49,9 @@ namespace AssetManagement.Web.Controllers
             }
 
             filter.ListViewMode = string.Equals(view, "grouped", StringComparison.OrdinalIgnoreCase) ? "grouped" : "flat";
+            filter.GroupBy = AssetListGroupBy.ResolveFromRequest(filter, groupBy);
             ViewBag.ListViewMode = filter.ListViewMode;
+            ViewBag.GroupBy = filter.GroupBy;
             ViewBag.Departments = BuildAssetFilterDepartmentSelectList(filter?.DepartmentId);
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
@@ -85,6 +88,11 @@ namespace AssetManagement.Web.Controllers
             int? assetSubTypeId,
             int? groupDepartmentId,
             AssetStatus? groupStatus,
+            int? groupCategoryId,
+            int? groupAssetTypeId,
+            string groupKey,
+            string groupBy = "product",
+            bool companyCustodyOnly = false,
             int skip = 0,
             int take = 10)
         {
@@ -98,13 +106,37 @@ namespace AssetManagement.Web.Controllers
                 filter = new AssetFilterVm();
             }
 
-            if (string.IsNullOrWhiteSpace(assetName))
+            AssetListGroupKeyParts parsedGroupKey;
+            if (AssetListGroupKey.TryParse(groupKey, out parsedGroupKey))
+            {
+                filter.GroupBy = parsedGroupKey.GroupBy;
+                groupCategoryId = parsedGroupKey.CategoryId;
+                groupAssetTypeId = parsedGroupKey.AssetTypeId;
+                assetSubTypeId = parsedGroupKey.AssetSubTypeId;
+                groupDepartmentId = parsedGroupKey.DepartmentId;
+                groupStatus = parsedGroupKey.Status;
+            }
+            else
+            {
+                filter.GroupBy = AssetListGroupBy.ResolveFromRequest(filter, groupBy);
+            }
+
+            if (AssetListGroupBy.IsProduct(filter.GroupBy) && string.IsNullOrWhiteSpace(assetName))
             {
                 return Json(new { items = new object[0], totalCount = 0, skip = 0, take = take, hasMore = false, remainingCount = 0 }, JsonRequestBehavior.AllowGet);
             }
 
             var canRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
-            var pageModel = _assetService.GetAssetGroupMembers(filter, assetName, assetSubTypeId, groupDepartmentId, groupStatus, skip, take);
+            var pageModel = _assetService.GetAssetGroupMembers(
+                filter,
+                assetName,
+                assetSubTypeId,
+                groupDepartmentId,
+                groupStatus,
+                groupCategoryId,
+                groupAssetTypeId,
+                skip,
+                take);
             EnrichAssetListCustodianNames(pageModel.Items);
 
             var items = pageModel.Items.Select(x => new
@@ -113,7 +145,15 @@ namespace AssetManagement.Web.Controllers
                 assetTag = x.AssetTag,
                 assetName = x.AssetName,
                 brandModel = DisplayText.FormatBrandModel(x.Brand, x.Model),
-                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? DisplayText.Unassigned : x.CurrentCustodianName,
+                categoryName = x.CategoryName,
+                assetTypeName = x.AssetTypeName,
+                assetSubTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? DisplayText.Empty : x.AssetSubTypeName,
+                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                statusLabel = x.CurrentStatus.ToString()
+                    .Replace("AwaitingApproval", "Pending Approval")
+                    .Replace("InStore", "In Store"),
+                statusBadgeClass = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
+                custodianName = DisplayText.FormatCustodian(x.CurrentCustodianName, x.CurrentStatus),
                 acquisitionCost = x.AcquisitionCost,
                 acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
                 detailsUrl = Url.Action("Details", new { id = x.Id }),
@@ -407,6 +447,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var settings = GetLabelPrinterSettings();
+            var layoutDesign = LabelPrinterSettingsHelper.GetLayoutDesign(settings);
             return Json(new
             {
                 enabled = settings.Enabled,
@@ -415,6 +456,9 @@ namespace AssetManagement.Web.Controllers
                 zplUrl = Url.Action("LabelZpl", new { id = model.AssetId }),
                 labelWidthMm = settings.WidthMm,
                 labelHeightMm = settings.HeightMm,
+                qrMagnification = settings.QrMagnification,
+                usesCustomLayout = LabelPrinterSettingsHelper.UsesCustomLayout(settings),
+                layoutDesign = layoutDesign,
                 assetId = model.AssetId,
                 defaultCodeType = LabelPrinterSettingsHelper.CodeTypeQr,
                 codeTypes = new[]
@@ -488,6 +532,7 @@ namespace AssetManagement.Web.Controllers
 
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
             ApplyAssetFormDefaults(viewModel);
+            ApplyAcquisitionCostFromSubTypeDefault(viewModel);
             ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
             PopulateDepreciationContext(viewModel);
@@ -502,8 +547,14 @@ namespace AssetManagement.Web.Controllers
             {
                 viewModel.CanManageDepreciationSettings = CanManageDepreciationSettings();
                 var assetId = _assetService.Create(viewModel);
+                var guidance = AppendAcquisitionCostApplyResult(assetId, viewModel);
+                if (string.IsNullOrWhiteSpace(guidance))
+                {
+                    guidance = "Next step: review the asset details, then assign it, transfer it, or add maintenance and insurance information.";
+                }
+
                 TempData["Message"] = "Asset created successfully.";
-                TempData["Guidance"] = "Next step: review the asset details, then assign it, transfer it, or add maintenance and insurance information.";
+                TempData["Guidance"] = guidance;
                 return RedirectToAction("Details", new { id = assetId });
             }
             catch (BusinessException ex)
@@ -589,6 +640,7 @@ namespace AssetManagement.Web.Controllers
                 SupplierId = entity.SupplierId,
                 PurchaseDate = entity.PurchaseDate,
                 AcquisitionCost = item.AcquisitionCost,
+                PreviousAcquisitionCost = item.AcquisitionCost,
                 Currency = entity.Currency,
                 CurrentStatus = item.CurrentStatus,
                 UsefulLifeMonths = entity.UsefulLifeMonths,
@@ -632,6 +684,7 @@ namespace AssetManagement.Web.Controllers
             var assetEntity = UnitOfWork.Repository<Asset>().GetById(viewModel.Id);
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
             ApplyAssetFormDefaults(viewModel);
+            ApplyAcquisitionCostFromSubTypeDefault(viewModel);
             ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
             PopulateDepreciationContext(viewModel, assetEntity);
@@ -646,7 +699,14 @@ namespace AssetManagement.Web.Controllers
             {
                 viewModel.CanManageDepreciationSettings = CanManageDepreciationSettings();
                 _assetService.Update(viewModel);
-                TempData["Message"] = "Asset updated successfully.";
+                var message = "Asset updated successfully.";
+                var guidance = AppendAcquisitionCostApplyResult(viewModel.Id, viewModel);
+                if (!string.IsNullOrWhiteSpace(guidance))
+                {
+                    TempData["Guidance"] = guidance;
+                }
+
+                TempData["Message"] = message;
                 return RedirectToAction("Details", new { id = viewModel.Id });
             }
             catch (BusinessException ex)
@@ -654,6 +714,28 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("", ex.Message);
                 PopulateAssetApprovalFormOptions(assetEntity == null ? null : assetEntity.OrganizationId);
                 return View(viewModel);
+            }
+        }
+
+        [HttpGet]
+        public JsonResult AcquisitionCostApplyPreview(
+            int id,
+            string scope,
+            int? categoryId,
+            int? assetTypeId,
+            int? assetSubTypeId,
+            int? departmentId,
+            AssetStatus? status)
+        {
+            try
+            {
+                var filter = BuildPriceApplyFilter(categoryId, assetTypeId, assetSubTypeId, departmentId, status);
+                var count = _assetService.CountAcquisitionCostApplyCandidates(id, scope, filter);
+                return Json(new { success = true, count = count }, JsonRequestBehavior.AllowGet);
+            }
+            catch (BusinessException ex)
+            {
+                return Json(new { success = false, message = ex.Message }, JsonRequestBehavior.AllowGet);
             }
         }
 
@@ -823,18 +905,21 @@ namespace AssetManagement.Web.Controllers
         private void PopulateLookups(AssetCreateVm model)
         {
             ViewBag.Categories = BuildCategorySelectList(model?.CategoryId, activeOnly: false);
-
-            var organizationId = ResolveCurrentOrganizationId();
-            ViewBag.AssetTypeOptions = organizationId.HasValue
-                ? (object)BuildReferenceDataCache().GetAssetTypes(organizationId.Value, false).OrderBy(x => x.Name).ToList()
-                : (object)UnitOfWork.Repository<AssetType>().GetAll().OrderBy(x => x.Name).ToList();
+            ViewBag.AssetTypeOptions = BuildAssetTypeLookupList(activeOnly: false);
 
             ViewBag.Departments = BuildDepartmentSelectList(model?.DepartmentId, activeOnly: false);
+            ViewBag.DepartmentGroups = BuildGroupedDepartmentSelectGroups(model?.DepartmentId, activeOnly: false);
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId, activeOnly: false);
             ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             ViewBag.SubTypeLookupUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
             ViewBag.SubTypeByTypeUrl = TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
             ViewBag.SubTypeCreateUrl = TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
+            ViewBag.Statuses = new SelectList(
+                System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }),
+                "Value",
+                "Text",
+                model == null ? null : model.PriceApplyStatus);
+            ViewBag.PriceApplyPreviewUrl = TenantUrlHelper.TenantRouteUrl(Url, "AcquisitionCostApplyPreview", "Assets");
         }
 
         private string ResolveAssetSubTypeName(int subTypeId)
@@ -911,6 +996,34 @@ namespace AssetManagement.Web.Controllers
             }
         }
 
+        private void ApplyAcquisitionCostFromSubTypeDefault(AssetCreateVm model)
+        {
+            if (model == null || model.AcquisitionCost >= 0.01m)
+            {
+                return;
+            }
+
+            if (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0)
+            {
+                return;
+            }
+
+            var subType = UnitOfWork.Repository<AssetSubType>().GetById(model.AssetSubTypeId.Value);
+            if (subType == null
+                || !subType.DefaultAcquisitionCost.HasValue
+                || subType.DefaultAcquisitionCost.Value < 0.01m)
+            {
+                return;
+            }
+
+            model.AcquisitionCost = subType.DefaultAcquisitionCost.Value;
+            var costText = model.AcquisitionCost.ToString(CultureInfo.InvariantCulture);
+            ModelState.Remove("AcquisitionCost");
+            ModelState.SetModelValue(
+                "AcquisitionCost",
+                new ValueProviderResult(costText, costText, CultureInfo.InvariantCulture));
+        }
+
         private void ClearOptionalAssetFieldErrors(AssetCreateVm model)
         {
             ModelState.Remove("CurrentStatus");
@@ -918,6 +1031,9 @@ namespace AssetManagement.Web.Controllers
             ModelState.Remove("Currency");
             ModelState.Remove("DepartmentId");
             ModelState.Remove("SupplierId");
+            ModelState.Remove("Brand");
+            ModelState.Remove("Model");
+            ModelState.Remove("AssetSubTypeName");
 
             if (model == null)
             {
@@ -948,5 +1064,78 @@ namespace AssetManagement.Web.Controllers
         {
             PopulateRoleOptions();
         }
+
+        private string AppendAcquisitionCostApplyResult(int assetId, AssetCreateVm model)
+        {
+            if (model == null)
+            {
+                return null;
+            }
+
+            var scope = string.IsNullOrWhiteSpace(model.AcquisitionCostApplyScope)
+                ? AcquisitionCostApplyScopes.Individual
+                : model.AcquisitionCostApplyScope.Trim();
+
+            if (string.Equals(scope, AcquisitionCostApplyScopes.Individual, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var isEdit = model is AssetEditVm;
+            if (isEdit && model.AcquisitionCost == model.PreviousAcquisitionCost)
+            {
+                return null;
+            }
+
+            var filter = BuildPriceApplyFilter(
+                model.PriceApplyCategoryId,
+                model.PriceApplyAssetTypeId,
+                model.PriceApplyAssetSubTypeId ?? model.AssetSubTypeId,
+                model.PriceApplyDepartmentId,
+                model.PriceApplyStatus);
+
+            var result = _assetService.ApplyAcquisitionCost(
+                assetId,
+                model.AcquisitionCost,
+                scope,
+                filter,
+                User.GetUserId());
+
+            if (result.ProcessedCount <= 0 && result.SkippedCount <= 0)
+            {
+                return null;
+            }
+
+            var guidance = "Price also applied to " + result.ProcessedCount + " other asset(s).";
+            if (result.SkippedCount > 0)
+            {
+                guidance += " " + result.SkippedCount + " skipped.";
+            }
+
+            if (result.Messages != null && result.Messages.Count > 0)
+            {
+                guidance += " " + string.Join(" ", result.Messages.Take(3));
+            }
+
+            return guidance;
+        }
+
+        private static AssetFilterVm BuildPriceApplyFilter(
+            int? categoryId,
+            int? assetTypeId,
+            int? assetSubTypeId,
+            int? departmentId,
+            AssetStatus? status)
+        {
+            return new AssetFilterVm
+            {
+                CategoryId = categoryId,
+                AssetTypeId = assetTypeId,
+                AssetSubTypeId = assetSubTypeId,
+                DepartmentId = departmentId,
+                Status = status
+            };
+        }
     }
 }
+

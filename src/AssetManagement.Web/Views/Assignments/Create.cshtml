@@ -1,16 +1,17 @@
 @using System.Linq
 @using System.Web.Mvc
 @using System.Web.Script.Serialization
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Web.ViewModels
+@using System.Collections.Generic
 @model AssetManagement.Application.ViewModels.AssetAssignmentVm
 @{
     ViewBag.Title = "Assign Asset";
     var users = ViewBag.Users as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
-    var allUsers = ViewBag.AllUsers as IEnumerable<SelectListItem> ?? users;
     var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
     var assignmentTypes = ViewBag.AssignmentTypes as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
     var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
     var lockToDepartment = ViewBag.LockToDepartment == true;
-    var handedOverByName = ViewBag.HandedOverByName as string;
     var workflowConfig = ViewBag.WorkflowFormConfig as AssetManagement.Web.ViewModels.WorkflowFormConfigVm;
     var serializer = new JavaScriptSerializer();
     var workflowPairsJson = workflowConfig == null ? "[]" : serializer.Serialize(workflowConfig.DepartmentUserPairs);
@@ -21,7 +22,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Assign Asset",
-    Subtitle = "Record who is receiving this asset and capture the handover details in one place.",
+    Subtitle = "Record the custodian, department, and assignment details.",
     BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
     BackLabel = "Back to Asset"
 })
@@ -38,6 +39,8 @@
 {
     @Html.AntiForgeryToken()
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.Partial("_DepartmentDispositionPrompt")
+@Html.Partial("_PicPlacementPrompt")
     @Html.HiddenFor(m => m.AssetId)
     <div class="row g-3">
         <div class="col-md-4">
@@ -49,7 +52,7 @@
             }
             else
             {
-                @Html.DropDownListFor(m => m.ToDepartmentId, ViewBag.AllDepartments as IEnumerable<SelectListItem> ?? departments, "-- Select department --", new { @class = "form-select" })
+                @Html.GroupedDepartmentDropDown("ToDepartmentId", ViewBag.DepartmentGroups as IList<DepartmentSelectGroupVm>, "-- Select department --", new { @class = "form-select" })
             }
             @Html.ValidationMessageFor(m => m.ToDepartmentId, "", new { @class = "text-danger" })
         </div>
@@ -88,17 +91,7 @@
             @Html.TextBoxFor(m => m.AccessoriesHandedOver, new { @class = "form-control" })
             @Html.ValidationMessageFor(m => m.AccessoriesHandedOver, "", new { @class = "text-danger" })
         </div>
-        <div class="col-md-6">
-            @Html.LabelFor(m => m.HandedOverById, new { @class = "form-label" })
-            @Html.HiddenFor(m => m.HandedOverById)
-            <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(handedOverByName) ? "Current user" : handedOverByName)" />
-            @Html.ValidationMessageFor(m => m.HandedOverById, "", new { @class = "text-danger" })
-        </div>
-        <div class="col-md-6">
-            @Html.LabelFor(m => m.ReceivedById, new { @class = "form-label" })
-            @Html.DropDownListFor(m => m.ReceivedById, users, "-- Select user (optional) --", new { @class = "form-select", data_am_user_placeholder = "-- Select user (optional) --" })
-            @Html.ValidationMessageFor(m => m.ReceivedById, "", new { @class = "text-danger" })
-        </div>
+        @Html.HiddenFor(m => m.HandedOverById)
         <div class="col-md-12">
             @Html.LabelFor(m => m.HandoverNotes, new { @class = "form-label" })
             @Html.TextAreaFor(m => m.HandoverNotes, new { @class = "form-control", rows = "3" })

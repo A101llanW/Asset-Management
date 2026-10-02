@@ -307,7 +307,7 @@
 
         if (hasAny(text, ["assign asset", "assignment", "assign"])) {
             return buildResponse(
-                "To assign an asset:\n1. Open the asset from the Assets list.\n2. On the asset details page, start the assignment action.\n3. Choose the receiving user, department, assignment type, and handed-over-by user.\n4. Save the assignment.\nThe system then returns you to the asset details page and the assignment history can be reviewed from the assignment screen.",
+                "To assign an asset:\n1. Open the asset from the Assets list.\n2. On the asset details page, start the assignment action.\n3. Choose the custodian, department, assignment type, and any handover notes.\n4. Save the assignment.\nThe system then returns you to the asset details page and the assignment history can be reviewed from the assignment screen.",
                 [
                     { label: "Assets", url: rootUrl("assets-url") },
                     { label: "Assignment history", url: rootUrl("assignments-url") },

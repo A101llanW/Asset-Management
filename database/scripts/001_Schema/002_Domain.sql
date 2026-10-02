@@ -120,6 +120,7 @@ BEGIN
         [Model] NVARCHAR(100) NOT NULL CONSTRAINT DF_AssetSubType_Model DEFAULT(N''),
         [Specifications] NVARCHAR(MAX) NULL,
         [Sku] NVARCHAR(100) NULL,
+        [DefaultAcquisitionCost] DECIMAL(18,2) NULL,
         [CreatedAt] DATETIME NOT NULL,
         [UpdatedAt] DATETIME NULL,
         [IsActive] BIT NOT NULL CONSTRAINT DF_AssetSubType_IsActive DEFAULT(1),

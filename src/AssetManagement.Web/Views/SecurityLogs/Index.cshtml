@@ -6,6 +6,7 @@
     var activeTab = ViewBag.ActiveTab as string ?? "login";
     var canInvalidateSessions = Html.HasPermission("Settings.Manage");
     var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
+}
 <h3>Security Logs</h3>
 <p class="text-muted">Login attempts, security events, and links to detailed audit history.</p>
 

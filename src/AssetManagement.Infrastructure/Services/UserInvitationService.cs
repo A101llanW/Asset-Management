@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
@@ -18,6 +18,7 @@ namespace AssetManagement.Infrastructure.Services
         private static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
 
         private readonly UserInvitationRepository _invitations;
+        private readonly UserAccountRepository _users;
         private readonly IUserAccountService _userAccountService;
         private readonly IEmailService _emailService;
         private readonly IPlatformSettingsService _platformSettings;
@@ -31,6 +32,7 @@ namespace AssetManagement.Infrastructure.Services
             IAuditWriter auditWriter = null)
         {
             _invitations = new UserInvitationRepository(connectionFactory);
+            _users = new UserAccountRepository(connectionFactory);
             _userAccountService = userAccountService;
             _emailService = emailService;
             _platformSettings = platformSettings;
@@ -261,6 +263,11 @@ namespace AssetManagement.Infrastructure.Services
             else if (!request.Email.Contains("@"))
             {
                 yield return "A valid email address is required.";
+            }
+            else if (request.OrganizationId > 0
+                && _users.FindByEmailAndOrganization(request.Email.Trim(), request.OrganizationId) != null)
+            {
+                yield return "A user with this email already exists in this organization.";
             }
 
             if (string.IsNullOrWhiteSpace(request.OrganizationSlug))

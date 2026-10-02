@@ -1,9 +1,12 @@
 @using System.Linq
+@using System.Web.Script.Serialization
 @model AssetManagement.Application.ViewModels.AssetCreateVm
-@using AssetManagement.Domain.Entities
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Web.ViewModels
 @{
     var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetType> ?? Enumerable.Empty<AssetType>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Web.ViewModels.AssetTypeLookupVm> ?? Enumerable.Empty<AssetManagement.Web.ViewModels.AssetTypeLookupVm>();
     var categoryItems = categories != null
         ? categories.Cast<SelectListItem>().Where(i => !string.IsNullOrEmpty(i.Value)).ToList()
         : new List<SelectListItem>();
@@ -11,69 +14,92 @@
         .Where(t => t != null)
         .GroupBy(t => t.AssetCategoryId)
         .ToDictionary(g => g.Key, g => g.OrderBy(t => t.Name).ToList());
+
+    var selectedCategoryId = Model != null && Model.CategoryId > 0 ? Model.CategoryId : 0;
+    var selectedTypeId = Model != null && Model.AssetTypeId > 0 ? Model.AssetTypeId : 0;
+    var selectedCategoryName = categoryItems
+        .FirstOrDefault(c => c.Value == selectedCategoryId.ToString()) != null
+        ? categoryItems.First(c => c.Value == selectedCategoryId.ToString()).Text
+        : null;
+    var selectedTypeName = assetTypeOptions.FirstOrDefault(t => t.Id == selectedTypeId) != null
+        ? assetTypeOptions.First(t => t.Id == selectedTypeId).Name
+        : null;
+    var hasClassification = selectedCategoryId > 0 && selectedTypeId > 0
+        && Model != null && Model.AssetSubTypeId.HasValue && Model.AssetSubTypeId.Value > 0;
+    var subTypeLabel = string.IsNullOrWhiteSpace(Model != null ? Model.AssetSubTypeName : null)
+        ? "Not selected — required"
+        : Model.AssetSubTypeName;
+
+    var classificationData = new
+    {
+        categories = categoryItems.Select(c => new { id = int.Parse(c.Value), name = c.Text }).ToList(),
+        types = assetTypeOptions.Select(t => new { id = t.Id, name = t.Name, categoryId = t.AssetCategoryId }).ToList(),
+        selected = new
+        {
+            categoryId = selectedCategoryId,
+            categoryName = selectedCategoryName,
+            typeId = selectedTypeId,
+            typeName = selectedTypeName,
+            subTypeId = Model != null && Model.AssetSubTypeId.HasValue ? Model.AssetSubTypeId.Value : 0,
+            subTypeName = Model != null ? Model.AssetSubTypeName : null
+        }
+    };
+    var serializer = new JavaScriptSerializer();
 }
 
-<p class="text-muted small mb-3" id="classification-sync-hint">
-    Category and asset type stay linked. Choose a category to narrow types, or pick a type to set the category automatically.
-</p>
-<div class="row g-3">
-    <div class="col-md-3">
-        @Html.LabelFor(m => m.CategoryId, new { @class = "form-label" })
-        @Html.DropDownListFor(m => m.CategoryId, categories, "-- All categories --", new { @class = "form-select", id = "CategoryId" })
-        @Html.ValidationMessageFor(m => m.CategoryId, "", new { @class = "text-danger small" })
-    </div>
-    <div class="col-md-3">
-        @Html.LabelFor(m => m.AssetTypeId, new { @class = "form-label" })
-        <select class="form-select" id="AssetTypeId" name="AssetTypeId">
-            <option value="">-- Select asset type --</option>
-            @foreach (var categoryItem in categoryItems)
+@Html.HiddenFor(m => m.CategoryId, new { id = "CategoryId" })
+@Html.HiddenFor(m => m.AssetTypeId, new { id = "AssetTypeId" })
+@Html.HiddenFor(m => m.AssetSubTypeId, new { id = "AssetSubTypeId" })
+
+<div class="am-classification-summary @(hasClassification ? "is-set" : "is-empty")" id="asset-classification-summary">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div class="flex-grow-1 min-w-0">
+            <div class="am-classification-summary-label text-uppercase fw-semibold text-muted mb-2">Asset classification</div>
+            @if (hasClassification)
             {
-                int categoryId;
-                if (!int.TryParse(categoryItem.Value, out categoryId))
-                {
-                    continue;
-                }
-
-                List<AssetType> typesForCategory;
-                if (!typesByCategory.TryGetValue(categoryId, out typesForCategory) || typesForCategory.Count == 0)
-                {
-                    continue;
-                }
-
-                <optgroup label="@categoryItem.Text" data-category-id="@categoryId">
-                    @foreach (var assetType in typesForCategory)
-                    {
-                        <option value="@assetType.Id"
-                                data-category-id="@categoryId"
-                                @(Model != null && Model.AssetTypeId == assetType.Id ? "selected" : null)>
-                            @assetType.Name
-                        </option>
-                    }
-                </optgroup>
+                <div class="am-classification-trail" id="asset-classification-trail">
+                    <span class="am-classification-chip" id="asset-category-display">@selectedCategoryName</span>
+                    <span class="am-classification-separator" aria-hidden="true">&gt;</span>
+                    <span class="am-classification-chip" id="asset-type-display">@selectedTypeName</span>
+                    <span class="am-classification-separator" aria-hidden="true">&gt;</span>
+                    <span class="am-classification-chip am-classification-chip-muted" id="asset-subtype-display">@subTypeLabel</span>
+                </div>
             }
-        </select>
-        @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger small" })
-    </div>
-    <div class="col-md-6">
-        @Html.HiddenFor(m => m.AssetSubTypeId)
-        <label class="form-label">Asset sub-type</label>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-            <div id="asset-subtype-display" class="form-control-plaintext @(string.IsNullOrWhiteSpace(Model.AssetSubTypeName) ? "text-muted" : "fw-medium")">
-                @(string.IsNullOrWhiteSpace(Model.AssetSubTypeName) ? "Not assigned" : Model.AssetSubTypeName)
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-primary" id="asset-subtype-change">Change</button>
+            else
+            {
+                <div class="am-classification-empty" id="asset-classification-empty">
+                    <strong>Choose category, type, and sub-type</strong>
+                    <span class="d-block text-muted small mt-1">Classification is required. Pick an existing sub-type or create one in the classifier.</span>
+                </div>
+                <div class="am-classification-trail d-none" id="asset-classification-trail">
+                    <span class="am-classification-chip" id="asset-category-display"></span>
+                    <span class="am-classification-separator" aria-hidden="true">&gt;</span>
+                    <span class="am-classification-chip" id="asset-type-display"></span>
+                    <span class="am-classification-separator" aria-hidden="true">&gt;</span>
+                    <span class="am-classification-chip am-classification-chip-muted" id="asset-subtype-display"></span>
+                </div>
+            }
         </div>
-        <p class="form-text mb-0">Create a new sub-type under a category and asset type, or select an existing one. New sub-types are saved for reuse on other assets.</p>
+        <button type="button" class="btn btn-primary btn-sm flex-shrink-0" id="asset-classification-change">
+            @(hasClassification ? "Change" : "Choose classification")
+        </button>
     </div>
-    <div class="col-md-3">
+    <div class="mt-2">
+        @Html.ValidationMessageFor(m => m.CategoryId, "", new { @class = "text-danger small d-block" })
+        @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger small d-block" })
+        @Html.ValidationMessageFor(m => m.AssetSubTypeId, "", new { @class = "text-danger small d-block" })
+    </div>
+</div>
+
+<script type="application/json" id="am-classification-data">@Html.Raw(serializer.Serialize(classificationData))</script>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
         <label class="form-label" for="DepartmentId">Department <span class="text-muted fw-normal">(optional)</span></label>
-        @{
-            var departments = ViewBag.Departments as SelectList;
-        }
-        @Html.DropDownListFor(m => m.DepartmentId, departments, "-- No department (organization custody) --", new { @class = "form-select" })
+        @Html.GroupedDepartmentDropDown("DepartmentId", ViewBag.DepartmentGroups as IList<DepartmentSelectGroupVm>, "-- No department (organization custody) --", new { @class = "form-select" })
         <p class="form-text mb-0">Leave blank to register the asset under organization custody until a department is assigned.</p>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-6">
         <label class="form-label" for="SupplierId">Supplier <span class="text-muted fw-normal">(optional)</span></label>
         @{
             var suppliers = ViewBag.Suppliers as SelectList;

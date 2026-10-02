@@ -23,11 +23,17 @@ namespace AssetManagement.Application.ViewModels
 
         public string CustodianUserId { get; set; }
 
+        /// <summary>When true, limits results to assets with no current custodian.</summary>
+        public bool UnassignedOnly { get; set; }
+
         /// <summary>When true, returns all organization assets regardless of the user's department scope.</summary>
         public bool OrganizationWide { get; set; }
 
         /// <summary>flat (default) or grouped.</summary>
         public string ListViewMode { get; set; }
+
+        /// <summary>product, department, category, type, subtype, or status — used when ListViewMode is grouped.</summary>
+        public string GroupBy { get; set; }
     }
 
     public class AssetListVm
@@ -49,6 +55,8 @@ namespace AssetManagement.Application.ViewModels
         public int? DepartmentId { get; set; }
 
         public int AssetTypeId { get; set; }
+
+        public string AssetTypeName { get; set; }
 
         public int? AssetSubTypeId { get; set; }
 
@@ -87,11 +95,12 @@ namespace AssetManagement.Application.ViewModels
 
         public string AssetSubTypeName { get; set; }
 
-        [Required]
+        /// <summary>When true, Create may omit AssetSubTypeId (e.g. Purchases Receive — classify after create).</summary>
+        public bool AllowDeferredSubTypeClassification { get; set; }
+
         [StringLength(120)]
         public string Brand { get; set; }
 
-        [Required]
         [StringLength(120)]
         public string Model { get; set; }
 
@@ -153,6 +162,22 @@ namespace AssetManagement.Application.ViewModels
         public bool CanManageDepreciationSettings { get; set; }
 
         public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
+
+        /// <summary>Acquisition cost before edit; used to detect price changes.</summary>
+        public decimal PreviousAcquisitionCost { get; set; }
+
+        /// <summary>individual, subtype, or filtered — see AcquisitionCostApplyScopes.</summary>
+        public string AcquisitionCostApplyScope { get; set; }
+
+        public int? PriceApplyCategoryId { get; set; }
+
+        public int? PriceApplyAssetTypeId { get; set; }
+
+        public int? PriceApplyAssetSubTypeId { get; set; }
+
+        public int? PriceApplyDepartmentId { get; set; }
+
+        public AssetStatus? PriceApplyStatus { get; set; }
     }
 
     public class AssetEditVm : AssetCreateVm
@@ -178,6 +203,10 @@ namespace AssetManagement.Application.ViewModels
         public string DepartmentName { get; set; }
 
         public string CategoryName { get; set; }
+
+        public string AssetTypeName { get; set; }
+
+        public string AssetSubTypeName { get; set; }
 
         public string SupplierName { get; set; }
 

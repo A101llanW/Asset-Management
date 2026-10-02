@@ -165,14 +165,11 @@
             return value;
         }
         openBtn.addEventListener("click", function () {
-            if (!conditionInput || !conditionInput.value) {
-                if (conditionInput) {
-                    conditionInput.classList.add("is-invalid");
-                    conditionInput.focus();
-                }
-                return;
+            // Condition is validated on form submit; do not gate the optional serial wizard.
+            // Prior early-return left #receiveSerialWizardModal at display:none (Modal.show never called).
+            if (conditionInput) {
+                conditionInput.classList.remove("is-invalid");
             }
-            conditionInput.classList.remove("is-invalid");
             var totalUnits = clampQuantityField();
             resizeCapturedSerials(totalUnits);
             currentIndex = 0;
@@ -180,6 +177,12 @@
             updateStepUi(totalUnits);
             if (modal) {
                 modal.show();
+            } else {
+                modalEl.classList.add("show");
+                modalEl.style.display = "block";
+                modalEl.removeAttribute("aria-hidden");
+                modalEl.setAttribute("aria-modal", "true");
+                document.body.classList.add("modal-open");
             }
         });
         nextBtn.addEventListener("click", function () {

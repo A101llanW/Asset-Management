@@ -81,6 +81,8 @@ namespace AssetManagement.PerformanceTests
                 group.AssetSubTypeId,
                 group.DepartmentId,
                 group.CurrentStatus,
+                null,
+                null,
                 skip: 0,
                 take: 10);
 

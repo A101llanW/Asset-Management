@@ -90,8 +90,17 @@
         init(document);
     }
 
+    function stripForSubmit(root) {
+        var scope = root || document;
+        var inputs = scope.querySelectorAll('[data-monetary-input]');
+        for (var i = 0; i < inputs.length; i++) {
+            stripFormatting(inputs[i]);
+        }
+    }
+
     window.AssetMonetaryInput = {
         parseNumber: parseNumber,
-        formatAmount: formatAmount
+        formatAmount: formatAmount,
+        stripForSubmit: stripForSubmit
     };
 })();

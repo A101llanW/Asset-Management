@@ -47,6 +47,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ViewMode = string.Equals(view, "list", StringComparison.OrdinalIgnoreCase) ? "list" : "tree";
             ViewBag.Search = search;
             var itemsList = items.OrderBy(x => x.Name).ToList();
+            EnrichDepartmentPicNames(itemsList);
             var visibleIds = new System.Collections.Generic.HashSet<int>(itemsList.Select(x => x.Id));
             ViewBag.TreeSections = _departmentService.GetTreeSections(itemsList)
                 .Select(section => new DepartmentTreeSectionVm
@@ -60,6 +61,20 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
 
             return View(itemsList);
+        }
+
+        /// <summary>
+        /// Legacy Admin list; flow overview now lives on Departments Index.
+        /// </summary>
+        public ActionResult RequisitionFlows(string search = null, string status = null, string view = null)
+        {
+            TempData["Message"] = "Requisition flow mode, effective source, and stage summary are shown on the Departments index.";
+            return RedirectToAction("Index", new
+            {
+                search = search,
+                status = string.IsNullOrWhiteSpace(status) ? "active" : status,
+                view = string.IsNullOrWhiteSpace(view) ? "tree" : view
+            });
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -92,9 +107,10 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Departments.Create")]
-        public ActionResult Create(string setupMode = null, int? parentId = null, string returnUrl = null)
+        public ActionResult Create(string setupMode = null, string kind = null, int? parentId = null, string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            setupMode = ResolveSetupModeAlias(setupMode, kind);
             var createContext = ResolveCreateContext(setupMode, parentId);
             if (createContext == null)
             {
@@ -141,8 +157,10 @@ namespace AssetManagement.Web.Controllers
                 model.ParentDepartmentId = createContext.LockedParentDepartmentId;
                 model.SetupMode = createContext.SetupMode;
             }
-            else if (!createContext.ShowSetupModePicker)
+            else if (!createContext.ShowSetupModePicker
+                || string.IsNullOrWhiteSpace(model.SetupMode))
             {
+                // Prefer resolved context (includes kind= alias) when binder left SetupMode empty.
                 model.SetupMode = createContext.SetupMode;
             }
 
@@ -180,7 +198,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Edit(DepartmentVm model, string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
-            if (model != null && model.DepartmentKind == DepartmentKind.Room)
+            if (model != null && DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
             {
                 DepartmentRequisitionApprovalSettingsHelper.ValidateCustomApproval(
                     model,
@@ -214,6 +232,41 @@ namespace AssetManagement.Web.Controllers
             public string LockedParentName { get; set; }
             public bool ShowSetupModePicker { get; set; }
             public DepartmentCreateVm InitialModel { get; set; }
+        }
+
+
+        /// <summary>
+        /// QA and deep-links may pass kind=Room|SubDepartment; map to SetupMode values.
+        /// </summary>
+        private static string ResolveSetupModeAlias(string setupMode, string kind)
+        {
+            if (!string.IsNullOrWhiteSpace(setupMode))
+            {
+                return setupMode.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(kind))
+            {
+                return setupMode;
+            }
+
+            switch (kind.Trim())
+            {
+                case "Room":
+                    return DepartmentService.SetupModeRoom;
+                case "SubDepartment":
+                    return DepartmentService.SetupModeSubDepartment;
+                case "Administrative":
+                case "Normal":
+                    return DepartmentService.SetupModeNormal;
+                case "GradeWithStreams":
+                case "Grade":
+                    return DepartmentService.SetupModeGradeStreams;
+                case "BulkGrades":
+                    return DepartmentService.SetupModeBulkGrades;
+                default:
+                    return kind.Trim();
+            }
         }
 
         private DepartmentCreateContext ResolveCreateContext(string setupMode, int? parentId)
@@ -331,12 +384,108 @@ namespace AssetManagement.Web.Controllers
             ViewBag.LockedParentDepartmentId = context.LockedParentDepartmentId;
             ViewBag.LockedParentName = context.LockedParentName;
             ViewBag.CreateSetupMode = context.SetupMode;
+            ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(context.InitialModel == null ? null : context.InitialModel.RoomCustodianUserId);
+            ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(context.InitialModel == null ? null : context.InitialModel.ClassTeacherUserId);
             if (context.LockedParentDepartmentId.HasValue)
             {
                 var lockedParent = _departmentService.GetById(context.LockedParentDepartmentId.Value);
                 ViewBag.LockedParentDepartmentKind = lockedParent == null
                     ? (DepartmentKind?)null
                     : lockedParent.DepartmentKind;
+            }
+        }
+
+
+        private void EnrichDepartmentPicNames(IList<DepartmentVm> departments)
+        {
+            if (departments == null || departments.Count == 0)
+            {
+                return;
+            }
+
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dept in departments)
+            {
+                CollectPicIds(dept, ids);
+            }
+
+            if (ids.Count == 0)
+            {
+                return;
+            }
+
+            var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in ids)
+            {
+                var user = BuildUserService().GetById(id);
+                if (user != null)
+                {
+                    labels[id] = BuildUserLabel(user);
+                }
+            }
+
+            foreach (var dept in departments)
+            {
+                ApplyPicLabels(dept, labels);
+            }
+        }
+
+        private static void CollectPicIds(DepartmentVm dept, ISet<string> ids)
+        {
+            if (dept == null)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.ClassTeacherUserId))
+            {
+                ids.Add(dept.ClassTeacherUserId.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.RoomCustodianUserId))
+            {
+                ids.Add(dept.RoomCustodianUserId.Trim());
+            }
+
+            if (dept.Children == null)
+            {
+                return;
+            }
+
+            foreach (var child in dept.Children)
+            {
+                CollectPicIds(child, ids);
+            }
+        }
+
+        private static void ApplyPicLabels(DepartmentVm dept, IDictionary<string, string> labels)
+        {
+            if (dept == null)
+            {
+                return;
+            }
+
+            string label;
+            if (!string.IsNullOrWhiteSpace(dept.ClassTeacherUserId)
+                && labels.TryGetValue(dept.ClassTeacherUserId.Trim(), out label))
+            {
+                dept.ClassTeacherName = label;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.RoomCustodianUserId)
+                && labels.TryGetValue(dept.RoomCustodianUserId.Trim(), out label))
+            {
+                dept.RoomCustodianName = label;
+            }
+
+            if (dept.Children == null)
+            {
+                return;
+            }
+
+            foreach (var child in dept.Children)
+            {
+                ApplyPicLabels(child, labels);
             }
         }
 
@@ -363,19 +512,37 @@ namespace AssetManagement.Web.Controllers
             var scopedDepartments = DepartmentListHelper.DeduplicateById(_departmentService.GetAll());
             EnsureParentDepartmentName(model, scopedDepartments);
 
-            if (model.DepartmentKind == DepartmentKind.Room)
+            // Always populate parent pickers so Kind changes (e.g. Grade->Room) can show Parent in the UI.
+            ViewBag.RoomParentCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(model, scopedDepartments);
+            ViewBag.RoomOtherParentGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
+            ViewBag.RoomParentOtherValue = DepartmentLabelHelper.RoomParentOtherOptionValue;
+            ViewBag.SubDepartmentParentSelectList = BuildTopLevelAdminParentSelectList(
+                scopedDepartments,
+                model.ParentDepartmentId);
+            ViewBag.DepartmentKindSelectList = BuildDepartmentKindSelectList(model.DepartmentKind);
+            ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
+            ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);
+
+            if (DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
             {
-                ViewBag.RoomParentCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(model, scopedDepartments);
-                ViewBag.RoomOtherParentGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
-                ViewBag.RoomParentOtherValue = DepartmentLabelHelper.RoomParentOtherOptionValue;
                 PopulateRoomRequisitionApproval(model);
             }
-            else if (model.DepartmentKind == DepartmentKind.SubDepartment)
-            {
-                ViewBag.SubDepartmentParentSelectList = BuildTopLevelAdminParentSelectList(
-                    scopedDepartments,
-                    model.ParentDepartmentId);
-            }
+        }
+
+        private static SelectList BuildDepartmentKindSelectList(DepartmentKind selectedKind)
+        {
+            // Option Values are int strings ("4"=Room). Pass selectedValue as the same string type.
+            // Edit.cshtml must not use DropDownListFor here: it stringifies the enum as "Room" and
+            // fails to match "4", so Administrative (first option) incorrectly appears selected.
+            var items = DepartmentKindSelectListBuilder.BuildItems(selectedKind)
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Value,
+                    Text = x.Text,
+                    Selected = x.Selected
+                })
+                .ToList();
+            return new SelectList(items, "Value", "Text", DepartmentKindSelectListBuilder.ToOptionValue(selectedKind));
         }
 
         private static void EnsureParentDepartmentName(DepartmentVm model, IList<DepartmentVm> scopedDepartments)
@@ -441,7 +608,7 @@ namespace AssetManagement.Web.Controllers
             if (includeOrgModes)
             {
                 items.Add(new { Value = DepartmentService.SetupModeGradeStreams, Text = "Grade with class streams" });
-                items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1–6" });
+                items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1Ã¢â‚¬â€œ6" });
             }
 
             return new SelectList(items, "Value", "Text", selected);

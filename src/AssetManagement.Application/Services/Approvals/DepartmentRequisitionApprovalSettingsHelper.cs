@@ -5,6 +5,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Services
 {
@@ -54,9 +55,31 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
-            entity.UseCustomRequisitionApproval = model.UseCustomRequisitionApproval;
-            if (!model.UseCustomRequisitionApproval)
+            // Prefer explicit RequisitionFlowMode when posted (Inherit/Custom/AutoApprove).
+            // Room/Class UI radios still post UseCustomRequisitionApproval via _RoomRequisitionApproval.
+            var useCustom = model.UseCustomRequisitionApproval
+                || model.RequisitionFlowMode == RequisitionFlowMode.Custom;
+
+            if (model.RequisitionFlowMode == RequisitionFlowMode.AutoApprove)
             {
+                entity.RequisitionFlowMode = RequisitionFlowMode.AutoApprove;
+                entity.UseCustomRequisitionApproval = false;
+                entity.CustomStageRoleIds = null;
+                entity.CustomStageUserIds = null;
+                entity.RequisitionApprovalStageRoleIds = null;
+                entity.RequisitionApprovalStageUserIds = null;
+                return;
+            }
+
+            entity.UseCustomRequisitionApproval = useCustom;
+            entity.RequisitionFlowMode = useCustom ? RequisitionFlowMode.Custom : RequisitionFlowMode.InheritParent;
+
+            if (!useCustom)
+            {
+                entity.CustomStageRoleIds = null;
+                entity.CustomStageUserIds = null;
+                entity.RequisitionApprovalStageRoleIds = null;
+                entity.RequisitionApprovalStageUserIds = null;
                 return;
             }
 
@@ -69,12 +92,19 @@ namespace AssetManagement.Application.Services
             {
                 entity.RequisitionApprovalStageRoleIds = null;
                 entity.RequisitionApprovalStageUserIds = null;
+                entity.CustomStageRoleIds = null;
+                entity.CustomStageUserIds = null;
                 return;
             }
 
             process.RequiresApproval = true;
-            entity.RequisitionApprovalStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(process.GetStageRoleIds());
-            entity.RequisitionApprovalStageUserIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(process.GetStageUserIds());
+            var roleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(process.GetStageRoleIds());
+            var userIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(process.GetStageUserIds());
+            entity.RequisitionApprovalStageRoleIds = roleIds;
+            entity.RequisitionApprovalStageUserIds = userIds;
+            // Keep resolver SoT columns in sync with Room/Class UI columns.
+            entity.CustomStageRoleIds = roleIds;
+            entity.CustomStageUserIds = userIds;
         }
 
         public static void ValidateCustomApproval(DepartmentVm model, Action<string, string> addModelError)

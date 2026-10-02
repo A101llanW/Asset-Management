@@ -1,5 +1,7 @@
 @model AssetManagement.Application.ViewModels.AssetTransferVm
 @using System.Web.Mvc
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Web.ViewModels
 @{
     ViewBag.Title = "Transfer (mobile)";
     var users = ViewBag.Users as System.Collections.Generic.IEnumerable<SelectListItem> ?? System.Linq.Enumerable.Empty<SelectListItem>();
@@ -38,7 +40,7 @@
                     }
                     else
                     {
-                        @Html.DropDownListFor(m => m.ToDepartmentId, departments, "-- Department --", new { @class = "form-select" })
+                        @Html.GroupedDepartmentDropDown("ToDepartmentId", ViewBag.DepartmentGroups as IList<DepartmentSelectGroupVm>, "-- Department --", new { @class = "form-select" })
                     }
                 </div>
                 <div class="col-12">

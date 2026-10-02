@@ -1,0 +1,100 @@
+@using System.Linq
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Web.ViewModels
+@using AssetManagement.Domain.Enums
+@{
+    var categories = ViewBag.Categories as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Web.ViewModels.AssetTypeLookupVm>
+        ?? Enumerable.Empty<AssetManagement.Web.ViewModels.AssetTypeLookupVm>();
+    var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
+    var statuses = ViewBag.Statuses as SelectList;
+    var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
+    var previewUrl = ViewBag.PriceApplyPreviewUrl as string ?? Url.Action("AcquisitionCostApplyPreview", "Assets");
+    var assetId = ViewBag.PriceApplyAssetId as int? ?? 0;
+    var assetSubTypeName = ViewBag.PriceApplyAssetSubTypeName as string;
+}
+
+<div class="modal fade" id="amAcquisitionCostApplyModal" tabindex="-1" aria-labelledby="amAcquisitionCostApplyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="amAcquisitionCostApplyModalLabel">Apply acquisition cost</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">
+                    You changed the acquisition cost. Choose whether to update only this asset or apply the same price
+                    (<strong id="amPriceApplyAmountLabel"></strong> @organizationCurrency) to other units.
+                </p>
+                <div class="vstack gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="amPriceApplyScopeChoice" id="amPriceApplyIndividual" value="individual" checked="checked" />
+                        <label class="form-check-label" for="amPriceApplyIndividual">
+                            <strong>This asset only</strong>
+                            <span class="d-block text-muted small">Leave other assets unchanged.</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="amPriceApplyScopeChoice" id="amPriceApplySubType" value="subtype" />
+                        <label class="form-check-label" for="amPriceApplySubType">
+                            <strong>Same sub-type</strong>
+                            <span class="d-block text-muted small">
+                                Apply to all active assets with sub-type
+                                <span id="amPriceApplySubTypeLabel">@(string.IsNullOrWhiteSpace(assetSubTypeName) ? "(not set)" : assetSubTypeName)</span>.
+                                <span id="amPriceApplySubTypeCount" class="fw-semibold"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="amPriceApplyScopeChoice" id="amPriceApplyFiltered" value="filtered" />
+                        <label class="form-check-label" for="amPriceApplyFiltered">
+                            <strong>Custom group</strong>
+                            <span class="d-block text-muted small">Filter by category, type, sub-type, department, or status.</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="amPriceApplyFilterPanel" class="border rounded-3 p-3 mt-3" style="display:none;">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="PriceApplyCategoryId">Category</label>
+                            @Html.DropDownList("PriceApplyCategoryId", categories, "-- Any --", new { @class = "form-select am-price-apply-filter" })
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="PriceApplyAssetTypeId">Asset type</label>
+                            <select class="form-select am-price-apply-filter" id="PriceApplyAssetTypeId" name="PriceApplyAssetTypeId">
+                                <option value="">-- Any --</option>
+                                @foreach (var type in assetTypeOptions)
+                                {
+                                    <option value="@type.Id">@type.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="PriceApplyDepartmentId">Department / class</label>
+                            @Html.DropDownList("PriceApplyDepartmentId", departments, "-- Any --", new { @class = "form-select am-price-apply-filter" })
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="PriceApplyStatus">Status</label>
+                            @Html.DropDownList("PriceApplyStatus", statuses, "-- Any --", new { @class = "form-select am-price-apply-filter" })
+                        </div>
+                    </div>
+                    <p class="text-muted small mb-0 mt-3">
+                        Matching assets: <strong id="amPriceApplyFilteredCount">0</strong>
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="amPriceApplyConfirmBtn">Save and apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    window.amPriceApplyConfig = {
+        assetId: @assetId,
+        previewUrl: @Html.Raw(System.Web.Helpers.Json.Encode(previewUrl)),
+        hasSubType: @(string.IsNullOrWhiteSpace(assetSubTypeName) ? "false" : "true")
+    };
+</script>
+<script src="@Url.Content("~/Scripts/app/asset-price-apply.js")"></script>

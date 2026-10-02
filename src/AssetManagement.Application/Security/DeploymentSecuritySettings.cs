@@ -32,6 +32,45 @@ namespace AssetManagement.Application.Security
         }
 
         /// <summary>
+        /// Explicit demo / security-relaxed chrome switch. When unset, falls back to MfaAllowAnyCode.
+        /// </summary>
+        public static bool ShowDemoSecurityBanner
+        {
+            get
+            {
+                var setting = ConfigurationManager.AppSettings["ShowDemoSecurityBanner"];
+                if (string.IsNullOrWhiteSpace(setting))
+                {
+                    setting = ConfigurationManager.AppSettings["DemoMode"];
+                }
+
+                if (string.IsNullOrWhiteSpace(setting))
+                {
+                    return MfaAllowAnyCode;
+                }
+
+                return string.Equals(setting.Trim(), "true", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(setting.Trim(), "1", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
+        /// True when MFA any-code bypass is on or an explicit demo banner flag is set.
+        /// </summary>
+        public static bool IsSecurityRelaxed
+        {
+            get { return MfaAllowAnyCode || ShowDemoSecurityBanner; }
+        }
+
+        /// <summary>
+        /// Whether authenticated shell should show the DEMO / SECURITY RELAXED banner.
+        /// </summary>
+        public static bool ShowDemoBanner
+        {
+            get { return ShowDemoSecurityBanner; }
+        }
+
+        /// <summary>
         /// True when MFA/password-reset flows must deliver email (production Release builds).
         /// </summary>
         public static bool RequiresSmtpForAuthEmails

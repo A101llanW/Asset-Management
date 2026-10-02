@@ -1,0 +1,100 @@
+@model AssetManagement.Web.ViewModels.AssetScanLookupPageVm
+@using AssetManagement.Application.Helpers
+@using System.Collections.Generic
+@using System.Web.Mvc
+
+@if (Model.CanBatchPrintLabels)
+{
+    <div class="card card-kpi border-0 shadow-sm mt-4 am-scan-batch-print" data-am-scan-batch-panel
+         data-print-candidates-url="@Model.PrintCandidatesUrl"
+         data-label-print-config-url-template="@Model.LabelPrintConfigUrl"
+         data-label-zpl-url-template="@Model.LabelZplUrlTemplate">
+        <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <h5 class="mb-0">Batch label printing</h5>
+                <p class="text-muted small mb-0 mt-1">Filter assets, select a group, and queue labels for printing.</p>
+            </div>
+            <span class="badge bg-primary am-scan-batch-queue-count" data-am-scan-batch-count>0 queued</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchDepartment">Department</label>
+                    <select class="form-select form-select-sm" id="amScanBatchDepartment" data-am-scan-batch-dept>
+                        @foreach (var option in Model.DepartmentOptions ?? new List<SelectListItem>())
+                        {
+                            <option value="@option.Value">@option.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchStatus">Status</label>
+                    <select class="form-select form-select-sm" id="amScanBatchStatus" data-am-scan-batch-status>
+                        @foreach (var option in Model.StatusOptions ?? new List<SelectListItem>())
+                        {
+                            <option value="@option.Value">@option.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1" for="amScanBatchSearch">Search</label>
+                    <input type="text" class="form-control form-control-sm" id="amScanBatchSearch" data-am-scan-batch-search
+                           placeholder="Tag, name, serial..." autocomplete="off" />
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100" data-am-scan-batch-load>Load assets</button>
+                </div>
+            </div>
+
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchCodeType">Code type</label>
+                    <select class="form-select form-select-sm" id="amScanBatchCodeType" data-am-scan-batch-code-type>
+                        <option value="@LabelPrinterSettingsHelper.CodeTypeQr">QR code</option>
+                        <option value="@LabelPrinterSettingsHelper.CodeTypeBarcode">Barcode</option>
+                    </select>
+                </div>
+                <div class="col-md-9 d-flex flex-wrap gap-2 align-items-center">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-select-all disabled>Select all loaded</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-all disabled>Add all loaded to queue</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-selected disabled>Add selected to queue</button>
+                    <button type="button" class="btn btn-sm btn-success" data-am-scan-batch-run-print disabled>Print queue to Zebra</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-am-scan-batch-clear disabled>Clear queue</button>
+                </div>
+            </div>
+
+            @Html.Partial("~/Views/Assets/_AssetLabelPrinterStatus.cshtml")
+
+            <div class="am-scan-batch-progress d-none mb-3" data-am-scan-batch-progress role="status" aria-live="polite">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 small mb-1">
+                    <span data-am-scan-batch-progress-text>Printing...</span>
+                    <span data-am-scan-batch-progress-count>0 / 0</span>
+                </div>
+                <div class="progress mb-2" style="height:6px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" data-am-scan-batch-progress-bar style="width:0%;"></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2" data-am-scan-batch-print-controls>
+                    <button type="button" class="btn btn-sm btn-outline-warning d-none" data-am-scan-batch-pause>Pause</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary d-none" data-am-scan-batch-resume>Resume</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger d-none" data-am-scan-batch-stop>Stop</button>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <div class="am-scan-batch-candidates" data-am-scan-batch-candidates>
+                        <p class="text-muted small mb-0">Use filters above to load assets, or add items from search results.</p>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="am-scan-batch-queue-panel border rounded p-3 bg-light">
+                        <h6 class="mb-2">Print queue</h6>
+                        <ul class="list-unstyled mb-0 am-scan-batch-queue-list" data-am-scan-batch-queue>
+                            <li class="text-muted small" data-am-scan-batch-queue-empty>No labels queued yet.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

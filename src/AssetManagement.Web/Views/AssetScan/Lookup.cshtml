@@ -94,9 +94,15 @@
     @Html.Partial("_ScanLookupResult", Model)
     @if (Model.SearchResults != null && Model.SearchResults.Assets != null && Model.SearchResults.Assets.Any())
     {
+        ViewBag.CanBatchPrintLabels = Model.CanBatchPrintLabels;
         @Html.Partial("_ScanSearchResults", Model.SearchResults)
     }
 </div>
+
+@if (Model.CanBatchPrintLabels)
+{
+    @Html.Partial("_ScanBatchPrintPanel", Model)
+}
 
 @section scripts
 {
@@ -107,6 +113,11 @@
     </script>
     <script src="@Url.Content("~/Scripts/app/asset-scan.js")"></script>
     <script src="@Url.Content("~/Scripts/app/asset-scan-camera.js")"></script>
+    @if (Model.CanBatchPrintLabels)
+    {
+        <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/asset-scan-batch-print.js")"></script>
+    }
     <script>
         AmAssetScan.init({
             formSelector: "#am-scan-form",
@@ -114,7 +125,9 @@
             resultHostSelector: "#am-scan-result-host",
             statusSelector: "#am-scan-status",
             lookupJsonUrl: "@Model.LookupJsonUrl",
-            hasInitialResult: @(Model.Lookup != null && Model.Lookup.Found ? "true" : "false")
+            hasInitialResult: @(Model.Lookup != null && Model.Lookup.Found ? "true" : "false"),
+            canBatchPrintLabels: @(Model.CanBatchPrintLabels ? "true" : "false"),
+            labelZplUrlTemplate: "@Model.LabelZplUrlTemplate"
         });
 
         AmAssetScanCamera.init({

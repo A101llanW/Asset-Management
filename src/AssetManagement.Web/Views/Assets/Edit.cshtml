@@ -21,6 +21,8 @@
     @Html.HiddenFor(m => m.Id)
     @Html.HiddenFor(m => m.CurrentStatus)
     @Html.HiddenFor(m => m.Currency)
+    @Html.HiddenFor(m => m.PreviousAcquisitionCost)
+    @Html.HiddenFor(m => m.AcquisitionCostApplyScope)
     @Html.ValidationSummary(false, "Please correct the following:", new { @class = "alert alert-danger rounded-3 mb-4 am-form-validation-summary" })
 
     <div class="row g-3">
@@ -36,13 +38,9 @@
             @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
             @Html.TextBoxFor(m => m.SerialNumber, new { @class = "form-control" })
         </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.Brand, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Brand, new { @class = "form-control" })
-        </div>
-        <div class="col-md-3">
-            @Html.LabelFor(m => m.Model, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Model, new { @class = "form-control" })
+        <div class="col-md-6">
+            @Html.LabelFor(m => m.SerialNumber, new { @class = "form-label" })
+            @Html.TextBoxFor(m => m.SerialNumber, new { @class = "form-control" })
         </div>
         <div class="col-md-12">
             @Html.LabelFor(m => m.Description, new { @class = "form-label" })
@@ -94,9 +92,14 @@
     })
 }
 
-@Html.Partial("_AssetSubTypePickerModal")
+@Html.Partial("_AssetClassificationPickerModal")
+
+@{
+    ViewBag.PriceApplyAssetId = Model.Id;
+    ViewBag.PriceApplyAssetSubTypeName = Model.AssetSubTypeName;
+}
+@Html.Partial("_AcquisitionCostApplyModal")
 
 <script src="@Url.Content("~/Scripts/app/asset-monetary-input.js")"></script>
-<script src="@Url.Content("~/Scripts/app/asset-category-type.js")"></script>
+<script src="@Url.Content("~/Scripts/app/asset-classification-picker.js")"></script>
 <script src="@Url.Content("~/Scripts/app/asset-tax-amount.js")"></script>
-<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>

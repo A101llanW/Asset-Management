@@ -17,6 +17,7 @@ SELECT
     p.[RequestNumber],
     p.[DepartmentId],
     d.[Name] AS DepartmentName,
+    d.[DepartmentKind] AS DepartmentKind,
     p.[RequestedById],
     p.[ApprovalStatus],
     p.[CreatedAt],
@@ -76,18 +77,7 @@ ORDER BY pr.[PurchaseDate] DESC, pr.[Id] DESC";
                     {
                         while (reader.Read())
                         {
-                            items.Add(new PurchaseRequestListItemVm
-                            {
-                                Id = Convert.ToInt32(reader["Id"]),
-                                RequestNumber = SqlQueryHelper.GetString(reader, "RequestNumber"),
-                                DepartmentName = SqlQueryHelper.GetString(reader, "DepartmentName"),
-                                RequestedById = SqlQueryHelper.GetString(reader, "RequestedById"),
-                                ApprovalStatus = ((ApprovalStatus)Convert.ToInt32(reader["ApprovalStatus"])).ToString(),
-                                CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
-                                Quantity = Convert.ToInt32(reader["Quantity"]),
-                                Currency = SqlQueryHelper.GetString(reader, "Currency"),
-                                ItemDescription = SqlQueryHelper.GetString(reader, "ItemDescription")
-                            });
+                            items.Add(MapPurchaseRequest(reader));
                         }
                     }
                 }
@@ -590,6 +580,7 @@ SELECT
     p.[RequestNumber],
     p.[DepartmentId],
     d.[Name] AS DepartmentName,
+    d.[DepartmentKind] AS DepartmentKind,
     p.[RequestedById],
     p.[ApprovalStatus],
     p.[CreatedAt],
@@ -1021,11 +1012,22 @@ SELECT
 
         private static PurchaseRequestListItemVm MapPurchaseRequest(IDataRecord reader)
         {
+            DepartmentKind? kind = null;
+            string kindLabel = null;
+            var kindOrdinal = reader.GetOrdinal("DepartmentKind");
+            if (!reader.IsDBNull(kindOrdinal))
+            {
+                kind = (DepartmentKind)Convert.ToInt32(reader.GetValue(kindOrdinal));
+                kindLabel = DepartmentHierarchyRules.DisplayLabel(kind.Value);
+            }
+
             return new PurchaseRequestListItemVm
             {
                 Id = Convert.ToInt32(reader["Id"]),
                 RequestNumber = SqlQueryHelper.GetString(reader, "RequestNumber"),
                 DepartmentName = SqlQueryHelper.GetString(reader, "DepartmentName"),
+                DepartmentKind = kind,
+                DepartmentKindLabel = kindLabel,
                 RequestedById = SqlQueryHelper.GetString(reader, "RequestedById"),
                 ApprovalStatus = ((ApprovalStatus)Convert.ToInt32(reader["ApprovalStatus"])).ToString(),
                 CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),

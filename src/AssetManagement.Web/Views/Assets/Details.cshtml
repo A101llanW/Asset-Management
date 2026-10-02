@@ -1,4 +1,4 @@
-@model AssetManagement.Application.ViewModels.AssetDetailsVm
+﻿@model AssetManagement.Application.ViewModels.AssetDetailsVm
 @using AssetManagement.Application
 @using AssetManagement.Application.Services
 @using AssetManagement.Web.Helpers
@@ -33,6 +33,9 @@
     var departmentDisplay = string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Company custody" : Model.DepartmentName;
     var supplierDisplay = string.IsNullOrWhiteSpace(Model.SupplierName) ? "Not specified" : Model.SupplierName;
     var brandModelDisplay = DisplayText.FormatBrandModel(Model.Brand, Model.Model);
+    var categoryDisplay = string.IsNullOrWhiteSpace(Model.CategoryName) ? DisplayText.Empty : Model.CategoryName;
+    var assetTypeDisplay = string.IsNullOrWhiteSpace(Model.AssetTypeName) ? DisplayText.Empty : Model.AssetTypeName;
+    var assetSubTypeDisplay = string.IsNullOrWhiteSpace(Model.AssetSubTypeName) ? DisplayText.Empty : Model.AssetSubTypeName;
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -55,7 +58,7 @@
 
 @if (openMaintenanceTicket != null)
 {
-    <div class="alert alert-warning border am-fade-in mb-3" role="status">
+    <div class="alert alert-warning border am-fade-in am-border-glow mb-3" role="status">
         Open maintenance ticket <strong>@openMaintenanceTicket.MaintenanceTicketNumber</strong>.
         @if (canEditAsset)
         {
@@ -68,11 +71,11 @@
 
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card card-kpi am-kpi-card h-100 border-0 shadow-sm">
+        <div class="card card-kpi am-kpi-card am-spotlight-card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center justify-content-between p-3">
                 <div>
                     <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.04em;">Current Custodian</div>
-                    <div class="h5 mb-0 fw-bold text-dark mt-1">@(string.IsNullOrWhiteSpace(Model.CurrentCustodianName) ? "Unassigned" : Model.CurrentCustodianName)</div>
+                    <div class="h5 mb-0 fw-bold text-dark mt-1">@DisplayText.FormatCustodian(Model.CurrentCustodianName, Model.CurrentStatus)</div>
                 </div>
                 <div class="text-primary bg-light p-2.5 rounded-circle">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
@@ -81,7 +84,7 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card card-kpi am-kpi-card h-100 border-0 shadow-sm">
+        <div class="card card-kpi am-kpi-card am-spotlight-card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center justify-content-between p-3">
                 <div>
                     <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.04em;">Department</div>
@@ -94,7 +97,7 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card card-kpi am-kpi-card h-100 border-0 shadow-sm">
+        <div class="card card-kpi am-kpi-card am-spotlight-card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center justify-content-between p-3">
                 <div>
                     <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.04em;">Canonical Tag</div>
@@ -181,12 +184,14 @@
     <div class="tab-pane fade show active" id="overview">
         <div class="card card-kpi"><div class="card-body">
             <div class="row g-3">
-                <div class="col-md-4"><strong>Category:</strong> @Model.CategoryName</div>
+                <div class="col-md-4"><strong>Category:</strong> @categoryDisplay</div>
+                <div class="col-md-4"><strong>Type:</strong> @assetTypeDisplay</div>
+                <div class="col-md-4"><strong>Sub-type:</strong> @assetSubTypeDisplay</div>
                 <div class="col-md-4"><strong>Department:</strong> @departmentDisplay</div>
                 <div class="col-md-4"><strong>Supplier:</strong> @supplierDisplay</div>
-                <div class="col-md-4"><strong>Serial:</strong> @Model.SerialNumber</div>
-                <div class="col-md-4"><strong>Brand/Model:</strong> @(string.IsNullOrWhiteSpace(brandModelDisplay) ? DisplayText.Empty : brandModelDisplay)</div>
                 <div class="col-md-4"><strong>Status:</strong> <span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.CurrentStatus) badge-status">@Model.CurrentStatus</span></div>
+                <div class="col-md-4"><strong>Serial:</strong> @(string.IsNullOrWhiteSpace(Model.SerialNumber) ? DisplayText.Empty : Model.SerialNumber)</div>
+                <div class="col-md-4"><strong>Brand/Model:</strong> @(string.IsNullOrWhiteSpace(brandModelDisplay) ? DisplayText.Empty : brandModelDisplay)</div>
             </div>
         </div></div>
     </div>
@@ -334,6 +339,7 @@
     {
         @Html.Partial("_AssetQrLabelModal", labelVm)
     }
+    @Html.Partial("_AssetDocumentUploadModals", Model)
 }
 
 @section scripts {

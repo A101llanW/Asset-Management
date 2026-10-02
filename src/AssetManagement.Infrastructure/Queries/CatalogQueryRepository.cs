@@ -230,11 +230,11 @@ SELECT
     t.[Name],
     t.[Description],
     t.[IsActive],
-    t.[UseCustomUsefulLife],
+    CASE WHEN t.[UsefulLifeMonths] IS NOT NULL THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS UseCustomUsefulLife,
     t.[UsefulLifeMonths],
-    t.[UseCustomDepreciationLife],
+    CASE WHEN t.[DepreciationLifeMonths] IS NOT NULL THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS UseCustomDepreciationLife,
     t.[DepreciationLifeMonths],
-    t.[UseCustomDepreciationRate],
+    CASE WHEN t.[DepreciationRatePercent] IS NOT NULL THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS UseCustomDepreciationRate,
     t.[DepreciationRatePercent]"
                 + fromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
 

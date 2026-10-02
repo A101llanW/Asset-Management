@@ -4,6 +4,7 @@
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
     var categories = ViewBag.Categories as SelectList;
     ViewData["UsefulLifeFormMode"] = "type";
+    ViewData["DepreciationFormMode"] = "type";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -43,9 +44,6 @@
         @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
     </div>
     @Html.Partial("_TaxonomyUsefulLifeFields")
-    @{
-        ViewData["DepreciationFormMode"] = "type";
-    }
     @Html.Partial("_TaxonomyDepreciationFields")
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {

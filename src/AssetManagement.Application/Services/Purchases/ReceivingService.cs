@@ -70,6 +70,7 @@ namespace AssetManagement.Application.Services
                 AssetSubTypeId = context.AssetSubTypeId,
                 AssetSubTypeName = context.AssetSubTypeName,
                 RequiresSubTypeAssignment = context.RequiresSubTypeAssignment,
+                RequiresTypeSelection = !context.AssetTypeId.HasValue || context.AssetTypeId.Value <= 0,
                 RequiresCatalogMatchConfirmation = context.HasPendingCatalogMatch,
                 CatalogMatchAssetId = context.CatalogMatchAssetId,
                 CatalogMatchLabel = context.CatalogMatchLabel,
@@ -166,18 +167,28 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Unable to prepare " + model.QuantityReceived + " unit(s) for receiving.");
             }
-            if (!context.AssetTypeId.HasValue || context.AssetTypeId.Value <= 0)
+            var resolvedSubType = subType;
+            if (resolvedSubType == null && context.AssetSubTypeId.HasValue && context.AssetSubTypeId.Value > 0)
             {
-                throw new BusinessException("Asset type could not be resolved for this receipt. Assign an asset sub-type first.");
+                resolvedSubType = _assetSubTypeService.GetById(context.AssetSubTypeId.Value);
             }
-            var assetType = _unitOfWork.Repository<AssetType>().GetById(context.AssetTypeId.Value);
+            var resolvedAssetTypeId = context.AssetTypeId;
+            if ((!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0) && model.AssetTypeId.HasValue && model.AssetTypeId.Value > 0)
+            {
+                resolvedAssetTypeId = model.AssetTypeId;
+            }
+            if ((!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0) && resolvedSubType != null)
+            {
+                resolvedAssetTypeId = resolvedSubType.AssetTypeId;
+            }
+            if (!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0)
+            {
+                throw new BusinessException("Select an asset type (and optional sub-type) before receiving. This purchase has no linked requisition/catalog classification context.");
+            }
+            var assetType = _unitOfWork.Repository<AssetType>().GetById(resolvedAssetTypeId.Value);
             if (assetType == null)
             {
                 throw new BusinessException("Asset type was not found.");
-            }
-            if (string.IsNullOrWhiteSpace(context.Brand) || string.IsNullOrWhiteSpace(context.Model))
-            {
-                throw new BusinessException("Brand and model are required to create assets at receipt.");
             }
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
@@ -204,9 +215,9 @@ namespace AssetManagement.Application.Services
                         AssetTag = null,
                         CategoryId = assetType.AssetCategoryId,
                         AssetTypeId = assetType.Id,
-                        AssetSubTypeId = subType?.Id ?? context.AssetSubTypeId,
-                        Brand = context.Brand.Trim(),
-                        Model = context.Model.Trim(),
+                        AssetSubTypeId = resolvedSubType != null ? resolvedSubType.Id : (int?)null,
+                        Brand = resolvedSubType != null ? resolvedSubType.Brand : context.Brand,
+                        Model = resolvedSubType != null ? resolvedSubType.Model : context.Model,
                         SerialNumber = unit.SerialNumber,
                         Description = itemDescription,
                         PurchaseDate = model.ReceivedDate,
@@ -215,7 +226,8 @@ namespace AssetManagement.Application.Services
                         SupplierId = purchase.SupplierId > 0 ? purchase.SupplierId : (int?)null,
                         DepartmentId = receiveDepartmentId,
                         ConditionOnReceipt = model.ConditionOnReceipt,
-                        CurrentStatus = AssetStatus.InStore
+                        CurrentStatus = AssetStatus.InStore,
+                        AllowDeferredSubTypeClassification = resolvedSubType == null
                     };
                     var assetId = _assetService.Create(createModel);
                     var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
@@ -323,10 +335,7 @@ namespace AssetManagement.Application.Services
                     return inferred;
                 }
             }
-            if (context.RequiresSubTypeAssignment)
-            {
-                throw new BusinessException("Assign an asset sub-type before recording this receipt.");
-            }
+            // Classification Assign during receive removed — allow blank subtype; classify after create when type context exists.
             return null;
         }
         private static void ApplyReceivePlacementChoice(AssetReceiveVm model)

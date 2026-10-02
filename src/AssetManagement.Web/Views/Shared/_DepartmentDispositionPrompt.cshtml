@@ -1,0 +1,43 @@
+﻿@* Shown when assigning/transferring to a person whose department differs from the asset's. *@
+@{
+    var require = ViewBag.RequireDepartmentDisposition == true;
+    var assetDeptName = ViewBag.AssetDepartmentName as string ?? "current department";
+    var selectedDeptName = ViewBag.SelectedDepartmentName as string ?? "selected department";
+    var chosen = ViewBag.DepartmentDispositionValue as string ?? "";
+}
+@if (require)
+{
+    <div class="alert alert-warning" id="am-dept-disposition-prompt" role="alert">
+        <strong>Department choice required.</strong>
+        The selected person is in <em>@selectedDeptName</em>, but this asset is currently in <em>@assetDeptName</em>.
+        <div class="mt-2">
+            <div class="form-check">
+                @if (chosen == "Move")
+                {
+                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move" checked="checked" />
+                }
+                else
+                {
+                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move" />
+                }
+                <label class="form-check-label" for="deptDispositionMove">
+                    <strong>Move</strong> the asset to <em>@selectedDeptName</em> (selected / teacher's department).
+                </label>
+            </div>
+            <div class="form-check">
+                @if (chosen == "Keep")
+                {
+                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionKeep" value="Keep" checked="checked" />
+                }
+                else
+                {
+                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionKeep" value="Keep" />
+                }
+                <label class="form-check-label" for="deptDispositionKeep">
+                    <strong>Keep</strong> the asset in <em>@assetDeptName</em> but change ownership to the selected person.
+                </label>
+            </div>
+        </div>
+        <div class="form-text text-danger mt-1">Choose Move or Keep, then submit again.</div>
+    </div>
+}

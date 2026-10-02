@@ -30,6 +30,20 @@ namespace AssetManagement.Tests.Security
         {
             Assert.AreEqual(!DeploymentSecuritySettings.MfaAllowAnyCode, DeploymentSecuritySettings.RequiresSmtpForAuthEmails);
         }
+
+        [Test]
+        public void ShowDemoBanner_DefaultsWithMfaAllowAnyCode_WhenUnset()
+        {
+            // AppSettings unset in unit-test host => both fall back to false.
+            Assert.AreEqual(DeploymentSecuritySettings.MfaAllowAnyCode, DeploymentSecuritySettings.ShowDemoSecurityBanner);
+            Assert.AreEqual(DeploymentSecuritySettings.ShowDemoSecurityBanner, DeploymentSecuritySettings.ShowDemoBanner);
+        }
+
+        [Test]
+        public void IsSecurityRelaxed_False_WhenDefaultsUnset()
+        {
+            Assert.IsFalse(DeploymentSecuritySettings.IsSecurityRelaxed);
+        }
     }
 
     [TestFixture]

@@ -1,10 +1,11 @@
-@model AssetManagement.Application.ViewModels.AssetReceiveVm
+﻿@model AssetManagement.Application.ViewModels.AssetReceiveVm
 @using AssetManagement.Domain.Enums
 @{
     ViewBag.Title = "Receive Asset";
     var detail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.PurchaseRecordId });
     var requiresSubType = detail != null && detail.RequiresSubTypeAssignment;
+    var requiresTypeSelection = detail != null && detail.RequiresTypeSelection;
     var requiresCatalogConfirm = detail != null && detail.RequiresCatalogMatchConfirmation;
     var requisitionDepartmentName = detail != null ? detail.RequisitionDepartmentName : null;
     var hasRequisitionDepartment = detail != null && detail.RequisitionDepartmentId.HasValue && detail.RequisitionDepartmentId.Value > 0;
@@ -39,64 +40,93 @@
         {
             @Html.AntiForgeryToken()
             @Html.HiddenFor(m => m.PurchaseRecordId)
-            @Html.HiddenFor(m => m.AssetSubTypeId)
+            @* When type context is resolved, keep subtype as hidden; when unresolved, the selector binds AssetTypeId/AssetSubTypeId. *@
+            if (!requiresTypeSelection)
+            {
+                @Html.HiddenFor(m => m.AssetSubTypeId)
+            }
             @Html.HiddenFor(m => m.CatalogMatchConfirmed)
             <input type="hidden" id="ReceiveAssetTypeId" value="@(detail != null && detail.ContextAssetTypeId.HasValue ? detail.ContextAssetTypeId.Value.ToString() : "")" />
             <input type="hidden" id="ReceiveBrand" value="@(detail != null ? detail.ContextBrand : "")" />
             <input type="hidden" id="ReceiveModel" value="@(detail != null ? detail.ContextModel : "")" />
             <div class="row g-3">
-                <div class="col-md-12">
-                    <label class="form-label">Asset sub-type</label>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <div id="receive-subtype-display" class="form-control-plaintext @(string.IsNullOrWhiteSpace(detail != null ? detail.AssetSubTypeName : null) ? "text-muted" : "fw-medium")">
-                            @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
-                            {
-                                @detail.AssetSubTypeName
-                            }
-                            else if (requiresSubType)
-                            {
-                                <text>Not assigned — required before receiving</text>
-                            }
-                            else
-                            {
-                                <text>Not assigned</text>
-                            }
-                        </div>
-                        @if (requiresSubType)
-                        {
-                            <button type="button" class="btn btn-sm btn-outline-primary" id="receive-subtype-change">Assign</button>
-                        }
-                    </div>
-                </div>
-                @if (hasRequisitionDepartment)
+                @{
+                    var assetTypeOptions = ViewBag.AssetTypeOptions as System.Collections.Generic.IEnumerable<AssetManagement.Web.ViewModels.AssetTypeLookupVm>
+                        ?? System.Linq.Enumerable.Empty<AssetManagement.Web.ViewModels.AssetTypeLookupVm>();
+                }
+                @if (requiresTypeSelection)
                 {
-                    <div class="col-md-12">
-                        <div class="card border bg-light">
-                            <div class="card-body py-3">
-                                <p class="mb-2"><strong>Placement (required):</strong> choose where received goods should be recorded.</p>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="ReceivePlacementChoice" id="placement-requisition" value="RequisitionDepartment" @(Model.ReceivePlacementChoice == "RequisitionDepartment" ? "checked" : null) />
-                                    <label class="form-check-label" for="placement-requisition">
-                                        Assign to <strong>@requisitionDepartmentName</strong>
-                                    </label>
-                                </div>
-                                <div class="form-check mt-2">
-                                    <input class="form-check-input" type="radio" name="ReceivePlacementChoice" id="placement-company" value="CompanyCustody" @(Model.ReceivePlacementChoice == "CompanyCustody" ? "checked" : null) />
-                                    <label class="form-check-label" for="placement-company">
-                                        Keep in <strong>company custody</strong> for later assignment
-                                    </label>
-                                </div>
-                                @Html.ValidationMessage("ReceivePlacementChoice", "", new { @class = "text-danger small" })
+                    <div class="col-md-12" id="receive-type-selector">
+                        <div class="alert alert-warning py-2">
+                            This purchase has no linked requisition/catalog type. Select classification before receive â€” create-without-type is not allowed here.
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="AssetTypeId">Asset type</label>
+                                <select class="form-select" id="AssetTypeId" name="AssetTypeId">
+                                    <option value="">-- Select asset type --</option>
+                                    @foreach (var grp in assetTypeOptions.GroupBy(t => t.AssetCategoryId))
+                                    {
+                                        <optgroup label="Category #@grp.Key">
+                                        @foreach (var t in grp.OrderBy(x => x.Name))
+                                        {
+                                            if (Model.AssetTypeId == t.Id)
+                                            {
+                                                <option value="@t.Id" selected="selected">@t.Name</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@t.Id">@t.Name</option>
+                                            }
+                                        }
+                                        </optgroup>
+                                    }
+                                </select>
+                                @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger" })
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="AssetSubTypeId">Asset sub-type (optional)</label>
+                                @Html.TextBoxFor(m => m.AssetSubTypeId, new { @class = "form-control", placeholder = "Sub-type id (optional)" })
+                                <div class="form-text">Optional. You can refine sub-type on the asset after create once type is set.</div>
                             </div>
                         </div>
                     </div>
                 }
                 else
                 {
+                    @Html.HiddenFor(m => m.AssetTypeId)
                     <div class="col-md-12">
-                        <div class="form-text">Received items are recorded under <strong>company custody</strong> (no department, no custodian) until explicitly assigned.</div>
+                        <label class="form-label">Asset sub-type</label>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <div id="receive-subtype-display" class="form-control-plaintext @(string.IsNullOrWhiteSpace(detail != null ? detail.AssetSubTypeName : null) ? "text-muted" : "fw-medium")">
+                                @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
+                                {
+                                    @detail.AssetSubTypeName
+                                }
+                                else if (requiresSubType)
+                                {
+                                    <text>Not assigned â€” classify after create on the asset</text>
+                                }
+                                else
+                                {
+                                    <text>Not assigned</text>
+                                }
+                            </div>
+                        </div>
                     </div>
                 }
+                @* Custody Assign is post-receive only (Purchases Details "Assign these units"). Receive always keeps units In Store / company custody. *@
+                <input type="hidden" name="ReceivePlacementChoice" value="CompanyCustody" />
+                <div class="col-md-12">
+                    <div class="form-text">
+                        Received items are recorded under <strong>company custody</strong> (In Store, no custodian).
+                        After create, you can optionally assign from Purchase Details, or keep them in store.
+                        @if (hasRequisitionDepartment)
+                        {
+                            <span>Intended requisition destination: <strong>@requisitionDepartmentName</strong> (assign later if needed).</span>
+                        }
+                    </div>
+                </div>
                 <div class="col-md-3">
                     <label class="form-label">Received Date</label>
                     @Html.TextBoxFor(m => m.ReceivedDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
@@ -124,9 +154,9 @@
                         {
                             <span>Name: <strong>@detail.SuggestedAssetName</strong>.</span>
                         }
-                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.ContextBrand))
+                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
                         {
-                            <span>@detail.ContextBrand @detail.ContextModel</span>
+                            <span>Sub-type: <strong>@detail.AssetSubTypeName</strong>.</span>
                         }
                     </p>
                     <button type="button" class="btn btn-outline-primary" id="receive-open-serial-wizard">Enter serial numbers (optional)</button>
@@ -146,7 +176,6 @@
         }
     </div>
 </div>
-@Html.Partial("_AssetSubTypePickerModal")
 @Html.Partial("_ReceiveSerialWizardModal")
 @if (requiresCatalogConfirm)
 {
@@ -172,13 +201,12 @@
                     <p class="mt-3 mb-0">Do you want to use this match?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="catalog-match-decline">No, choose manually</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="catalog-match-decline">No, classify after create</button>
                     <button type="button" class="btn btn-primary" id="catalog-match-confirm">Yes, use this match</button>
                 </div>
             </div>
         </div>
     </div>
 }
-<script src="@Url.Content("~/Scripts/app/asset-subtype-picker.js")"></script>
 <script src="@Url.Content("~/Scripts/app/receive-catalog-match.js")"></script>
 <script src="@Url.Content("~/Scripts/app/receive-serial-wizard.js")"></script>

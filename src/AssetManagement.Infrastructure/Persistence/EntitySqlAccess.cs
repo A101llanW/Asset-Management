@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Data.SqlTypes;
 using System.Linq;
 using System.Reflection;
 using AssetManagement.Application.DTOs;
@@ -410,12 +411,39 @@ WHERE pr.[Id] = @PurchaseRecordId";
             {
                 parameter.Value = (int)value;
             }
+            else if (value is DateTime)
+            {
+                // Guard SqlDateTime overflow when dirty entities carry DateTime.MinValue/default.
+                parameter.Value = ClampSqlDateTime((DateTime)value);
+            }
+            else if (value is DateTime?)
+            {
+                var nullable = (DateTime?)value;
+                parameter.Value = nullable.HasValue ? (object)ClampSqlDateTime(nullable.Value) : DBNull.Value;
+            }
             else
             {
                 parameter.Value = value;
             }
 
             command.Parameters.Add(parameter);
+        }
+
+        private static DateTime ClampSqlDateTime(DateTime value)
+        {
+            var min = (DateTime)SqlDateTime.MinValue;
+            var max = (DateTime)SqlDateTime.MaxValue;
+            if (value < min)
+            {
+                return min;
+            }
+
+            if (value > max)
+            {
+                return max;
+            }
+
+            return value;
         }
     }
 }

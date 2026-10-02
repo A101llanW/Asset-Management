@@ -8,6 +8,50 @@ namespace AssetManagement.Application.Helpers
 {
     public static class DepartmentHierarchyRules
     {
+        public static bool IsAcademic(DepartmentKind kind)
+        {
+            return kind == DepartmentKind.Grade || kind == DepartmentKind.Class;
+        }
+
+        public static bool IsOrganizational(DepartmentKind kind)
+        {
+            return kind == DepartmentKind.Administrative
+                || kind == DepartmentKind.SubDepartment
+                || kind == DepartmentKind.Room;
+        }
+
+        public static bool CanConfigureRequisitionFlow(DepartmentKind kind)
+        {
+            return kind == DepartmentKind.Administrative
+                || kind == DepartmentKind.SubDepartment
+                || kind == DepartmentKind.Room
+                || kind == DepartmentKind.Class;
+        }
+
+        public static bool ShowsRequisitionFlowColumns(DepartmentKind kind)
+        {
+            return CanConfigureRequisitionFlow(kind);
+        }
+
+        public static string DisplayLabel(DepartmentKind kind)
+        {
+            switch (kind)
+            {
+                case DepartmentKind.SubDepartment:
+                    return "Sub-unit";
+                case DepartmentKind.Administrative:
+                    return "Admin";
+                case DepartmentKind.Grade:
+                    return "Grade";
+                case DepartmentKind.Class:
+                    return "Stream";
+                case DepartmentKind.Room:
+                    return "Room";
+                default:
+                    return kind.ToString();
+            }
+        }
+
         public static bool IsTopLevelAdministrative(Department department)
         {
             return department != null
@@ -88,7 +132,10 @@ namespace AssetManagement.Application.Helpers
             int? parentDepartmentId,
             IEnumerable<Department> allDepartments)
         {
-            var byId = (allDepartments ?? Enumerable.Empty<Department>()).ToDictionary(x => x.Id);
+            // Duplicate-safe: GetById + EnsureLoaded previously could yield the same Id twice.
+            var byId = (allDepartments ?? Enumerable.Empty<Department>())
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First());
             if (parentDepartmentId.HasValue && parentDepartmentId.Value == departmentId)
             {
                 throw new BusinessException("A department cannot be its own parent.");

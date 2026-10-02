@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -37,25 +38,16 @@ namespace AssetManagement.Application.Services
             IUnitOfWork unitOfWork,
             Department department)
         {
-            var systemConfig = GetProcessConfiguration(unitOfWork, ApprovalProcessCodes.Purchase);
-            if (department == null || !department.UseCustomRequisitionApproval)
+            var orgDefault = GetProcessConfiguration(unitOfWork, ApprovalProcessCodes.Purchase);
+            if (department == null)
             {
-                return systemConfig;
+                return orgDefault;
             }
 
-            var configuredStages = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(department.RequisitionApprovalStageRoleIds);
-            var configuredUsers = ApprovalWorkflowSettingsHelper.ParseStageUserIds(department.RequisitionApprovalStageUserIds);
-            var stageRoleIds = configuredStages.Count > 0 ? configuredStages : systemConfig.StageRoleIds;
-            var stageUserIds = configuredStages.Count > 0 ? configuredUsers : systemConfig.StageUserIds;
-
-            return new ApprovalProcessConfiguration
-            {
-                ProcessCode = ApprovalProcessCodes.Purchase,
-                DisplayName = ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
-                RequiresApproval = true,
-                StageRoleIds = stageRoleIds,
-                StageUserIds = stageUserIds ?? new List<string>()
-            };
+            return DepartmentRequisitionFlowResolver.Resolve(
+                department,
+                id => unitOfWork.Repository<Department>().GetById(id),
+                orgDefault);
         }
 
         public static ApprovalProcessConfiguration GetAssetProcessConfiguration(IUnitOfWork unitOfWork, Asset asset, string processCode)

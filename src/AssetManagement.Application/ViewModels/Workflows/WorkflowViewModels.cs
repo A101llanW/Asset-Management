@@ -19,6 +19,23 @@ namespace AssetManagement.Application.ViewModels
 
         public string ToDepartmentName { get; set; }
 
+        /// <summary>
+        /// Move = update asset department to selected/teacher department;
+        /// Keep = leave asset in its current department (ownership only).
+        /// Required when assigning a person whose department differs from the asset's.
+        /// </summary>
+        [Display(Name = "Department disposition")]
+        [StringLength(10)]
+        public string DepartmentDisposition { get; set; }
+
+        /// <summary>
+        /// When assigning into a Class/Room with optional PIC set and no To user chosen:
+        /// Pic = assign under ClassTeacher/RoomCustodian; Pool = leave department pool.
+        /// </summary>
+        [Display(Name = "PIC placement")]
+        [StringLength(10)]
+        public string PicPlacementChoice { get; set; }
+
         [Display(Name = "Assignment Type")]
         [StringLength(40)]
         public string AssignmentType { get; set; }
@@ -42,11 +59,9 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(1000)]
         public string HandoverNotes { get; set; }
 
-        [Display(Name = "Handed Over By")]
         [StringLength(128)]
         public string HandedOverById { get; set; }
 
-        [Display(Name = "Received By")]
         [StringLength(128)]
         public string ReceivedById { get; set; }
     }
@@ -71,6 +86,15 @@ namespace AssetManagement.Application.ViewModels
         public int? ToDepartmentId { get; set; }
 
         public string ToDepartmentName { get; set; }
+
+        /// <summary>
+        /// Move = update asset department to selected/teacher department;
+        /// Keep = leave asset in its current department (ownership only).
+        /// Required when transferring to a person whose department differs from the asset's.
+        /// </summary>
+        [Display(Name = "Department disposition")]
+        [StringLength(10)]
+        public string DepartmentDisposition { get; set; }
 
         [StringLength(1000)]
         public string Reason { get; set; }

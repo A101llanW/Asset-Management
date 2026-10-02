@@ -67,6 +67,28 @@
         }
     }
 
+    function applyDefaultAcquisitionCost(cost) {
+        var costInput = byId("AcquisitionCost");
+        if (!costInput || cost == null || cost === "") {
+            return;
+        }
+
+        var parsed = parseFloat(String(cost).replace(/,/g, ""));
+        if (isNaN(parsed) || parsed <= 0) {
+            return;
+        }
+
+        var current = parseFloat(String(costInput.value).replace(/,/g, "")) || 0;
+        if (current > 0.01) {
+            return;
+        }
+
+        costInput.value = parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (typeof costInput.dispatchEvent === "function") {
+            costInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    }
+
     function isReceiveMode() {
         return !!byId("receive-form");
     }
@@ -217,7 +239,7 @@
                 var html = "<option value=\"\">-- Select sub-type --</option>";
                 for (var i = 0; i < items.length; i++) {
                     var item = items[i];
-                    html += "<option value=\"" + item.id + "\" data-brand=\"" + (item.brand || "") + "\" data-model=\"" + (item.model || "") + "\" data-stock=\"" + (item.stockCount || 0) + "\">" + item.name + "</option>";
+                    html += "<option value=\"" + item.id + "\" data-brand=\"" + (item.brand || "") + "\" data-model=\"" + (item.model || "") + "\" data-stock=\"" + (item.stockCount || 0) + "\" data-default-cost=\"" + (item.defaultAcquisitionCost || "") + "\">" + item.name + "</option>";
                 }
 
                 select.innerHTML = html;
@@ -253,6 +275,7 @@
 
                 setHiddenSubTypeId(result.id);
                 setSubTypeDisplay(result.name);
+                applyDefaultAcquisitionCost(result.defaultAcquisitionCost);
             });
     }
 
@@ -363,9 +386,9 @@
             error.textContent = "";
         }
 
-        if (!name.trim() && !brand.trim() && !model.trim()) {
+        if (!name.trim()) {
             if (error) {
-                error.textContent = "Enter a display name, or brand and model, for the new sub-type.";
+                error.textContent = "Enter a display name for the new sub-type.";
                 error.style.display = "block";
             }
             return;
@@ -450,6 +473,8 @@
             if (modelInput) {
                 modelInput.value = option.getAttribute("data-model") || "";
             }
+
+            applyDefaultAcquisitionCost(option.getAttribute("data-default-cost"));
         });
         hideModal(modal);
     }

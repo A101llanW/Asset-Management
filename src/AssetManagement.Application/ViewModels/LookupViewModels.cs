@@ -27,9 +27,30 @@ namespace AssetManagement.Application.ViewModels
 
         public bool IsRequisitionTarget { get; set; }
 
+        public RequisitionFlowMode RequisitionFlowMode { get; set; }
+
+        /// <summary>Custom on X / Inherited from Y / Organization Approval Matrix</summary>
+        public string EffectiveRequisitionFlowSource { get; set; }
+
+        public string EffectiveRequisitionFlowSummary { get; set; }
+
         public bool IsActive { get; set; }
 
         public bool UseCustomRequisitionApproval { get; set; }
+
+        /// <summary>Optional Class teacher (user id). Clearable; never required.</summary>
+        [StringLength(128)]
+        [Display(Name = "Class teacher")]
+        public string ClassTeacherUserId { get; set; }
+
+        public string ClassTeacherName { get; set; }
+
+        /// <summary>Optional Room custodian (user id). Clearable; never required.</summary>
+        [StringLength(128)]
+        [Display(Name = "Room custodian")]
+        public string RoomCustodianUserId { get; set; }
+
+        public string RoomCustodianName { get; set; }
 
         public IList<ApprovalProcessSettingsVm> RequisitionApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
 
@@ -67,6 +88,14 @@ namespace AssetManagement.Application.ViewModels
         public int BulkGradeTo { get; set; } = 6;
 
         public string BulkStreams { get; set; } = "A,B,C,D";
+
+        /// <summary>Optional Room custodian when creating a Room. Never required.</summary>
+        [StringLength(128)]
+        public string RoomCustodianUserId { get; set; }
+
+        /// <summary>Optional Class teacher when creating a Class (future single-class create). Never required.</summary>
+        [StringLength(128)]
+        public string ClassTeacherUserId { get; set; }
     }
 
     public class DepartmentTreeSectionVm

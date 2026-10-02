@@ -1,5 +1,6 @@
 @model AssetManagement.Application.ViewModels.PurchaseRecordVm
 @using System
+@using System.Linq
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Purchase Details";
@@ -19,30 +20,52 @@
     }
 })
 
-@if (TempData["CreatedAssetIds"] != null)
+@{
+    var tempCreatedIds = (TempData["CreatedAssetIds"] as string ?? "")
+        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+        .Select(x => x.Trim())
+        .Where(x => x.Length > 0)
+        .ToList();
+    var persistentIds = (ViewBag.AssignableAssetIds as System.Collections.Generic.IList<int>)
+        ?? new System.Collections.Generic.List<int>();
+    var assignIds = tempCreatedIds.Count > 0
+        ? tempCreatedIds
+        : persistentIds.Select(x => x.ToString()).ToList();
+    var showFreshReceiveBanner = tempCreatedIds.Count > 0;
+}
+@if (assignIds.Count > 0)
 {
-    var createdIds = (TempData["CreatedAssetIds"] as string ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-    if (createdIds.Length > 0)
-    {
-        <div class="alert alert-success mt-3" role="alert">
-            <div class="fw-semibold mb-2">New assets ready for labeling</div>
+    <div class="alert @(showFreshReceiveBanner ? "alert-success" : "alert-info") mt-3" role="alert">
+        <div class="fw-semibold mb-2">@(showFreshReceiveBanner ? "New assets ready for labeling" : "Received units ready to assign")</div>
+        @if (showFreshReceiveBanner)
+        {
             <p class="mb-2 small">QR codes on printed labels link to each asset&rsquo;s registry record (tag and serial).</p>
-            <ul class="mb-0">
-                @foreach (var idText in createdIds)
+        }
+        else
+        {
+            <p class="mb-2 small">In-store unassigned assets from this purchase can be assigned now (same grid as Assets Index).</p>
+        }
+        @if (Html.HasPermission("Assets.Assign"))
+        {
+            <div class="mb-3">
+                <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { assetIds = string.Join(",", assignIds), returnUrl = Request.RawUrl })">Assign these units</a>
+            </div>
+        }
+        <ul class="mb-0">
+            @foreach (var idText in assignIds)
+            {
+                int assetId;
+                if (int.TryParse(idText.Trim(), out assetId))
                 {
-                    int assetId;
-                    if (int.TryParse(idText.Trim(), out assetId))
-                    {
-                        <li>
-                            <a href="@Url.Action("Details", "Assets", new { id = assetId })">View asset</a>
-                            &middot;
-                            <a href="@Url.Action("PrintLabel", "Assets", new { id = assetId })" target="_blank" rel="noopener">Print label</a>
-                        </li>
-                    }
+                    <li>
+                        <a href="@Url.Action("Details", "Assets", new { id = assetId })">View asset</a>
+                        &middot;
+                        <a href="@Url.Action("PrintLabel", "Assets", new { id = assetId })" target="_blank" rel="noopener">Print label</a>
+                    </li>
                 }
-            </ul>
-        </div>
-    }
+            }
+        </ul>
+    </div>
 }
 
 <div class="card card-kpi">

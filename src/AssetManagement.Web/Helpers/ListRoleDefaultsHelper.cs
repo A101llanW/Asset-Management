@@ -20,7 +20,8 @@ namespace AssetManagement.Web.Helpers
                 || filter.Status.HasValue
                 || filter.CategoryId.HasValue
                 || !string.IsNullOrWhiteSpace(filter.Search)
-                || !string.IsNullOrWhiteSpace(filter.CustodianUserId);
+                || !string.IsNullOrWhiteSpace(filter.CustodianUserId)
+                || filter.UnassignedOnly;
 
             if (hasExplicitFilter || user == null)
             {

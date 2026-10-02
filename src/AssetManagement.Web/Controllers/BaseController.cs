@@ -4,6 +4,7 @@ using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Services;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Infrastructure.Repositories;
 using AssetManagement.Infrastructure.Services;
@@ -872,6 +873,99 @@ namespace AssetManagement.Web.Controllers
                     model.PendingDisposal.RequestedByName = BuildUserLabel(requester);
                 }
             }
+        }
+        protected IList<DepartmentSelectGroupVm> BuildGroupedDepartmentSelectGroups(
+            int? selectedDepartmentId = null,
+            bool activeOnly = true)
+        {
+            var departments = BuildDepartmentService().GetAll();
+            if (activeOnly)
+            {
+                departments = departments.Where(x => x.IsActive);
+            }
+
+            var list = departments
+                .OrderBy(x => x.DepartmentKind)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            var orgGroup = new DepartmentSelectGroupVm { Label = "Organizational" };
+            var classGroup = new DepartmentSelectGroupVm { Label = "Streams" };
+
+            foreach (var dept in list)
+            {
+                var option = new DepartmentSelectOptionVm
+                {
+                    Value = dept.Id.ToString(),
+                    Text = string.IsNullOrWhiteSpace(dept.Code)
+                        ? dept.Name
+                        : dept.Code + " — " + dept.Name,
+                    Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
+                };
+
+                if (DepartmentHierarchyRules.IsAcademic(dept.DepartmentKind))
+                {
+                    if (dept.DepartmentKind == DepartmentKind.Grade)
+                    {
+                        continue;
+                    }
+
+                    classGroup.Items.Add(option);
+                }
+                else if (DepartmentHierarchyRules.IsOrganizational(dept.DepartmentKind))
+                {
+                    orgGroup.Items.Add(option);
+                }
+            }
+
+            var groups = new List<DepartmentSelectGroupVm>();
+            if (orgGroup.Items.Any())
+            {
+                groups.Add(orgGroup);
+            }
+
+            if (classGroup.Items.Any())
+            {
+                groups.Add(classGroup);
+            }
+
+            return groups;
+        }
+
+        protected IList<AssetManagement.Web.ViewModels.AssetTypeLookupVm> BuildAssetTypeLookupList(bool activeOnly = true)
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (orgId.HasValue)
+            {
+                return BuildReferenceDataCache()
+                    .GetAssetTypes(orgId.Value, activeOnly)
+                    .OrderBy(x => x.Name)
+                    .Select(x => new AssetManagement.Web.ViewModels.AssetTypeLookupVm
+                    {
+                        Id = x.Id,
+                        Name = x.Name,
+                        AssetCategoryId = x.AssetCategoryId,
+                        IsActive = x.IsActive
+                    })
+                    .ToList();
+            }
+
+            var types = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetType>().GetAll();
+            if (activeOnly)
+            {
+                types = types.Where(x => x.IsActive);
+            }
+
+            return types
+                .OrderBy(x => x.Name)
+                .Select(x => new AssetManagement.Web.ViewModels.AssetTypeLookupVm
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    AssetCategoryId = x.AssetCategoryId,
+                    IsActive = x.IsActive
+                })
+                .ToList();
         }
     }
 }
