@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
@@ -7,15 +8,19 @@ using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
+using AssetManagement.Web.Security;
 namespace AssetManagement.Web.Controllers
 {
     [PermissionAuthorize("Assets.Edit")]
     public class AssetSubTypesController : BaseController
     {
         private readonly IAssetSubTypeService _assetSubTypeService;
+        private readonly IAssetService _assetService;
+
         public AssetSubTypesController()
         {
             _assetSubTypeService = BuildAssetSubTypeService();
+            _assetService = BuildAssetService();
         }
         public ActionResult Index(int? assetTypeId = null, string search = null, bool? activeOnly = true)
         {
@@ -30,45 +35,42 @@ namespace AssetManagement.Web.Controllers
                 query = query.Where(x => x.IsActive);
             }
 
+            var loaded = query.OrderBy(x => x.Name).ToList();
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var term = search.Trim();
-                query = query.Where(x =>
+                loaded = loaded.Where(x =>
                     (x.Name != null && x.Name.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     || (x.Brand != null && x.Brand.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     || (x.Model != null && x.Model.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    || (x.Sku != null && x.Sku.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0));
+                    || (x.Sku != null && x.Sku.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
             }
 
             var types = UnitOfWork.Repository<AssetType>().GetAll().ToDictionary(x => x.Id, x => x);
             var categories = UnitOfWork.Repository<AssetCategory>().GetAll().ToDictionary(x => x.Id, x => x.Name);
-            var items = query
-                .OrderBy(x => x.Name)
-                .ToList()
-                .Select(x =>
+            var items = loaded.Select(x =>
+            {
+                AssetType assetType;
+                types.TryGetValue(x.AssetTypeId, out assetType);
+                string categoryName = null;
+                if (assetType != null)
                 {
-                    AssetType assetType;
-                    types.TryGetValue(x.AssetTypeId, out assetType);
-                    string categoryName = null;
-                    if (assetType != null)
-                    {
-                        categories.TryGetValue(assetType.AssetCategoryId, out categoryName);
-                    }
+                    categories.TryGetValue(assetType.AssetCategoryId, out categoryName);
+                }
 
-                    return new AssetSubTypeIndexItemVm
-                    {
-                        Id = x.Id,
-                        Name = x.Name,
-                        Brand = x.Brand,
-                        Model = x.Model,
-                        Sku = x.Sku,
-                        AssetTypeId = x.AssetTypeId,
-                        AssetTypeName = assetType != null ? assetType.Name : null,
-                        AssetCategoryName = categoryName,
-                        IsActive = x.IsActive
-                    };
-                })
-                .ToList();
+                return new AssetSubTypeIndexItemVm
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    Brand = x.Brand,
+                    Model = x.Model,
+                    Sku = x.Sku,
+                    AssetTypeId = x.AssetTypeId,
+                    AssetTypeName = assetType != null ? assetType.Name : null,
+                    AssetCategoryName = categoryName,
+                    IsActive = x.IsActive
+                };
+            }).ToList();
 
             ViewBag.AssetTypeId = assetTypeId;
             ViewBag.Search = search;
@@ -78,7 +80,6 @@ namespace AssetManagement.Web.Controllers
                 "Id", "Name", assetTypeId);
             return View(items);
         }
-
 
         public ActionResult Create(int? assetTypeId = null, string returnUrl = null)
         {
@@ -96,6 +97,7 @@ namespace AssetManagement.Web.Controllers
             {
                 return HttpNotFound();
             }
+
             var model = new AssetSubTypeEditVm
             {
                 AssetTypeId = assetTypeId.Value,
@@ -103,6 +105,7 @@ namespace AssetManagement.Web.Controllers
             };
             PopulateAssetTypeContext(assetType);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = assetTypeId.Value });
+            ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             return View(model);
         }
         [HttpPost]
@@ -125,6 +128,7 @@ namespace AssetManagement.Web.Controllers
             }
             PopulateAssetTypeContext(assetType);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = model.AssetTypeId });
+            ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -152,6 +156,8 @@ namespace AssetManagement.Web.Controllers
             PopulateAssetTypeContext(assetType);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = subType.AssetTypeId });
             ViewBag.StockCount = subType.StockCount;
+            ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
+            ViewBag.SubTypeAssetCount = _assetSubTypeService.CountAssets(id);
             return View(MapEditVm(subType));
         }
         [HttpPost]
@@ -165,6 +171,8 @@ namespace AssetManagement.Web.Controllers
             }
             PopulateAssetTypeContext(assetType);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = model.AssetTypeId });
+            ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
+            ViewBag.SubTypeAssetCount = _assetSubTypeService.CountAssets(model.Id);
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -172,7 +180,13 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 _assetSubTypeService.Update(model);
+                var guidance = ApplySubTypeDefaultCostToAssets(model);
                 TempData["Message"] = "Asset sub-type updated.";
+                if (!string.IsNullOrWhiteSpace(guidance))
+                {
+                    TempData["Guidance"] = guidance;
+                }
+
                 return RedirectToReturnUrl(returnUrl, "Details", "AssetTypes", new { id = model.AssetTypeId });
             }
             catch (BusinessException ex)
@@ -191,7 +205,8 @@ namespace AssetManagement.Web.Controllers
                     name = x.Name,
                     brand = x.Brand,
                     model = x.Model,
-                    stockCount = x.StockCount
+                    stockCount = x.StockCount,
+                    defaultAcquisitionCost = x.DefaultAcquisitionCost
                 })
                 .ToList();
             return Json(items, JsonRequestBehavior.AllowGet);
@@ -211,25 +226,41 @@ namespace AssetManagement.Web.Controllers
                 name = match.Name,
                 brand = match.Brand,
                 model = match.Model,
-                stockCount = match.StockCount
+                stockCount = match.StockCount,
+                defaultAcquisitionCost = match.DefaultAcquisitionCost
             }, JsonRequestBehavior.AllowGet);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize("Assets.Create")]
-        public JsonResult CreateFromAsset(AssetSubTypeCreateFromAssetVm model)
+        public JsonResult CreateFromAsset(int assetTypeId, string name, string brand, string model, string specifications = null, string sku = null)
         {
-            if (model == null)
+            if (assetTypeId <= 0)
             {
-                return Json(new { success = false, message = "Sub-type details are required." });
+                return Json(new { success = false, message = "Please select an asset type." });
             }
-            if (string.IsNullOrWhiteSpace(model.Name))
+
+            var createModel = new AssetSubTypeCreateFromAssetVm
             {
-                model.Name = AssetSubTypeNormalizer.BuildSuggestedName(model.Brand, model.Model);
+                AssetTypeId = assetTypeId,
+                Name = name,
+                Brand = brand,
+                Model = model,
+                Specifications = specifications,
+                Sku = sku
+            };
+
+            if (string.IsNullOrWhiteSpace(createModel.Name))
+            {
+                createModel.Name = AssetSubTypeNormalizer.BuildSuggestedName(createModel.Brand, createModel.Model);
+            }
+            if (string.IsNullOrWhiteSpace(createModel.Name))
+            {
+                return Json(new { success = false, message = "Enter a display name for the new sub-type." });
             }
             try
             {
-                var id = _assetSubTypeService.CreateFromAsset(model);
+                var id = _assetSubTypeService.CreateFromAsset(createModel);
                 var created = _assetSubTypeService.GetById(id);
                 var assetType = UnitOfWork.Repository<AssetType>().GetById(created.AssetTypeId);
                 return Json(new
@@ -270,8 +301,55 @@ namespace AssetManagement.Web.Controllers
                 ItemModel = subType.Model,
                 Specifications = subType.Specifications,
                 Sku = subType.Sku,
+                DefaultAcquisitionCost = subType.DefaultAcquisitionCost,
+                PreviousDefaultAcquisitionCost = subType.DefaultAcquisitionCost,
                 IsActive = subType.IsActive
             };
+        }
+
+        private string ApplySubTypeDefaultCostToAssets(AssetSubTypeEditVm model)
+        {
+            if (model == null || !model.DefaultAcquisitionCost.HasValue || model.DefaultAcquisitionCost.Value <= 0)
+            {
+                return null;
+            }
+
+            var scope = string.IsNullOrWhiteSpace(model.AcquisitionCostApplyScope)
+                ? AcquisitionCostApplyScopes.Individual
+                : model.AcquisitionCostApplyScope.Trim();
+
+            if (string.Equals(scope, AcquisitionCostApplyScopes.Individual, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!string.Equals(scope, AcquisitionCostApplyScopes.SameSubType, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var filter = new AssetFilterVm { AssetSubTypeId = model.Id };
+            var result = _assetService.ApplyAcquisitionCost(
+                0,
+                model.DefaultAcquisitionCost.Value,
+                AcquisitionCostApplyScopes.SameSubType,
+                filter,
+                User.GetUserId());
+
+            if (result.ProcessedCount <= 0)
+            {
+                return result.SkippedCount > 0
+                    ? "Default price saved. No asset prices were updated."
+                    : null;
+            }
+
+            var guidance = "Default price saved and applied to " + result.ProcessedCount + " asset(s).";
+            if (result.SkippedCount > 0)
+            {
+                guidance += " " + result.SkippedCount + " skipped.";
+            }
+
+            return guidance;
         }
     }
 }

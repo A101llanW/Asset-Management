@@ -4,6 +4,7 @@ using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Domain.Entities;
 
 namespace AssetManagement.Application.Services
@@ -27,7 +28,8 @@ namespace AssetManagement.Application.Services
         public IEnumerable<InsurancePolicyListVm> GetByAsset(int assetId)
         {
             var asset = RequireAsset(assetId);
-            return _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == assetId)
+            return SoftDeletePolicy.WhereActive(
+                    _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == assetId))
                 .OrderByDescending(x => x.PolicyEndDate)
                 .Select(MapList)
                 .ToList();
@@ -68,9 +70,10 @@ namespace AssetManagement.Application.Services
         {
             var entity = RequirePolicy(id);
             RequireAsset(entity.AssetId);
-            _unitOfWork.Repository<InsurancePolicy>().Remove(entity);
+            SoftDeletePolicy.MarkInactive(entity);
+            _unitOfWork.Repository<InsurancePolicy>().Update(entity);
             _unitOfWork.SaveChanges();
-            _auditWriter.Write("Insurance.Delete", nameof(InsurancePolicy), entity.Id.ToString(), entity.PolicyNumber, null);
+            _auditWriter.Write("Insurance.Delete", nameof(InsurancePolicy), entity.Id.ToString(), entity.PolicyNumber, SoftDeletePolicy.AuditMarker);
         }
 
         private Asset RequireAsset(int assetId)
@@ -88,11 +91,7 @@ namespace AssetManagement.Application.Services
         private InsurancePolicy RequirePolicy(int id)
         {
             var entity = _unitOfWork.Repository<InsurancePolicy>().GetById(id);
-            if (entity == null)
-            {
-                throw new BusinessException("Insurance policy not found.");
-            }
-
+            SoftDeletePolicy.EnsureActive(entity, "Insurance policy not found.");
             RequireAsset(entity.AssetId);
             return entity;
         }

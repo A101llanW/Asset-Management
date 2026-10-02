@@ -1,0 +1,20 @@
+﻿@{
+    ViewBag.Title = "Forbidden";
+    ViewBag.HideNavbar = true;
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var message = TempData["ErrorMessage"] as string
+        ?? TempData["Error"] as string
+        ?? "You do not have permission to access this resource.";
+}
+<div class="container py-5">
+    <div class="card border-danger">
+        <div class="card-body p-4">
+            <h1 class="h3 text-danger mb-3">403 Forbidden</h1>
+            <p class="mb-3">@message</p>
+            <p class="text-muted small mb-0">If you believe this is a mistake, contact a Platform Admin.</p>
+            <div class="mt-4">
+                <a class="btn btn-outline-secondary" href="@Url.Action("Landing", "Account")">Back</a>
+            </div>
+        </div>
+    </div>
+</div>

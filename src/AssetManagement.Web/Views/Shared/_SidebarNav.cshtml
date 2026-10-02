@@ -198,7 +198,7 @@
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForControllers(ctrlAssetCategories, ctrlAssetTypes)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlAssetCategories)">Asset Categories</a></li>
                 }
-                @if (Html.HasPermission("Users.View") || Html.HasPermission("Users.ViewDepartment"))
+                @if (Html.HasPermission("Users.View"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlUsers)" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlUsers)">Users</a></li>
                 }

@@ -70,6 +70,7 @@ namespace AssetManagement.Application.Services
                 AssetSubTypeId = context.AssetSubTypeId,
                 AssetSubTypeName = context.AssetSubTypeName,
                 RequiresSubTypeAssignment = context.RequiresSubTypeAssignment,
+                RequiresTypeSelection = !context.AssetTypeId.HasValue || context.AssetTypeId.Value <= 0,
                 RequiresCatalogMatchConfirmation = context.HasPendingCatalogMatch,
                 CatalogMatchAssetId = context.CatalogMatchAssetId,
                 CatalogMatchLabel = context.CatalogMatchLabel,
@@ -172,13 +173,17 @@ namespace AssetManagement.Application.Services
                 resolvedSubType = _assetSubTypeService.GetById(context.AssetSubTypeId.Value);
             }
             var resolvedAssetTypeId = context.AssetTypeId;
+            if ((!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0) && model.AssetTypeId.HasValue && model.AssetTypeId.Value > 0)
+            {
+                resolvedAssetTypeId = model.AssetTypeId;
+            }
             if ((!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0) && resolvedSubType != null)
             {
                 resolvedAssetTypeId = resolvedSubType.AssetTypeId;
             }
             if (!resolvedAssetTypeId.HasValue || resolvedAssetTypeId.Value <= 0)
             {
-                throw new BusinessException("Asset type could not be resolved for this receipt. Confirm a catalog match or link a target asset so classification context is available; subtype can be set on the asset after create.");
+                throw new BusinessException("Select an asset type (and optional sub-type) before receiving. This purchase has no linked requisition/catalog classification context.");
             }
             var assetType = _unitOfWork.Repository<AssetType>().GetById(resolvedAssetTypeId.Value);
             if (assetType == null)

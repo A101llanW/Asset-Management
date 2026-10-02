@@ -305,135 +305,36 @@ namespace AssetManagement.Web.Controllers
             return new SelectList(cachedDepartments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
         }
 
-        /// <summary>
-        /// Organizational vs Classes optgroups for assign/transfer/asset classification pickers.
-        /// </summary>
-        protected IList<DepartmentSelectGroupVm> BuildGroupedDepartmentSelectGroups(
-            int? selectedDepartmentId = null,
-            bool activeOnly = true)
-        {
-            var departments = BuildDepartmentService().GetAll();
-            if (activeOnly)
-            {
-                departments = departments.Where(x => x.IsActive);
-            }
-
-            var list = departments
-                .OrderBy(x => x.DepartmentKind)
-                .ThenBy(x => x.Name)
-                .ToList();
-
-            var orgGroup = new DepartmentSelectGroupVm { Label = "Organizational" };
-            var classGroup = new DepartmentSelectGroupVm { Label = "Streams" };
-
-            foreach (var dept in list)
-            {
-                var option = new DepartmentSelectOptionVm
-                {
-                    Value = dept.Id.ToString(),
-                    Text = string.IsNullOrWhiteSpace(dept.Code)
-                        ? dept.Name
-                        : dept.Code + " — " + dept.Name,
-                    Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
-                };
-
-                if (DepartmentHierarchyRules.IsAcademic(dept.DepartmentKind))
-                {
-                    // Skip Grade containers in pickers — leaves (Class) are the useful targets.
-                    if (dept.DepartmentKind == DepartmentKind.Grade)
-                    {
-                        continue;
-                    }
-
-                    classGroup.Items.Add(option);
-                }
-                else if (DepartmentHierarchyRules.IsOrganizational(dept.DepartmentKind))
-                {
-                    orgGroup.Items.Add(option);
-                }
-            }
-
-            var groups = new List<DepartmentSelectGroupVm>();
-            if (orgGroup.Items.Any())
-            {
-                groups.Add(orgGroup);
-            }
-
-            if (classGroup.Items.Any())
-            {
-                groups.Add(classGroup);
-            }
-
-            return groups;
-        }
-
-        protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null, int? scopeRootDepartmentId = null)
+        protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null)
         {
             var items = new List<SelectListItem>();
             foreach (var section in BuildDepartmentService().GetTreeSections())
             {
-                if (section == null || section.Items == null)
+                foreach (var parent in section.Items)
                 {
-                    continue;
-                }
+                    if (parent.IsRequisitionTarget)
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = parent.Id.ToString(),
+                            Text = parent.Name,
+                            Selected = selectedDepartmentId.HasValue && parent.Id == selectedDepartmentId.Value
+                        });
+                    }
 
-                foreach (var root in section.Items)
-                {
-                    CollectRequisitionTargetSelectItems(
-                        root,
-                        ancestorNames: new List<string>(),
-                        items: items,
-                        selectedDepartmentId: selectedDepartmentId,
-                        scopeRootDepartmentId: scopeRootDepartmentId,
-                        underScope: !scopeRootDepartmentId.HasValue);
+                    foreach (var child in parent.Children.Where(x => x.IsRequisitionTarget))
+                    {
+                        items.Add(new SelectListItem
+                        {
+                            Value = child.Id.ToString(),
+                            Text = parent.Name + " \u2192 " + child.Name,
+                            Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
+                        });
+                    }
                 }
             }
 
             return new SelectList(items, "Value", "Text", selectedDepartmentId);
-        }
-
-        private static void CollectRequisitionTargetSelectItems(
-            DepartmentVm node,
-            IList<string> ancestorNames,
-            IList<SelectListItem> items,
-            int? selectedDepartmentId,
-            int? scopeRootDepartmentId,
-            bool underScope)
-        {
-            if (node == null || !node.IsActive)
-            {
-                return;
-            }
-
-            var path = new List<string>(ancestorNames ?? new List<string>());
-            path.Add(node.Name ?? ("#" + node.Id));
-            var nowUnderScope = underScope || (scopeRootDepartmentId.HasValue && node.Id == scopeRootDepartmentId.Value);
-
-            if (node.IsRequisitionTarget && nowUnderScope)
-            {
-                items.Add(new SelectListItem
-                {
-                    Value = node.Id.ToString(),
-                    Text = string.Join(" \u2192 ", path),
-                    Selected = selectedDepartmentId.HasValue && node.Id == selectedDepartmentId.Value
-                });
-            }
-
-            if (node.Children == null)
-            {
-                return;
-            }
-
-            foreach (var child in node.Children)
-            {
-                CollectRequisitionTargetSelectItems(
-                    child,
-                    path,
-                    items,
-                    selectedDepartmentId,
-                    scopeRootDepartmentId,
-                    nowUnderScope);
-            }
         }
 
         protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)
@@ -519,30 +420,6 @@ namespace AssetManagement.Web.Controllers
 
             var cachedCategories = BuildReferenceDataCache().GetCategories(orgId.Value, activeOnly);
             return new SelectList(cachedCategories.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedCategoryId);
-        }
-
-        protected IList<AssetTypeLookupVm> BuildAssetTypeLookupList(bool activeOnly = true)
-        {
-            var orgId = ResolveCurrentOrganizationId();
-            if (orgId.HasValue)
-            {
-                return BuildReferenceDataCache()
-                    .GetAssetTypes(orgId.Value, activeOnly)
-                    .OrderBy(x => x.Name)
-                    .ToList();
-            }
-
-            var types = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetType>().GetAll();
-            return types
-                .OrderBy(x => x.Name)
-                .Select(x => new AssetTypeLookupVm
-                {
-                    Id = x.Id,
-                    Name = x.Name,
-                    AssetCategoryId = x.AssetCategoryId,
-                    IsActive = true
-                })
-                .ToList();
         }
 
         protected SelectList BuildRoleSelectList(int? selectedRoleId = null)
@@ -996,6 +873,99 @@ namespace AssetManagement.Web.Controllers
                     model.PendingDisposal.RequestedByName = BuildUserLabel(requester);
                 }
             }
+        }
+        protected IList<DepartmentSelectGroupVm> BuildGroupedDepartmentSelectGroups(
+            int? selectedDepartmentId = null,
+            bool activeOnly = true)
+        {
+            var departments = BuildDepartmentService().GetAll();
+            if (activeOnly)
+            {
+                departments = departments.Where(x => x.IsActive);
+            }
+
+            var list = departments
+                .OrderBy(x => x.DepartmentKind)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            var orgGroup = new DepartmentSelectGroupVm { Label = "Organizational" };
+            var classGroup = new DepartmentSelectGroupVm { Label = "Streams" };
+
+            foreach (var dept in list)
+            {
+                var option = new DepartmentSelectOptionVm
+                {
+                    Value = dept.Id.ToString(),
+                    Text = string.IsNullOrWhiteSpace(dept.Code)
+                        ? dept.Name
+                        : dept.Code + " — " + dept.Name,
+                    Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
+                };
+
+                if (DepartmentHierarchyRules.IsAcademic(dept.DepartmentKind))
+                {
+                    if (dept.DepartmentKind == DepartmentKind.Grade)
+                    {
+                        continue;
+                    }
+
+                    classGroup.Items.Add(option);
+                }
+                else if (DepartmentHierarchyRules.IsOrganizational(dept.DepartmentKind))
+                {
+                    orgGroup.Items.Add(option);
+                }
+            }
+
+            var groups = new List<DepartmentSelectGroupVm>();
+            if (orgGroup.Items.Any())
+            {
+                groups.Add(orgGroup);
+            }
+
+            if (classGroup.Items.Any())
+            {
+                groups.Add(classGroup);
+            }
+
+            return groups;
+        }
+
+        protected IList<AssetManagement.Web.ViewModels.AssetTypeLookupVm> BuildAssetTypeLookupList(bool activeOnly = true)
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (orgId.HasValue)
+            {
+                return BuildReferenceDataCache()
+                    .GetAssetTypes(orgId.Value, activeOnly)
+                    .OrderBy(x => x.Name)
+                    .Select(x => new AssetManagement.Web.ViewModels.AssetTypeLookupVm
+                    {
+                        Id = x.Id,
+                        Name = x.Name,
+                        AssetCategoryId = x.AssetCategoryId,
+                        IsActive = x.IsActive
+                    })
+                    .ToList();
+            }
+
+            var types = UnitOfWork.Repository<AssetManagement.Domain.Entities.AssetType>().GetAll();
+            if (activeOnly)
+            {
+                types = types.Where(x => x.IsActive);
+            }
+
+            return types
+                .OrderBy(x => x.Name)
+                .Select(x => new AssetManagement.Web.ViewModels.AssetTypeLookupVm
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    AssetCategoryId = x.AssetCategoryId,
+                    IsActive = x.IsActive
+                })
+                .ToList();
         }
     }
 }

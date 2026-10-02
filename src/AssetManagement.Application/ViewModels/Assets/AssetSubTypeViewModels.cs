@@ -61,6 +61,7 @@ namespace AssetManagement.Application.ViewModels
 
         public bool IsActive { get; set; } = true;
     }
+
     public class AssetSubTypeIndexItemVm
     {
         public int Id { get; set; }
@@ -73,7 +74,6 @@ namespace AssetManagement.Application.ViewModels
         public string AssetCategoryName { get; set; }
         public bool IsActive { get; set; }
     }
-
     public class AssetSubTypeCreateFromAssetVm
     {
         [Required]

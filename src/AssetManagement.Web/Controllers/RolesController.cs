@@ -225,9 +225,11 @@ namespace AssetManagement.Web.Controllers
                 return new List<RolePermissionCopyVm>();
             }
 
-            var roleIds = roles.Select(x => x.Id).ToList();
+            var roleIdSet = new HashSet<int>(roles.Select(x => x.Id));
+            // Avoid repository Find(... Contains ...) — not supported by SQL predicate translator.
             var permissionCounts = UnitOfWork.Repository<RolePermission>()
-                .Find(x => roleIds.Contains(x.RoleId))
+                .GetAll()
+                .Where(x => roleIdSet.Contains(x.RoleId))
                 .GroupBy(x => x.RoleId)
                 .ToDictionary(g => g.Key, g => g.Count());
 

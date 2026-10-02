@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Web.Mvc;
 using System.Web.Routing;
 using AssetManagement.Application;
@@ -35,9 +35,14 @@ namespace AssetManagement.Web.Filters
                 return;
             }
 
-            var controllerName = filterContext.ActionDescriptor?.ControllerDescriptor?.ControllerName ?? string.Empty;
-            var actionName = filterContext.ActionDescriptor?.ActionName ?? string.Empty;
-            if (IsAccountMfaFlow(controllerName, actionName))
+            var controllerName = filterContext.ActionDescriptor != null
+                && filterContext.ActionDescriptor.ControllerDescriptor != null
+                ? filterContext.ActionDescriptor.ControllerDescriptor.ControllerName ?? string.Empty
+                : string.Empty;
+            var actionName = filterContext.ActionDescriptor != null
+                ? filterContext.ActionDescriptor.ActionName ?? string.Empty
+                : string.Empty;
+            if (MfaEnforcementExemptions.IsExemptFromForcedSetup(controllerName, actionName))
             {
                 base.OnActionExecuting(filterContext);
                 return;
@@ -101,24 +106,6 @@ namespace AssetManagement.Web.Filters
                         action = "SetupMfa"
                     }));
             }
-        }
-
-        private static bool IsAccountMfaFlow(string controllerName, string actionName)
-        {
-            if (!string.Equals(controllerName, "Account", StringComparison.OrdinalIgnoreCase))
-            {
-                return string.Equals(controllerName, "Captcha", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(controllerName, "Home", StringComparison.OrdinalIgnoreCase);
-            }
-
-            return string.Equals(actionName, "SetupMfa", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "VerifyMfa", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "SendSetupMfaCode", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "ResendMfaCode", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "LogOff", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "VerifyEmail", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(actionName, "ChangePassword", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

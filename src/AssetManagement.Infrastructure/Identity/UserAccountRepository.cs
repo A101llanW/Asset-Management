@@ -1,5 +1,7 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Data;
+using AssetManagement.Application.Helpers;
 using System.Data.SqlClient;
 using AssetManagement.Infrastructure.Persistence;
 
@@ -235,20 +237,35 @@ WHERE [Id]=@Id";
 
         public ApplicationUser FindActiveUserByEmail(string email)
         {
-            using (var connection = _connectionFactory.CreateConnection())
+            // Unscoped single-user lookup: never pick an arbitrary tenant row when the same
+            // email exists in multiple orgs. Prefer platform; else require a unique match.
+            var matches = FindActiveByEmail(email, null);
+            var candidates = new List<UserEmailCandidate>();
+            foreach (var match in matches)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                candidates.Add(new UserEmailCandidate
                 {
-                    command.CommandText =
-                        "SELECT TOP 1 * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [IsActive]=1 ORDER BY [Id]";
-                    AddParameter(command, "@Email", email);
-                    using (var reader = command.ExecuteReader())
-                    {
-                        return reader.Read() ? MapUser(reader) : null;
-                    }
+                    Id = match.Id,
+                    OrganizationId = match.OrganizationId,
+                    IsActive = match.IsActive
+                });
+            }
+
+            var resolvedId = UserEmailLookupRules.ResolveUnscopedUserId(candidates, true);
+            if (string.IsNullOrWhiteSpace(resolvedId))
+            {
+                return null;
+            }
+
+            for (var i = 0; i < matches.Count; i++)
+            {
+                if (string.Equals(matches[i].Id, resolvedId, StringComparison.Ordinal))
+                {
+                    return matches[i];
                 }
             }
+
+            return null;
         }
 
         public ApplicationUser FindByEmailAndOrganization(string email, int organizationId)
@@ -443,26 +460,71 @@ ORDER BY [Id]";
 
         private ApplicationUser FindUserByNormalizedEmail(string email, int? organizationId)
         {
+            if (organizationId.HasValue)
+            {
+                using (var connection = _connectionFactory.CreateConnection())
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                            "SELECT TOP 1 * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [OrganizationId]=@OrganizationId ORDER BY [Id]";
+                        AddParameter(command, "@Email", email);
+                        AddParameter(command, "@OrganizationId", organizationId.Value);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            return reader.Read() ? MapUser(reader) : null;
+                        }
+                    }
+                }
+            }
+
+            // Unscoped: load all email matches then apply ambiguity-safe resolution.
+            var matches = new List<ApplicationUser>();
             using (var connection = _connectionFactory.CreateConnection())
             {
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = organizationId.HasValue
-                        ? "SELECT TOP 1 * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [OrganizationId]=@OrganizationId ORDER BY [Id]"
-                        : "SELECT TOP 1 * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) ORDER BY [Id]";
+                    command.CommandText =
+                        "SELECT * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) ORDER BY [Id]";
                     AddParameter(command, "@Email", email);
-                    if (organizationId.HasValue)
-                    {
-                        AddParameter(command, "@OrganizationId", organizationId.Value);
-                    }
-
                     using (var reader = command.ExecuteReader())
                     {
-                        return reader.Read() ? MapUser(reader) : null;
+                        while (reader.Read())
+                        {
+                            matches.Add(MapUser(reader));
+                        }
                     }
                 }
             }
+
+            var candidates = new List<UserEmailCandidate>();
+            foreach (var match in matches)
+            {
+                candidates.Add(new UserEmailCandidate
+                {
+                    Id = match.Id,
+                    OrganizationId = match.OrganizationId,
+                    IsActive = match.IsActive
+                });
+            }
+
+            var resolvedId = UserEmailLookupRules.ResolveUnscopedUserId(candidates, false);
+            if (string.IsNullOrWhiteSpace(resolvedId))
+            {
+                return null;
+            }
+
+            for (var i = 0; i < matches.Count; i++)
+            {
+                if (string.Equals(matches[i].Id, resolvedId, StringComparison.Ordinal))
+                {
+                    return matches[i];
+                }
+            }
+
+            return null;
         }
 
         private static ApplicationUser MapUser(IDataRecord record)

@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
-    @if (Request.IsAuthenticated || ViewBag.ShowLoginBackground == true)
+    @if (Request.IsAuthenticated)
     {
         <link rel="stylesheet" href="@Url.Content("~/Content/css/am-animations.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-animations.css")).Ticks" />
     }
@@ -240,7 +240,7 @@
         <script src="@Url.Content("~/Scripts/app/help-bot.js")"></script>
     }
     <script src="@Url.Content("~/Scripts/app/site-interactive.js")"></script>
-    @if (Request.IsAuthenticated || ViewBag.ShowLoginBackground == true)
+    @if (Request.IsAuthenticated)
     {
         <script src="@Url.Content("~/Scripts/app/am-animations.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/am-animations.js")).Ticks"></script>
     }

@@ -13,11 +13,19 @@
     var treeSections = ViewBag.TreeSections as IList<AssetManagement.Application.ViewModels.DepartmentTreeSectionVm>
         ?? new List<AssetManagement.Application.ViewModels.DepartmentTreeSectionVm>();
     var statusLabel = statusFilter == "all" ? "departments" : statusFilter == "inactive" ? "inactive departments" : "active departments";
+
+    Func<DepartmentVm, string> rowLevel = dept =>
+    {
+        if (dept == null) { return "core"; }
+        if (dept.DepartmentKind == DepartmentKind.Room) { return "room"; }
+        if (dept.DepartmentKind == DepartmentKind.SubDepartment || dept.DepartmentKind == DepartmentKind.Class) { return "sub"; }
+        return "core";
+    };
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Departments",
-    Subtitle = "Maintain administrative departments, sub-departments, rooms, and school class structure. Showing " + statusLabel + ".",
+    Subtitle = "Maintain administrative departments, sub-departments, rooms, and class streams. Mode and Flow stay; Requisitions-by shows optional Class teacher / Room custodian when set. Showing " + statusLabel + ".",
     PrimaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeNormal }) : null,
     PrimaryActionLabel = canCreateDepartment ? "Create department" : null,
     SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom }) : null,
@@ -62,18 +70,26 @@
 }
 else if (viewMode == "tree")
 {
+    <div class="d-flex justify-content-between align-items-center mb-2 am-dept-expand-toolbar">
+        <span class="text-muted small" id="am-dept-expand-hint">Showing core departments. Expand to reveal sub-departments, then rooms.</span>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="am-dept-expand-cycle" data-am-dept-expand-cycle>Expand hierarchy</button>
+        </div>
+    </div>
     foreach (var section in treeSections)
     {
-        <div class="card card-kpi mb-3">
-            <div class="card-header bg-light fw-semibold">@section.Title</div>
+        <div class="card card-kpi mb-3" data-am-dept-section>
+            <div class="card-header bg-light fw-semibold">@(section.Title)</div>
             <div class="card-body p-0">
-                <table class="table mb-0">
+                <table class="table mb-0 am-dept-tree-table">
                     <thead class="table-light">
                         <tr>
-                            <th>Code</th>
+                            <th style="width:2.5rem;"></th>
                             <th>Name</th>
                             <th>Kind</th>
-                            <th>Requisition</th>
+                            <th>Mode</th>
+                            <th>Requisitions by</th>
+                            <th>Flow</th>
                             <th>Status</th>
                             <th></th>
                         </tr>
@@ -81,11 +97,32 @@ else if (viewMode == "tree")
                     <tbody>
                     @foreach (var parent in section.Items)
                     {
-                        <tr class="table-secondary">
-                            <td>@parent.Code</td>
+                        var parentLevel = rowLevel(parent);
+                        var parentHasSubs = parent.Children != null && parent.Children.Any(c => rowLevel(c) == "sub");
+                        var parentHasRooms = parent.Children != null && parent.Children.Any(c => rowLevel(c) == "room");
+                        var parentHasNestedRooms = parent.Children != null && parent.Children.Any(c => c.Children != null && c.Children.Any());
+                        var parentExpandable = parentHasSubs || parentHasRooms || parentHasNestedRooms;
+                        <tr class="table-secondary" data-am-dept-row="core" data-am-dept-id="@parent.Id" data-am-dept-parent="">
+                            <td class="text-center">
+                                @if (parentExpandable)
+                                {
+                                    <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">▸</button>
+                                }
+                            </td>
                             <td>@parent.Name</td>
                             <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(parent.DepartmentKind)</td>
-                            <td>@(parent.IsRequisitionTarget ? "Yes" : "No")</td>
+                            @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(parent.DepartmentKind))
+                            {
+                                <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (parent.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                                <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
+                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "—" : parent.EffectiveRequisitionFlowSummary)</td>
+                            }
+                            else
+                            {
+                                <td>—</td>
+                                <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
+                                <td>—</td>
+                            }
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(parent.IsActive) badge-status">@(parent.IsActive ? "Active" : "Inactive")</span></td>
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = parent.Id, returnUrl = Request.RawUrl })">Details</a>
@@ -93,11 +130,29 @@ else if (viewMode == "tree")
                         </tr>
                         foreach (var child in parent.Children)
                         {
-                            <tr>
-                                <td class="ps-4">@child.Code</td>
+                            var childLevel = rowLevel(child);
+                            var childHasRooms = child.Children != null && child.Children.Any();
+                            <tr data-am-dept-row="@childLevel" data-am-dept-id="@child.Id" data-am-dept-parent="@parent.Id" hidden="hidden">
+                                <td class="text-center">
+                                    @if (childHasRooms)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@child.Id" aria-expanded="false" title="Expand rooms">▸</button>
+                                    }
+                                </td>
                                 <td class="ps-4">@child.Name</td>
                                 <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(child.DepartmentKind)</td>
-                                <td>@(child.IsRequisitionTarget ? "Yes" : "No")</td>
+                                @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(child.DepartmentKind))
+                                {
+                                    <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (child.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                                    <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "—" : child.EffectiveRequisitionFlowSummary)</td>
+                                }
+                                else
+                                {
+                                    <td>—</td>
+                                    <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
+                                    <td>—</td>
+                                }
                                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(child.IsActive) badge-status">@(child.IsActive ? "Active" : "Inactive")</span></td>
                                 <td class="text-end">
                                     <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = child.Id, returnUrl = Request.RawUrl })">Details</a>
@@ -109,11 +164,22 @@ else if (viewMode == "tree")
                             </tr>
                             foreach (var grandchild in child.Children)
                             {
-                                <tr>
-                                    <td class="ps-5">@grandchild.Code</td>
+                                <tr data-am-dept-row="room" data-am-dept-id="@grandchild.Id" data-am-dept-parent="@child.Id" data-am-dept-root="@parent.Id" hidden="hidden">
+                                    <td></td>
                                     <td class="ps-5">@grandchild.Name</td>
                                     <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(grandchild.DepartmentKind)</td>
-                                    <td>@(grandchild.IsRequisitionTarget ? "Yes" : "No")</td>
+                                    @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(grandchild.DepartmentKind))
+                                    {
+                                        <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (grandchild.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                                        <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "—" : grandchild.EffectiveRequisitionFlowSummary)</td>
+                                    }
+                                    else
+                                    {
+                                        <td>—</td>
+                                        <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
+                                        <td>—</td>
+                                    }
                                     <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(grandchild.IsActive) badge-status">@(grandchild.IsActive ? "Active" : "Inactive")</span></td>
                                     <td class="text-end">
                                         <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = grandchild.Id, returnUrl = Request.RawUrl })">Details</a>
@@ -137,15 +203,25 @@ else
     <div class="card card-kpi">
         <div class="card-body p-0">
             <table class="table mb-0">
-                <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Kind</th><th>Requisition</th><th>Description</th><th>Status</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Name</th><th>Kind</th><th>Mode</th><th>Requisitions by</th><th>Flow</th><th>Description</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
                     <tr>
-                        <td>@item.Code</td>
                         <td>@item.Name</td>
                         <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(item.DepartmentKind)</td>
-                        <td>@(item.IsRequisitionTarget ? "Yes" : "No")</td>
+                        @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
+                        {
+                            <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                            <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "—" : item.EffectiveRequisitionFlowSummary)</td>
+                        }
+                        else
+                        {
+                            <td>—</td>
+                            <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
+                            <td>—</td>
+                        }
                         <td>@item.Description</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                         <td class="text-end">
@@ -161,4 +237,8 @@ else
             </table>
         </div>
     </div>
+}
+@if (viewMode == "tree" && Model.Any())
+{
+    <script src="@Url.Content("~/Scripts/app/departments-tree.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/departments-tree.js")).Ticks"></script>
 }

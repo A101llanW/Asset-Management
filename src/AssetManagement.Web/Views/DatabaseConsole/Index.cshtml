@@ -1,0 +1,384 @@
+﻿@model AssetManagement.Web.ViewModels.DatabaseConsoleViewModel
+@{
+    ViewBag.Title = "Database Console";
+    ViewBag.HideNavbar = true;
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    .db-console {
+        --db-bg: #1e1e1e;
+        --db-panel: #252526;
+        --db-border: #3e3e42;
+        --db-text: #d4d4d4;
+        --db-muted: #858585;
+        --db-accent: #569cd6;
+        --db-success: #4ec9b0;
+        --db-error: #f48771;
+        --db-warning: #dcdcaa;
+        font-family: 'Consolas', 'Courier New', monospace;
+        color: var(--db-text);
+        background: var(--db-bg);
+        min-height: calc(100vh - 2rem);
+        margin: -1rem;
+        padding: 1rem;
+    }
+
+    .db-console-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--db-border);
+    }
+
+    .db-console-header h1 {
+        font-size: 1.1rem;
+        margin: 0;
+        color: var(--db-accent);
+        font-family: Inter, system-ui, sans-serif;
+        font-weight: 600;
+    }
+
+    .db-console-meta {
+        font-size: 0.8rem;
+        color: var(--db-muted);
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .db-console-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 1rem;
+        min-height: 70vh;
+    }
+
+    @@media (max-width: 900px) {
+        .db-console-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .db-console-sidebar {
+            max-height: 180px;
+        }
+    }
+
+    .db-console-sidebar,
+    .db-console-main {
+        background: var(--db-panel);
+        border: 1px solid var(--db-border);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .db-console-sidebar-header,
+    .db-console-editor-header {
+        padding: 0.5rem 0.75rem;
+        background: #2d2d30;
+        border-bottom: 1px solid var(--db-border);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--db-muted);
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .db-console-tables {
+        list-style: none;
+        margin: 0;
+        padding: 0.25rem 0;
+        max-height: calc(70vh - 2rem);
+        overflow-y: auto;
+    }
+
+    .db-console-tables li button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        color: var(--db-text);
+        padding: 0.3rem 0.75rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        font-family: inherit;
+    }
+
+    .db-console-tables li button:hover {
+        background: #37373d;
+        color: var(--db-accent);
+    }
+
+    .db-console-editor textarea {
+        width: 100%;
+        min-height: 200px;
+        background: #1e1e1e;
+        color: var(--db-text);
+        border: none;
+        padding: 0.75rem;
+        font-family: inherit;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        resize: vertical;
+        outline: none;
+    }
+
+    .db-console-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-top: 1px solid var(--db-border);
+        background: #2d2d30;
+    }
+
+    .db-console-toolbar button {
+        background: #0e639c;
+        color: #fff;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .db-console-toolbar button:hover {
+        background: #1177bb;
+    }
+
+    .db-console-toolbar .hint {
+        font-size: 0.75rem;
+        color: var(--db-muted);
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .db-console-status {
+        margin-top: 1rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .db-console-status.success {
+        background: #1a3a2a;
+        border: 1px solid #2d6a4f;
+        color: var(--db-success);
+    }
+
+    .db-console-status.error {
+        background: #3a1a1a;
+        border: 1px solid #8b3a3a;
+        color: var(--db-error);
+    }
+
+    .db-console-results {
+        margin-top: 1rem;
+    }
+
+    .db-console-result-set {
+        margin-bottom: 1.5rem;
+        background: var(--db-panel);
+        border: 1px solid var(--db-border);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .db-console-result-set-header {
+        padding: 0.4rem 0.75rem;
+        background: #2d2d30;
+        border-bottom: 1px solid var(--db-border);
+        font-size: 0.75rem;
+        color: var(--db-muted);
+        font-family: Inter, system-ui, sans-serif;
+    }
+
+    .db-console-table-wrap {
+        overflow: auto;
+        max-height: 400px;
+    }
+
+    .db-console-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .db-console-table th {
+        position: sticky;
+        top: 0;
+        background: #333337;
+        color: var(--db-warning);
+        text-align: left;
+        padding: 0.4rem 0.6rem;
+        border-bottom: 1px solid var(--db-border);
+        white-space: nowrap;
+    }
+
+    .db-console-table td {
+        padding: 0.35rem 0.6rem;
+        border-bottom: 1px solid #2a2a2d;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .db-console-table tr:hover td {
+        background: #2a2d2e;
+    }
+
+    .db-console-warning {
+        padding: 0.4rem 0.75rem;
+        background: #3e2a00;
+        color: #f0a500;
+        font-size: 0.75rem;
+        font-family: Inter, system-ui, sans-serif;
+    }
+</style>
+
+<div class="db-console">
+    <div class="db-console-header">
+        <h1>Database Console</h1>
+        <div class="db-console-meta">
+            @if (!string.IsNullOrEmpty(Model.DatabaseName))
+            {
+                <span>Connected: <strong>@Model.DatabaseName</strong></span>
+            }
+            <span style="margin-left: 1rem;">Platform Admin only &middot; Hidden page</span>
+        </div>
+    </div>
+
+    <div class="db-console-layout">
+        <aside class="db-console-sidebar">
+            <div class="db-console-sidebar-header">Tables (@Model.Tables.Count)</div>
+            <ul class="db-console-tables" id="tableList">
+                @foreach (var table in Model.Tables)
+                {
+                    <li>
+                        <button type="button" data-table="@table" title="SELECT TOP 100 * FROM @table">@table</button>
+                    </li>
+                }
+            </ul>
+        </aside>
+
+        <div class="db-console-main">
+            @using (Html.BeginForm("Execute", "DatabaseConsole", FormMethod.Post, new { id = "sqlForm" }))
+            {
+                @Html.AntiForgeryToken()
+                <div class="db-console-editor-header">Query</div>
+                <div class="db-console-editor">
+                    <textarea name="sql" id="sqlInput" placeholder="SELECT TOP 100 * FROM dbo.Organization" spellcheck="false">@Model.Sql</textarea>
+                </div>
+                <div class="db-console-toolbar">
+                    <button type="submit" id="executeBtn">Execute (F5)</button>
+                    <button type="button" id="clearBtn" style="background:#555;">Clear</button>
+                    <span class="hint">Ctrl+Enter to run &middot; Supports SELECT, INSERT, UPDATE, DELETE, DDL</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="db-console-status @(Model.IsError ? "error" : "success")">
+            @Model.Message
+            @if (Model.ExecutionTimeMs > 0)
+            {
+                <span> &middot; @Model.ExecutionTimeMs ms</span>
+            }
+            @if (Model.RowsAffected.HasValue && !Model.IsError)
+            {
+                <span> &middot; @Model.RowsAffected row(s) affected</span>
+            }
+        </div>
+    }
+
+    @if (Model.ResultSets != null && Model.ResultSets.Count > 0)
+    {
+        <div class="db-console-results">
+            @foreach (var resultSet in Model.ResultSets)
+            {
+                <div class="db-console-result-set">
+                    <div class="db-console-result-set-header">
+                        Result Set @resultSet.Index &middot; @resultSet.TotalRowCount row(s)
+                    </div>
+                    @if (resultSet.Truncated)
+                    {
+                        <div class="db-console-warning">
+                            Showing first 500 of @resultSet.TotalRowCount rows. Add TOP or WHERE to narrow results.
+                        </div>
+                    }
+                    <div class="db-console-table-wrap">
+                        <table class="db-console-table">
+                            <thead>
+                                <tr>
+                                    @foreach (var col in resultSet.Columns)
+                                    {
+                                        <th>@col</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in resultSet.Rows)
+                                {
+                                    <tr>
+                                        @foreach (var cell in row)
+                                        {
+                                            <td title="@cell">@cell</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<script>
+    (function () {
+        var sqlInput = document.getElementById('sqlInput');
+        var sqlForm = document.getElementById('sqlForm');
+        var clearBtn = document.getElementById('clearBtn');
+        var tableList = document.getElementById('tableList');
+
+        if (sqlInput) {
+            sqlInput.addEventListener('keydown', function (e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    sqlForm.submit();
+                }
+                if (e.key === 'F5') {
+                    e.preventDefault();
+                    sqlForm.submit();
+                }
+            });
+
+            sqlInput.focus();
+            sqlInput.setSelectionRange(sqlInput.value.length, sqlInput.value.length);
+        }
+
+        if (clearBtn && sqlInput) {
+            clearBtn.addEventListener('click', function () {
+                sqlInput.value = '';
+                sqlInput.focus();
+            });
+        }
+
+        if (tableList && sqlInput) {
+            tableList.addEventListener('click', function (e) {
+                var btn = e.target.closest('button[data-table]');
+                if (!btn) return;
+                var table = btn.getAttribute('data-table');
+                sqlInput.value = 'SELECT TOP 100 * FROM ' + table;
+                sqlInput.focus();
+            });
+        }
+    })();
+</script>

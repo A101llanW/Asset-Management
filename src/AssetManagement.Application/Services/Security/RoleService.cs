@@ -257,8 +257,11 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            // Repository Find cannot translate closed-over List.Contains — load then filter in memory.
+            var idSet = new HashSet<int>(ids);
             var permissions = _unitOfWork.Repository<Permission>()
-                .Find(x => ids.Contains(x.Id))
+                .GetAll()
+                .Where(x => idSet.Contains(x.Id))
                 .ToList();
 
             foreach (var permission in permissions)

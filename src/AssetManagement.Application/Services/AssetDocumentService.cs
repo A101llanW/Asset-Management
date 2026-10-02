@@ -219,8 +219,7 @@ namespace AssetManagement.Application.Services
 
             EnsureCanAccessParentAsset(entity.AssetId, ResolveUserId(deletedByUserId));
 
-            entity.IsActive = false;
-            entity.UpdatedAt = DateTime.UtcNow;
+            SoftDeletePolicy.MarkInactive(entity);
             _unitOfWork.Repository<AssetDocument>().Update(entity);
             if (_requirementService != null)
             {

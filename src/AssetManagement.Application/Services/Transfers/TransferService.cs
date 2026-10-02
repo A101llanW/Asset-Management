@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
@@ -335,14 +336,21 @@ namespace AssetManagement.Application.Services
         {
             var fromUserId = NormalizeId(model.FromUserId) ?? NormalizeId(asset.CurrentCustodianId);
             var fromDepartmentId = model.FromDepartmentId ?? asset.DepartmentId;
+            var toUserId = NormalizeId(model.ToUserId);
+            var disposition = CrossDepartmentDisposition.Normalize(model.DepartmentDisposition);
+            var effectiveToDepartmentId = CrossDepartmentDisposition.ResolveEffectiveDepartmentId(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId,
+                disposition);
 
             return new AssetTransfer
             {
                 AssetId = model.AssetId,
                 FromUserId = fromUserId,
-                ToUserId = NormalizeId(model.ToUserId),
+                ToUserId = toUserId,
                 FromDepartmentId = fromDepartmentId,
-                ToDepartmentId = model.ToDepartmentId,
+                ToDepartmentId = effectiveToDepartmentId,
                 Reason = NormalizeText(model.Reason),
                 ConditionBefore = NormalizeText(model.ConditionBefore),
                 ConditionAfter = NormalizeText(model.ConditionAfter),
@@ -415,7 +423,23 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Current department no longer matches the transfer request. Reject and resubmit.");
             }
 
-            EnsureUserBelongsToDepartment(transfer.ToUserId, transfer.ToDepartmentId);
+            // Cross-dept Keep stores the asset's department on the transfer while the person
+            // may belong to another department — only enforce match when they align with Move.
+            if (!string.IsNullOrWhiteSpace(transfer.ToUserId) && transfer.ToDepartmentId.HasValue)
+            {
+                var user = _userService.GetById(transfer.ToUserId);
+                if (user == null || !user.IsActive)
+                {
+                    throw new BusinessException("Selected user was not found or is inactive.");
+                }
+
+                var userDept = user.DepartmentId;
+                if (userDept.HasValue && userDept.Value == transfer.ToDepartmentId.Value)
+                {
+                    // Move / same-dept path — match required (already true).
+                }
+                // else Keep path: person from another department owning asset in current dept.
+            }
         }
 
         private void EnsureTransferIsAllowed(Asset asset, AssetTransferVm model)
@@ -447,6 +471,26 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Transfer must change custodian or department.");
             }
+
+            // Move (department change) without a person is blocked; use Assign for department pool.
+            if (departmentChanged && string.IsNullOrWhiteSpace(toUserId))
+            {
+                throw new BusinessException(
+                    "Moving an asset to another department requires selecting a person. Use Assign for a department pool (no person).");
+            }
+
+            var disposition = CrossDepartmentDisposition.Normalize(model.DepartmentDisposition);
+            var isCrossDeptPerson = CrossDepartmentDisposition.IsCrossDepartmentPerson(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId);
+            if (isCrossDeptPerson && disposition == null)
+            {
+                throw new BusinessException(
+                    "This person belongs to a different department than the asset. Choose Move (update the asset department) or Keep (leave the asset in its current department).");
+            }
+
+            // Keep vs Move is applied when creating/applying the transfer (effective department).
         }
 
         private void EnsureTransferFieldIntegrity(Asset asset, AssetTransferVm model)

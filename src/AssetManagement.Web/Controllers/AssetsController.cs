@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -153,7 +153,7 @@ namespace AssetManagement.Web.Controllers
                     .Replace("AwaitingApproval", "Pending Approval")
                     .Replace("InStore", "In Store"),
                 statusBadgeClass = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
-                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? DisplayText.Unassigned : x.CurrentCustodianName,
+                custodianName = DisplayText.FormatCustodian(x.CurrentCustodianName, x.CurrentStatus),
                 acquisitionCost = x.AcquisitionCost,
                 acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
                 detailsUrl = Url.Action("Details", new { id = x.Id }),

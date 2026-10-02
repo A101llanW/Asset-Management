@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -12,7 +12,7 @@ namespace AssetManagement.Application.Helpers
         {
             public ApprovalProcessConfiguration Configuration { get; set; }
 
-            /// <summary>CustomDepartment | OrganizationMatrix</summary>
+            /// <summary>CustomDepartment | Inherited | AutoApprove | OrganizationMatrix</summary>
             public string SourceKind { get; set; }
 
             public int? SourceDepartmentId { get; set; }
@@ -33,6 +33,12 @@ namespace AssetManagement.Application.Helpers
                         && !string.IsNullOrWhiteSpace(SourceDepartmentName))
                     {
                         return "Custom on " + SourceDepartmentName;
+                    }
+
+                    if (string.Equals(SourceKind, "AutoApprove", StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(SourceDepartmentName))
+                    {
+                        return "Auto-approve on " + SourceDepartmentName;
                     }
 
                     return "Organization Approval Matrix";
@@ -67,14 +73,42 @@ namespace AssetManagement.Application.Helpers
             var guard = 0;
             while (current != null && guard < 50)
             {
-                if (current.RequisitionFlowMode == RequisitionFlowMode.Custom)
+                // Walk Class -> Grade -> ... and Admin/Sub/Room parent chain the same way.
+                if (current.RequisitionFlowMode == RequisitionFlowMode.AutoApprove)
+                {
+                    var inheritedAuto = start != null && current.Id != start.Id;
+                    return new ResolveResult
+                    {
+                        SourceKind = inheritedAuto ? "Inherited" : "AutoApprove",
+                        SourceDepartmentId = current.Id,
+                        SourceDepartmentName = current.Name,
+                        Configuration = new ApprovalProcessConfiguration
+                        {
+                            ProcessCode = ApprovalProcessCodes.Purchase,
+                            DisplayName = ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
+                            RequiresApproval = false,
+                            StageRoleIds = new List<int>(),
+                            StageUserIds = new List<string>()
+                        }
+                    };
+                }
+
+                var treatsAsCustom = current.RequisitionFlowMode == RequisitionFlowMode.Custom
+                    || current.UseCustomRequisitionApproval;
+                if (treatsAsCustom)
                 {
                     var roles = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(current.CustomStageRoleIds);
                     var users = ApprovalWorkflowSettingsHelper.ParseStageUserIds(current.CustomStageUserIds);
+                    if (roles.Count == 0 && current.UseCustomRequisitionApproval)
+                    {
+                        roles = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(current.RequisitionApprovalStageRoleIds);
+                        users = ApprovalWorkflowSettingsHelper.ParseStageUserIds(current.RequisitionApprovalStageUserIds);
+                    }
+
                     var inherited = start != null && current.Id != start.Id;
                     return new ResolveResult
                     {
-                        SourceKind = inherited ? "Inherited" : "CustomDepartment",
+                        SourceKind = inherited ? "Inherited" : (roles.Count == 0 ? "AutoApprove" : "CustomDepartment"),
                         SourceDepartmentId = current.Id,
                         SourceDepartmentName = current.Name,
                         Configuration = new ApprovalProcessConfiguration

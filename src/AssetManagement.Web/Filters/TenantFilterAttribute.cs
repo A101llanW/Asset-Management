@@ -98,6 +98,10 @@ namespace AssetManagement.Web.Filters
             filterContext.Controller.ViewBag.TenantContext = organization;
             filterContext.Controller.ViewBag.TenantToken = organization.Slug ?? tenantToken;
             filterContext.Controller.ViewBag.IsTenantPortal = true;
+            filterContext.Controller.ViewBag.OrganizationName = organization.Name;
+            filterContext.Controller.ViewBag.OrganizationCode = organization.Code;
+            filterContext.Controller.ViewBag.OrganizationSlug = organization.Slug;
+
 
             var organizationScope = DependencyResolver.Current.GetService<IOrganizationScopeService>();
             if (organizationScope != null)

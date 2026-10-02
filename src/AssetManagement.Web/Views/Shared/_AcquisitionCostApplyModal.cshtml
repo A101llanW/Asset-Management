@@ -1,10 +1,11 @@
 @using System.Linq
 @using AssetManagement.Application.ViewModels
+@using AssetManagement.Web.ViewModels
 @using AssetManagement.Domain.Enums
 @{
     var categories = ViewBag.Categories as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetTypeLookupVm>
-        ?? Enumerable.Empty<AssetTypeLookupVm>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Web.ViewModels.AssetTypeLookupVm>
+        ?? Enumerable.Empty<AssetManagement.Web.ViewModels.AssetTypeLookupVm>();
     var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
     var statuses = ViewBag.Statuses as SelectList;
     var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";

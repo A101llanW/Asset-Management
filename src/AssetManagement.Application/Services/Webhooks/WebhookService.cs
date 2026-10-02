@@ -6,6 +6,7 @@ using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Outbox;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Application.Services.Webhooks;
@@ -91,8 +92,7 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Webhook subscription not found.");
             }
 
-            entity.IsActive = false;
-            entity.UpdatedAt = DateTime.UtcNow;
+            SoftDeletePolicy.MarkInactive(entity);
             _unitOfWork.Repository<WebhookSubscription>().Update(entity);
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Webhooks.Deactivate", nameof(WebhookSubscription), entity.Id.ToString(), "Active", "Inactive");

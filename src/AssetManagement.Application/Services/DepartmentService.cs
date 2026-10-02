@@ -42,8 +42,10 @@ namespace AssetManagement.Application.Services
 
         public IEnumerable<DepartmentVm> GetAll()
         {
-            var mapped = MapDepartments(_departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
-                .OrderBy(x => x.Name));
+            var entities = _departmentScope.ApplyDepartmentScope(_unitOfWork.Repository<Department>().Query())
+                .OrderBy(x => x.Name)
+                .ToList();
+            var mapped = EnrichMappedDepartments(entities);
             return DepartmentListHelper.DeduplicateById(mapped).OrderBy(x => x.Name);
         }
 
@@ -138,7 +140,7 @@ namespace AssetManagement.Application.Services
                 return null;
             }
 
-            return MapDepartment(entity);
+            return EnrichMappedDepartments(new[] { entity }).FirstOrDefault();
         }
 
         public int Create(DepartmentVm model)
@@ -213,7 +215,30 @@ namespace AssetManagement.Application.Services
             entity.DepartmentKind = model.DepartmentKind;
             entity.IsRequisitionTarget = model.IsRequisitionTarget;
             entity.IsActive = model.IsActive;
-            DepartmentRequisitionApprovalSettingsHelper.ApplyToDepartment(entity, model);
+            // Optional PIC only — never cascade-reassign assets when teacher/custodian changes.
+            if (model.DepartmentKind == DepartmentKind.Class)
+            {
+                entity.ClassTeacherUserId = string.IsNullOrWhiteSpace(model.ClassTeacherUserId)
+                    ? null
+                    : model.ClassTeacherUserId.Trim();
+                entity.RoomCustodianUserId = null;
+            }
+            else if (model.DepartmentKind == DepartmentKind.Room)
+            {
+                entity.RoomCustodianUserId = string.IsNullOrWhiteSpace(model.RoomCustodianUserId)
+                    ? null
+                    : model.RoomCustodianUserId.Trim();
+                entity.ClassTeacherUserId = null;
+            }
+            else
+            {
+                entity.ClassTeacherUserId = null;
+                entity.RoomCustodianUserId = null;
+            }
+            if (DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
+            {
+                DepartmentRequisitionApprovalSettingsHelper.ApplyToDepartment(entity, model);
+            }
             entity.UpdatedAt = DateTime.UtcNow;
 
             _unitOfWork.Repository<Department>().Update(entity);
@@ -311,6 +336,7 @@ namespace AssetManagement.Application.Services
                     Description = model.Description,
                     DepartmentKind = DepartmentKind.Room,
                     IsRequisitionTarget = model.IsRequisitionTarget,
+                    RoomCustodianUserId = string.IsNullOrWhiteSpace(model.RoomCustodianUserId) ? null : model.RoomCustodianUserId.Trim(),
                     IsActive = true,
                     CreatedAt = now
                 };
@@ -345,6 +371,7 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = parent.Id,
                 DepartmentKind = DepartmentKind.Room,
                 IsRequisitionTarget = true,
+                RoomCustodianUserId = string.IsNullOrWhiteSpace(model.RoomCustodianUserId) ? null : model.RoomCustodianUserId.Trim(),
                 IsActive = true,
                 CreatedAt = now
             };
@@ -566,6 +593,13 @@ namespace AssetManagement.Application.Services
 
         private static DepartmentVm MapDepartment(Department entity)
         {
+            var mode = entity.RequisitionFlowMode;
+            if (mode != RequisitionFlowMode.AutoApprove
+                && (entity.UseCustomRequisitionApproval || mode == RequisitionFlowMode.Custom))
+            {
+                mode = RequisitionFlowMode.Custom;
+            }
+
             return new DepartmentVm
             {
                 Id = entity.Id,
@@ -575,9 +609,87 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = entity.ParentDepartmentId,
                 DepartmentKind = entity.DepartmentKind,
                 IsRequisitionTarget = entity.IsRequisitionTarget,
+                RequisitionFlowMode = mode,
                 IsActive = entity.IsActive,
                 UseCustomRequisitionApproval = entity.UseCustomRequisitionApproval
+                    || mode == RequisitionFlowMode.Custom,
+                ClassTeacherUserId = entity.ClassTeacherUserId,
+                RoomCustodianUserId = entity.RoomCustodianUserId
             };
+        }
+
+        private IList<DepartmentVm> EnrichMappedDepartments(IEnumerable<Department> entities)
+        {
+            var list = (entities ?? Enumerable.Empty<Department>()).Where(x => x != null).ToList();
+            if (list.Count == 0)
+            {
+                return new List<DepartmentVm>();
+            }
+
+            var walkById = _unitOfWork.Repository<Department>().GetAll()
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+            Func<int, Department> getById = id =>
+            {
+                Department found;
+                return walkById.TryGetValue(id, out found) ? found : null;
+            };
+
+            var orgDefault = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var roleLookup = _unitOfWork.Repository<Role>().GetAll()
+                .Where(x => x != null && x.Id > 0)
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First().Name);
+
+            var result = new List<DepartmentVm>(list.Count);
+            foreach (var entity in list)
+            {
+                var model = MapDepartment(entity);
+                ApplyEffectiveFlowFields(model, entity, getById, orgDefault, roleLookup);
+                result.Add(model);
+            }
+
+            return result;
+        }
+
+        private static void ApplyEffectiveFlowFields(
+            DepartmentVm model,
+            Department entity,
+            Func<int, Department> getById,
+            ApprovalProcessConfiguration orgDefault,
+            IDictionary<int, string> roleLookup)
+        {
+            if (model == null || entity == null)
+            {
+                return;
+            }
+
+            if (!DepartmentHierarchyRules.ShowsRequisitionFlowColumns(entity.DepartmentKind))
+            {
+                model.EffectiveRequisitionFlowSource = "-";
+                model.EffectiveRequisitionFlowSummary = "-";
+                return;
+            }
+
+            var detailed = DepartmentRequisitionFlowResolver.ResolveDetailed(entity, getById, orgDefault);
+            model.EffectiveRequisitionFlowSource = detailed.SourceLabel;
+            var config = detailed.Configuration ?? orgDefault;
+            var roles = config.StageRoleIds ?? new List<int>();
+            var stageSummary = roles.Count == 0
+                ? "No approvers configured"
+                : ApprovalWorkflowSettingsHelper.BuildStageSummary(roles, roleLookup);
+
+            if (model.RequisitionFlowMode == RequisitionFlowMode.Custom
+                || model.RequisitionFlowMode == RequisitionFlowMode.AutoApprove)
+            {
+                model.EffectiveRequisitionFlowSummary = roles.Count == 0
+                    ? "Custom (auto-approve)"
+                    : "Custom: " + stageSummary;
+            }
+            else
+            {
+                model.EffectiveRequisitionFlowSummary = "Inherit: " + stageSummary;
+            }
         }
     }
 }
