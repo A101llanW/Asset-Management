@@ -5,7 +5,6 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
-using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -135,13 +134,10 @@ namespace AssetManagement.Application.Services
                 .Where(x => !organizationId.HasValue || x.OrganizationId == organizationId.Value)
                 .GroupBy(x => x.Id)
                 .ToDictionary(g => g.Key, g => g.First().Name);
-            var departments = _unitOfWork.Repository<Department>().GetAll()
+            var departmentLookup = _unitOfWork.Repository<Department>().GetAll()
                 .Where(x => !organizationId.HasValue || x.OrganizationId == organizationId.Value)
                 .GroupBy(x => x.Id)
-                .Select(g => g.First())
-                .ToList();
-            var departmentNameLookup = departments.ToDictionary(x => x.Id, x => x.Name);
-            var departmentKindLookup = departments.ToDictionary(x => x.Id, x => x.DepartmentKind);
+                .ToDictionary(g => g.Key, g => g.First().Name);
             var actions = _unitOfWork.Repository<PurchaseApprovalAction>().Find(x => x.PurchaseRequestId == id)
                 .OrderBy(x => x.StageNumber).ThenBy(x => x.DecisionDate).ToList();
             var stageRoleIds = ResolveStageRoleIds(entity, persistBackfill: false);
@@ -157,42 +153,16 @@ namespace AssetManagement.Application.Services
             var targetAsset = entity.TargetAssetId.HasValue
                 ? _unitOfWork.Repository<Asset>().GetById(entity.TargetAssetId.Value)
                 : null;
-            DepartmentKind? departmentKind = null;
-            string departmentKindLabel = null;
-            if (departmentKindLookup.ContainsKey(entity.DepartmentId))
-            {
-                departmentKind = departmentKindLookup[entity.DepartmentId];
-                departmentKindLabel = DepartmentHierarchyRules.DisplayLabel(departmentKind.Value);
-            }
-
-            var approvalStages = new List<PurchaseRequestApprovalStageVm>();
-            for (var i = 0; i < stageRoleIds.Count; i++)
-            {
-                var roleId = stageRoleIds[i];
-                var roleName = ApprovalWorkflowSettingsHelper.ResolveRoleName(roleLookup, roleId);
-                var userId = i < stageUserIds.Count ? stageUserIds[i] : null;
-                var userName = ResolveApproverDisplayName(userId);
-                var label = roleName;
-                if (!string.IsNullOrWhiteSpace(userName))
+            var lineItems = _unitOfWork.Repository<PurchaseRequestLine>()
+                .Find(x => x.PurchaseRequestId == id && x.IsActive)
+                .OrderBy(x => x.LineNumber)
+                .Select(x => new PurchaseRequestLineVm
                 {
-                    label = roleName + " (" + userName + ")";
-                }
-                else if (!string.IsNullOrWhiteSpace(userId))
-                {
-                    label = roleName + " (" + userId + ")";
-                }
-
-                approvalStages.Add(new PurchaseRequestApprovalStageVm
-                {
-                    StageNumber = i + 1,
-                    RoleId = roleId,
-                    RoleName = roleName,
-                    UserId = userId,
-                    UserName = userName,
-                    IsCurrent = entity.ApprovalStatus == ApprovalStatus.Pending && (i + 1) == stageNumber,
-                    DisplayLabel = label
-                });
-            }
+                    LineNumber = x.LineNumber,
+                    Description = x.Description,
+                    Quantity = x.Quantity
+                })
+                .ToList();
 
             return new PurchaseRequestDetailVm
             {
@@ -202,9 +172,7 @@ namespace AssetManagement.Application.Services
                 ApprovedById = entity.ApprovedById,
                 ApprovalStatus = entity.ApprovalStatus.ToString(),
                 DepartmentId = entity.DepartmentId,
-                DepartmentName = departmentNameLookup.ContainsKey(entity.DepartmentId) ? departmentNameLookup[entity.DepartmentId] : null,
-                DepartmentKind = departmentKind,
-                DepartmentKindLabel = departmentKindLabel,
+                DepartmentName = departmentLookup.ContainsKey(entity.DepartmentId) ? departmentLookup[entity.DepartmentId] : null,
                 Justification = entity.Justification,
                 ItemDescription = entity.ItemDescription,
                 QuantityInStock = entity.QuantityInStock,
@@ -223,7 +191,6 @@ namespace AssetManagement.Application.Services
                 CurrentStageRoleName = ApprovalWorkflowSettingsHelper.ResolveRoleName(roleLookup, stageRoleId),
                 CurrentStageUserId = stageUserId,
                 CurrentStageUserName = ResolveApproverDisplayName(stageUserId),
-                ApprovalStages = approvalStages,
                 IsPending = entity.ApprovalStatus == ApprovalStatus.Pending,
                 IsApproved = entity.ApprovalStatus == ApprovalStatus.Approved,
                 HasPurchaseRecord = linkedRecord != null,
@@ -231,6 +198,7 @@ namespace AssetManagement.Application.Services
                 TargetAssetId = entity.TargetAssetId,
                 TargetAssetTag = targetAsset?.AssetTag,
                 TargetAssetName = targetAsset?.AssetName,
+                LineItems = lineItems,
                 ApprovalHistory = ApprovalWorkflowHelper.MapDecisionHistory(
                     actions.Select(x => ApprovalWorkflowHelper.ToSnapshot(
                         x.StageNumber, x.RoleId, x.ApproverUserId, x.Decision, x.Notes, x.DecisionDate)),
@@ -256,18 +224,20 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Department not found.");
             }
 
-            if (!department.IsRequisitionTarget)
+            _departmentScope.EnsureCanCreateForRequisitionTarget(department);
+
+            if (string.IsNullOrWhiteSpace(model.Justification))
             {
-                throw new BusinessException("Requisition target must be a leaf department (class, admin unit, or room).");
+                throw new BusinessException("Justification is required.");
             }
 
-            _departmentScope.EnsureCanAccessDepartment(department);
-            _departmentScope.EnsureCanAccessDepartmentId(model.DepartmentId);
-
-            if (string.IsNullOrWhiteSpace(model.ItemDescription))
+            var effectiveLines = model.ResolveEffectiveLines();
+            if (effectiveLines.Count == 0)
             {
-                throw new BusinessException("Item description is required.");
+                throw new BusinessException("Describe at least one item to order.");
             }
+
+            ApplyHeaderSummaryFromLines(model, effectiveLines);
 
             if (!string.IsNullOrWhiteSpace(model.OrderByUserId))
             {
@@ -285,7 +255,7 @@ namespace AssetManagement.Application.Services
 
             var targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
 
-            var approvalConfig = ApprovalWorkflowHelper.GetPurchaseProcessConfiguration(_unitOfWork, department);
+            var approvalConfig = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
             var entity = new PurchaseRequest
             {
                 RequestNumber = "PENDING",
@@ -325,6 +295,7 @@ namespace AssetManagement.Application.Services
                 _unitOfWork.SaveChanges();
                 entity.RequestNumber = "PR-" + entity.Id.ToString("D6");
                 entity.UpdatedAt = DateTime.UtcNow;
+                PersistLineItems(entity, effectiveLines);
                 _unitOfWork.Repository<PurchaseRequest>().Update(entity);
                 _unitOfWork.SaveChanges();
                 NotificationHelper.AddNotification(
@@ -351,6 +322,7 @@ namespace AssetManagement.Application.Services
             _unitOfWork.SaveChanges();
             entity.RequestNumber = "PR-" + entity.Id.ToString("D6");
             entity.UpdatedAt = DateTime.UtcNow;
+            PersistLineItems(entity, effectiveLines);
             _unitOfWork.Repository<PurchaseRequest>().Update(entity);
             _unitOfWork.SaveChanges();
             NotificationHelper.AddNotification(
@@ -592,7 +564,8 @@ namespace AssetManagement.Application.Services
                 return stageRoleIds;
             }
 
-            var config = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var department = _unitOfWork.Repository<Department>().GetById(request.DepartmentId);
+            var config = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
             if (!config.UsesApproval)
             {
                 throw new BusinessException(
@@ -629,7 +602,8 @@ namespace AssetManagement.Application.Services
                 return stageUserIds;
             }
 
-            var config = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var department = _unitOfWork.Repository<Department>().GetById(request.DepartmentId);
+            var config = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
             if (!config.UsesApproval)
             {
                 return stageUserIds;
@@ -729,6 +703,54 @@ namespace AssetManagement.Application.Services
             }
 
             return asset.Id;
+        }
+
+        private static void ApplyHeaderSummaryFromLines(PurchaseRequestCreateVm model, IList<PurchaseRequestLineCreateVm> lines)
+        {
+            if (model == null || lines == null || lines.Count == 0)
+            {
+                return;
+            }
+
+            model.Quantity = lines.Sum(x => x.Quantity);
+            if (lines.Count == 1)
+            {
+                model.ItemDescription = lines[0].Description;
+                return;
+            }
+
+            var summary = string.Join("; ", lines.Select(x => x.Description));
+            if (summary.Length > 2000)
+            {
+                summary = summary.Substring(0, 1997) + "...";
+            }
+
+            model.ItemDescription = summary;
+        }
+
+        private void PersistLineItems(PurchaseRequest entity, IList<PurchaseRequestLineCreateVm> lines)
+        {
+            if (entity == null || lines == null || lines.Count == 0)
+            {
+                return;
+            }
+
+            var organizationId = entity.OrganizationId ?? _organizationScope.GetCurrentOrganizationId();
+            var lineNumber = 1;
+            foreach (var line in lines)
+            {
+                _unitOfWork.Repository<PurchaseRequestLine>().Add(new PurchaseRequestLine
+                {
+                    OrganizationId = organizationId,
+                    PurchaseRequestId = entity.Id,
+                    LineNumber = lineNumber,
+                    Description = line.Description,
+                    Quantity = line.Quantity,
+                    CreatedAt = DateTime.UtcNow,
+                    IsActive = true
+                });
+                lineNumber++;
+            }
         }
     }
 }

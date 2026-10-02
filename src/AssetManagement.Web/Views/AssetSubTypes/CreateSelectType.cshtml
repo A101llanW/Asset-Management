@@ -1,0 +1,39 @@
+﻿@{
+    ViewBag.Title = "Create Asset Sub-Type";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index", "AssetTypes");
+    var assetTypes = ViewBag.AssetTypes as SelectList;
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Create Asset Sub-Type",
+    Subtitle = "Choose the parent asset type, then define the brand/model variant.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Asset Types", Url = Url.Action("Index", "AssetTypes") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Sub-Type" }
+    }
+})
+<div class="card card-kpi">
+    <div class="card-header">Select asset type</div>
+    <div class="card-body">
+        <p class="text-muted small">Sub-types belong to an asset type. Pick one to continue.</p>
+        @using (Html.BeginForm("Create", "AssetSubTypes", FormMethod.Get))
+        {
+            if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+            }
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <label class="form-label" for="assetTypeId">Asset type</label>
+                    @Html.DropDownList("assetTypeId", assetTypes, "Select an asset type…", new { @class = "form-select", id = "assetTypeId", required = "required" })
+                </div>
+                <div class="col-md-4 d-grid">
+                    <button type="submit" class="btn btn-primary">Continue</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>

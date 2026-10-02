@@ -12,7 +12,6 @@ using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
-using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
@@ -49,10 +48,21 @@ namespace AssetManagement.Web.Controllers
             var model = new PurchaseRequestCreateVm
             {
                 Currency = GetDefaultCurrencyCode(),
-                Quantity = 1
+                Quantity = 1,
+                RequestForSelf = true,
+                Lines = new List<PurchaseRequestLineCreateVm>
+                {
+                    new PurchaseRequestLineCreateVm { Quantity = 1 }
+                }
             };
 
-            PrefillScopedRequisitionTarget(model);
+            ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
+            {
+                if (deptId.HasValue)
+                {
+                    model.DepartmentId = deptId.Value;
+                }
+            });
 
             if (fromAssetRequestId.HasValue)
             {
@@ -64,9 +74,18 @@ namespace AssetManagement.Web.Controllers
                         model.DepartmentId = assetRequest.DepartmentId.Value;
                     }
 
-                    model.ItemDescription = !string.IsNullOrWhiteSpace(assetRequest.RequestedAssetName)
+                    var prefilledDescription = !string.IsNullOrWhiteSpace(assetRequest.RequestedAssetName)
                         ? assetRequest.RequestedAssetName
                         : assetRequest.CategoryName;
+                    model.ItemDescription = prefilledDescription;
+                    model.Lines = new List<PurchaseRequestLineCreateVm>
+                    {
+                        new PurchaseRequestLineCreateVm
+                        {
+                            Description = prefilledDescription,
+                            Quantity = 1
+                        }
+                    };
                     model.Justification = assetRequest.Justification;
                     if (assetRequest.RequestedAssetId.HasValue)
                     {
@@ -77,7 +96,7 @@ namespace AssetManagement.Web.Controllers
 
             PopulateCreateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            PopulatePurchaseApprovalPathPreview(model.DepartmentId > 0 ? (int?)model.DepartmentId : null);
+            ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
             return View(model);
         }
 
@@ -86,15 +105,36 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public ActionResult Create(PurchaseRequestCreateVm model, HttpPostedFileBase attachment, string returnUrl = null)
         {
-            EnforceScopedRequisitionTarget(model);
+            ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
+            {
+                if (deptId.HasValue)
+                {
+                    model.DepartmentId = deptId.Value;
+                }
+            });
+
+            model.RequestForSelf = true;
+            model.Currency = GetDefaultCurrencyCode();
             if (!HasPermission("Purchases.CreateForAnyDepartment"))
             {
                 model.OrderByUserId = null;
             }
 
+            if (model.Lines == null || model.Lines.Count == 0)
+            {
+                model.Lines = new List<PurchaseRequestLineCreateVm>
+                {
+                    new PurchaseRequestLineCreateVm
+                    {
+                        Description = model.ItemDescription,
+                        Quantity = model.Quantity > 0 ? model.Quantity : 1
+                    }
+                };
+            }
+
             PopulateCreateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            PopulatePurchaseApprovalPathPreview(model != null && model.DepartmentId > 0 ? (int?)model.DepartmentId : null);
+            ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -103,11 +143,12 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 var id = _purchaseRequestService.Submit(model, User.GetUserId());
-                if (!HasPermission("Purchases.CreateForAnyDepartment"))
-                {
-                    SaveOptionalAttachment(id, attachment);
-                }
-                TempData["Message"] = "Requisition submitted.";
+                SaveOptionalAttachment(id, attachment);
+                var created = _purchaseRequestService.GetById(id);
+                var requestNumber = created == null || string.IsNullOrWhiteSpace(created.RequestNumber)
+                    ? ("#" + id)
+                    : created.RequestNumber;
+                TempData["Message"] = "Submitted — awaiting approval. Requisition " + requestNumber + " is in the approval queue.";
                 return RedirectToAction("Details", new { id, returnUrl = ViewBag.ReturnUrl });
             }
             catch (BusinessException ex)
@@ -137,16 +178,10 @@ namespace AssetManagement.Web.Controllers
                     isSuperAdmin,
                     currentRoleId,
                     model.CurrentStageRoleId,
-                    model.CurrentStageUserId,
-                    allowEligibleSelfApproval: true);
+                    model.CurrentStageUserId);
 
-            if (model.IsPending && !model.CanCurrentUserApprove)
-            {
-                model.CannotApproveReason = BuildCannotApproveReason(model, currentUserId, currentRoleId);
-            }
-
-            model.ApprovalPathSourceLabel = "Snapshotted stages on this request";
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
             return View(model);
         }
 
@@ -278,6 +313,15 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Purchases.Create")]
+        public JsonResult PreviewApprovalPath(int? departmentId = null)
+        {
+            return Json(new
+            {
+                summary = BuildDepartmentRequisitionApprovalSummary(departmentId)
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        [PermissionAuthorize("Purchases.Create")]
         public JsonResult SearchTargetAssets(string search = null, int? departmentId = null, AssetStatus? status = null, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
         {
             var filter = new AssetFilterVm
@@ -338,242 +382,26 @@ namespace AssetManagement.Web.Controllers
         private void PopulateCreateLookups(PurchaseRequestCreateVm model)
         {
             var canCreateForAnyDepartment = HasPermission("Purchases.CreateForAnyDepartment");
-            var userDepartmentId = GetCurrentUserDepartmentId();
-            int? scopeRoot = null;
-            if (!canCreateForAnyDepartment && !IsCurrentUserSuperAdmin())
-            {
-                scopeRoot = userDepartmentId;
-            }
-
-            int? departmentId = model == null ? userDepartmentId : (int?)model.DepartmentId;
-            var selectList = BuildRequisitionDepartmentSelectList(departmentId, scopeRoot);
-            var targetCount = selectList != null ? selectList.Count() : 0;
-            var userDeptIsTarget = userDepartmentId.HasValue
-                && selectList != null
-                && selectList.Any(x => x.Value == userDepartmentId.Value.ToString());
             var lockDepartment = !canCreateForAnyDepartment
                 && !IsCurrentUserSuperAdmin()
-                && userDeptIsTarget
-                && targetCount <= 1;
-
+                && GetCurrentUserDepartmentId().HasValue;
+            int? departmentId = model == null ? GetCurrentUserDepartmentId() : (int?)model.DepartmentId;
             ViewBag.CanCreateForAnyDepartment = canCreateForAnyDepartment;
             ViewBag.LockDepartment = lockDepartment;
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
                 GetActiveDepartments());
-            ViewBag.Departments = selectList;
+            ViewBag.Departments = canCreateForAnyDepartment
+                ? BuildRequisitionDepartmentSelectList(departmentId)
+                : BuildDepartmentSelectList(departmentId);
             ViewBag.OrderByUsers = BuildOrderByUserSelectList(departmentId, model?.OrderByUserId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
             ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
-        }
-
-        [HttpGet]
-        [PermissionAuthorize("Purchases.Create")]
-        public JsonResult PreviewApprovalPath(int departmentId)
-        {
-            var preview = BuildPurchaseApprovalPathPreview(departmentId);
-            if (preview == null)
-            {
-                return Json(new
-                {
-                    hasApprovers = false,
-                    sourceKind = "OrganizationMatrix",
-                    sourceLabel = "Organization Approval Matrix",
-                    summary = "Select a requisition target to preview the approval path.",
-                    stages = new object[0]
-                }, JsonRequestBehavior.AllowGet);
-            }
-
-            return Json(new
-            {
-                hasApprovers = preview.HasApprovers,
-                sourceKind = preview.SourceKind,
-                sourceLabel = preview.SourceLabel,
-                summary = preview.Summary,
-                stages = preview.Stages.Select(s => new
-                {
-                    stageNumber = s.StageNumber,
-                    roleId = s.RoleId,
-                    roleName = s.RoleName,
-                    userId = s.UserId,
-                    userName = s.UserName,
-                    displayLabel = s.DisplayLabel
-                }).ToList()
-            }, JsonRequestBehavior.AllowGet);
-        }
-
-        private void PrefillScopedRequisitionTarget(PurchaseRequestCreateVm model)
-        {
-            if (model == null || IsCurrentUserSuperAdmin() || HasPermission("Purchases.CreateForAnyDepartment"))
-            {
-                return;
-            }
-
-            var userDepartmentId = GetCurrentUserDepartmentId();
-            if (!userDepartmentId.HasValue)
-            {
-                return;
-            }
-
-            var options = BuildRequisitionDepartmentSelectList(null, userDepartmentId);
-            if (options.Any(x => x.Value == userDepartmentId.Value.ToString()))
-            {
-                model.DepartmentId = userDepartmentId.Value;
-                return;
-            }
-
-            var first = options.FirstOrDefault();
-            if (first != null && !string.IsNullOrWhiteSpace(first.Value))
-            {
-                int parsed;
-                if (int.TryParse(first.Value, out parsed))
-                {
-                    model.DepartmentId = parsed;
-                }
-            }
-        }
-
-        private void EnforceScopedRequisitionTarget(PurchaseRequestCreateVm model)
-        {
-            if (model == null || IsCurrentUserSuperAdmin() || HasPermission("Purchases.CreateForAnyDepartment"))
-            {
-                return;
-            }
-
-            var userDepartmentId = GetCurrentUserDepartmentId();
-            if (!userDepartmentId.HasValue)
-            {
-                return;
-            }
-
-            var allowed = BuildRequisitionDepartmentSelectList(null, userDepartmentId)
-                .Select(x => x.Value)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .ToList();
-            if (allowed.Count == 1)
-            {
-                int onlyId;
-                if (int.TryParse(allowed[0], out onlyId))
-                {
-                    model.DepartmentId = onlyId;
-                }
-                return;
-            }
-
-            if (!allowed.Contains(model.DepartmentId.ToString()))
-            {
-                ModelState.AddModelError("DepartmentId", "Select a requisition target under your department branch (room, leaf sub-unit, leaf admin, or class/stream).");
-            }
-        }
-
-        private void PopulatePurchaseApprovalPathPreview(int? departmentId)
-        {
-            var preview = departmentId.HasValue && departmentId.Value > 0
-                ? BuildPurchaseApprovalPathPreview(departmentId.Value)
-                : null;
-            ViewBag.PurchaseApprovalPath = preview;
-            ViewBag.PurchaseApprovalSummary = preview == null
-                ? "Select a requisition target to see the approval path submit will use."
-                : preview.SourceLabel + (string.IsNullOrWhiteSpace(preview.Summary) ? "" : " — " + preview.Summary);
-        }
-
-        private ResolvedRequisitionFlowPreviewVm BuildPurchaseApprovalPathPreview(int departmentId)
-        {
-            var department = UnitOfWork.Repository<Department>().GetById(departmentId);
-            if (department == null)
-            {
-                return null;
-            }
-
-            var orgDefault = ApprovalWorkflowHelper.GetProcessConfiguration(UnitOfWork, ApprovalProcessCodes.Purchase);
-            var detailed = DepartmentRequisitionFlowResolver.ResolveDetailed(
-                department,
-                id => UnitOfWork.Repository<Department>().GetById(id),
-                orgDefault);
-            var config = detailed.Configuration ?? orgDefault;
-            var stageRoles = config.StageRoleIds ?? new List<int>();
-            var stageUsers = config.StageUserIds ?? new List<string>();
-            var roleLookup = BuildRoleNameLookup();
-            var orgId = ResolveCurrentOrganizationId();
-            var users = orgId.HasValue
-                ? BuildReferenceDataCache().GetUsersForDropdown(orgId.Value)
-                : GetActiveUsers();
-            var userLookup = ApproverPickerHelper.BuildUserNameLookup(users);
-
-            var stages = new List<ResolvedRequisitionFlowStageVm>();
-            for (var i = 0; i < stageRoles.Count; i++)
-            {
-                var roleId = stageRoles[i];
-                var roleName = ApprovalWorkflowSettingsHelper.ResolveRoleName(roleLookup, roleId);
-                var userId = i < stageUsers.Count ? stageUsers[i] : null;
-                var userName = null as string;
-                if (!string.IsNullOrWhiteSpace(userId) && userLookup != null && userLookup.ContainsKey(userId))
-                {
-                    userName = userLookup[userId];
-                }
-
-                var label = roleName;
-                if (!string.IsNullOrWhiteSpace(userName))
-                {
-                    label = roleName + " (" + userName + ")";
-                }
-                else if (!string.IsNullOrWhiteSpace(userId))
-                {
-                    label = roleName + " (" + userId + ")";
-                }
-
-                stages.Add(new ResolvedRequisitionFlowStageVm
-                {
-                    StageNumber = i + 1,
-                    RoleId = roleId,
-                    RoleName = roleName,
-                    UserId = userId,
-                    UserName = userName,
-                    DisplayLabel = label
-                });
-            }
-
-            var summary = stageRoles.Count == 0
-                ? "No approvers on this path (submit may auto-approve)."
-                : string.Join(" → ", stages.Select(s => s.DisplayLabel));
-
-            return new ResolvedRequisitionFlowPreviewVm
-            {
-                HasApprovers = stageRoles.Count > 0,
-                SourceKind = detailed.SourceKind,
-                SourceLabel = detailed.SourceLabel,
-                Summary = summary,
-                Stages = stages
-            };
-        }
-
-        private static string BuildCannotApproveReason(PurchaseRequestDetailVm model, string currentUserId, int? currentRoleId)
-        {
-            if (model == null)
-            {
-                return "You are not authorized to act on this stage.";
-            }
-
-            if (!string.IsNullOrWhiteSpace(model.CurrentStageUserId)
-                && !string.Equals(model.CurrentStageUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
-            {
-                var who = string.IsNullOrWhiteSpace(model.CurrentStageUserName)
-                    ? "another user"
-                    : model.CurrentStageUserName;
-                return "This stage is pinned to " + who + ".";
-            }
-
-            if (model.CurrentStageRoleId.HasValue
-                && (!currentRoleId.HasValue || currentRoleId.Value != model.CurrentStageRoleId.Value))
-            {
-                var role = string.IsNullOrWhiteSpace(model.CurrentStageRoleName)
-                    ? "the required role"
-                    : model.CurrentStageRoleName;
-                return "Your role is not the current stage approver (" + role + ").";
-            }
-
-            return "You are not authorized to act on this stage.";
+            var profile = GetCurrentUserProfile();
+            ViewBag.RequestingAsDisplayName = profile == null
+                ? (User != null && User.Identity != null ? User.Identity.Name : "Current user")
+                : BuildUserLabel(profile);
         }
 
         private SelectList BuildOrderByUserSelectList(int? departmentId, string selectedUserId)

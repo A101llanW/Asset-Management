@@ -25,6 +25,12 @@ namespace AssetManagement.Application.Contracts
 
         void EnsureCanAccessDepartmentId(int departmentId);
 
+        /// <summary>
+        /// Validates that the current user may create a purchase requisition for the given target department
+        /// (leaf requisition target), without requiring the user's home department to match when unassigned.
+        /// </summary>
+        void EnsureCanCreateForRequisitionTarget(Department department);
+
         int CountVisibleDepartments(bool activeOnly = true);
     }
 }

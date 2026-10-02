@@ -19,7 +19,7 @@ namespace AssetManagement.Application.ViewModels
 
         public decimal AcquisitionCost { get; set; }
 
-        public DateTime PurchaseDate { get; set; }
+        public DateTime? PurchaseDate { get; set; }
 
         public string SerialNumber { get; set; }
     }

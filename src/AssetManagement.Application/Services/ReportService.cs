@@ -244,7 +244,7 @@ namespace AssetManagement.Application.Services
                     asset.DepartmentName ?? string.Empty,
                     asset.CurrentCustodianId ?? string.Empty,
                     CurrencyFormatter.Format(asset.AcquisitionCost),
-                    asset.PurchaseDate.ToString("yyyy-MM-dd"),
+                    asset.PurchaseDate.HasValue ? asset.PurchaseDate.Value.ToString("yyyy-MM-dd") : string.Empty,
                     asset.SerialNumber ?? string.Empty
                 });
             });

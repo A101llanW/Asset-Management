@@ -93,16 +93,28 @@ namespace AssetManagement.Application.Helpers
             return DeriveCodeFromName(normalizedName, MaxAdminCodeLength);
         }
 
-        public static string BuildSubDepartmentCode(string parentCode, string subUnitName)
+        public static string BuildSubDepartmentCode(string parentCode, string subDepartmentName)
         {
             var parentToken = NormalizeToken(parentCode, MaxAdminCodeLength);
-            var subToken = NormalizeToken(subUnitName, MaxSubCodeLength);
+            var subToken = NormalizeToken(subDepartmentName, MaxSubCodeLength);
             if (string.IsNullOrWhiteSpace(subToken))
             {
-                throw new ArgumentException("Sub-unit name is required.", "subUnitName");
+                throw new ArgumentException("Sub-department name is required.", "subDepartmentName");
             }
 
             return parentToken + "-" + subToken;
+        }
+
+        public static string BuildRoomCode(string parentCode, string roomName)
+        {
+            var parentToken = NormalizeToken(parentCode, MaxSubCodeLength);
+            var roomToken = NormalizeToken(roomName, MaxSubCodeLength);
+            if (string.IsNullOrWhiteSpace(roomToken))
+            {
+                throw new ArgumentException("Room name is required.", "roomName");
+            }
+
+            return parentToken + "-" + roomToken;
         }
 
         public static bool ShouldResolveAsSubDepartment(string departmentName, string classOrSubUnitValue)

@@ -841,9 +841,25 @@ namespace AssetManagement.Web.Controllers
 
         protected string BuildApprovalProcessSummary(string processCode)
         {
-            var config = GetApprovalProcessConfiguration(processCode);
+            return BuildApprovalConfigurationSummary(GetApprovalProcessConfiguration(processCode));
+        }
+
+        protected string BuildDepartmentRequisitionApprovalSummary(int? departmentId)
+        {
+            Domain.Entities.Department department = null;
+            if (departmentId.HasValue && departmentId.Value > 0)
+            {
+                department = UnitOfWork.Repository<Domain.Entities.Department>().GetById(departmentId.Value);
+            }
+
+            var config = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(UnitOfWork, department);
+            return BuildApprovalConfigurationSummary(config);
+        }
+
+        private string BuildApprovalConfigurationSummary(ApprovalProcessConfiguration config)
+        {
             var roleLookup = BuildRoleNameLookup();
-            if (!config.UsesApproval)
+            if (config == null || !config.UsesApproval)
             {
                 return "This process completes immediately without a separate approval step.";
             }

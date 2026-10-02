@@ -71,8 +71,23 @@ else if (Model.IsPending)
                         <dt class="col-sm-4">Order by</dt>
                         <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.OrderByUserName) ? Model.OrderByUserId : Model.OrderByUserName)</dd>
                     }
-                    <dt class="col-sm-4">Item</dt>
-                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ItemDescription) ? DisplayText.Empty : Model.ItemDescription)</dd>
+                    @if (Model.LineItems != null && Model.LineItems.Count > 1)
+                    {
+                        <dt class="col-sm-4">Items</dt>
+                        <dd class="col-sm-8">
+                            <ul class="mb-0 ps-3">
+                                @foreach (var line in Model.LineItems)
+                                {
+                                    <li>@line.Description <span class="text-muted">(qty @line.Quantity)</span></li>
+                                }
+                            </ul>
+                        </dd>
+                    }
+                    else
+                    {
+                        <dt class="col-sm-4">Item</dt>
+                        <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ItemDescription) ? DisplayText.Empty : Model.ItemDescription)</dd>
+                    }
                     @if (Model.TargetAssetId.HasValue)
                     {
                         <dt class="col-sm-4">Tagged asset</dt>
@@ -83,8 +98,11 @@ else if (Model.IsPending)
                                     : Model.TargetAssetTag + (string.IsNullOrWhiteSpace(Model.TargetAssetName) ? "" : " - " + Model.TargetAssetName))</a>
                         </dd>
                     }
-                    <dt class="col-sm-4">Qty in stock</dt>
-                    <dd class="col-sm-8">@(Model.QuantityInStock.HasValue ? Model.QuantityInStock.Value.ToString() : DisplayText.Empty)</dd>
+                    @if (Model.TargetAssetId.HasValue)
+                    {
+                        <dt class="col-sm-4">Qty in stock</dt>
+                        <dd class="col-sm-8">@(Model.QuantityInStock.HasValue ? Model.QuantityInStock.Value.ToString() : DisplayText.Empty)</dd>
+                    }
                     <dt class="col-sm-4">Qty to order</dt>
                     <dd class="col-sm-8">@Model.Quantity</dd>
                     @if (Model.RequiredDate.HasValue)

@@ -819,12 +819,12 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             {
                 AssetTag = SqlQueryHelper.GetString(record, "AssetTag"),
                 AssetName = SqlQueryHelper.GetString(record, "AssetName"),
-                CurrentStatus = (AssetStatus)Convert.ToInt32(record["CurrentStatus"]),
+                CurrentStatus = (AssetStatus)SqlQueryHelper.GetInt32(record, "CurrentStatus"),
                 CategoryName = SqlQueryHelper.GetString(record, "CategoryName"),
                 DepartmentName = SqlQueryHelper.GetString(record, "DepartmentName"),
                 CurrentCustodianId = SqlQueryHelper.GetString(record, "CurrentCustodianId"),
-                AcquisitionCost = Convert.ToDecimal(record["AcquisitionCost"]),
-                PurchaseDate = Convert.ToDateTime(record["PurchaseDate"]),
+                AcquisitionCost = SqlQueryHelper.GetDecimal(record, "AcquisitionCost"),
+                PurchaseDate = SqlQueryHelper.GetDateTimeNullable(record, "PurchaseDate"),
                 SerialNumber = SqlQueryHelper.GetString(record, "SerialNumber")
             };
         }

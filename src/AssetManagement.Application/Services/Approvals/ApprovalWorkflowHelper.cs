@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
-using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -34,20 +33,29 @@ namespace AssetManagement.Application.Services
             };
         }
 
-        public static ApprovalProcessConfiguration GetPurchaseProcessConfiguration(
+        public static ApprovalProcessConfiguration GetDepartmentRequisitionConfiguration(
             IUnitOfWork unitOfWork,
             Department department)
         {
-            var orgDefault = GetProcessConfiguration(unitOfWork, ApprovalProcessCodes.Purchase);
-            if (department == null)
+            var systemConfig = GetProcessConfiguration(unitOfWork, ApprovalProcessCodes.Purchase);
+            if (department == null || !department.UseCustomRequisitionApproval)
             {
-                return orgDefault;
+                return systemConfig;
             }
 
-            return DepartmentRequisitionFlowResolver.Resolve(
-                department,
-                id => unitOfWork.Repository<Department>().GetById(id),
-                orgDefault);
+            var configuredStages = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(department.RequisitionApprovalStageRoleIds);
+            var configuredUsers = ApprovalWorkflowSettingsHelper.ParseStageUserIds(department.RequisitionApprovalStageUserIds);
+            var stageRoleIds = configuredStages.Count > 0 ? configuredStages : systemConfig.StageRoleIds;
+            var stageUserIds = configuredStages.Count > 0 ? configuredUsers : systemConfig.StageUserIds;
+
+            return new ApprovalProcessConfiguration
+            {
+                ProcessCode = ApprovalProcessCodes.Purchase,
+                DisplayName = ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
+                RequiresApproval = true,
+                StageRoleIds = stageRoleIds,
+                StageUserIds = stageUserIds ?? new List<string>()
+            };
         }
 
         public static ApprovalProcessConfiguration GetAssetProcessConfiguration(IUnitOfWork unitOfWork, Asset asset, string processCode)
@@ -103,21 +111,13 @@ namespace AssetManagement.Application.Services
 
             if (isSelfApproval)
             {
-                // Purchase/Requisition: creator may approve own request when stage/role checks pass.
-                // Transfer/Disposal keep the hard self-approval block (admin break-glass only).
-                if (AllowsEligibleSelfApproval(processCode))
-                {
-                    // Fall through to normal stage role/user checks below.
-                }
-                else if (!bypassesApprovalRoleCheck || !IsAdminSelfApprovalAllowed(unitOfWork))
+                if (!bypassesApprovalRoleCheck || !IsAdminSelfApprovalAllowed(unitOfWork))
                 {
                     throw new BusinessException(GetSelfApprovalMessage(processCode));
                 }
-                else
-                {
-                    WriteBreakGlassAudit(auditWriter, "Approval.SelfApprove", processCode, actor, requester);
-                    return;
-                }
+
+                WriteBreakGlassAudit(auditWriter, "Approval.SelfApprove", processCode, actor, requester);
+                return;
             }
 
             if (bypassesApprovalRoleCheck)
@@ -247,14 +247,13 @@ namespace AssetManagement.Application.Services
             bool bypassesApprovalRoleCheck,
             int? currentRoleId,
             int? stageRoleId,
-            string stageUserId = null,
-            bool allowEligibleSelfApproval = false)
+            string stageUserId = null)
         {
             var isMine = !string.IsNullOrWhiteSpace(requesterUserId)
                 && !string.IsNullOrWhiteSpace(currentUserId)
                 && string.Equals(NormalizeUserId(requesterUserId), NormalizeUserId(currentUserId), StringComparison.OrdinalIgnoreCase);
 
-            if (isMine && !allowEligibleSelfApproval)
+            if (isMine)
             {
                 return bypassesApprovalRoleCheck && IsAdminSelfApprovalAllowed(unitOfWork);
             }
@@ -276,23 +275,9 @@ namespace AssetManagement.Application.Services
             bool bypassesApprovalRoleCheck,
             int? currentRoleId,
             int? stageRoleId,
-            string stageUserId = null,
-            bool allowEligibleSelfApproval = false)
+            string stageUserId = null)
         {
-            return CanUserActOnStage(
-                null,
-                requesterUserId,
-                currentUserId,
-                bypassesApprovalRoleCheck,
-                currentRoleId,
-                stageRoleId,
-                stageUserId,
-                allowEligibleSelfApproval);
-        }
-
-        public static bool AllowsEligibleSelfApproval(string processCode)
-        {
-            return string.Equals(processCode, ApprovalProcessCodes.Purchase, StringComparison.OrdinalIgnoreCase);
+            return CanUserActOnStage(null, requesterUserId, currentUserId, bypassesApprovalRoleCheck, currentRoleId, stageRoleId, stageUserId);
         }
 
         public static bool ShouldIncludePendingItem(bool bypassesApprovalRoleCheck, bool canAct, bool isMine)

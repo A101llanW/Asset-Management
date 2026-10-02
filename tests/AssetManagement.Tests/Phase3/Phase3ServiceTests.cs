@@ -296,6 +296,11 @@ namespace AssetManagement.Tests.Phase3
             }
         }
 
+        public void EnsureCanCreateForRequisitionTarget(Department department)
+        {
+            EnsureCanAccessDepartment(department);
+        }
+
         public int CountVisibleDepartments(bool activeOnly = true) => 1;
     }
 }

@@ -196,6 +196,111 @@ namespace AssetManagement.Tests.Security
         }
 
         [Test]
+        public void EnsureCanCreateForRequisitionTarget_AllowsLeafTarget_WhenUserHasNoHomeDepartment()
+        {
+            var target = new Department
+            {
+                Id = 30,
+                Name = "Grade 3A",
+                IsActive = true,
+                IsRequisitionTarget = true,
+                DepartmentKind = DepartmentKind.Class
+            };
+
+            var unitOfWork = new Mock<IUnitOfWork>();
+            var roleRepo = new Mock<IRepository<Role>>();
+            roleRepo.Setup(x => x.GetById(5)).Returns(new Role { Id = 5, Name = "Staff", IsSystemRole = false });
+            unitOfWork.Setup(x => x.Repository<Role>()).Returns(roleRepo.Object);
+
+            var userService = new Mock<IUserService>();
+            var currentUser = new Mock<ICurrentUserContext>();
+            currentUser.Setup(x => x.UserId).Returns("staff-no-dept");
+            userService.Setup(x => x.GetById("staff-no-dept")).Returns(new UserVm
+            {
+                Id = "staff-no-dept",
+                DepartmentId = null,
+                RoleId = 5
+            });
+
+            var service = CreateDepartmentScopeService(unitOfWork.Object, currentUser.Object, userService.Object, isCompanyAdmin: false);
+
+            Assert.DoesNotThrow(() => service.EnsureCanCreateForRequisitionTarget(target));
+        }
+
+        [Test]
+        public void EnsureCanCreateForRequisitionTarget_BlocksOtherDepartment_ForScopedStaff()
+        {
+            var target = new Department
+            {
+                Id = 30,
+                Name = "Grade 3A",
+                IsActive = true,
+                IsRequisitionTarget = true,
+                DepartmentKind = DepartmentKind.Class
+            };
+
+            var unitOfWork = new Mock<IUnitOfWork>();
+            var roleRepo = new Mock<IRepository<Role>>();
+            roleRepo.Setup(x => x.GetById(5)).Returns(new Role { Id = 5, Name = "Staff", IsSystemRole = false });
+            unitOfWork.Setup(x => x.Repository<Role>()).Returns(roleRepo.Object);
+
+            var userService = new Mock<IUserService>();
+            var currentUser = new Mock<ICurrentUserContext>();
+            currentUser.Setup(x => x.UserId).Returns("staff-10");
+            userService.Setup(x => x.GetById("staff-10")).Returns(new UserVm
+            {
+                Id = "staff-10",
+                DepartmentId = 10,
+                RoleId = 5
+            });
+
+            var service = CreateDepartmentScopeService(unitOfWork.Object, currentUser.Object, userService.Object, isCompanyAdmin: false);
+
+            var ex = Assert.Throws<BusinessException>(() => service.EnsureCanCreateForRequisitionTarget(target));
+            StringAssert.Contains("outside your scope", ex.Message);
+        }
+
+        [Test]
+        public void EnsureCanCreateForRequisitionTarget_AllowsAnyLeafTarget_WhenCreateForAnyDepartment()
+        {
+            var target = new Department
+            {
+                Id = 30,
+                Name = "Grade 3A",
+                IsActive = true,
+                IsRequisitionTarget = true,
+                DepartmentKind = DepartmentKind.Class
+            };
+
+            var unitOfWork = new Mock<IUnitOfWork>();
+            var roleRepo = new Mock<IRepository<Role>>();
+            roleRepo.Setup(x => x.GetById(5)).Returns(new Role { Id = 5, Name = "Procurement Officer", IsSystemRole = false });
+            unitOfWork.Setup(x => x.Repository<Role>()).Returns(roleRepo.Object);
+
+            var userService = new Mock<IUserService>();
+            var currentUser = new Mock<ICurrentUserContext>();
+            currentUser.Setup(x => x.UserId).Returns("proc-user");
+            userService.Setup(x => x.GetById("proc-user")).Returns(new UserVm
+            {
+                Id = "proc-user",
+                DepartmentId = 10,
+                RoleId = 5
+            });
+
+            var authorization = new Mock<IAuthorizationService>();
+            authorization.Setup(x => x.HasPermission("proc-user", "Purchases.CreateForAnyDepartment")).Returns(true);
+
+            var service = CreateDepartmentScopeService(
+                unitOfWork.Object,
+                currentUser.Object,
+                userService.Object,
+                false,
+                authorization.Object);
+
+            Assert.DoesNotThrow(() => service.EnsureCanCreateForRequisitionTarget(target));
+        }
+
+        [Test]
         public void BypassesDepartmentScope_ReturnsTrue_ForSuperAdmin()
         {
             var unitOfWork = new Mock<IUnitOfWork>();
