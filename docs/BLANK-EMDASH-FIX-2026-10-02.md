@@ -47,11 +47,38 @@ Replace empty-cell U+2014 em dash (`—`, UTF-8 `E2 80 94`) with `""` / blank so
 - Domain / Application / Infrastructure / Web **Release** — **PASS**
 - Full solution Tests project has pre-existing failures (unrelated) — not blocking publish
 
-## IIS (filled after publish)
-- Bak: `C:\inetpub\AssetManagement\_bak\blank_emdash_YYYYMMDD_HHMMSS`
-- Web.config preserved
-- Pool recycled
+## IIS publish
+- **When:** 2026-10-02 ~16:41:35–16:41:47 EAT
+- **Bak:** `C:\inetpub\AssetManagement\_bak\blank_emdash_20261002_164135`
+- **Web.config:** preserved (SHA256 `3B664DD516C7A5CE973A0658C97895C695AAD9571558178BE222E3EC2B5339F7` unchanged)
+- **Pool:** AssetManagement stopped → copied → Started
+- **Commit published:** `c7d26515bc1b41afb96062582d2c2ad2678d4851`
+- SoT↔IIS DLL SHA256: **match** (Web/Application/Domain/Infrastructure)
+- Markers on IIS: BatchCreate Serial no U+2014; `assets-grouped.js` uses `emptyLabel != null`
 
+### IIS DLL / key view stamps (EAT)
+| Artifact | Size | LastWrite (EAT) |
+|---|---:|---|
+| AssetManagement.Web.dll | 552448 | 2026-10-02 16:39:28 |
+| AssetManagement.Application.dll | 772096 | 2026-10-02 16:39:26 |
+| AssetManagement.Infrastructure.dll | 387584 | 2026-10-02 16:39:27 |
+| AssetManagement.Domain.dll | 88576 | 2026-10-02 16:39:25 |
+| BatchCreate.cshtml | 8288 | 2026-10-02 16:38:51 |
+| Departments/Index.cshtml | 15704 | 2026-10-02 16:38:51 |
+| assets-grouped.js | 22369 | 2026-10-02 16:38:51 |
+
+## Smoke (brief HTTP)
+| URL | Result |
+|---|---|
+| /L35160674/Account/Login | **200** |
+| /L35160674/Assignments/BatchCreate | **302** → login (OK) |
+| /L35160674/Departments | **302** → login (OK) |
+| /L35160674/Assets | **302** → login (OK) |
+| /L35160674/AssetSubTypes | **302** → login (OK) |
+| /L35160674/Suppliers | **302** → login (OK) |
+| /L35160674/PurchaseRequests/Create | **302** → login (OK) |
+
+**Smoke PASS.** No GitHub PR/push. Zebra/printer skipped.
 ## SoT DLL stamps (pre-publish)
 | AssetManagement.Application.dll | 772096 | 2026-10-02 16:39:26 |
 | AssetManagement.Domain.dll | 88576 | 2026-10-02 16:39:25 |
