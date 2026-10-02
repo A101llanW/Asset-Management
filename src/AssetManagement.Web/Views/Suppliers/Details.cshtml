@@ -124,8 +124,8 @@
                                         <div class="small text-muted">@item.ItemDescription</div>
                                     }
                                 </td>
-                                <td>@(string.IsNullOrWhiteSpace(item.AssetCategoryName) ? "—" : item.AssetCategoryName)</td>
-                                <td>@(string.IsNullOrWhiteSpace(item.AssetTypeName) ? "—" : item.AssetTypeName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.AssetCategoryName) ? "" : item.AssetCategoryName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.AssetTypeName) ? "" : item.AssetTypeName)</td>
                                 <td>
                                     @if (item.TaggedAssetId.HasValue)
                                     {
@@ -136,12 +136,12 @@
                                     }
                                     else
                                     {
-                                        <text>—</text>
+                                        <text></text>
                                     }
                                 </td>
-                                <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "" : item.Sku)</td>
                                 <td>@Html.FormatCurrency(item.UnitPrice) @(item.Currency)</td>
-                                <td>@(item.LeadTimeDays.HasValue ? item.LeadTimeDays + " d" : "—")</td>
+                                <td>@(item.LeadTimeDays.HasValue ? item.LeadTimeDays + " d" : "")</td>
                                 <td>@(item.IsActive ? "Active" : "Inactive")</td>
                                 @if (canEditCatalog && item.IsActive)
                                 {
@@ -213,7 +213,7 @@
                             <div class="col-md-3">
                                 <label class="form-label small">Tagged asset</label>
                                 <select class="form-select catalog-tagged-asset" name="TaggedAssetId">
-                                    <option value="">—</option>
+                                    <option value=""></option>
                                 </select>
                             </div>
                             <div class="col-md-2">

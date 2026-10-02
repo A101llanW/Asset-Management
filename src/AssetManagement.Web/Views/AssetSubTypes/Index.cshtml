@@ -1,4 +1,4 @@
-﻿@model IList<AssetManagement.Application.ViewModels.AssetSubTypeIndexItemVm>
+@model IList<AssetManagement.Application.ViewModels.AssetSubTypeIndexItemVm>
 @using System.Collections.Generic
 @using System.Linq
 @{
@@ -71,9 +71,9 @@ else
                     {
                         <tr>
                             <td class="fw-semibold">@item.Name</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.Brand) && string.IsNullOrWhiteSpace(item.Model) ? "—" : ((item.Brand ?? "") + " " + (item.Model ?? "")).Trim())</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.Brand) && string.IsNullOrWhiteSpace(item.Model) ? "" : ((item.Brand ?? "") + " " + (item.Model ?? "")).Trim())</td>
                             <td>@(item.AssetTypeName ?? ("#" + item.AssetTypeId))</td>
-                            <td>@(item.AssetCategoryName ?? "—")</td>
+                            <td>@(item.AssetCategoryName ?? "")</td>
                             <td>
                                 @if (item.IsActive)
                                 {

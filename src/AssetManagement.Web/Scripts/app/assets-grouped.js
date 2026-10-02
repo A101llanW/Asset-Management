@@ -105,7 +105,7 @@
 
     function displayValue(value) {
         if (value === null || value === undefined || value === "") {
-            return config.emptyLabel || "—";
+            return config.emptyLabel != null ? config.emptyLabel : "";
         }
         return value;
     }

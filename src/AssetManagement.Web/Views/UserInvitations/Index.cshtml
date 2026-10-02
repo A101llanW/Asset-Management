@@ -49,9 +49,9 @@ else
                         @foreach (var item in Model.Items)
                         {
                             <tr>
-                                <td>@(string.IsNullOrWhiteSpace(item.Email) ? "—" : item.Email)</td>
-                                <td>@(string.IsNullOrWhiteSpace(item.RoleName) ? "—" : item.RoleName)</td>
-                                <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "—" : item.DepartmentName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.Email) ? "" : item.Email)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.RoleName) ? "" : item.RoleName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "" : item.DepartmentName)</td>
                                 <td>
                                     @if (string.Equals(item.Status, "Pending", System.StringComparison.OrdinalIgnoreCase))
                                     {

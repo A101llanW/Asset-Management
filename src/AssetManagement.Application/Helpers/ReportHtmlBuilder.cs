@@ -142,7 +142,7 @@ namespace AssetManagement.Application.Helpers
                 Encode(model.ApprovalStatus));
             sb.AppendFormat(
                 "<div class=\"meta-item\"><span class=\"meta-label\">Department</span><span class=\"meta-value\">{0}</span></div>",
-                Encode(string.IsNullOrWhiteSpace(model.DepartmentName) ? "—" : model.DepartmentName));
+                Encode(string.IsNullOrWhiteSpace(model.DepartmentName) ? "" : model.DepartmentName));
             sb.AppendFormat(
                 "<div class=\"meta-item\"><span class=\"meta-label\">Generated</span><span class=\"meta-value\">{0}</span></div>",
                 Encode(DateTime.UtcNow.ToString("dd MMM yyyy HH:mm") + " UTC"));
@@ -182,9 +182,9 @@ namespace AssetManagement.Application.Helpers
                 sb.Append(BuildDetailRow("Tagged asset", assetLabel));
             }
 
-            sb.Append(BuildDetailRow("Qty in stock", model.QuantityInStock.HasValue ? model.QuantityInStock.Value.ToString() : "—"));
+            sb.Append(BuildDetailRow("Qty in stock", model.QuantityInStock.HasValue ? model.QuantityInStock.Value.ToString() : ""));
             sb.Append(BuildDetailRow("Qty to order", model.Quantity.ToString()));
-            sb.Append(BuildDetailRow("Required by", model.RequiredDate.HasValue ? model.RequiredDate.Value.ToString("yyyy-MM-dd") : "—"));
+            sb.Append(BuildDetailRow("Required by", model.RequiredDate.HasValue ? model.RequiredDate.Value.ToString("yyyy-MM-dd") : ""));
             sb.Append(BuildDetailRow("Submitted", model.CreatedAt.ToString("yyyy-MM-dd HH:mm")));
             if (model.ApprovedAt.HasValue)
             {
@@ -195,7 +195,7 @@ namespace AssetManagement.Application.Helpers
 
             sb.Append("<div class=\"detail-section\">");
             sb.Append("<h2 class=\"detail-section-title\">Justification</h2>");
-            sb.AppendFormat("<p class=\"detail-text\">{0}</p>", Encode(string.IsNullOrWhiteSpace(model.Justification) ? "—" : model.Justification));
+            sb.AppendFormat("<p class=\"detail-text\">{0}</p>", Encode(string.IsNullOrWhiteSpace(model.Justification) ? "" : model.Justification));
             if (!string.IsNullOrWhiteSpace(model.Notes))
             {
                 sb.Append("<h2 class=\"detail-section-title\">Notes</h2>");
@@ -278,7 +278,7 @@ namespace AssetManagement.Application.Helpers
             return string.Format(
                 "<div class=\"detail-row\"><span class=\"detail-label\">{0}</span><span class=\"detail-value\">{1}</span></div>",
                 Encode(label),
-                Encode(string.IsNullOrWhiteSpace(value) ? "—" : value));
+                Encode(string.IsNullOrWhiteSpace(value) ? "" : value));
         }
 
         private static string BuildTable(IList<string> headers, IList<IList<string>> rows)

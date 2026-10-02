@@ -66,7 +66,7 @@ else
             var workflowNote = ApprovalWorkflowSettingsHelper.GetTypicalRoleWorkflowNote(item.Name);
             <tr>
                 <td>@item.Name</td>
-                <td class="small text-muted" style="max-width:220px;white-space:normal">@(workflowNote ?? "—")</td>
+                <td class="small text-muted" style="max-width:220px;white-space:normal">@(workflowNote ?? "")</td>
                 <td>@item.Description</td>
                 <td>@(item.IsSystemRole ? "Yes" : "No")</td>
                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>

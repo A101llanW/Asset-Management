@@ -261,7 +261,7 @@
             "<button type=\"button\" class=\"btn btn-outline-secondary catalog-pick-asset\" title=\"Pick from asset register\">Pick</button></div></td>" +
             "<td><select class=\"form-select form-select-sm catalog-category\" name=\"CatalogItems[" + index + "].AssetCategoryId\">" + getCategoryOptionsHtml() + "</select></td>" +
             "<td><select class=\"form-select form-select-sm catalog-asset-type\" name=\"CatalogItems[" + index + "].AssetTypeId\">" + getAssetTypeOptionsHtml() + "</select></td>" +
-            "<td><select class=\"form-select form-select-sm catalog-tagged-asset\" name=\"CatalogItems[" + index + "].TaggedAssetId\"><option value=\"\">—</option></select></td>" +
+            "<td><select class=\"form-select form-select-sm catalog-tagged-asset\" name=\"CatalogItems[" + index + "].TaggedAssetId\"><option value=\"\"></option></select></td>" +
             "<td><input class=\"form-control form-control-sm\" name=\"CatalogItems[" + index + "].Sku\" placeholder=\"SKU\" /></td>" +
             "<td><input class=\"form-control form-control-sm catalog-unit-price\" name=\"CatalogItems[" + index + "].UnitPrice\" type=\"number\" step=\"0.01\" min=\"0.01\" placeholder=\"0.00\" required=\"required\" /></td>" +
             "<td><input class=\"form-control form-control-sm catalog-currency\" name=\"CatalogItems[" + index + "].Currency\" value=\"" + currency + "\" maxlength=\"10\" /></td>" +
@@ -421,8 +421,8 @@
                     "<td class=\"ps-3\"><span class=\"am-tag-pill\">" + escapeHtml(item.assetTag) + "</span></td>" +
                     "<td><span class=\"fw-bold text-dark\">" + escapeHtml(item.assetName) + "</span></td>" +
                     "<td>" + escapeHtml(item.categoryName) + "</td>" +
-                    "<td>" + escapeHtml(item.subTypeName || "—") + "</td>" +
-                    "<td>" + escapeHtml(item.serialNumber || "—") + "</td>" +
+                    "<td>" + escapeHtml(item.subTypeName || "") + "</td>" +
+                    "<td>" + escapeHtml(item.serialNumber || "") + "</td>" +
                     "<td><span class=\"fw-bold text-primary\">" + escapeHtml(item.acquisitionCostDisplay) + "</span></td>" +
                     "<td class=\"text-end pe-3\"><button type=\"button\" class=\"btn btn-sm btn-primary am-catalog-asset-select\">Select</button></td>";
 

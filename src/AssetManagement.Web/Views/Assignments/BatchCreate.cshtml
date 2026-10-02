@@ -115,7 +115,7 @@
                                         @Html.HiddenFor(m => m.Rows[i].BlockReason)
                                         <a href="@Url.Action("Details", "Assets", new { id = row.AssetId })">@row.AssetTag</a>
                                     </td>
-                                    <td>@(string.IsNullOrWhiteSpace(row.SerialNumber) ? "—" : row.SerialNumber)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(row.SerialNumber) ? "" : row.SerialNumber)</td>
                                     <td>@row.AssetName</td>
                                     <td>
                                         @if (row.CanAssign)

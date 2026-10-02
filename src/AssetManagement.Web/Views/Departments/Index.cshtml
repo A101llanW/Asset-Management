@@ -115,13 +115,13 @@ else if (viewMode == "tree")
                             {
                                 <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (parent.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                 <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
-                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "—" : parent.EffectiveRequisitionFlowSummary)</td>
+                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "" : parent.EffectiveRequisitionFlowSummary)</td>
                             }
                             else
                             {
-                                <td>—</td>
+                                <td></td>
                                 <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
-                                <td>—</td>
+                                <td></td>
                             }
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(parent.IsActive) badge-status">@(parent.IsActive ? "Active" : "Inactive")</span></td>
                             <td class="text-end">
@@ -145,13 +145,13 @@ else if (viewMode == "tree")
                                 {
                                     <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (child.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                     <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "—" : child.EffectiveRequisitionFlowSummary)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "" : child.EffectiveRequisitionFlowSummary)</td>
                                 }
                                 else
                                 {
-                                    <td>—</td>
+                                    <td></td>
                                     <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
-                                    <td>—</td>
+                                    <td></td>
                                 }
                                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(child.IsActive) badge-status">@(child.IsActive ? "Active" : "Inactive")</span></td>
                                 <td class="text-end">
@@ -172,13 +172,13 @@ else if (viewMode == "tree")
                                     {
                                         <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (grandchild.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                         <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
-                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "—" : grandchild.EffectiveRequisitionFlowSummary)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "" : grandchild.EffectiveRequisitionFlowSummary)</td>
                                     }
                                     else
                                     {
-                                        <td>—</td>
+                                        <td></td>
                                         <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
-                                        <td>—</td>
+                                        <td></td>
                                     }
                                     <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(grandchild.IsActive) badge-status">@(grandchild.IsActive ? "Active" : "Inactive")</span></td>
                                     <td class="text-end">
@@ -214,13 +214,13 @@ else
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                             <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "—" : item.EffectiveRequisitionFlowSummary)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "" : item.EffectiveRequisitionFlowSummary)</td>
                         }
                         else
                         {
-                            <td>—</td>
+                            <td></td>
                             <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
-                            <td>—</td>
+                            <td></td>
                         }
                         <td>@item.Description</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>

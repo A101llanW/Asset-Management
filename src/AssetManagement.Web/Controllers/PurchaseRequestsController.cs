@@ -345,14 +345,14 @@ namespace AssetManagement.Web.Controllers
                 categoryName = x.CategoryName,
                 departmentId = x.DepartmentId,
                 departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
-                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "—" : x.CurrentCustodianName,
+                custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "" : x.CurrentCustodianName,
                 status = FormatAssetStatusLabel(x.CurrentStatus),
                 statusBadge = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
                 acquisitionCost = x.AcquisitionCost,
                 acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
                 label = FormatTargetAssetLabel(x),
                 itemDescription = FormatTargetAssetItemDescription(x),
-                subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "—" : x.AssetSubTypeName,
+                subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "" : x.AssetSubTypeName,
                 quantityInStock = ResolveInStockQuantity(x, inStockLookup)
             }).ToList();
 

@@ -30,7 +30,7 @@ namespace AssetManagement.Application.Helpers
             return Empty;
         }
 
-        public const string Empty = "—";
+        public const string Empty = "";
 
         private static string FormatName(string displayName, string userId, string role)
         {

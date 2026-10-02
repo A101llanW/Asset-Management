@@ -135,7 +135,7 @@
                         </td>
                         <td>
                             <select class="form-select form-select-sm catalog-tagged-asset" name="CatalogItems[@i].TaggedAssetId">
-                                <option value="">—</option>
+                                <option value=""></option>
                                 @if (Model.CatalogItems[i].TaggedAssetId.HasValue)
                                 {
                                     var taggedLabel = string.IsNullOrWhiteSpace(Model.CatalogItems[i].TaggedAssetTag)

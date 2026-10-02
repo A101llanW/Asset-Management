@@ -48,18 +48,18 @@
             var cost = modalEl.getAttribute("data-am-unit-cost") || "";
             var currency = modalEl.getAttribute("data-am-currency") || "";
             if (!cost) {
-                return "—";
+                return "";
             }
             return currency ? currency + " " + cost : cost;
         }
         function fillContextPanel() {
-            document.getElementById("receive-serial-po").textContent = modalEl.getAttribute("data-am-po") || "—";
-            document.getElementById("receive-serial-supplier").textContent = modalEl.getAttribute("data-am-supplier") || "—";
-            var item = modalEl.getAttribute("data-am-item") || modalEl.getAttribute("data-am-asset-name") || "—";
+            document.getElementById("receive-serial-po").textContent = modalEl.getAttribute("data-am-po") || "";
+            document.getElementById("receive-serial-supplier").textContent = modalEl.getAttribute("data-am-supplier") || "";
+            var item = modalEl.getAttribute("data-am-item") || modalEl.getAttribute("data-am-asset-name") || "";
             document.getElementById("receive-serial-item").textContent = item;
-            document.getElementById("receive-serial-brand").textContent = modalEl.getAttribute("data-am-brand") || "—";
-            document.getElementById("receive-serial-model").textContent = modalEl.getAttribute("data-am-model") || "—";
-            document.getElementById("receive-serial-subtype").textContent = modalEl.getAttribute("data-am-subtype") || "—";
+            document.getElementById("receive-serial-brand").textContent = modalEl.getAttribute("data-am-brand") || "";
+            document.getElementById("receive-serial-model").textContent = modalEl.getAttribute("data-am-model") || "";
+            document.getElementById("receive-serial-subtype").textContent = modalEl.getAttribute("data-am-subtype") || "";
             document.getElementById("receive-serial-cost").textContent = formatCost();
         }
         function resizeCapturedSerials(targetCount) {

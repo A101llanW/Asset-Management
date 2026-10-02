@@ -31,7 +31,7 @@
                             <td>@Html.FormatAuditTimestamp(entry.Timestamp, KenyaTimeHelper.ShortTimestampFormat)</td>
                             <td>@(string.IsNullOrWhiteSpace(entry.ActionLabel) ? entry.Action : entry.ActionLabel)</td>
                             <td>@entry.ActorUserId</td>
-                            <td>@(string.IsNullOrWhiteSpace(entry.IPAddress) ? "—" : entry.IPAddress)</td>
+                            <td>@(string.IsNullOrWhiteSpace(entry.IPAddress) ? "" : entry.IPAddress)</td>
                         </tr>
                     }
                     </tbody>

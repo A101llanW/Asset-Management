@@ -115,7 +115,7 @@
             tr.append($('<td></td>').html(row.SupplierName + badges.join('')));
             tr.append($('<td></td>').text(row.ItemLabel || ''));
             tr.append($('<td></td>').text(formatMoney(row.UnitPrice, row.Currency)));
-            tr.append($('<td></td>').text(row.LeadTimeDays ? row.LeadTimeDays + ' days' : '—'));
+            tr.append($('<td></td>').text(row.LeadTimeDays ? row.LeadTimeDays + ' days' : ''));
             tr.append($('<td></td>').html(
                 '<button type="button" class="btn btn-sm btn-outline-primary select-offer" ' +
                 'data-supplier-id="' + row.SupplierId + '" data-unit-price="' + row.UnitPrice + '" data-currency="' + (row.Currency || '') + '">Select</button>'));

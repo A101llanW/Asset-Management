@@ -358,7 +358,7 @@
                 appendCell(tr, '<span class="am-tag-pill">' + escapeHtml(item.assetTag) + "</span>", "ps-3");
                 appendCell(tr, '<span class="fw-bold text-dark">' + escapeHtml(item.assetName) + "</span>");
                 appendCell(tr, escapeHtml(item.categoryName));
-                appendCell(tr, escapeHtml(item.subTypeName || "—"));
+                appendCell(tr, escapeHtml(item.subTypeName || ""));
                 appendCell(tr, '<span class="text-secondary small fw-medium">' + escapeHtml(item.departmentName) + "</span>");
                 appendCell(tr, '<span class="text-muted" style="font-size: 0.85rem;">' + escapeHtml(item.custodianName) + "</span>");
                 appendCell(
