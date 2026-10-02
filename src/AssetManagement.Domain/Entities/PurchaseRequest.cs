@@ -64,5 +64,7 @@ namespace AssetManagement.Domain.Entities
         public virtual Department Department { get; set; }
 
         public virtual ICollection<PurchaseApprovalAction> ApprovalActions { get; set; } = new HashSet<PurchaseApprovalAction>();
+
+        public virtual ICollection<PurchaseRequestLine> Lines { get; set; } = new HashSet<PurchaseRequestLine>();
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -112,7 +112,9 @@ namespace AssetManagement.Infrastructure.Services
             }
             else
             {
-                user = _users.FindByEmail(email.Trim());
+                // No tenant scope: platform accounts only. Never resolve an arbitrary tenant user
+                // by global email (IX_Users_OrganizationId_Email allows same email across orgs).
+                user = _users.FindPlatformAdminByEmail(email.Trim());
             }
 
             return user == null ? null : user.Id;

@@ -142,7 +142,6 @@ namespace AssetManagement.Application.Services
             var stageRoleId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageRoleId(source.ApprovalStageRoleIds, source.CurrentApprovalStage);
             var stageUserId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageUserId(source.ApprovalStageUserIds, source.CurrentApprovalStage);
             var isMine = IsRequestedByCurrentUser(source.RequestedById, context.UserId);
-            var allowEligibleSelfApproval = ApprovalProcessCodes.IsRequisitionProcessName(source.ProcessName);
             var canAct = ApprovalWorkflowHelper.CanUserActOnStage(
                 _unitOfWork,
                 source.RequestedById,
@@ -150,8 +149,7 @@ namespace AssetManagement.Application.Services
                 context.IsSuperAdmin,
                 context.RoleId,
                 stageRoleId,
-                stageUserId,
-                allowEligibleSelfApproval);
+                stageUserId);
             if (!ApprovalWorkflowHelper.ShouldIncludePendingItem(context.IsSuperAdmin, canAct, isMine))
             {
                 return;

@@ -1,4 +1,4 @@
-@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
+﻿@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
 @using System
 @using System.Linq
 @using AssetManagement.Application.Helpers
@@ -379,8 +379,8 @@ else
                             <td>@item.CategoryName</td>
                             <td><span class="text-secondary small fw-medium">@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Company custody" : item.DepartmentName)</span></td>
                             <td class="text-muted" style="font-size: 0.85rem;">
-                                <span class="@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? "am-empty-custodian" : null)">
-                                    @(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? DisplayText.Unassigned : item.CurrentCustodianName)
+                                <span class="@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? "am-empty-custodian" : null)" title="@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) && item.CurrentStatus == AssetStatus.Assigned ? "Held in department pool (no person custodian)" : null)">
+                                    @DisplayText.FormatCustodian(item.CurrentCustodianName, item.CurrentStatus)
                                 </span>
                             </td>
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.CurrentStatus) badge-status px-2 py-1.5 rounded-pill text-capitalize">@item.CurrentStatus.ToString().Replace("AwaitingApproval", "Pending Approval").Replace("InStore", "In Store")</span></td>

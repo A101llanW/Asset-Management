@@ -1,11 +1,10 @@
 @model IList<AssetManagement.Application.ViewModels.DepartmentVm>
 @using AssetManagement.Application.Helpers
+@using AssetManagement.Application.Services
 @using AssetManagement.Domain.Enums
 @using AssetManagement.Web.Helpers
 @{
-    var domain = ViewBag.Domain as string ?? DepartmentHierarchyRules.DomainOrg;
-    var isClasses = domain == DepartmentHierarchyRules.DomainClasses;
-    ViewBag.Title = isClasses ? "Grades & Streams" : "Departments";
+    ViewBag.Title = "Departments";
     var canCreateDepartment = Html.HasPermission("Departments.Create");
     var canEditDepartment = Html.HasPermission("Departments.Edit");
     var statusFilter = ViewBag.StatusFilter as string ?? "active";
@@ -13,55 +12,28 @@
     var search = ViewBag.Search as string;
     var treeSections = ViewBag.TreeSections as IList<AssetManagement.Application.ViewModels.DepartmentTreeSectionVm>
         ?? new List<AssetManagement.Application.ViewModels.DepartmentTreeSectionVm>();
-    var selectedKinds = ViewBag.SelectedKinds as IList<string> ?? new List<string>();
-    var availableKinds = ViewBag.AvailableKinds as DepartmentKind[]
-        ?? (isClasses
-            ? new[] { DepartmentKind.Grade, DepartmentKind.Class }
-            : new[] { DepartmentKind.Administrative, DepartmentKind.SubDepartment, DepartmentKind.Room });
-    var statusLabel = statusFilter == "all"
-        ? (isClasses ? "grades and streams" : "departments")
-        : statusFilter == "inactive"
-            ? (isClasses ? "inactive grades and streams" : "inactive departments")
-            : (isClasses ? "active grades and streams" : "active departments");
-    var subtitle = isClasses
-        ? "Maintain grades (e.g. Grade 2) and their streams (e.g. 2A, 2B). Showing " + statusLabel + "."
-        : "Maintain business units, sub-units, and rooms. Showing " + statusLabel + ".";
-    var primaryCreateMode = isClasses
-        ? AssetManagement.Application.Services.DepartmentService.SetupModeGradeStreams
-        : AssetManagement.Application.Services.DepartmentService.SetupModeNormal;
-    var secondaryCreateMode = isClasses
-        ? AssetManagement.Application.Services.DepartmentService.SetupModeBulkGrades
-        : AssetManagement.Application.Services.DepartmentService.SetupModeSubDepartment;
-    var primaryCreateLabel = isClasses ? "Add grade & streams" : "Add department";
-    var secondaryCreateLabel = isClasses ? "Bulk create grades" : "Add sub-unit";
-    var treeColCount = isClasses ? 6 : 7;
-    var showTreeSectionHeaders = isClasses || treeSections.Count > 1;
+    var statusLabel = statusFilter == "all" ? "departments" : statusFilter == "inactive" ? "inactive departments" : "active departments";
+
+    Func<DepartmentVm, string> rowLevel = dept =>
+    {
+        if (dept == null) { return "core"; }
+        if (dept.DepartmentKind == DepartmentKind.Room) { return "room"; }
+        if (dept.DepartmentKind == DepartmentKind.SubDepartment || dept.DepartmentKind == DepartmentKind.Class) { return "sub"; }
+        return "core";
+    };
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = isClasses ? "Grades & Streams" : "Departments",
-    Subtitle = subtitle,
-    PrimaryActionUrl = canCreateDepartment ? Url.Action("Create", new { domain = domain, setupMode = primaryCreateMode }) : null,
-    PrimaryActionLabel = canCreateDepartment ? primaryCreateLabel : null,
-    SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { domain = domain, setupMode = secondaryCreateMode }) : null,
-    SecondaryActionLabel = canCreateDepartment ? secondaryCreateLabel : null,
-    TertiaryActionUrl = (!isClasses && canCreateDepartment)
-        ? Url.Action("Create", new { domain = domain, setupMode = AssetManagement.Application.Services.DepartmentService.SetupModeRoom })
-        : null,
-    TertiaryActionLabel = (!isClasses && canCreateDepartment) ? "Add room" : null
+    Title = "Departments",
+    Subtitle = "Maintain administrative departments, sub-departments, rooms, and class streams. Mode and Flow stay; Requisitions-by shows optional Class teacher / Room custodian when set. Showing " + statusLabel + ".",
+    PrimaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeNormal }) : null,
+    PrimaryActionLabel = canCreateDepartment ? "Create department" : null,
+    SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom }) : null,
+    SecondaryActionLabel = canCreateDepartment ? "Create room" : null
 })
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item">
-        <a class="nav-link @(isClasses ? "" : "active")" href="@Url.Action("Index", new { domain = DepartmentHierarchyRules.DomainOrg, status = statusFilter, view = viewMode, search = search })">Departments</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link @(isClasses ? "active" : "")" href="@Url.Action("Index", new { domain = DepartmentHierarchyRules.DomainClasses, status = statusFilter, view = viewMode, search = search })">Grades &amp; Streams</a>
-    </li>
-</ul>
 <form class="am-list-toolbar" method="get">
-    <input type="hidden" name="domain" value="@domain" />
     <div class="row g-2 align-items-center">
-        <div class="col-md-3">
+        <div class="col-md-4">
             <input type="text" class="form-control" name="search" placeholder="Search by code, name, or description" value="@search" />
         </div>
         <div class="col-md-2">
@@ -77,23 +49,6 @@
                 <option value="list" selected="@(viewMode == "list")">Flat list</option>
             </select>
         </div>
-        <div class="col-md-3">
-            <select class="form-select" name="kind" multiple="multiple" size="@Math.Max(2, availableKinds.Length)" title="Filter by kind">
-                @foreach (var kindOption in availableKinds)
-                {
-                    var kindName = kindOption.ToString();
-                    if (selectedKinds.Contains(kindName))
-                    {
-                        <option value="@kindName" selected="selected">@DepartmentHierarchyRules.DisplayLabel(kindOption)</option>
-                    }
-                    else
-                    {
-                        <option value="@kindName">@DepartmentHierarchyRules.DisplayLabel(kindOption)</option>
-                    }
-                }
-            </select>
-            <div class="form-text">Optional kind filter (Ctrl/Cmd+click for multiple).</div>
-        </div>
         <div class="col-md-2 d-grid">
             <button type="submit" class="btn btn-outline-primary">Apply</button>
         </div>
@@ -101,85 +56,103 @@
 </form>
 @if (!Model.Any())
 {
-    <div class="card card-kpi am-list-panel">
+    <div class="card card-kpi">
         <div class="card-body am-empty-state">
-            <h5>@(isClasses ? "No grades or streams yet" : "No departments yet")</h5>
-            <p class="text-muted mb-3">
-                @(isClasses
-                    ? "Create a grade (e.g. Grade 2) and its streams (e.g. 2A, 2B, 2C) before assigning classroom assets."
-                    : "Create departments before assigning assets so ownership and reporting stay accurate.")
-            </p>
+            <h5>No departments yet</h5>
+            <p class="text-muted mb-3">Create departments before assigning assets so ownership and reporting stay accurate.</p>
             @if (canCreateDepartment)
             {
-                <a class="btn btn-primary me-2" href="@Url.Action("Create", new { domain = domain, setupMode = primaryCreateMode })">@primaryCreateLabel</a>
-                <a class="btn btn-outline-primary me-2" href="@Url.Action("Create", new { domain = domain, setupMode = secondaryCreateMode })">@secondaryCreateLabel</a>
-                if (!isClasses)
-                {
-                    <a class="btn btn-outline-secondary" href="@Url.Action("Create", new { domain = domain, setupMode = AssetManagement.Application.Services.DepartmentService.SetupModeRoom })">Add room</a>
-                }
+                <a class="btn btn-primary me-2" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeNormal })">Create department</a>
+                <a class="btn btn-outline-primary" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom })">Create room</a>
             }
         </div>
     </div>
 }
 else if (viewMode == "tree")
 {
-    <div class="card card-kpi am-list-panel">
-        <div class="card-body p-0">
-            <table class="table mb-0 am-dept-tree">
-                <thead class="table-light">
-                    <tr>
-                        <th>Code</th>
-                        <th>Name</th>
-                        <th>Kind</th>
-                        @if (!isClasses)
-                        {
+    <div class="d-flex justify-content-between align-items-center mb-2 am-dept-expand-toolbar">
+        <span class="text-muted small" id="am-dept-expand-hint">Showing core departments. Expand to reveal sub-departments, then rooms.</span>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="am-dept-expand-cycle" data-am-dept-expand-cycle>Expand hierarchy</button>
+        </div>
+    </div>
+    foreach (var section in treeSections)
+    {
+        <div class="card card-kpi mb-3" data-am-dept-section>
+            <div class="card-header bg-light fw-semibold">@(section.Title)</div>
+            <div class="card-body p-0">
+                <table class="table mb-0 am-dept-tree-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:2.5rem;"></th>
+                            <th>Name</th>
+                            <th>Kind</th>
+                            <th>Mode</th>
+                            <th>Requisitions by</th>
                             <th>Flow</th>
-                        }
-                        <th>Requisition</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var treeSection in treeSections)
-                {
-                    if (showTreeSectionHeaders)
-                    {
-                        <tr class="am-dept-tree-section">
-                            <th colspan="@treeColCount">@treeSection.Title</th>
+                            <th>Status</th>
+                            <th></th>
                         </tr>
-                    }
-                    foreach (var parent in treeSection.Items)
+                    </thead>
+                    <tbody>
+                    @foreach (var parent in section.Items)
                     {
-                        <tr class="table-secondary">
-                            <td>@parent.Code</td>
+                        var parentLevel = rowLevel(parent);
+                        var parentHasSubs = parent.Children != null && parent.Children.Any(c => rowLevel(c) == "sub");
+                        var parentHasRooms = parent.Children != null && parent.Children.Any(c => rowLevel(c) == "room");
+                        var parentHasNestedRooms = parent.Children != null && parent.Children.Any(c => c.Children != null && c.Children.Any());
+                        var parentExpandable = parentHasSubs || parentHasRooms || parentHasNestedRooms;
+                        <tr class="table-secondary" data-am-dept-row="core" data-am-dept-id="@parent.Id" data-am-dept-parent="">
+                            <td class="text-center">
+                                @if (parentExpandable)
+                                {
+                                    <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">▸</button>
+                                }
+                            </td>
                             <td>@parent.Name</td>
-                            <td>@Html.DepartmentKindBadge(parent.DepartmentKind)</td>
-                            @if (!isClasses)
+                            <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(parent.DepartmentKind)</td>
+                            @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(parent.DepartmentKind))
                             {
-                                <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                                <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (parent.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                                <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
+                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "—" : parent.EffectiveRequisitionFlowSummary)</td>
                             }
-                            <td>@(parent.IsRequisitionTarget ? "Yes" : "No")</td>
+                            else
+                            {
+                                <td>—</td>
+                                <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
+                                <td>—</td>
+                            }
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(parent.IsActive) badge-status">@(parent.IsActive ? "Active" : "Inactive")</span></td>
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = parent.Id, returnUrl = Request.RawUrl })">Details</a>
-                                @if (canEditDepartment)
-                                {
-                                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", new { id = parent.Id, returnUrl = Request.RawUrl })">Edit</a>
-                                }
                             </td>
                         </tr>
                         foreach (var child in parent.Children)
                         {
-                            <tr>
-                                <td class="ps-4">@child.Code</td>
+                            var childLevel = rowLevel(child);
+                            var childHasRooms = child.Children != null && child.Children.Any();
+                            <tr data-am-dept-row="@childLevel" data-am-dept-id="@child.Id" data-am-dept-parent="@parent.Id" hidden="hidden">
+                                <td class="text-center">
+                                    @if (childHasRooms)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@child.Id" aria-expanded="false" title="Expand rooms">▸</button>
+                                    }
+                                </td>
                                 <td class="ps-4">@child.Name</td>
-                                <td>@Html.DepartmentKindBadge(child.DepartmentKind)</td>
-                                @if (!isClasses)
+                                <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(child.DepartmentKind)</td>
+                                @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(child.DepartmentKind))
                                 {
-                                    <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                                    <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (child.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                                    <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "—" : child.EffectiveRequisitionFlowSummary)</td>
                                 }
-                                <td>@(child.IsRequisitionTarget ? "Yes" : "No")</td>
+                                else
+                                {
+                                    <td>—</td>
+                                    <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
+                                    <td>—</td>
+                                }
                                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(child.IsActive) badge-status">@(child.IsActive ? "Active" : "Inactive")</span></td>
                                 <td class="text-end">
                                     <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = child.Id, returnUrl = Request.RawUrl })">Details</a>
@@ -191,15 +164,22 @@ else if (viewMode == "tree")
                             </tr>
                             foreach (var grandchild in child.Children)
                             {
-                                <tr>
-                                    <td class="ps-5">@grandchild.Code</td>
+                                <tr data-am-dept-row="room" data-am-dept-id="@grandchild.Id" data-am-dept-parent="@child.Id" data-am-dept-root="@parent.Id" hidden="hidden">
+                                    <td></td>
                                     <td class="ps-5">@grandchild.Name</td>
-                                    <td>@Html.DepartmentKindBadge(grandchild.DepartmentKind)</td>
-                                    @if (!isClasses)
+                                    <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(grandchild.DepartmentKind)</td>
+                                    @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(grandchild.DepartmentKind))
                                     {
-                                        <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                                        <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (grandchild.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                                        <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "—" : grandchild.EffectiveRequisitionFlowSummary)</td>
                                     }
-                                    <td>@(grandchild.IsRequisitionTarget ? "Yes" : "No")</td>
+                                    else
+                                    {
+                                        <td>—</td>
+                                        <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
+                                        <td>—</td>
+                                    }
                                     <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(grandchild.IsActive) badge-status">@(grandchild.IsActive ? "Active" : "Inactive")</span></td>
                                     <td class="text-end">
                                         <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = grandchild.Id, returnUrl = Request.RawUrl })">Details</a>
@@ -212,30 +192,36 @@ else if (viewMode == "tree")
                             }
                         }
                     }
-                }
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+    }
 }
 else
 {
-    <div class="card card-kpi am-list-panel">
+    <div class="card card-kpi">
         <div class="card-body p-0">
             <table class="table mb-0">
-                <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Kind</th>@if (!isClasses) { <th>Flow</th> }<th>Requisition</th><th>Description</th><th>Status</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Name</th><th>Kind</th><th>Mode</th><th>Requisitions by</th><th>Flow</th><th>Description</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
                     <tr>
-                        <td>@item.Code</td>
                         <td>@item.Name</td>
-                        <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
-                        @if (!isClasses)
+                        <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(item.DepartmentKind)</td>
+                        @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
                         {
-                            <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
+                            <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
+                            <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "—" : item.EffectiveRequisitionFlowSummary)</td>
                         }
-                        <td>@(item.IsRequisitionTarget ? "Yes" : "No")</td>
+                        else
+                        {
+                            <td>—</td>
+                            <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
+                            <td>—</td>
+                        }
                         <td>@item.Description</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                         <td class="text-end">
@@ -251,4 +237,8 @@ else
             </table>
         </div>
     </div>
+}
+@if (viewMode == "tree" && Model.Any())
+{
+    <script src="@Url.Content("~/Scripts/app/departments-tree.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/departments-tree.js")).Ticks"></script>
 }

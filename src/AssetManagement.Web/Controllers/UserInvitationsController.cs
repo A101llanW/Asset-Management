@@ -104,7 +104,7 @@ namespace AssetManagement.Web.Controllers
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.Roles = new SelectList(_roleService.GetRoles(), "Id", "Name");
-            ViewBag.Departments = new SelectList(BuildDepartmentService().GetAll(), "Id", "Name");
+            ViewBag.Departments = new SelectList(BuildDepartmentService().GetAll().Where(x => x.IsActive), "Id", "Name");
         }
 
         private int? GetCurrentOrganizationIdOrDeny()

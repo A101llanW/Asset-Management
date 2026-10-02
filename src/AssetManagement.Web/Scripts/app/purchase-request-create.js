@@ -24,6 +24,14 @@
         return byId("target-asset-display");
     }
 
+    function getLineItemsContainer() {
+        return byId("purchase-line-items");
+    }
+
+    function getFirstLineDescriptionInput() {
+        return document.querySelector(".am-line-description");
+    }
+
     function ensureModalInBody(modal) {
         if (!modal || modal.parentElement === document.body) {
             return;
@@ -95,6 +103,151 @@
         params.push("page=" + encodeURIComponent(state.page || 1));
         params.push("pageSize=" + encodeURIComponent(state.pageSize || 10));
         return params.join("&");
+    }
+
+    function updateQtyInStockVisibility() {
+        var group = byId("qty-in-stock-group");
+        var targetId = getHiddenInput();
+        if (!group) {
+            return;
+        }
+
+        var hasAsset = targetId && String(targetId.value || "").trim().length > 0;
+        if (hasAsset) {
+            group.classList.remove("d-none");
+        } else {
+            group.classList.add("d-none");
+        }
+    }
+
+    function reindexLineItems() {
+        var container = getLineItemsContainer();
+        if (!container) {
+            return;
+        }
+
+        var rows = container.querySelectorAll(".purchase-line-item");
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            row.setAttribute("data-line-index", String(i));
+            var description = row.querySelector(".am-line-description");
+            var quantity = row.querySelector(".am-line-quantity");
+            var removeButton = row.querySelector(".am-remove-line-item");
+            if (description) {
+                description.name = "Lines[" + i + "].Description";
+                description.id = "Lines_" + i + "__Description";
+            }
+            if (quantity) {
+                quantity.name = "Lines[" + i + "].Quantity";
+                quantity.id = "Lines_" + i + "__Quantity";
+            }
+            if (removeButton) {
+                removeButton.disabled = i === 0;
+            }
+        }
+    }
+
+    function addLineItem() {
+        var container = getLineItemsContainer();
+        if (!container) {
+            return;
+        }
+
+        var index = container.querySelectorAll(".purchase-line-item").length;
+        var row = document.createElement("div");
+        row.className = "purchase-line-item row g-2 align-items-end border rounded p-2";
+        row.setAttribute("data-line-index", String(index));
+        row.innerHTML =
+            "<div class=\"col-md-8\">" +
+            "<label class=\"form-label small mb-1\">Description / what you need</label>" +
+            "<input type=\"text\" name=\"Lines[" + index + "].Description\" id=\"Lines_" + index + "__Description\" " +
+            "class=\"form-control am-line-description\" required=\"required\" maxlength=\"2000\" />" +
+            "</div>" +
+            "<div class=\"col-md-2\">" +
+            "<label class=\"form-label small mb-1\">Qty to order</label>" +
+            "<input type=\"number\" name=\"Lines[" + index + "].Quantity\" id=\"Lines_" + index + "__Quantity\" " +
+            "class=\"form-control am-line-quantity\" value=\"1\" min=\"1\" required=\"required\" />" +
+            "</div>" +
+            "<div class=\"col-md-2 text-end\">" +
+            "<button type=\"button\" class=\"btn btn-outline-secondary btn-sm am-remove-line-item\" title=\"Remove line\">Remove</button>" +
+            "</div>";
+        container.appendChild(row);
+        reindexLineItems();
+    }
+
+    function initLineItems() {
+        var container = getLineItemsContainer();
+        var addButton = byId("add-purchase-line-item");
+        if (!container) {
+            return;
+        }
+
+        reindexLineItems();
+
+        if (addButton) {
+            addButton.addEventListener("click", function (event) {
+                event.preventDefault();
+                addLineItem();
+            });
+        }
+
+        container.addEventListener("click", function (event) {
+            var target = event.target;
+            if (!target || !target.classList || !target.classList.contains("am-remove-line-item")) {
+                return;
+            }
+            event.preventDefault();
+            var row = target.closest(".purchase-line-item");
+            if (!row || container.querySelectorAll(".purchase-line-item").length <= 1) {
+                return;
+            }
+            row.remove();
+            reindexLineItems();
+        });
+    }
+
+    function refreshApprovalPathPreview() {
+        var banner = byId("purchase-approval-path-banner");
+        var summaryEl = byId("purchase-approval-path-summary");
+        if (!banner || !summaryEl) {
+            return;
+        }
+
+        var url = banner.getAttribute("data-am-preview-approval-url");
+        if (!url) {
+            return;
+        }
+
+        var departmentSelect = byId("DepartmentId");
+        var departmentId = departmentSelect ? departmentSelect.value : "";
+        var query = departmentId ? ("?departmentId=" + encodeURIComponent(departmentId)) : "";
+
+        fetch(url + query, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" }
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Request failed");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                if (data && data.summary) {
+                    summaryEl.textContent = data.summary;
+                }
+            })
+            .catch(function () {
+                /* keep server-rendered summary */
+            });
+    }
+
+    function initApprovalPathPreview() {
+        var departmentSelect = byId("DepartmentId");
+        refreshApprovalPathPreview();
+        if (departmentSelect) {
+            departmentSelect.addEventListener("change", refreshApprovalPathPreview);
+        }
     }
 
     function initTargetAssetPicker() {
@@ -329,27 +482,13 @@
             return form && form.getAttribute("data-am-lock-department") === "true";
         }
 
-        function showTargetDeptWarning(message) {
-            var warn = byId("target-asset-dept-warning");
-            if (!warn) {
-                return;
-            }
-            if (message) {
-                warn.textContent = message;
-                warn.style.display = "";
-            } else {
-                warn.textContent = "";
-                warn.style.display = "none";
-            }
-        }
-
         function applyAssetToForm(button) {
             if (!button) {
                 return;
             }
 
             var itemDescription = button.getAttribute("data-item-description") || "";
-            var descriptionInput = byId("ItemDescription");
+            var descriptionInput = getFirstLineDescriptionInput();
             if (descriptionInput && itemDescription) {
                 descriptionInput.value = itemDescription;
             }
@@ -360,14 +499,15 @@
                 quantityInput.value = quantityInStock;
             }
 
-            showTargetDeptWarning("");
             if (isDepartmentLocked()) {
+                updateQtyInStockVisibility();
                 return;
             }
 
             var departmentId = button.getAttribute("data-department-id");
             var departmentSelect = byId("DepartmentId");
             if (!departmentSelect || !departmentId) {
+                updateQtyInStockVisibility();
                 return;
             }
 
@@ -381,12 +521,10 @@
 
             if (hasOption) {
                 departmentSelect.value = String(departmentId);
-                if (typeof window.amRefreshPurchaseApprovalPath === "function") {
-                    window.amRefreshPurchaseApprovalPath();
-                }
-            } else {
-                showTargetDeptWarning("Tagged asset department is not a requisition leaf target. Pick a requisition target separately before submit.");
+                refreshApprovalPathPreview();
             }
+
+            updateQtyInStockVisibility();
         }
 
         function selectAsset(button) {
@@ -415,6 +553,7 @@
             if (displayInput) {
                 displayInput.value = "";
             }
+            updateQtyInStockVisibility();
         }
 
         if (filterForm) {
@@ -490,79 +629,11 @@
         }
     }
 
-    function refreshPurchaseApprovalPath() {
-        var banner = byId("purchase-approval-path-banner");
-        var sourceEl = byId("purchase-approval-path-source");
-        var stagesEl = byId("purchase-approval-path-stages");
-        var departmentSelect = byId("DepartmentId");
-        if (!banner || !sourceEl) {
-            return;
-        }
-
-        var previewUrl = banner.getAttribute("data-am-preview-url") || "";
-        var departmentId = departmentSelect ? departmentSelect.value : "";
-        if (!previewUrl || !departmentId) {
-            sourceEl.textContent = "Select a requisition target to see the approval path submit will use.";
-            if (stagesEl) {
-                stagesEl.innerHTML = "";
-                stagesEl.style.display = "none";
-            }
-            return;
-        }
-
-        var url = previewUrl + (previewUrl.indexOf("?") >= 0 ? "&" : "?") + "departmentId=" + encodeURIComponent(departmentId);
-        fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
-            .then(function (response) {
-                if (!response.ok) {
-                    throw new Error("preview failed");
-                }
-                return response.json();
-            })
-            .then(function (data) {
-                var label = (data && data.sourceLabel) ? data.sourceLabel : "Organization Approval Matrix";
-                if (data && data.summary) {
-                    label = label + " — " + data.summary;
-                }
-                sourceEl.textContent = label;
-                if (!stagesEl) {
-                    return;
-                }
-                stagesEl.innerHTML = "";
-                var stages = (data && data.stages) ? data.stages : [];
-                if (!stages.length) {
-                    stagesEl.style.display = "none";
-                    return;
-                }
-                for (var i = 0; i < stages.length; i++) {
-                    var stage = stages[i] || {};
-                    var li = document.createElement("li");
-                    var title = stage.displayLabel || stage.roleName || ("Stage " + (stage.stageNumber || (i + 1)));
-                    li.textContent = "Stage " + (stage.stageNumber || (i + 1)) + " — " + title;
-                    stagesEl.appendChild(li);
-                }
-                stagesEl.style.display = "";
-            })
-            .catch(function () {
-                sourceEl.textContent = "Could not load approval path for this target.";
-                if (stagesEl) {
-                    stagesEl.innerHTML = "";
-                    stagesEl.style.display = "none";
-                }
-            });
-    }
-
-    window.amRefreshPurchaseApprovalPath = refreshPurchaseApprovalPath;
-
-    function initApprovalPathPreview() {
-        var departmentSelect = byId("DepartmentId");
-        if (departmentSelect) {
-            departmentSelect.addEventListener("change", refreshPurchaseApprovalPath);
-        }
-    }
-
     function boot() {
-        initTargetAssetPicker();
+        initLineItems();
         initApprovalPathPreview();
+        initTargetAssetPicker();
+        updateQtyInStockVisibility();
     }
 
     if (document.readyState === "loading") {

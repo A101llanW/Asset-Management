@@ -35,6 +35,21 @@ namespace AssetManagement.Web.ViewModels
         public System.Collections.Generic.IEnumerable<BreadcrumbItemViewModel> Breadcrumbs { get; set; }
     }
 
+    public class DepartmentChildListViewModel
+    {
+        public string Title { get; set; }
+
+        public string EmptyMessage { get; set; }
+
+        public string ReturnUrl { get; set; }
+
+        public string ListDomId { get; set; }
+
+        public int InitialVisibleCount { get; set; }
+
+        public System.Collections.Generic.IList<AssetManagement.Application.ViewModels.DepartmentVm> Items { get; set; }
+    }
+
     public class FormActionsViewModel
     {
         public string SubmitLabel { get; set; }
@@ -62,18 +77,22 @@ namespace AssetManagement.Web.ViewModels
     public class DepartmentSelectOptionVm
     {
         public string Value { get; set; }
-
         public string Text { get; set; }
-
         public bool Selected { get; set; }
     }
 
     public class DepartmentSelectGroupVm
     {
         public string Label { get; set; }
-
         public System.Collections.Generic.IList<DepartmentSelectOptionVm> Items { get; set; }
             = new System.Collections.Generic.List<DepartmentSelectOptionVm>();
     }
-}
 
+    public class AssetTypeLookupVm
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int AssetCategoryId { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
@@ -173,13 +174,31 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Asset is already assigned to the selected user.");
             }
 
+            var disposition = CrossDepartmentDisposition.Normalize(model.DepartmentDisposition);
+            var isCrossDeptPerson = CrossDepartmentDisposition.IsCrossDepartmentPerson(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId);
+            if (isCrossDeptPerson && disposition == null)
+            {
+                throw new BusinessException(
+                    "This person belongs to a different department than the asset. Choose Move (update the asset department) or Keep (leave the asset in its current department).");
+            }
+
+            // Validate person against the selected/teacher department on the form.
             EnsureUserBelongsToDepartment(toUserId, model.ToDepartmentId);
             EnsureUserBelongsToDepartment(receivedById, model.ToDepartmentId);
+
+            var effectiveDepartmentId = CrossDepartmentDisposition.ResolveEffectiveDepartmentId(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId,
+                disposition);
 
             var assignment = new AssetAssignment
             {
                 AssetId = model.AssetId,
-                ToDepartmentId = model.ToDepartmentId,
+                ToDepartmentId = effectiveDepartmentId,
                 ToUserId = toUserId,
                 AssignmentType = type,
                 AssignedDate = assignedDate,
@@ -204,7 +223,7 @@ namespace AssetManagement.Application.Services
                 FromUserId = asset.CurrentCustodianId,
                 ToUserId = toUserId,
                 FromDepartmentId = asset.DepartmentId,
-                ToDepartmentId = model.ToDepartmentId,
+                ToDepartmentId = effectiveDepartmentId,
                 ConditionBefore = NormalizeText(model.ConditionBeforeHandover),
                 ConditionAfter = NormalizeText(model.ConditionBeforeHandover),
                 Notes = NormalizeText(model.HandoverNotes),
@@ -212,10 +231,12 @@ namespace AssetManagement.Application.Services
             };
             _unitOfWork.Repository<AssetCustodyEvent>().Add(custody);
 
+            // Department-only assign: leave CurrentCustodianId null intentionally (status Assigned = department pool).
             asset.CurrentCustodianId = toUserId;
-            if (model.ToDepartmentId.HasValue)
+            if (effectiveDepartmentId.HasValue
+                && !(isCrossDeptPerson && disposition == CrossDepartmentDisposition.Keep))
             {
-                asset.DepartmentId = model.ToDepartmentId.Value;
+                asset.DepartmentId = effectiveDepartmentId.Value;
             }
             asset.CurrentStatus = AssetStatus.Assigned;
             asset.UpdatedAt = DateTime.UtcNow;

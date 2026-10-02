@@ -28,7 +28,19 @@ namespace AssetManagement.Domain.Entities
 
         public string CustomStageUserIds { get; set; }
 
+        // PR14 / room-approval columns (IIS migration 065)
+        public bool UseCustomRequisitionApproval { get; set; }
+
+        public string RequisitionApprovalStageRoleIds { get; set; }
+
+        public string RequisitionApprovalStageUserIds { get; set; }
+
+        /// <summary>Optional Class PIC (Kind=Class). Never required; no cascade reassign.</summary>
+        public string ClassTeacherUserId { get; set; }
+
+        /// <summary>Optional Room PIC (Kind=Room). Never required; no cascade reassign.</summary>
+        public string RoomCustodianUserId { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }
-

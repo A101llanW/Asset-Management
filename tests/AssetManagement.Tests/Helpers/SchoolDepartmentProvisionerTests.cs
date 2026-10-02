@@ -64,6 +64,34 @@ namespace AssetManagement.Tests.Helpers
         {
             Assert.AreEqual("IT-ICT", SchoolDepartmentCodeHelper.BuildSubDepartmentCode("IT", "ICT"));
         }
+
+        [Test]
+        public void IsRoomLikeDepartmentName_DetectsRoomsAndLabs()
+        {
+            Assert.IsTrue(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Art room"));
+            Assert.IsTrue(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Music Room"));
+            Assert.IsTrue(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Biology Lab"));
+            Assert.IsTrue(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Meet Room"));
+            Assert.IsFalse(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Administration"));
+            Assert.IsFalse(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Classroom"));
+            Assert.IsFalse(SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName("Academics"));
+        }
+
+        [Test]
+        public void IsAdministrativeDepartmentName_ExcludesRoomLikeNames()
+        {
+            Assert.IsTrue(SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName("Administration"));
+            Assert.IsTrue(SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName("Examinations"));
+            Assert.IsFalse(SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName("Art room"));
+            Assert.IsFalse(SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName("Biology Lab"));
+        }
+
+        [Test]
+        public void BuildRoomCode_CombinesParentAndRoomName()
+        {
+            Assert.AreEqual("ITCOMPLABS-LAB1", SchoolDepartmentCodeHelper.BuildRoomCode("IT-COMPLABSE", "Lab 1"));
+        }
+
     }
 
     [TestFixture]
@@ -162,6 +190,49 @@ namespace AssetManagement.Tests.Helpers
             }
 
             Assert.AreEqual(1, adminCount);
+        }
+
+
+        [Test]
+        public void ProvisionFromRows_CreatesRoomKindForRoomLikeDepartmentNames()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            var provisioner = new SchoolImportProvisioner(
+                unitOfWork,
+                new FakeOrganizationScopeService(),
+                new FakeReferenceDataCache());
+
+            var rows = new List<IDictionary<string, string>>
+            {
+                Row("Easel", "Art Supplies", "Easel", "Art room", string.Empty),
+                Row("Keyboard", "Music Equipment", "Keyboard", "Entertainment", "Music Room")
+            };
+
+            provisioner.ProvisionFromRows(rows, GetValue);
+
+            var departments = unitOfWork.Repository<Department>().GetAll();
+            Department art = null;
+            Department music = null;
+            foreach (var department in departments)
+            {
+                if (department.DepartmentKind == DepartmentKind.Room
+                    && department.Name.IndexOf("Art", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    art = department;
+                }
+
+                if (department.DepartmentKind == DepartmentKind.Room
+                    && department.Name.IndexOf("Music", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    music = department;
+                }
+            }
+
+            Assert.IsNotNull(art);
+            Assert.AreEqual(DepartmentKind.Room, art.DepartmentKind);
+            Assert.IsNotNull(music);
+            Assert.AreEqual(DepartmentKind.Room, music.DepartmentKind);
+            Assert.IsFalse(art.DepartmentKind == DepartmentKind.Administrative);
         }
 
         private static Dictionary<string, string> Row(

@@ -22,20 +22,89 @@ namespace AssetManagement.Web.Controllers
             _assetSubTypeService = BuildAssetSubTypeService();
             _assetService = BuildAssetService();
         }
-        public ActionResult Create(int assetTypeId, string returnUrl = null)
+        public ActionResult Index(int? assetTypeId = null, string search = null, bool? activeOnly = true)
         {
-            var assetType = UnitOfWork.Repository<AssetType>().GetById(assetTypeId);
+            var query = UnitOfWork.Repository<AssetSubType>().GetAll().AsQueryable();
+            if (assetTypeId.HasValue && assetTypeId.Value > 0)
+            {
+                query = query.Where(x => x.AssetTypeId == assetTypeId.Value);
+            }
+
+            if (activeOnly != false)
+            {
+                query = query.Where(x => x.IsActive);
+            }
+
+            var loaded = query.OrderBy(x => x.Name).ToList();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                loaded = loaded.Where(x =>
+                    (x.Name != null && x.Name.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (x.Brand != null && x.Brand.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (x.Model != null && x.Model.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (x.Sku != null && x.Sku.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
+            }
+
+            var types = UnitOfWork.Repository<AssetType>().GetAll().ToDictionary(x => x.Id, x => x);
+            var categories = UnitOfWork.Repository<AssetCategory>().GetAll().ToDictionary(x => x.Id, x => x.Name);
+            var items = loaded.Select(x =>
+            {
+                AssetType assetType;
+                types.TryGetValue(x.AssetTypeId, out assetType);
+                string categoryName = null;
+                if (assetType != null)
+                {
+                    categories.TryGetValue(assetType.AssetCategoryId, out categoryName);
+                }
+
+                return new AssetSubTypeIndexItemVm
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    Brand = x.Brand,
+                    Model = x.Model,
+                    Sku = x.Sku,
+                    AssetTypeId = x.AssetTypeId,
+                    AssetTypeName = assetType != null ? assetType.Name : null,
+                    AssetCategoryName = categoryName,
+                    IsActive = x.IsActive
+                };
+            }).ToList();
+
+            ViewBag.AssetTypeId = assetTypeId;
+            ViewBag.Search = search;
+            ViewBag.ActiveOnly = activeOnly != false;
+            ViewBag.AssetTypes = new SelectList(
+                UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
+                "Id", "Name", assetTypeId);
+            return View(items);
+        }
+
+        public ActionResult Create(int? assetTypeId = null, string returnUrl = null)
+        {
+            if (!assetTypeId.HasValue || assetTypeId.Value <= 0)
+            {
+                ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index", "AssetTypes");
+                ViewBag.AssetTypes = new SelectList(
+                    UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
+                    "Id", "Name");
+                return View("CreateSelectType");
+            }
+
+            var assetType = UnitOfWork.Repository<AssetType>().GetById(assetTypeId.Value);
             if (assetType == null)
             {
                 return HttpNotFound();
             }
+
             var model = new AssetSubTypeEditVm
             {
-                AssetTypeId = assetTypeId,
+                AssetTypeId = assetTypeId.Value,
                 IsActive = true
             };
             PopulateAssetTypeContext(assetType);
-            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = assetTypeId });
+            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = assetTypeId.Value });
             ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             return View(model);
         }

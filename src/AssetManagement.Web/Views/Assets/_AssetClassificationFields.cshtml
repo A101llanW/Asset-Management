@@ -6,7 +6,7 @@
 @using AssetManagement.Web.ViewModels
 @{
     var categories = ViewBag.Categories as SelectList;
-    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetTypeLookupVm> ?? Enumerable.Empty<AssetTypeLookupVm>();
+    var assetTypeOptions = ViewBag.AssetTypeOptions as IEnumerable<AssetManagement.Web.ViewModels.AssetTypeLookupVm> ?? Enumerable.Empty<AssetManagement.Web.ViewModels.AssetTypeLookupVm>();
     var categoryItems = categories != null
         ? categories.Cast<SelectListItem>().Where(i => !string.IsNullOrEmpty(i.Value)).ToList()
         : new List<SelectListItem>();

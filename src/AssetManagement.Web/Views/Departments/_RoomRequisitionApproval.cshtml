@@ -1,0 +1,58 @@
+@model AssetManagement.Application.ViewModels.DepartmentVm
+@using System.Linq
+@using AssetManagement.Application.ViewModels
+@{
+    var maxStages = ApprovalWorkflowSettingsHelper.MaxApprovalStages;
+    var customStageCount = 1;
+    var purchaseProcess = (Model.RequisitionApprovalProcesses ?? new List<ApprovalProcessSettingsVm>())
+        .FirstOrDefault(x => x != null && x.ProcessCode == ApprovalProcessCodes.Purchase)
+        ?? (Model.RequisitionApprovalProcesses ?? new List<ApprovalProcessSettingsVm>()).FirstOrDefault();
+    if (purchaseProcess != null && purchaseProcess.Stages != null && purchaseProcess.Stages.Count > 0)
+    {
+        customStageCount = purchaseProcess.Stages.Count;
+    }
+    if (customStageCount < 1)
+    {
+        customStageCount = 1;
+    }
+    if (customStageCount > maxStages)
+    {
+        customStageCount = maxStages;
+    }
+    var showCustomPanel = Model.UseCustomRequisitionApproval;
+}
+<div class="card card-kpi mb-3" id="room-requisition-approval-panel" data-am-room-requisition-approval="true">
+    <div class="card-header">Requisition approval</div>
+    <div class="card-body">
+        <p class="text-muted mb-3">Choose how requisitions for this department (Admin, Sub-unit, Room, or Class) move through approval. Applies when it is a requisition target. Org default = Inherit; Custom stages override. Changes apply to new requisitions submitted after you save.</p>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-org" value="org" @(!showCustomPanel ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="requisition-approval-org">Use organization default requisition approval stages</label>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-custom" value="custom" @(showCustomPanel ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="requisition-approval-custom">Custom approval stages (at least one role required)</label>
+        </div>
+        <input type="hidden" name="UseCustomRequisitionApproval" id="use-custom-requisition-approval" value="@(Model.UseCustomRequisitionApproval ? "true" : "false")" />
+        <div id="custom-flow-approval-custom-panel" class="@(showCustomPanel ? "" : "d-none")">
+            <div class="mb-3 am-room-custom-flow-stage-count" id="custom-flow-stage-count-group">
+                <label class="form-label" for="custom-flow-stage-count">Number of approval stages</label>
+                <select class="form-select" id="custom-flow-stage-count" name="custom-flow-stage-count" aria-describedby="custom-flow-stage-count-help">
+                    @for (var stageOption = 1; stageOption <= maxStages; stageOption++)
+                    {
+                        <option value="@stageOption" @(stageOption == customStageCount ? "selected=\"selected\"" : null)>@stageOption</option>
+                    }
+                </select>
+                <div class="form-text" id="custom-flow-stage-count-help">Choose 1–@maxStages stages, then assign an approver role for each stage below.</div>
+            </div>
+            <div id="custom-flow-stages">
+                <div class="room-custom-approval-matrix">
+                    @{
+                        ViewData.TemplateInfo.HtmlFieldPrefix = "RequisitionApprovalProcesses";
+                    }
+                    @Html.Partial("_ApprovalProcessMatrix", Model.RequisitionApprovalProcesses)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

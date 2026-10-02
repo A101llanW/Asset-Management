@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Configuration;
+using System.Data.SqlClient;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.Outbox;
@@ -15,6 +16,7 @@ namespace AssetManagement.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserContext _currentUser;
         private readonly IOrganizationScopeService _organizationScope;
+        private readonly ISqlConnectionFactory _connectionFactory;
         private readonly UserAccountRepository _users;
 
         public AuditWriter(
@@ -28,6 +30,7 @@ namespace AssetManagement.Infrastructure.Services
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
             _organizationScope = organizationScope;
+            _connectionFactory = connectionFactory;
             _users = new UserAccountRepository(connectionFactory);
         }
 
@@ -58,7 +61,7 @@ namespace AssetManagement.Infrastructure.Services
             if (ShouldWriteAuditSynchronously())
             {
                 var parsed = OutboxPayloadBuilder.ParseAuditPayload(payload);
-                _unitOfWork.Repository<AuditLog>().Add(new AuditLog
+                var auditLog = new AuditLog
                 {
                     OrganizationId = parsed.OrganizationId ?? organizationId,
                     ActorUserId = parsed.ActorUserId,
@@ -71,12 +74,31 @@ namespace AssetManagement.Infrastructure.Services
                     IPAddress = parsed.IPAddress,
                     CreatedAt = DateTime.UtcNow,
                     IsActive = true
-                });
-                _unitOfWork.SaveChanges();
+                };
+                // Isolated connection: never call shared UoW.SaveChanges() here.
+                // SyncAuditWrites previously flushed unrelated dirty entities (often with
+                // DateTime.MinValue) and caused SqlDateTime overflow on Assignments/Create
+                // and Maintenance/Create after OnActionExecuted.
+                InsertAuditLogIsolated(auditLog);
                 return;
             }
 
             _outboxWriter.Enqueue(OutboxMessageTypes.AuditLog, payload);
+        }
+
+        private void InsertAuditLogIsolated(AuditLog auditLog)
+        {
+            if (auditLog == null)
+            {
+                return;
+            }
+
+            var map = EntityMapRegistry.GetMap(typeof(AuditLog));
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                EntitySqlWriter.Insert(connection, map, auditLog, null);
+            }
         }
 
         private int? ResolveOrganizationId(string entityType, string entityId, out bool allowNullOrganization)

@@ -39,6 +39,8 @@
 {
     @Html.AntiForgeryToken()
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.Partial("_DepartmentDispositionPrompt")
+@Html.Partial("_PicPlacementPrompt")
     @Html.HiddenFor(m => m.AssetId)
     <div class="row g-3">
         <div class="col-md-4">

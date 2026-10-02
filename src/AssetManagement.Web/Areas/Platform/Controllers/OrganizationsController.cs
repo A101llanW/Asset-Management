@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.ViewModels;
@@ -263,15 +264,14 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 return HttpNotFound();
             }
 
-            if (string.IsNullOrWhiteSpace(confirmName)
-                || !string.Equals(confirmName.Trim(), organization.Name, StringComparison.OrdinalIgnoreCase))
+            if (!OrganizationPurgeConfirmation.MatchesTypedName(organization.Name, confirmName))
             {
                 TempData["Error"] = "Type the organization name exactly to confirm permanent deletion.";
                 return RedirectToAction("OrganizationDetails", new { id });
             }
 
             var impersonatedOrgId = Session["ImpersonatedOrganizationId"] as int?;
-            if (impersonatedOrgId.HasValue && impersonatedOrgId.Value == id)
+            if (OrganizationPurgeConfirmation.IsImpersonatingTarget(id, impersonatedOrgId))
             {
                 TempData["Error"] = "Stop impersonating this organization before deleting it.";
                 return RedirectToAction("OrganizationDetails", new { id });

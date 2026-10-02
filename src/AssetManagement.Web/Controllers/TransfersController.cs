@@ -11,6 +11,7 @@ using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 using AssetManagement.Web.ViewModels;
+using AssetManagement.Application.Helpers;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -105,9 +106,23 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("ToUserId", "Selected user does not belong to the target department.");
             }
 
+            var disposition = CrossDepartmentDisposition.Normalize(viewModel.DepartmentDisposition);
+            viewModel.DepartmentDisposition = disposition;
+            var needsDisposition = CrossDepartmentDisposition.IsCrossDepartmentPerson(
+                asset.DepartmentId,
+                viewModel.ToDepartmentId,
+                viewModel.ToUserId);
+            if (needsDisposition && disposition == null)
+            {
+                ModelState.AddModelError(
+                    "DepartmentDisposition",
+                    "Choose whether to move the asset to the selected department or keep it in its current department.");
+            }
+
             PopulateLookups(viewModel, asset);
             ViewBag.AssetContext = BuildAssetWorkflowContext(viewModel.AssetId);
             ViewBag.TransferApprovalSummary = BuildAssetApprovalProcessSummary(asset, ApprovalProcessCodes.Transfer);
+            ApplyDepartmentDispositionViewBag(asset, viewModel.ToDepartmentId, disposition, needsDisposition);
             if (!ModelState.IsValid)
             {
                 return View(viewModel);
@@ -254,5 +269,18 @@ namespace AssetManagement.Web.Controllers
                 },
                 lockedFields));
         }
+        private void ApplyDepartmentDispositionViewBag(Asset asset, int? selectedDepartmentId, string disposition, bool needsDisposition)
+        {
+            var departments = GetActiveDepartments();
+            ViewBag.RequireDepartmentDisposition = needsDisposition;
+            ViewBag.DepartmentDispositionValue = disposition;
+            ViewBag.AssetDepartmentName = asset != null && asset.DepartmentId > 0
+                ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(asset.DepartmentId, departments) ?? "current department")
+                : "current department";
+            ViewBag.SelectedDepartmentName = selectedDepartmentId.HasValue
+                ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(selectedDepartmentId, departments) ?? "selected department")
+                : "selected department";
+        }
+
     }
 }

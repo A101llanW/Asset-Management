@@ -5,6 +5,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Domain.Entities;
 
 namespace AssetManagement.Application.Services
@@ -106,8 +107,7 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Catalog item not found.");
             }
 
-            entity.IsActive = false;
-            entity.UpdatedAt = DateTime.UtcNow;
+            SoftDeletePolicy.MarkInactive(entity);
             _unitOfWork.Repository<SupplierCatalogItem>().Update(entity);
             _unitOfWork.SaveChanges();
             _auditWriter?.Write("Suppliers.Catalog.Deactivate", nameof(SupplierCatalogItem), entity.Id.ToString(), entity.ItemName, "Inactive");

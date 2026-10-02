@@ -61,6 +61,19 @@ namespace AssetManagement.Application.ViewModels
 
         public bool IsActive { get; set; } = true;
     }
+
+    public class AssetSubTypeIndexItemVm
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Brand { get; set; }
+        public string Model { get; set; }
+        public string Sku { get; set; }
+        public int AssetTypeId { get; set; }
+        public string AssetTypeName { get; set; }
+        public string AssetCategoryName { get; set; }
+        public bool IsActive { get; set; }
+    }
     public class AssetSubTypeCreateFromAssetVm
     {
         [Required]

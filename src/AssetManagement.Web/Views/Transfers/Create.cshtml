@@ -46,6 +46,7 @@
 {
     @Html.AntiForgeryToken()
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    @Html.Partial("_DepartmentDispositionPrompt")
     @Html.HiddenFor(m => m.AssetId)
     <div class="row g-3">
         <div class="col-md-3">
@@ -53,7 +54,7 @@
             @if (lockFromFields)
             {
                 @Html.HiddenFor(m => m.FromUserId)
-                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(fromUserName) ? "Current custodian not set" : fromUserName)" />
+                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(fromUserName) ? DisplayText.DepartmentPool : fromUserName)" />
             }
             else
             {

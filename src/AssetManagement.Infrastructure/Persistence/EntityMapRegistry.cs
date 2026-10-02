@@ -20,6 +20,7 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(RolePermission));
             Register(typeof(RoleTemplate));
             Register(typeof(Department));
+            Register(typeof(DepartmentApprovalStage));
             Register(typeof(Supplier));
             Register(typeof(SupplierCatalogItem));
             Register(typeof(AssetCategory));
@@ -30,6 +31,7 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(AssetDocument));
             Register(typeof(AssetDocumentRequirement));
             Register(typeof(PurchaseRequest));
+            Register(typeof(PurchaseRequestLine));
             Register(typeof(PurchaseApprovalAction));
             Register(typeof(PurchaseRecord));
             Register(typeof(AssetReceiving));

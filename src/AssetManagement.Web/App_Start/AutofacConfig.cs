@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
@@ -13,6 +13,7 @@ using AssetManagement.Infrastructure.Queries;
 using AssetManagement.Infrastructure.Repositories;
 using AssetManagement.Infrastructure.Security;
 using AssetManagement.Infrastructure.Services;
+using AssetManagement.Web.Services;
 using Autofac;
 using Autofac.Integration.Mvc;
 
@@ -38,6 +39,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<OrganizationService>().As<IOrganizationService>().InstancePerHttpRequest();
             builder.RegisterType<SchoolOrganizationBootstrapService>().As<ISchoolOrganizationBootstrapService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationPurgeService>().As<IOrganizationPurgeService>().InstancePerHttpRequest();
+            builder.RegisterType<DatabaseConsoleService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationLicenseService>().As<IOrganizationLicenseService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationLicenseQueryRepository>().As<IOrganizationLicenseQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetQueryService>().As<IAssetQueryService>().InstancePerHttpRequest();

@@ -1,16 +1,17 @@
+using System.Collections.Generic;
+using System.Linq;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Helpers
 {
-    /// <summary>
-    /// Parent/kind rules for the shared Department table (org vs school domains).
-    /// </summary>
     public static class DepartmentHierarchyRules
     {
-        public const string DomainOrg = "org";
-        public const string DomainClasses = "classes";
+        public static bool IsAcademic(DepartmentKind kind)
+        {
+            return kind == DepartmentKind.Grade || kind == DepartmentKind.Class;
+        }
 
         public static bool IsOrganizational(DepartmentKind kind)
         {
@@ -19,25 +20,17 @@ namespace AssetManagement.Application.Helpers
                 || kind == DepartmentKind.Room;
         }
 
-        public static bool IsAcademic(DepartmentKind kind)
+        public static bool CanConfigureRequisitionFlow(DepartmentKind kind)
         {
-            return kind == DepartmentKind.Grade || kind == DepartmentKind.Class;
+            return kind == DepartmentKind.Administrative
+                || kind == DepartmentKind.SubDepartment
+                || kind == DepartmentKind.Room
+                || kind == DepartmentKind.Class;
         }
 
-        public static bool BelongsToDomain(DepartmentKind kind, string domain)
+        public static bool ShowsRequisitionFlowColumns(DepartmentKind kind)
         {
-            var normalized = NormalizeDomain(domain);
-            return normalized == DomainClasses ? IsAcademic(kind) : IsOrganizational(kind);
-        }
-
-        public static string NormalizeDomain(string domain)
-        {
-            if (string.Equals(domain, DomainClasses, System.StringComparison.OrdinalIgnoreCase))
-            {
-                return DomainClasses;
-            }
-
-            return DomainOrg;
+            return CanConfigureRequisitionFlow(kind);
         }
 
         public static string DisplayLabel(DepartmentKind kind)
@@ -59,102 +52,214 @@ namespace AssetManagement.Application.Helpers
             }
         }
 
-        public static void AssertKindUnchanged(DepartmentKind existingKind, DepartmentKind requestedKind)
+        public static bool IsTopLevelAdministrative(Department department)
         {
-            if (existingKind != requestedKind)
-            {
-                throw new BusinessException("Department kind cannot be changed after create.");
-            }
+            return department != null
+                && department.IsActive
+                && department.DepartmentKind == DepartmentKind.Administrative
+                && !department.ParentDepartmentId.HasValue;
         }
 
-        /// <summary>
-        /// Validates kind/parent pairing. Pass null parent when the department is a root.
-        /// </summary>
-        public static void AssertValidHierarchy(DepartmentKind kind, Department parent)
+        public static bool CanCreateSubDepartmentUnder(Department parent)
         {
-            switch (kind)
-            {
-                case DepartmentKind.Administrative:
-                case DepartmentKind.Grade:
-                    if (parent != null)
-                    {
-                        throw new BusinessException(DisplayLabel(kind) + " departments cannot have a parent.");
-                    }
-                    break;
-
-                case DepartmentKind.SubDepartment:
-                    if (parent == null)
-                    {
-                        throw new BusinessException("Sub-units must sit under a top-level administrative department.");
-                    }
-
-                    if (parent.DepartmentKind != DepartmentKind.Administrative || parent.ParentDepartmentId.HasValue)
-                    {
-                        throw new BusinessException("Sub-units can only sit under top-level administrative departments, not classes.");
-                    }
-                    break;
-
-                case DepartmentKind.Class:
-                    if (parent == null)
-                    {
-                        throw new BusinessException("Streams must sit under a grade.");
-                    }
-
-                    if (parent.DepartmentKind != DepartmentKind.Grade)
-                    {
-                        throw new BusinessException("Streams must have a grade parent.");
-                    }
-                    break;
-
-                case DepartmentKind.Room:
-                    // Rooms may be independent (no parent) or sit under Admin / SubDepartment.
-                    if (parent != null
-                        && parent.DepartmentKind != DepartmentKind.Administrative
-                        && parent.DepartmentKind != DepartmentKind.SubDepartment)
-                    {
-                        throw new BusinessException("Rooms must sit under a department or sub-unit, not a grade or stream.");
-                    }
-                    break;
-
-                default:
-                    throw new BusinessException("Unsupported department kind.");
-            }
+            return IsTopLevelAdministrative(parent);
         }
 
-        public static bool WouldCreateCycle(int departmentId, int newParentId, System.Func<int, int?> getParentId)
+        public static bool CanCreateRoomUnderSubDepartment(Department parent)
         {
-            if (departmentId == newParentId)
+            return parent != null
+                && parent.IsActive
+                && parent.DepartmentKind == DepartmentKind.SubDepartment;
+        }
+
+        public static bool CanCreateRoomUnder(Department parent)
+        {
+            return CanCreateRoomUnderSubDepartment(parent)
+                || IsTopLevelAdministrative(parent);
+        }
+
+        public static bool AllowsIndependentRoomCreate()
+        {
+            return true;
+        }
+
+        public static bool IsValidLockedParentForSetupMode(string setupMode, Department parent)
+        {
+            if (parent == null)
             {
-                return true;
+                return false;
             }
 
-            var current = (int?)newParentId;
-            var guard = 0;
-            while (current.HasValue && guard < 50)
+            if (setupMode == DepartmentSetupModes.SubDepartment)
             {
-                if (current.Value == departmentId)
-                {
-                    return true;
-                }
+                return CanCreateSubDepartmentUnder(parent);
+            }
 
-                current = getParentId(current.Value);
-                guard++;
+            if (setupMode == DepartmentSetupModes.Room)
+            {
+                return CanCreateRoomUnder(parent);
             }
 
             return false;
         }
 
-        public static void AssertCanConvertToRoom(Department existing)
+        public static bool IsValidRoomParentDepartment(Department department)
         {
-            if (existing == null)
+            if (department == null)
             {
-                throw new BusinessException("Department was not found.");
+                return false;
             }
 
-            if (existing.DepartmentKind != DepartmentKind.Administrative)
+            if (department.DepartmentKind == DepartmentKind.Room
+                || department.DepartmentKind == DepartmentKind.Grade
+                || department.DepartmentKind == DepartmentKind.Class)
             {
-                throw new BusinessException("Only a top-level administrative unit with no children can become a room.");
+                return false;
             }
+
+            if (department.DepartmentKind == DepartmentKind.SubDepartment)
+            {
+                return true;
+            }
+
+            return department.DepartmentKind == DepartmentKind.Administrative
+                && !department.ParentDepartmentId.HasValue;
+        }
+
+        public static void AssertValidHierarchy(
+            int departmentId,
+            DepartmentKind kind,
+            int? parentDepartmentId,
+            IEnumerable<Department> allDepartments)
+        {
+            // Duplicate-safe: GetById + EnsureLoaded previously could yield the same Id twice.
+            var byId = (allDepartments ?? Enumerable.Empty<Department>())
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+            if (parentDepartmentId.HasValue && parentDepartmentId.Value == departmentId)
+            {
+                throw new BusinessException("A department cannot be its own parent.");
+            }
+
+            switch (kind)
+            {
+                case DepartmentKind.Room:
+                    AssertValidRoomParent(parentDepartmentId, byId);
+                    break;
+                case DepartmentKind.SubDepartment:
+                    AssertValidSubDepartmentParent(parentDepartmentId, byId);
+                    break;
+                case DepartmentKind.Administrative:
+                    if (parentDepartmentId.HasValue)
+                    {
+                        throw new BusinessException("Administrative departments must be top-level (no parent department).");
+                    }
+
+                    break;
+                case DepartmentKind.Grade:
+                    if (parentDepartmentId.HasValue)
+                    {
+                        throw new BusinessException("Grade departments cannot have a parent department.");
+                    }
+
+                    break;
+                case DepartmentKind.Class:
+                    AssertValidClassParent(parentDepartmentId, byId);
+                    break;
+            }
+        }
+
+        private static void AssertValidRoomParent(int? parentDepartmentId, IDictionary<int, Department> byId)
+        {
+            if (!parentDepartmentId.HasValue)
+            {
+                return;
+            }
+
+            Department parent;
+            if (!byId.TryGetValue(parentDepartmentId.Value, out parent))
+            {
+                throw new BusinessException("Parent department was not found.");
+            }
+
+            if (parent.DepartmentKind == DepartmentKind.Room)
+            {
+                throw new BusinessException("A room cannot be placed under another room.");
+            }
+
+            if (parent.DepartmentKind == DepartmentKind.Grade || parent.DepartmentKind == DepartmentKind.Class)
+            {
+                throw new BusinessException("A room cannot be placed under a grade or class department.");
+            }
+
+            if (parent.DepartmentKind == DepartmentKind.SubDepartment)
+            {
+                if (!parent.ParentDepartmentId.HasValue)
+                {
+                    throw new BusinessException("Sub-department parent is invalid.");
+                }
+
+                Department adminParent;
+                if (!byId.TryGetValue(parent.ParentDepartmentId.Value, out adminParent)
+                    || !IsTopLevelAdministrativeStructure(adminParent))
+                {
+                    throw new BusinessException("Sub-department parent must be a top-level administrative department.");
+                }
+
+                return;
+            }
+
+            if (parent.DepartmentKind == DepartmentKind.Administrative)
+            {
+                if (parent.ParentDepartmentId.HasValue)
+                {
+                    throw new BusinessException("A room must be placed under a core administrative department or a sub-department.");
+                }
+
+                return;
+            }
+
+            throw new BusinessException("The selected parent department type is not valid for a room.");
+        }
+
+        private static void AssertValidSubDepartmentParent(int? parentDepartmentId, IDictionary<int, Department> byId)
+        {
+            if (!parentDepartmentId.HasValue)
+            {
+                throw new BusinessException("Select a top-level administrative parent department.");
+            }
+
+            Department parent;
+            if (!byId.TryGetValue(parentDepartmentId.Value, out parent))
+            {
+                throw new BusinessException("Parent department was not found.");
+            }
+
+            if (!IsTopLevelAdministrativeStructure(parent))
+            {
+                throw new BusinessException("Sub-departments can only be placed under top-level administrative departments.");
+            }
+        }
+
+        private static void AssertValidClassParent(int? parentDepartmentId, IDictionary<int, Department> byId)
+        {
+            if (!parentDepartmentId.HasValue)
+            {
+                throw new BusinessException("Class departments require a grade parent department.");
+            }
+
+            Department parent;
+            if (!byId.TryGetValue(parentDepartmentId.Value, out parent) || parent.DepartmentKind != DepartmentKind.Grade)
+            {
+                throw new BusinessException("Class departments must belong to a grade department.");
+            }
+        }
+
+        private static bool IsTopLevelAdministrativeStructure(Department department)
+        {
+            return department != null
+                && department.DepartmentKind == DepartmentKind.Administrative
+                && !department.ParentDepartmentId.HasValue;
         }
     }
 }

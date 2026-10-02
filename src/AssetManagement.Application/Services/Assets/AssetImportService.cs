@@ -910,6 +910,18 @@ namespace AssetManagement.Application.Services
                     informationTechnologySubUnit);
             }
 
+            if (!string.IsNullOrWhiteSpace(departmentName)
+                && SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName(classValue))
+            {
+                return ResolveRoomDepartment(lookups, departmentName.Trim(), classValue.Trim());
+            }
+
+            if (SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName(departmentName)
+                && string.IsNullOrWhiteSpace(classValue))
+            {
+                return ResolveRoomDepartment(lookups, null, departmentName.Trim());
+            }
+
             if (SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment(departmentName, classValue))
             {
                 var normalizedName = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName);
@@ -945,6 +957,75 @@ namespace AssetManagement.Application.Services
             }
 
             throw new BusinessException("Department '" + departmentName + "' was not found.");
+        }
+
+        private Department ResolveRoomDepartment(ImportLookups lookups, string parentDepartmentName, string roomName)
+        {
+            Department byName;
+            if (lookups.DepartmentsByName.TryGetValue(NormalizeKey(roomName), out byName)
+                && byName.DepartmentKind == DepartmentKind.Room)
+            {
+                _departmentScope.EnsureCanAccessDepartment(byName);
+                return byName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(parentDepartmentName))
+            {
+                Department parent;
+                var parentKey = NormalizeKey(SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(parentDepartmentName));
+                if (!lookups.DepartmentsByName.TryGetValue(parentKey, out parent)
+                    && !lookups.DepartmentsByCode.TryGetValue(parentKey, out parent)
+                    && !lookups.DepartmentsByCode.TryGetValue(NormalizeKey(parentDepartmentName), out parent)
+                    && !lookups.DepartmentsByName.TryGetValue(NormalizeKey(parentDepartmentName), out parent))
+                {
+                    parent = null;
+                }
+
+                if (parent != null)
+                {
+                    var roomCode = SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, roomName);
+                    Department byCode;
+                    if (lookups.DepartmentsByCode.TryGetValue(NormalizeKey(roomCode), out byCode))
+                    {
+                        _departmentScope.EnsureCanAccessDepartment(byCode);
+                        return byCode;
+                    }
+                }
+            }
+            else
+            {
+                string inferredParent;
+                bool parentIsSub;
+                string pillarName;
+                if (SchoolDepartmentCodeHelper.TryResolveDefaultRoomParent(
+                        roomName,
+                        out inferredParent,
+                        out parentIsSub,
+                        out pillarName))
+                {
+                    var parentLookupName = parentIsSub ? inferredParent : pillarName;
+                    Department parent;
+                    if (lookups.DepartmentsByName.TryGetValue(NormalizeKey(parentLookupName), out parent))
+                    {
+                        var roomCode = SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, roomName);
+                        Department byCode;
+                        if (lookups.DepartmentsByCode.TryGetValue(NormalizeKey(roomCode), out byCode))
+                        {
+                            _departmentScope.EnsureCanAccessDepartment(byCode);
+                            return byCode;
+                        }
+                    }
+                }
+            }
+
+            Department anyRoom;
+            if (lookups.DepartmentsByName.TryGetValue(NormalizeKey(roomName), out anyRoom))
+            {
+                _departmentScope.EnsureCanAccessDepartment(anyRoom);
+                return anyRoom;
+            }
+
+            throw new BusinessException("Room '" + roomName + "' was not found.");
         }
 
         private Department ResolveAdminSubDepartment(ImportLookups lookups, string parentDepartmentName, string subUnitName)

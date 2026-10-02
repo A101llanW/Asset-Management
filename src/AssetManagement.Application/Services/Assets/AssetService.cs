@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -591,10 +591,7 @@ namespace AssetManagement.Application.Services
         public void UpdateStatus(int id, AssetStatus status)
         {
             var entity = _unitOfWork.Repository<Asset>().GetById(id);
-            if (entity == null)
-            {
-                throw new BusinessException("Asset not found.");
-            }
+            SoftDeletePolicy.EnsureActive(entity, "Asset not found.");
 
             _departmentScope.EnsureCanAccessAsset(entity);
 
@@ -621,10 +618,7 @@ namespace AssetManagement.Application.Services
             model.AssetTag = NormalizeAssetTag(model.AssetTag);
             ValidateUniqueness(model.AssetTag, model.SerialNumber, model.Id);
             var entity = _unitOfWork.Repository<Asset>().GetById(model.Id);
-            if (entity == null)
-            {
-                throw new BusinessException("Asset not found.");
-            }
+            SoftDeletePolicy.EnsureActive(entity, "Asset not found.");
 
             _departmentScope.EnsureCanAccessAsset(entity);
 
@@ -767,11 +761,15 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
-            entity.IsActive = false;
-            entity.UpdatedAt = DateTime.UtcNow;
+            if (!entity.IsActive)
+            {
+                return;
+            }
+
+            SoftDeletePolicy.MarkInactive(entity);
             _unitOfWork.Repository<Asset>().Update(entity);
             _unitOfWork.SaveChanges();
-            _auditWriter.Write("Assets.Delete", nameof(Asset), entity.Id.ToString(), entity.AssetTag, "SoftDeleted");
+            _auditWriter.Write("Assets.Delete", nameof(Asset), entity.Id.ToString(), entity.AssetTag, SoftDeletePolicy.AuditMarker);
         }
 
         public void RequestDisposal(AssetDisposalRequestVm model, string requestedByUserId)
@@ -1555,6 +1553,18 @@ namespace AssetManagement.Application.Services
             if (AssetCustodyRules.BlocksCustodyChange(asset.CurrentStatus))
             {
                 throw new BusinessException("This asset cannot be moved between classes in its current status.");
+            }
+
+            // Assigned (including department pool with null CurrentCustodianId): Move is not allowed.
+            // Transfer FROM department pool TO a person is the supported next step.
+            if (asset.CurrentStatus == AssetStatus.Assigned)
+            {
+                if (string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+                {
+                    throw new BusinessException("This asset is in the department pool. Transfer it to a person before moving between classes, or return it to store first.");
+                }
+
+                throw new BusinessException("This asset is assigned to a custodian. Use Transfer to move custody first.");
             }
 
             if (!string.IsNullOrWhiteSpace(asset.CurrentCustodianId))

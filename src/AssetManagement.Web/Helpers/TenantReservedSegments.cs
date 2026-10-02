@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace AssetManagement.Web.Helpers
@@ -23,6 +23,7 @@ namespace AssetManagement.Web.Helpers
             "Content",
             "Custodian",
             "Dashboard",
+            "DatabaseConsole",
             "Departments",
             "Documents",
             "favicon.ico",
@@ -43,6 +44,7 @@ namespace AssetManagement.Web.Helpers
             "Search",
             "SecurityLogs",
             "Settings",
+            "Sys",
             "Suppliers",
             "Transfers",
             "Users"

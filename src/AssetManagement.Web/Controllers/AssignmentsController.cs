@@ -12,6 +12,7 @@ using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 using AssetManagement.Web.ViewModels;
+using AssetManagement.Application.Helpers;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -105,6 +106,7 @@ namespace AssetManagement.Web.Controllers
             };
 
             ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId => model.ToDepartmentId = deptId);
+            PrefillToUserFromDepartmentPic(model);
             PopulateLookups(model);
             ViewBag.AssetContext = BuildAssetWorkflowContext(assetId.Value);
             return View(model);
@@ -135,13 +137,30 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("", scopeError);
             }
 
+            // ClassTeacher/RoomCustodian: if target has PIC and To user empty, require Pic vs Pool (never silent pool).
+            ApplyPicPlacementChoice(viewModel);
+
             if (!string.IsNullOrWhiteSpace(viewModel.ToUserId) && !ValidateUserBelongsToDepartment(viewModel.ToUserId, viewModel.ToDepartmentId))
             {
                 ModelState.AddModelError("ToUserId", "Selected user does not belong to the target department.");
             }
 
+            var disposition = CrossDepartmentDisposition.Normalize(viewModel.DepartmentDisposition);
+            viewModel.DepartmentDisposition = disposition;
+            var needsDisposition = CrossDepartmentDisposition.IsCrossDepartmentPerson(
+                asset.DepartmentId,
+                viewModel.ToDepartmentId,
+                viewModel.ToUserId);
+            if (needsDisposition && disposition == null)
+            {
+                ModelState.AddModelError(
+                    "DepartmentDisposition",
+                    "Choose whether to move the asset to the selected department or keep it in its current department.");
+            }
+
             PopulateLookups(viewModel);
             ViewBag.AssetContext = BuildAssetWorkflowContext(viewModel.AssetId);
+            ApplyDepartmentDispositionViewBag(asset, viewModel.ToDepartmentId, disposition, needsDisposition);
             if (!ModelState.IsValid)
             {
                 return View(viewModel);
@@ -505,5 +524,110 @@ namespace AssetManagement.Web.Controllers
                 },
                 lockedFields));
         }
+
+        private string ResolveDepartmentPicUserId(int? departmentId)
+        {
+            if (!departmentId.HasValue || departmentId.Value <= 0)
+            {
+                return null;
+            }
+
+            var dept = BuildDepartmentService().GetById(departmentId.Value);
+            if (dept == null || !dept.IsActive)
+            {
+                return null;
+            }
+
+            if (dept.DepartmentKind == AssetManagement.Domain.Enums.DepartmentKind.Class
+                && !string.IsNullOrWhiteSpace(dept.ClassTeacherUserId))
+            {
+                return dept.ClassTeacherUserId.Trim();
+            }
+
+            if (dept.DepartmentKind == AssetManagement.Domain.Enums.DepartmentKind.Room
+                && !string.IsNullOrWhiteSpace(dept.RoomCustodianUserId))
+            {
+                return dept.RoomCustodianUserId.Trim();
+            }
+
+            return null;
+        }
+
+        private void PrefillToUserFromDepartmentPic(AssetAssignmentVm model)
+        {
+            if (model == null || !string.IsNullOrWhiteSpace(model.ToUserId))
+            {
+                return;
+            }
+
+            var pic = ResolveDepartmentPicUserId(model.ToDepartmentId);
+            if (!string.IsNullOrWhiteSpace(pic))
+            {
+                model.ToUserId = pic;
+            }
+        }
+
+        private bool ApplyPicPlacementChoice(AssetAssignmentVm model)
+        {
+            if (model == null)
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.ToUserId))
+            {
+                ViewBag.RequirePicPlacement = false;
+                return true;
+            }
+
+            var pic = ResolveDepartmentPicUserId(model.ToDepartmentId);
+            if (string.IsNullOrWhiteSpace(pic))
+            {
+                ViewBag.RequirePicPlacement = false;
+                return true;
+            }
+
+            var choice = (model.PicPlacementChoice ?? string.Empty).Trim();
+            if (string.Equals(choice, "Pic", StringComparison.OrdinalIgnoreCase))
+            {
+                model.ToUserId = pic;
+                ViewBag.RequirePicPlacement = false;
+                return true;
+            }
+
+            if (string.Equals(choice, "Pool", StringComparison.OrdinalIgnoreCase))
+            {
+                ViewBag.RequirePicPlacement = false;
+                return true;
+            }
+
+            var dept = BuildDepartmentService().GetById(model.ToDepartmentId.Value);
+            var picUser = BuildUserService().GetById(pic);
+            ViewBag.RequirePicPlacement = true;
+            ViewBag.PicPlacementValue = choice;
+            ViewBag.PicUserName = picUser == null ? pic : BuildUserLabel(picUser);
+            ViewBag.PicRoleLabel = dept != null && dept.DepartmentKind == AssetManagement.Domain.Enums.DepartmentKind.Class
+                ? "class teacher"
+                : "room custodian";
+            ViewBag.PicTargetDepartmentName = dept == null ? "target location" : dept.Name;
+            ModelState.AddModelError(
+                "PicPlacementChoice",
+                "This Class/Room has a person in charge. Choose whether to put the asset under that person or leave it as a department pool.");
+            return false;
+        }
+
+        private void ApplyDepartmentDispositionViewBag(Asset asset, int? selectedDepartmentId, string disposition, bool needsDisposition)
+        {
+            var departments = GetActiveDepartments();
+            ViewBag.RequireDepartmentDisposition = needsDisposition;
+            ViewBag.DepartmentDispositionValue = disposition;
+            ViewBag.AssetDepartmentName = asset != null && asset.DepartmentId > 0
+                ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(asset.DepartmentId, departments) ?? "current department")
+                : "current department";
+            ViewBag.SelectedDepartmentName = selectedDepartmentId.HasValue
+                ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(selectedDepartmentId, departments) ?? "selected department")
+                : "selected department";
+        }
+
     }
 }

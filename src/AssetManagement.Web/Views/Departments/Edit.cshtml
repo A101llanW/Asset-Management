@@ -1,238 +1,261 @@
-@model AssetManagement.Application.ViewModels.DepartmentVm
-@using AssetManagement.Application.Helpers
-@using AssetManagement.Application.ViewModels
-@using AssetManagement.Domain.Enums
-@using AssetManagement.Web.Helpers
-@{
-    ViewBag.Title = "Edit Department";
-    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
-    var domain = ViewBag.Domain as string
-        ?? (DepartmentHierarchyRules.IsAcademic(Model.DepartmentKind)
-            ? DepartmentHierarchyRules.DomainClasses
-            : DepartmentHierarchyRules.DomainOrg);
-    var indexLabel = domain == DepartmentHierarchyRules.DomainClasses ? "Grades & Streams" : "Departments";
-    var isOrgKind = !DepartmentHierarchyRules.IsAcademic(Model.DepartmentKind);
-    var parentDepartments = ViewBag.ParentDepartments as System.Web.Mvc.SelectList;
-    var roleOptions = ViewBag.RoleOptions as IEnumerable<System.Web.Mvc.SelectListItem> ?? Enumerable.Empty<System.Web.Mvc.SelectListItem>();
-    var customStages = Model.CustomStages ?? ApprovalWorkflowSettingsHelper.CreateStageSettings(
-        ApprovalWorkflowSettingsHelper.ParseStageRoleIds(Model.CustomStageRoleIds),
-        ApprovalWorkflowSettingsHelper.ParseStageUserIds(Model.CustomStageUserIds),
-        ensureBlankRowWhenEmpty: true);
-    var maxStages = ApprovalWorkflowSettingsHelper.MaxApprovalStages;
-    var inheritPreview = ViewBag.InheritedFlowPreview as ResolvedRequisitionFlowPreviewVm
-        ?? new ResolvedRequisitionFlowPreviewVm();
-    var previewUrl = Url.Action("PreviewRequisitionFlow", new { id = Model.Id });
-}
-@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
-{
-    Title = "Edit Department",
-    Subtitle = "Update the department details used across users, assignments, and reporting.",
-    BackUrl = returnUrl,
-    BackLabel = "Back",
-    Breadcrumbs = new[]
-    {
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = indexLabel, Url = Url.Action("Index", new { domain = domain }) },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name, Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index", new { domain = domain }) }) },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Edit Department" }
-    }
-})
-@using (Html.BeginForm())
-{
-    @Html.AntiForgeryToken()
-    @Html.HiddenFor(m => m.Id)
-    @Html.HiddenFor(m => m.DepartmentKind)
-    <input type="hidden" name="returnUrl" value="@returnUrl" />
-    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-    <div class="mb-3">
-        @Html.LabelFor(m => m.Name, new { @class = "form-label" })
-        @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
-    </div>
-    <div class="mb-3">
-        @Html.LabelFor(m => m.Code, new { @class = "form-label" })
-        @Html.TextBoxFor(m => m.Code, new { @class = "form-control" })
-    </div>
-    <div class="mb-3">
-        @Html.LabelFor(m => m.Description, new { @class = "form-label" })
-        @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Department kind</label>
-        <div>@Html.DepartmentKindBadge(Model.DepartmentKind)</div>
-        <div class="form-text">Kind is set at create time. Assigning a parent to a top-level admin unit converts it to a room. Assets stay on this record.</div>
-    </div>
-    if (isOrgKind)
-    {
-        var parentEmptyLabel = Model.DepartmentKind == DepartmentKind.Room
-            ? "-- Independent room (no parent) --"
-            : (Model.DepartmentKind == DepartmentKind.Administrative ? "-- Top-level department --" : "-- Select parent --");
-        var thisLevelLabel = Model.DepartmentKind == DepartmentKind.Room
-            ? "Room"
-            : (Model.DepartmentKind == DepartmentKind.SubDepartment ? "Sub-department" : "Department");
-        <div class="mb-3">
-            <label class="form-label">Parent</label>
-            @Html.DropDownListFor(m => m.ParentDepartmentId, parentDepartments, parentEmptyLabel, new { @class = "form-select", id = "ParentDepartmentId" })
-            <div class="form-text">Rooms may stand alone or sit under a department or sub-unit. Sub-units still require a top-level department.</div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Which setting applies for this requisition flow?</label>
-            <div class="form-text mb-2">Inherit walks Room -> Sub-department -> Department, then the organization Approval Matrix. The panel below shows the <strong>actual approvers</strong> that resolve for this node.</div>
-            <div class="form-check">
-                @Html.RadioButtonFor(m => m.RequisitionFlowMode, RequisitionFlowMode.Custom, new { @class = "form-check-input", id = "flow-custom" })
-                <label class="form-check-label" for="flow-custom">@thisLevelLabel setting (custom approval stages below)</label>
-            </div>
-            <div class="form-check">
-                @Html.RadioButtonFor(m => m.RequisitionFlowMode, RequisitionFlowMode.InheritParent, new { @class = "form-check-input", id = "flow-inherit" })
-                <label class="form-check-label" for="flow-inherit">Inherit hierarchy</label>
-            </div>
-        </div>
-        <div id="inherit-flow-panel" class="mb-3 border rounded p-3" style="@(Model.RequisitionFlowMode == RequisitionFlowMode.InheritParent ? "" : "display:none;")">
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                <div>
-                    <label class="form-label mb-0">Resolved approvers</label>
-                    <div class="form-text" id="inherit-source-label">Source: @inheritPreview.SourceLabel</div>
-                </div>
-                <span class="badge bg-@(inheritPreview.HasApprovers ? "success" : "warning") text-dark" id="inherit-status-badge">@(inheritPreview.HasApprovers ? "Approvers set" : "No approvers")</span>
-            </div>
-            <div id="inherit-stages-list" class="mb-2">
-                @if (inheritPreview.HasApprovers && inheritPreview.Stages != null && inheritPreview.Stages.Any())
-                {
-                    <ol class="mb-0 ps-3">
-                        @foreach (var stage in inheritPreview.Stages)
-                        {
-                            <li class="mb-1"><span class="fw-semibold">Stage @stage.StageNumber:</span> @stage.DisplayLabel</li>
-                        }
-                    </ol>
-                }
-                else
-                {
-                    <p class="text-muted mb-0">No approvers are set on the inherited path (parent custom stages or organization Approval Matrix).</p>
-                }
-            </div>
-            <div id="inherit-configure-wrap" style="@(inheritPreview.HasApprovers ? "display:none;" : "")">
-                <div class="alert alert-warning py-2 mb-2">
-                    No approvers resolved on the inherited path. Configure them here &mdash; Save stores a <strong>custom</strong> flow on this @(thisLevelLabel.ToLowerInvariant()).
-                </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" id="inherit-configure-btn">Set approvers on this @(thisLevelLabel.ToLowerInvariant())</button>
-            </div>
-        </div>
-        <div id="custom-flow-stages" class="mb-3 border rounded p-3" style="@(Model.RequisitionFlowMode == RequisitionFlowMode.Custom ? "" : "display:none;")">
-            <label class="form-label">@thisLevelLabel custom approval stages</label>
-            <div class="form-text mb-2">Leave all stages blank to auto-approve requisitions for this @(thisLevelLabel.ToLowerInvariant()).</div>
-            @for (var j = 0; j < customStages.Count; j++)
-            {
-                <div class="row g-2 align-items-center mb-2">
-                    <div class="col-md-2"><span class="fw-semibold">Stage @(j + 1)</span></div>
-                    <div class="col-md-8">
-                        @Html.DropDownList("CustomStages[" + j + "].RoleId", new System.Web.Mvc.SelectList(roleOptions, "Value", "Text", customStages[j].RoleId), "-- Select approver role --", new { @class = "form-select custom-flow-role" })
-                    </div>
-                </div>
-            }
-            @if (customStages.Count < maxStages)
-            {
-                <div class="row g-2 align-items-center mb-2">
-                    <div class="col-md-2"><span class="fw-semibold">Stage @(customStages.Count + 1)</span></div>
-                    <div class="col-md-8">
-                        @Html.DropDownList("CustomStages[" + customStages.Count + "].RoleId", new System.Web.Mvc.SelectList(roleOptions, "Value", "Text"), "-- Select approver role --", new { @class = "form-select custom-flow-role" })
-                    </div>
-                </div>
-            }
-        </div>
-    }
-    else
-    {
-        @Html.HiddenFor(m => m.ParentDepartmentId)
-    }
-    <div class="form-check mb-3">
-        @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input" })
-        @Html.LabelFor(m => m.IsRequisitionTarget, new { @class = "form-check-label" })
-    </div>
-    <div class="form-check mb-3">
-        @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
-        @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
-    </div>
-    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
-    {
-        SubmitLabel = "Update Department",
-        BackUrl = returnUrl,
-        BackLabel = "Back"
-    })
-}
-@if (isOrgKind)
-{
-<script>
-    (function () {
-        var inherit = document.getElementById('flow-inherit');
-        var custom = document.getElementById('flow-custom');
-        var customPanel = document.getElementById('custom-flow-stages');
-        var inheritPanel = document.getElementById('inherit-flow-panel');
-        var parentSelect = document.getElementById('ParentDepartmentId');
-        var previewUrl = @Html.Raw(System.Web.Helpers.Json.Encode(previewUrl));
-        var sourceLabel = document.getElementById('inherit-source-label');
-        var statusBadge = document.getElementById('inherit-status-badge');
-        var stagesList = document.getElementById('inherit-stages-list');
-        var configureWrap = document.getElementById('inherit-configure-wrap');
-        function currentMode() {
-            return custom && custom.checked ? 'Custom' : 'InheritParent';
-        }
-        function setCustomInputsDisabled(disabled) {
-            var inputs = document.querySelectorAll('#custom-flow-stages select, #custom-flow-stages input');
-            for (var i = 0; i < inputs.length; i++) { inputs[i].disabled = !!disabled; }
-        }
-        function syncFlowPanels() {
-            var isCustom = custom && custom.checked;
-            if (customPanel) customPanel.style.display = isCustom ? '' : 'none';
-            if (inheritPanel) inheritPanel.style.display = isCustom ? 'none' : '';
-            setCustomInputsDisabled(!isCustom);
-            if (!isCustom) { refreshInheritPreview(); }
-        }
-        function renderPreview(data) {
-            if (!data) return;
-            if (sourceLabel) sourceLabel.textContent = 'Source: ' + (data.sourceLabel || 'Organization Approval Matrix');
-            if (statusBadge) {
-                statusBadge.textContent = data.hasApprovers ? 'Approvers set' : 'No approvers';
-                statusBadge.className = 'badge bg-' + (data.hasApprovers ? 'success' : 'warning') + ' text-dark';
-            }
-            if (stagesList) {
-                if (data.hasApprovers && data.stages && data.stages.length) {
-                    var html = '<ol class="mb-0 ps-3">';
-                    for (var i = 0; i < data.stages.length; i++) {
-                        var s = data.stages[i];
-                        html += '<li class="mb-1"><span class="fw-semibold">Stage ' + s.stageNumber + ':</span> '
-                            + (s.displayLabel || s.roleName || ('Role #' + s.roleId)) + '</li>';
-                    }
-                    html += '</ol>';
-                    stagesList.innerHTML = html;
-                } else {
-                    stagesList.innerHTML = '<p class="text-muted mb-0">No approvers are set on the inherited path (parent custom stages or organization Approval Matrix).</p>';
-                }
-            }
-            if (configureWrap) configureWrap.style.display = data.hasApprovers ? 'none' : '';
-        }
-        function refreshInheritPreview() {
-            if (!previewUrl || currentMode() !== 'InheritParent') return;
-            var parentVal = parentSelect ? parentSelect.value : '';
-            var url = previewUrl + (previewUrl.indexOf('?') >= 0 ? '&' : '?')
-                + 'mode=InheritParent&parentDepartmentId=' + encodeURIComponent(parentVal || '');
-            fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (data) { if (data) renderPreview(data); })
-                .catch(function () { });
-        }
-        if (inherit) inherit.addEventListener('change', syncFlowPanels);
-        if (custom) custom.addEventListener('change', syncFlowPanels);
-        if (parentSelect) parentSelect.addEventListener('change', function () {
-            if (currentMode() === 'InheritParent') refreshInheritPreview();
-        });
-        var configureBtn = document.getElementById('inherit-configure-btn');
-        if (configureBtn) {
-            configureBtn.addEventListener('click', function () {
-                if (custom) custom.checked = true;
-                syncFlowPanels();
-                var firstRole = document.querySelector('#custom-flow-stages select.custom-flow-role');
-                if (firstRole) firstRole.focus();
-            });
-        }
-        syncFlowPanels();
-    })();
-</script>
-}
+@model AssetManagement.Application.ViewModels.DepartmentVm
+@using System.Linq
+@using System.Web.Mvc
+@using AssetManagement.Application.Contracts
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Domain.Enums
+@{
+    var isRoom = Model.DepartmentKind == DepartmentKind.Room;
+    var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
+    var isClass = Model.DepartmentKind == DepartmentKind.Class;
+    var isFlowConfigurable = DepartmentHierarchyRules.CanConfigureRequisitionFlow(Model.DepartmentKind);
+    var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
+    var editPageTitle = DepartmentLabelHelper.GetEditActionLabel(Model.DepartmentKind, isTopLevelAdmin);
+    ViewBag.Title = editPageTitle;
+    var editSubmitLabel = isRoom ? "Update room" : isSubDepartment ? "Update sub-department" : (isClass ? "Update class" : "Update Department");
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
+
+    var roomCandidates = ViewBag.RoomParentCandidates as IList<DepartmentVm>;
+    var roomOtherGroups = ViewBag.RoomOtherParentGroups as IList<RoomOtherParentGroupVm>;
+    var subParentSelectList = ViewBag.SubDepartmentParentSelectList as SelectList;
+    var kindSelectList = ViewBag.DepartmentKindSelectList as SelectList;
+    var roomOtherValue = ViewBag.RoomParentOtherValue as string ?? DepartmentLabelHelper.RoomParentOtherOptionValue;
+
+    // Self-heal when controller ViewBag is incomplete (e.g. Grade/Admin edit needing Room parent after Kind change).
+    if (roomCandidates == null || roomOtherGroups == null || subParentSelectList == null || kindSelectList == null)
+    {
+        var deptService = DependencyResolver.Current.GetService<IDepartmentService>();
+        var scopedDepartments = deptService == null
+            ? new List<DepartmentVm>()
+            : DepartmentListHelper.DeduplicateById(deptService.GetAll()).ToList();
+        if (roomCandidates == null)
+        {
+            roomCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(Model, scopedDepartments);
+        }
+        if (roomOtherGroups == null)
+        {
+            roomOtherGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
+        }
+        if (subParentSelectList == null)
+        {
+            var items = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id.ToString(),
+                    Text = DepartmentLabelHelper.FormatCodeName(x.Code, x.Name)
+                })
+                .ToList();
+            subParentSelectList = new SelectList(items, "Value", "Text", Model.ParentDepartmentId);
+        }
+        if (kindSelectList == null)
+        {
+            var kindItems = DepartmentKindSelectListBuilder.BuildItems(Model.DepartmentKind)
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Value,
+                    Text = x.Text,
+                    Selected = x.Selected
+                })
+                .ToList();
+            kindSelectList = new SelectList(kindItems, "Value", "Text", DepartmentKindSelectListBuilder.ToOptionValue(Model.DepartmentKind));
+        }
+    }
+
+    roomCandidates = roomCandidates ?? new List<DepartmentVm>();
+    roomOtherGroups = roomOtherGroups ?? new List<RoomOtherParentGroupVm>();
+    var candidateIds = roomCandidates.Select(x => x.Id).ToList();
+    string roomParentSelectValue = string.Empty;
+    if (Model.ParentDepartmentId.HasValue && candidateIds.Contains(Model.ParentDepartmentId.Value))
+    {
+        roomParentSelectValue = Model.ParentDepartmentId.Value.ToString();
+    }
+    else if (Model.ParentDepartmentId.HasValue)
+    {
+        roomParentSelectValue = roomOtherValue;
+    }
+    var roomKindValue = DepartmentKindSelectListBuilder.ToOptionValue(DepartmentKind.Room);
+    var subKindValue = DepartmentKindSelectListBuilder.ToOptionValue(DepartmentKind.SubDepartment);
+    var classKindValue = DepartmentKindSelectListBuilder.ToOptionValue(DepartmentKind.Class);
+    var adminKindValue = DepartmentKindSelectListBuilder.ToOptionValue(DepartmentKind.Administrative);
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = editPageTitle,
+    Subtitle = isRoom
+        ? "Update room details, parent department, and requisition approval used for this room."
+        : (isFlowConfigurable
+            ? "Update details and requisition approval (Inherit org/parent or Custom stages)."
+            : "Update the department details used across users, assignments, and reporting."),
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name, Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }) },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = editPageTitle }
+    }
+})
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Id)
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Name, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Code, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.Code, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Description, new { @class = "form-label" })
+        @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="department-kind-select">Department kind</label>
+        @{
+            // Manual <select>: DropDownListFor compares Convert.ToString(enum)="Room" to Value="4" and misses,
+            // leaving Administrative (0) visually selected. Bind by int string to match option values / JS.
+            var selectedKindValue = DepartmentKindSelectListBuilder.ToOptionValue(Model.DepartmentKind);
+        }
+        <select class="form-select" id="department-kind-select" name="DepartmentKind">
+            @foreach (var kindItem in kindSelectList)
+            {
+                if (kindItem.Value == selectedKindValue)
+                {
+                    <option value="@kindItem.Value" selected="selected">@kindItem.Text</option>
+                }
+                else
+                {
+                    <option value="@kindItem.Value">@kindItem.Text</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="mb-3 js-edit-parent-room" id="edit-parent-room" style="@(isRoom ? null : "display:none;")">
+        @Html.HiddenFor(m => m.ParentDepartmentId, new { id = "room-parent-id-hidden" })
+        <label class="form-label" for="room-parent-select">Parent department</label>
+        <select class="form-select" id="room-parent-select" name="roomParentSelector">
+            <option value="" @(roomParentSelectValue == string.Empty ? "selected=\"selected\"" : null)>Independent room (no parent)</option>
+            @foreach (var candidate in roomCandidates)
+            {
+                <option value="@candidate.Id" @(roomParentSelectValue == candidate.Id.ToString() ? "selected=\"selected\"" : null)>
+                    @DepartmentLabelHelper.FormatCodeName(candidate.Code, candidate.Name)
+                </option>
+            }
+            <option value="@roomOtherValue" @(roomParentSelectValue == roomOtherValue ? "selected=\"selected\"" : null)>Other administrative department or sub-department...</option>
+        </select>
+        <div class="form-text">Rooms may sit under a core administrative department, a sub-department, or remain independent. A room cannot be parented by another room, grade, or class.</div>
+    </div>
+    <div class="mb-3 js-edit-parent-sub" id="edit-parent-sub" style="@(isSubDepartment ? null : "display:none;")">
+        <label class="form-label">Parent department</label>
+        @Html.DropDownList(
+            "ParentDepartmentId",
+            subParentSelectList,
+            "-- Select administrative parent --",
+            new { @class = "form-select", id = "sub-parent-select" })
+        <div class="form-text">Sub-departments must belong to a top-level administrative department.</div>
+    </div>
+    <div class="mb-3 js-edit-class-teacher" id="edit-class-teacher" style="@(isClass ? null : "display:none;")">
+        <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
+        @Html.DropDownListFor(
+            m => m.ClassTeacherUserId,
+            ViewBag.ClassTeacherUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
+            "-- None (department pool) --",
+            new { @class = "form-select", id = "ClassTeacherUserId" })
+        <div class="form-text">Optional. When set, Assign into this class can default To this person. Never required. Clearing does not reassign existing assets.</div>
+    </div>
+    <div class="mb-3 js-edit-room-custodian" id="edit-room-custodian" style="@(isRoom ? null : "display:none;")">
+        <label class="form-label" for="RoomCustodianUserId">Room custodian (optional)</label>
+        @Html.DropDownListFor(
+            m => m.RoomCustodianUserId,
+            ViewBag.RoomCustodianUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
+            "-- None (department pool) --",
+            new { @class = "form-select", id = "RoomCustodianUserId" })
+        <div class="form-text">Optional. When set, Assign into this room can default To this person. Never required. Clearing does not reassign existing assets.</div>
+    </div>
+    <div class="form-check mb-3">
+        @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input" })
+        @Html.LabelFor(m => m.IsRequisitionTarget, new { @class = "form-check-label" })
+    </div>
+    <div class="form-check mb-3">
+        @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+        @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+    </div>
+    <div id="edit-room-approval" style="@(isFlowConfigurable ? null : "display:none;")">
+        @if (isFlowConfigurable)
+        {
+            @Html.Partial("_RoomRequisitionApproval", Model)
+        }
+    </div>
+    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+    {
+        SubmitLabel = editSubmitLabel,
+        BackUrl = returnUrl,
+        BackLabel = "Back"
+    })
+}
+@section modals
+{
+    @Html.Partial("_RoomParentOtherModal", roomOtherGroups)
+}
+@section scripts
+{
+    <script src="@Url.Content("~/Scripts/app/room-custom-approval-stages.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/room-custom-approval-stages.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/room-parent-other-modal.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/room-parent-other-modal.js")).Ticks"></script>
+    <script>
+        (function () {
+            var roomKind = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomKindValue));
+            var subKind = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(subKindValue));
+            var classKind = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(classKindValue));
+            var adminKind = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(adminKindValue));
+            var kindSelect = document.getElementById('department-kind-select');
+            var roomParent = document.getElementById('edit-parent-room');
+            var subParent = document.getElementById('edit-parent-sub');
+            var roomApproval = document.getElementById('edit-room-approval');
+            var roomParentHidden = document.getElementById('room-parent-id-hidden');
+            var subParentSelect = document.getElementById('sub-parent-select');
+            var classTeacher = document.getElementById('edit-class-teacher');
+            var roomCustodian = document.getElementById('edit-room-custodian');
+            var classTeacherSelect = document.getElementById('ClassTeacherUserId');
+            var roomCustodianSelect = document.getElementById('RoomCustodianUserId');
+
+            function syncParentSections() {
+                if (!kindSelect) { return; }
+                var kind = kindSelect.value;
+                var showRoom = kind === roomKind;
+                var showSub = kind === subKind;
+                var showClass = kind === classKind;
+                var showApproval = kind === roomKind || kind === subKind || kind === classKind || kind === adminKind;
+                if (roomParent) { roomParent.style.display = showRoom ? '' : 'none'; }
+                if (subParent) { subParent.style.display = showSub ? '' : 'none'; }
+                if (roomApproval) { roomApproval.style.display = showApproval ? '' : 'none'; }
+                if (classTeacher) { classTeacher.style.display = showClass ? '' : 'none'; }
+                if (roomCustodian) { roomCustodian.style.display = showRoom ? '' : 'none'; }
+                if (roomParentHidden) { roomParentHidden.disabled = !showRoom; }
+                if (subParentSelect) { subParentSelect.disabled = !showSub; }
+                if (classTeacherSelect) { classTeacherSelect.disabled = !showClass; }
+                if (roomCustodianSelect) { roomCustodianSelect.disabled = !showRoom; }
+            }
+
+            if (kindSelect) {
+                kindSelect.addEventListener('change', syncParentSections);
+            }
+            syncParentSections();
+
+            if (window.AmRoomCustomApprovalStages) {
+                window.AmRoomCustomApprovalStages.init();
+            }
+            if (window.AmRoomParentOtherModal) {
+                window.AmRoomParentOtherModal.init({
+                    otherValue: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(roomOtherValue))
+                });
+            }
+        })();
+    </script>
+}

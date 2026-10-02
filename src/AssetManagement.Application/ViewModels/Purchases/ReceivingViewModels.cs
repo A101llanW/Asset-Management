@@ -49,6 +49,9 @@ namespace AssetManagement.Application.ViewModels
 
         public bool RequiresSubTypeAssignment { get; set; }
 
+        /// <summary>True when AssetTypeId cannot be resolved from PR/catalog — UI must show type selector.</summary>
+        public bool RequiresTypeSelection { get; set; }
+
         public bool RequiresCatalogMatchConfirmation { get; set; }
 
         public int? CatalogMatchAssetId { get; set; }
@@ -121,6 +124,9 @@ namespace AssetManagement.Application.ViewModels
         public int PurchaseRecordId { get; set; }
 
         public int AssetId { get; set; }
+
+        /// <summary>Required when receive context cannot resolve type (e.g. PurchaseRequestId null).</summary>
+        public int? AssetTypeId { get; set; }
 
         public int? AssetSubTypeId { get; set; }
 

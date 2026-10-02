@@ -1,134 +1,138 @@
+@using System.Linq
 @model AssetManagement.Application.ViewModels.DepartmentCreateVm
-@using AssetManagement.Application.Helpers
 @using AssetManagement.Application.Services
+@using AssetManagement.Domain.Enums
 @{
-    var createTitle = ViewBag.CreateTitle as string ?? "Add department";
-    ViewBag.Title = createTitle;
+    ViewBag.Title = "Create Department";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
-    var domain = ViewBag.Domain as string ?? DepartmentHierarchyRules.DomainOrg;
     var setupModes = ViewBag.SetupModes as System.Web.Mvc.SelectList;
     var adminParents = ViewBag.AdminParentDepartments as System.Web.Mvc.SelectList;
-    var orgParents = ViewBag.OrganizationalParentDepartments as System.Web.Mvc.SelectList;
-    var setupModeLocked = ViewBag.SetupModeLocked as bool? ?? false;
-    var mode = Model != null && !string.IsNullOrWhiteSpace(Model.SetupMode) ? Model.SetupMode : DepartmentService.SetupModeNormal;
-    var indexLabel = domain == DepartmentHierarchyRules.DomainClasses ? "Grades & Streams" : "Departments";
-    var subtitle = domain == DepartmentHierarchyRules.DomainClasses
-        ? "Add a grade with streams (e.g. Grade 2 → 2A, 2B), or bulk-create a grade range."
-        : "Add an administrative unit, sub-unit, or room (rooms may be independent).";
+    var showSetupModePicker = ViewBag.ShowSetupModePicker as bool? ?? true;
+    var lockedParentName = ViewBag.LockedParentName as string;
+    var lockedParentId = ViewBag.LockedParentDepartmentId as int?;
+    var createSetupMode = ViewBag.CreateSetupMode as string ?? Model.SetupMode ?? DepartmentService.SetupModeNormal;
+    var lockedParentKind = ViewBag.LockedParentDepartmentKind as DepartmentKind?;
+    var lockedParentIsAdmin = lockedParentKind == DepartmentKind.Administrative;
+    var pageTitle = createSetupMode == DepartmentService.SetupModeSubDepartment
+        ? "Create Sub-department"
+        : createSetupMode == DepartmentService.SetupModeRoom
+            ? (lockedParentId.HasValue ? "Create Room" : "Create independent Room")
+            : "Create Department";
+    var pageSubtitle = createSetupMode == DepartmentService.SetupModeSubDepartment
+        ? "Add a sub-department under " + lockedParentName + "."
+        : createSetupMode == DepartmentService.SetupModeRoom
+            ? (lockedParentId.HasValue
+                ? (lockedParentIsAdmin
+                    ? "Add a room under administrative department " + lockedParentName + "."
+                    : "Add a room under sub-department " + lockedParentName + ".")
+                : "Add a standalone room with no parent department.")
+            : showSetupModePicker
+                ? "Add an administrative department, a grade with class streams, or bulk grades 1-6."
+                : "Add a top-level administrative department for your organization.";
+    var showSharedIdentity = createSetupMode == DepartmentService.SetupModeNormal
+        || createSetupMode == DepartmentService.SetupModeSubDepartment
+        || createSetupMode == DepartmentService.SetupModeRoom
+        || showSetupModePicker;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = createTitle,
-    Subtitle = subtitle,
+    Title = pageTitle,
+    Subtitle = pageSubtitle,
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
     {
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = indexLabel, Url = Url.Action("Index", new { domain = domain }) },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = createTitle }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = pageTitle }
     }
 })
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
     <input type="hidden" name="returnUrl" value="@returnUrl" />
-    <input type="hidden" name="domain" value="@domain" />
-    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
-    if (setupModeLocked)
+    @* Post SetupMode as hidden when picker is fixed; dropdown posts it when picker is shown. *@
+    if (!showSetupModePicker)
     {
         @Html.HiddenFor(m => m.SetupMode)
-        <div class="mb-3">
-            <label class="form-label">Setup type</label>
-            <input type="text" class="form-control" readonly="readonly" value="@createTitle" />
-        </div>
     }
-    else
+    if (lockedParentId.HasValue)
+    {
+        @Html.HiddenFor(m => m.LockedParentDepartmentId)
+        @Html.HiddenFor(m => m.ParentDepartmentId)
+    }
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    if (showSetupModePicker)
     {
         <div class="mb-3">
             <label class="form-label">Setup type</label>
             @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
         </div>
     }
-    <div id="setup-normal" style="@(mode == DepartmentService.SetupModeNormal ? "" : "display:none;")">
-        <div class="mb-3">
-            @Html.LabelFor(m => m.Name, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+    <div id="setup-shared-identity" style="@(showSharedIdentity ? null : "display:none;")">
+        <div class="mb-3" id="shared-parent-row" style="display:none;">
+            <label class="form-label" id="shared-parent-label">Parent</label>
+            <input type="text" class="form-control" id="shared-parent-value" value="@lockedParentName" readonly="readonly" />
         </div>
         <div class="mb-3">
+            @Html.LabelFor(m => m.Name, new { @class = "form-label", id = "shared-name-label" })
+            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", id = "department-name-input", autocomplete = "off" })
+            <div class="form-text" id="shared-name-help" style="display:none;"></div>
+        </div>
+        <div class="mb-3" id="shared-code-row">
             @Html.LabelFor(m => m.Code, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Code, new { @class = "form-control" })
+            @Html.TextBoxFor(m => m.Code, new { @class = "form-control", id = "department-code-input" })
+            <div class="form-text" id="shared-code-help"></div>
         </div>
         <div class="mb-3">
             @Html.LabelFor(m => m.Description, new { @class = "form-label" })
-            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3", id = "department-description-input" })
         </div>
-        <div class="form-check mb-3">
-            @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input", id = "requisition-target-normal" })
-            <label class="form-check-label" for="requisition-target-normal">Requisition target</label>
+        <div class="form-check mb-3" id="shared-req-target-row">
+            @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input", id = "requisition-target-shared" })
+            <label class="form-check-label" for="requisition-target-shared">Requisition target</label>
         </div>
-    </div>
-    <div id="setup-sub-department" style="@(mode == DepartmentService.SetupModeSubDepartment ? "" : "display:none;")">
-        <div class="mb-3">
-            <label class="form-label">Parent department</label>
-            @Html.DropDownListFor(m => m.ParentDepartmentId, adminParents, "-- Select parent department --", new { @class = "form-select" })
-            <div class="form-text">Sub-units sit under top-level admin departments (CODE — Name), not classes.</div>
-        </div>
-        <div class="mb-3">
-            @Html.LabelFor(m => m.Name, "Sub-unit name", new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Comp Lab - Senior" })
-        </div>
-        <div class="mb-3">
-            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
-            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
+        <div class="mb-3" id="shared-room-custodian-row" style="display:none;">
+            <label class="form-label" for="RoomCustodianUserId">Room custodian (optional)</label>
+            @Html.DropDownListFor(
+                m => m.RoomCustodianUserId,
+                ViewBag.RoomCustodianUsers as System.Web.Mvc.SelectList ?? new System.Web.Mvc.SelectList(Enumerable.Empty<System.Web.Mvc.SelectListItem>()),
+                "-- None (department pool) --",
+                new { @class = "form-select", id = "RoomCustodianUserId" })
+            <div class="form-text">Optional. Never required to create a room.</div>
         </div>
     </div>
-    <div id="setup-room" style="@(mode == DepartmentService.SetupModeRoom ? "" : "display:none;")">
-        <div class="mb-3">
-            <label class="form-label">Parent department or sub-unit (optional)</label>
-            @Html.DropDownListFor(m => m.ParentDepartmentId, orgParents, "-- Independent room (no parent) --", new { @class = "form-select" })
-            <div class="form-text">Rooms can stand alone or sit under a department or sub-unit. Each of Room / Sub-department / Department can define its own requisition flow; resolution is Room -> Sub-department -> Department -> org Approval Matrix.</div>
-        </div>
-        <div class="mb-3">
-            @Html.LabelFor(m => m.Name, "Room name", new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Dining Hall" })
-        </div>
-        <div class="mb-3">
-            @Html.LabelFor(m => m.Description, new { @class = "form-label" })
-            @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
-        </div>
-    </div>
-    <div id="setup-grade-streams" style="@(mode == DepartmentService.SetupModeGradeStreams ? "" : "display:none;")">
+    <div id="setup-grade-streams" style="display:none;">
         <div class="mb-3">
             <label class="form-label">Grade number</label>
-            @Html.TextBoxFor(m => m.GradeNumber, new { @class = "form-control", type = "number", min = "1" })
-            <div class="form-text">Enter any grade number your school uses (for example 1, 7, or 12).</div>
+            @Html.TextBoxFor(m => m.GradeNumber, new { @class = "form-control", type = "number", min = "1", max = "6" })
+            <div class="form-text">Grades are capped at 6 for school clients.</div>
         </div>
         <div class="mb-3">
             <label class="form-label">Streams</label>
-            @Html.TextBoxFor(m => m.SelectedStreams, new { @class = "form-control", placeholder = "A,B,C or 2A,2B,2C" })
-            <div class="form-text">Enter stream letters (A,B,C) or full codes (2A,2B). With grade 2 and A,B,C the system creates 2A, 2B, 2C.</div>
+            @Html.TextBoxFor(m => m.SelectedStreams, new { @class = "form-control", placeholder = "A,B,C" })
+            <div class="form-text">Enter streams separated by commas (example: A,B,C).</div>
         </div>
     </div>
-    <div id="setup-bulk-grades" style="@(mode == DepartmentService.SetupModeBulkGrades ? "" : "display:none;")">
+    <div id="setup-bulk-grades" style="display:none;">
         <div class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">From grade</label>
-                @Html.TextBoxFor(m => m.BulkGradeFrom, new { @class = "form-control", type = "number", min = "1" })
+                @Html.TextBoxFor(m => m.BulkGradeFrom, new { @class = "form-control", type = "number", min = "1", max = "6" })
             </div>
             <div class="col-md-3">
                 <label class="form-label">To grade</label>
-                @Html.TextBoxFor(m => m.BulkGradeTo, new { @class = "form-control", type = "number", min = "1" })
+                @Html.TextBoxFor(m => m.BulkGradeTo, new { @class = "form-control", type = "number", min = "1", max = "6" })
             </div>
             <div class="col-md-6">
                 <label class="form-label">Streams per grade</label>
-                @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C" })
+                @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C,D" })
             </div>
         </div>
-        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template.</div>
+        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template. Maximum grade is 6.</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
-        SubmitLabel = createTitle,
+        SubmitLabel = pageTitle,
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
@@ -136,39 +140,101 @@
 <script>
     (function () {
         var modeSelect = document.getElementById('department-setup-mode');
+        var setupModeHidden = document.querySelector('input[name="SetupMode"]');
+        var fixedMode = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(createSetupMode));
+        var lockedParentId = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(lockedParentId));
+        var lockedParentIsAdmin = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(lockedParentIsAdmin));
         var sections = {
-            Normal: document.getElementById('setup-normal'),
-            SubDepartment: document.getElementById('setup-sub-department'),
-            Room: document.getElementById('setup-room'),
             GradeWithStreams: document.getElementById('setup-grade-streams'),
             BulkGrades: document.getElementById('setup-bulk-grades')
         };
-        var titles = {
-            Normal: 'Add department',
-            SubDepartment: 'Add sub-unit',
-            Room: 'Add room',
-            GradeWithStreams: 'Add grade & streams',
-            BulkGrades: 'Bulk create grades'
-        };
+        var shared = document.getElementById('setup-shared-identity');
+        var parentRow = document.getElementById('shared-parent-row');
+        var parentLabel = document.getElementById('shared-parent-label');
+        var codeRow = document.getElementById('shared-code-row');
+        var codeHelp = document.getElementById('shared-code-help');
+        var nameLabel = document.getElementById('shared-name-label');
+        var nameHelp = document.getElementById('shared-name-help');
+        var nameInput = document.getElementById('department-name-input');
+        var reqRow = document.getElementById('shared-req-target-row');
+
+        function setDisabled(root, disabled) {
+            if (!root) { return; }
+            var fields = root.querySelectorAll('input, select, textarea');
+            for (var i = 0; i < fields.length; i++) {
+                fields[i].disabled = !!disabled;
+            }
+        }
+
         function syncSections() {
-            var mode = modeSelect ? modeSelect.value : '@mode';
+            var mode = modeSelect ? modeSelect.value : fixedMode;
+            if (setupModeHidden && modeSelect) {
+                setupModeHidden.value = mode;
+            }
+            var isGrade = mode === 'GradeWithStreams';
+            var isBulk = mode === 'BulkGrades';
+            var isSub = mode === 'SubDepartment';
+            var isRoom = mode === 'Room';
+            var isNormal = mode === 'Normal' || (!isGrade && !isBulk && !isSub && !isRoom);
+
+            if (shared) {
+                shared.style.display = (isGrade || isBulk) ? 'none' : '';
+                setDisabled(shared, isGrade || isBulk);
+            }
             Object.keys(sections).forEach(function (key) {
                 if (sections[key]) {
-                    sections[key].style.display = key === mode ? '' : 'none';
+                    var show = (key === 'GradeWithStreams' && isGrade) || (key === 'BulkGrades' && isBulk);
+                    sections[key].style.display = show ? '' : 'none';
+                    setDisabled(sections[key], !show);
                 }
             });
-            var submit = document.querySelector('button[type="submit"], input[type="submit"]');
-            if (submit && titles[mode]) {
-                if (submit.tagName === 'INPUT') {
-                    submit.value = titles[mode];
-                } else {
-                    submit.textContent = titles[mode];
+
+            if (parentRow) {
+                var showParent = !!lockedParentId && (isSub || isRoom);
+                parentRow.style.display = showParent ? '' : 'none';
+                if (parentLabel) {
+                    parentLabel.textContent = isRoom
+                        ? (lockedParentIsAdmin ? 'Administrative department' : 'Sub-department')
+                        : 'Parent department';
                 }
+            }
+            if (codeRow) {
+                var showCode = isNormal || (isRoom && !lockedParentId);
+                codeRow.style.display = showCode ? '' : 'none';
+                setDisabled(codeRow, !showCode);
+                if (codeHelp) {
+                    codeHelp.textContent = (isRoom && !lockedParentId) ? 'Independent rooms require a unique code.' : '';
+                }
+            }
+            if (reqRow) {
+                var showReq = isNormal || (isRoom && !lockedParentId);
+                reqRow.style.display = showReq ? '' : 'none';
+                setDisabled(reqRow, !showReq);
+            }
+            var custRow = document.getElementById('shared-room-custodian-row');
+            if (custRow) {
+                custRow.style.display = isRoom ? '' : 'none';
+                setDisabled(custRow, !isRoom);
+            }
+            if (nameLabel) {
+                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : 'Name');
+            }
+            if (nameHelp) {
+                if (isSub) {
+                    nameHelp.style.display = '';
+                    nameHelp.textContent = 'Creates a sub-department under the locked administrative parent.';
+                } else {
+                    nameHelp.style.display = 'none';
+                    nameHelp.textContent = '';
+                }
+            }
+            if (nameInput) {
+                nameInput.placeholder = isSub ? 'Comp Lab - Senior' : (isRoom ? 'Conference Room A' : '');
             }
         }
         if (modeSelect) {
             modeSelect.addEventListener('change', syncSections);
-            syncSections();
         }
+        syncSections();
     })();
 </script>

@@ -56,6 +56,8 @@ namespace AssetManagement.Application.Helpers
 
             var adminDepartmentNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var subDepartmentPairs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Spec format: pillar|subOrEmpty|roomName  (sub empty => room under pillar Admin)
+            var roomSpecs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var classCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var supplierNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var categoryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -95,27 +97,48 @@ namespace AssetManagement.Application.Helpers
                     }
                 }
                 else if (SchoolDepartmentCodeHelper.IsIctDepartmentName(departmentName)
-                    || SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName(departmentName))
+                    || (SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName(departmentName)
+                        && string.Equals(
+                            SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName),
+                            "Information Technology",
+                            StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(classValue)))
                 {
-                    string parentDepartmentName;
-                    string subUnitName;
+                    string itParent;
+                    string itSub;
                     if (SchoolDepartmentCodeHelper.TryResolveInformationTechnologySubUnit(
                             departmentName,
                             classValue,
-                            out parentDepartmentName,
-                            out subUnitName))
+                            out itParent,
+                            out itSub))
                     {
-                        adminDepartmentNames.Add(parentDepartmentName);
-                        subDepartmentPairs.Add(parentDepartmentName + "|" + subUnitName);
+                        adminDepartmentNames.Add(itParent);
+                        subDepartmentPairs.Add(itParent + "|" + itSub);
                     }
-                    else
+                    else if (SchoolDepartmentCodeHelper.IsIctDepartmentName(departmentName))
                     {
-                        var normalizedAdminName = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName);
-                        adminDepartmentNames.Add(normalizedAdminName);
-                        if (!string.IsNullOrWhiteSpace(classValue))
-                        {
-                            subDepartmentPairs.Add(normalizedAdminName + "|" + classValue.Trim());
-                        }
+                        adminDepartmentNames.Add("Information Technology");
+                        subDepartmentPairs.Add("Information Technology|ICT");
+                    }
+                }
+                else if (SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName(departmentName)
+                    && string.IsNullOrWhiteSpace(classValue))
+                {
+                    CollectStandaloneRoom(departmentName.Trim(), adminDepartmentNames, subDepartmentPairs, roomSpecs);
+                }
+                else if (!string.IsNullOrWhiteSpace(departmentName)
+                    && SchoolDepartmentCodeHelper.IsRoomLikeDepartmentName(classValue))
+                {
+                    CollectRoomUnderParent(departmentName.Trim(), classValue.Trim(), adminDepartmentNames, subDepartmentPairs, roomSpecs);
+                }
+                else if (SchoolDepartmentCodeHelper.IsIctDepartmentName(departmentName)
+                    || SchoolDepartmentCodeHelper.IsAdministrativeDepartmentName(departmentName))
+                {
+                    var normalizedAdminName = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(departmentName);
+                    adminDepartmentNames.Add(normalizedAdminName);
+                    if (!string.IsNullOrWhiteSpace(classValue))
+                    {
+                        subDepartmentPairs.Add(normalizedAdminName + "|" + classValue.Trim());
                     }
                 }
             }
@@ -153,6 +176,26 @@ namespace AssetManagement.Application.Helpers
                     now,
                     parts[0],
                     parts[1],
+                    result);
+            }
+
+            _unitOfWork.SaveChanges();
+
+            foreach (var spec in roomSpecs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            {
+                var parts = spec.Split('|');
+                if (parts.Length != 3)
+                {
+                    continue;
+                }
+
+                EnsureRoom(
+                    departments,
+                    organizationId.Value,
+                    now,
+                    parts[0],
+                    string.IsNullOrWhiteSpace(parts[1]) ? null : parts[1],
+                    parts[2],
                     result);
             }
 
@@ -303,6 +346,172 @@ namespace AssetManagement.Application.Helpers
                 OrganizationId = organizationId,
                 ParentDepartmentId = parent.Id,
                 DepartmentKind = DepartmentKind.SubDepartment,
+                IsRequisitionTarget = true,
+                CreatedAt = now,
+                IsActive = true
+            };
+            _unitOfWork.Repository<Department>().Add(entity);
+            departments.Add(entity);
+            result.DepartmentsCreated++;
+        }
+
+        private static void CollectStandaloneRoom(
+            string roomName,
+            HashSet<string> adminDepartmentNames,
+            HashSet<string> subDepartmentPairs,
+            HashSet<string> roomSpecs)
+        {
+            string parentName;
+            bool parentIsSub;
+            string pillarName;
+            if (!SchoolDepartmentCodeHelper.TryResolveDefaultRoomParent(
+                    roomName,
+                    out parentName,
+                    out parentIsSub,
+                    out pillarName))
+            {
+                pillarName = "Academics";
+                parentName = "Academics";
+                parentIsSub = false;
+            }
+
+            adminDepartmentNames.Add(pillarName);
+            if (parentIsSub)
+            {
+                subDepartmentPairs.Add(pillarName + "|" + parentName);
+                roomSpecs.Add(pillarName + "|" + parentName + "|" + roomName);
+            }
+            else
+            {
+                roomSpecs.Add(pillarName + "||" + roomName);
+            }
+        }
+
+        private static void CollectRoomUnderParent(
+            string parentDepartmentName,
+            string roomName,
+            HashSet<string> adminDepartmentNames,
+            HashSet<string> subDepartmentPairs,
+            HashSet<string> roomSpecs)
+        {
+            if (SchoolDepartmentCodeHelper.IsKnownAdministrativePillarName(parentDepartmentName)
+                || SchoolDepartmentCodeHelper.IsIctDepartmentName(parentDepartmentName))
+            {
+                var pillar = SchoolDepartmentCodeHelper.NormalizeAdminDepartmentName(parentDepartmentName);
+                if (SchoolDepartmentCodeHelper.IsIctDepartmentName(parentDepartmentName))
+                {
+                    pillar = "Information Technology";
+                }
+
+                adminDepartmentNames.Add(pillar);
+                roomSpecs.Add(pillar + "||" + roomName);
+                return;
+            }
+
+            string inferredParent;
+            bool parentIsSub;
+            string pillarName;
+            if (SchoolDepartmentCodeHelper.TryResolveDefaultRoomParent(
+                    roomName,
+                    out inferredParent,
+                    out parentIsSub,
+                    out pillarName))
+            {
+                adminDepartmentNames.Add(pillarName);
+                var subName = parentDepartmentName.Trim();
+                subDepartmentPairs.Add(pillarName + "|" + subName);
+                roomSpecs.Add(pillarName + "|" + subName + "|" + roomName);
+                return;
+            }
+
+            adminDepartmentNames.Add("Academics");
+            subDepartmentPairs.Add("Academics|" + parentDepartmentName.Trim());
+            roomSpecs.Add("Academics|" + parentDepartmentName.Trim() + "|" + roomName);
+        }
+
+        private void EnsureRoom(
+            IList<Department> departments,
+            int organizationId,
+            DateTime now,
+            string pillarName,
+            string subDepartmentName,
+            string roomName,
+            SchoolImportProvisionResult result)
+        {
+            Department parent;
+            if (!string.IsNullOrWhiteSpace(subDepartmentName))
+            {
+                var pillarCode = SchoolDepartmentCodeHelper.BuildAdminDepartmentCode(pillarName);
+                var subCode = SchoolDepartmentCodeHelper.BuildSubDepartmentCode(pillarCode, subDepartmentName);
+                parent = departments.FirstOrDefault(x => string.Equals(x.Code, subCode, StringComparison.OrdinalIgnoreCase));
+                if (parent == null)
+                {
+                    var pillar = departments.FirstOrDefault(x => string.Equals(x.Code, pillarCode, StringComparison.OrdinalIgnoreCase));
+                    if (pillar != null)
+                    {
+                        parent = departments.FirstOrDefault(x =>
+                            x.ParentDepartmentId == pillar.Id
+                            && string.Equals(x.Name, subDepartmentName.Trim(), StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+
+                if (parent == null)
+                {
+                    EnsureSubDepartment(departments, organizationId, now, pillarName, subDepartmentName, result);
+                    _unitOfWork.SaveChanges();
+                    parent = departments.FirstOrDefault(x => string.Equals(x.Code, subCode, StringComparison.OrdinalIgnoreCase));
+                    if (parent == null)
+                    {
+                        var pillar = departments.FirstOrDefault(x => string.Equals(x.Code, pillarCode, StringComparison.OrdinalIgnoreCase));
+                        if (pillar != null)
+                        {
+                            parent = departments.FirstOrDefault(x =>
+                                x.ParentDepartmentId == pillar.Id
+                                && string.Equals(x.Name, subDepartmentName.Trim(), StringComparison.OrdinalIgnoreCase));
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var pillarCode = SchoolDepartmentCodeHelper.BuildAdminDepartmentCode(pillarName);
+                parent = departments.FirstOrDefault(x => string.Equals(x.Code, pillarCode, StringComparison.OrdinalIgnoreCase));
+                if (parent == null)
+                {
+                    EnsureAdminDepartment(departments, organizationId, now, pillarName, false, result);
+                    _unitOfWork.SaveChanges();
+                    parent = departments.FirstOrDefault(x => string.Equals(x.Code, pillarCode, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            if (parent == null)
+            {
+                return;
+            }
+
+            var roomCode = SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, roomName);
+            var existingByCode = departments.FirstOrDefault(x => string.Equals(x.Code, roomCode, StringComparison.OrdinalIgnoreCase));
+            if (existingByCode != null)
+            {
+                return;
+            }
+
+            var existingByName = departments.FirstOrDefault(x =>
+                x.DepartmentKind == DepartmentKind.Room
+                && string.Equals(x.Name, roomName.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (existingByName != null)
+            {
+                return;
+            }
+
+            var entity = new Department
+            {
+                Name = roomName.Trim(),
+                Code = roomCode,
+                Description = roomName.Trim() + " (" + parent.Name + ")",
+                OrganizationId = organizationId,
+                ParentDepartmentId = parent.Id,
+                DepartmentKind = DepartmentKind.Room,
                 IsRequisitionTarget = true,
                 CreatedAt = now,
                 IsActive = true

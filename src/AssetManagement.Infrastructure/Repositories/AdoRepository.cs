@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -149,11 +149,9 @@ namespace AssetManagement.Infrastructure.Repositories
                 ? null
                 : _organizationScope.GetTenantFilterOrganizationId(typeof(T));
             var entities = EntitySqlReader.ReadAll<T>(_session.Connection, map, tenantOrganizationId, applyOrgFilter, _session.Transaction);
-            var tracked = _session.GetTrackedEntities(typeof(T));
-            foreach (var entity in entities)
-            {
-                tracked.Add(new TrackedEntity { Entity = entity, State = TrackedEntityState.Unchanged });
-            }
+            // Merge by primary key so GetById-tracked rows are not double-added into the session.
+            // Blind Add previously caused ToDictionary(Id) ArgumentException in AssertValidHierarchy after Update.
+            MergeReadResults(entities, map);
 
             _loaded = true;
         }
@@ -165,7 +163,15 @@ namespace AssetManagement.Infrastructure.Repositories
             if (predicate == null)
             {
                 EnsureLoaded();
-                rows = GetTrackedEntities().Select(x => (T)x.Entity).ToList();
+                rows = GetTrackedEntities()
+                    .GroupBy(x =>
+                    {
+                        var map = EntityMapRegistry.GetMap<T>();
+                        var keyProperty = map.EntityType.GetProperty(map.PrimaryKey);
+                        return keyProperty.GetValue(x.Entity, null);
+                    })
+                    .Select(g => (T)g.First().Entity)
+                    .ToList();
             }
             else
             {
