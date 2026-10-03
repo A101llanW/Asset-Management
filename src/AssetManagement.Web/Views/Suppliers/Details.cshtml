@@ -54,7 +54,7 @@
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Catalog items</dt>
-                    <dd class="col-sm-7">@Model.CatalogItemCount@if (Model.CatalogMinPrice.HasValue && Model.CatalogMaxPrice.HasValue) {<text> (@Html.FormatCurrency(Model.CatalogMinPrice) – @Html.FormatCurrency(Model.CatalogMaxPrice))</text>}</dd>
+                    <dd class="col-sm-7">@Model.CatalogItemCount@if (Model.CatalogMinPrice.HasValue && Model.CatalogMaxPrice.HasValue) { if (Model.CatalogMinPrice.Value == Model.CatalogMaxPrice.Value) {<text> (@Html.FormatCurrency(Model.CatalogMinPrice))</text>} else {<text> (@Html.FormatCurrency(Model.CatalogMinPrice) - @Html.FormatCurrency(Model.CatalogMaxPrice))</text>} }</dd>
                     <dt class="col-sm-5">Purchases</dt>
                     <dd class="col-sm-7">@ViewBag.PurchaseCount</dd>
                     <dt class="col-sm-5">Assets</dt>
@@ -140,7 +140,7 @@
                                     }
                                 </td>
                                 <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "" : item.Sku)</td>
-                                <td>@Html.FormatCurrency(item.UnitPrice) @(item.Currency)</td>
+                                <td>@Html.FormatCurrency(item.UnitPrice)</td>
                                 <td>@(item.LeadTimeDays.HasValue ? item.LeadTimeDays + " d" : "")</td>
                                 <td>@(item.IsActive ? "Active" : "Inactive")</td>
                                 @if (canEditCatalog && item.IsActive)

@@ -446,7 +446,7 @@ namespace AssetManagement.Application.ViewModels
                 case "Finance Officer":
                     return "Financial reporting and depreciation; not the default requisition approver.";
                 case "Staff":
-                    return "Assignee-only profile — register employees without assigning this login role.";
+                    return "Assignee-only profile - register employees without assigning this login role.";
                 case "Auditor":
                     return "Read-only access to reports and audit data.";
                 default:

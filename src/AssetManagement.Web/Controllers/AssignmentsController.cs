@@ -44,15 +44,20 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.View")]
-        public ActionResult Index(int assetId)
+        public ActionResult Index(int? assetId)
         {
-            ViewBag.AssetId = assetId;
+            if (!assetId.HasValue)
+            {
+                return RedirectToAction("List");
+            }
+
+            ViewBag.AssetId = assetId.Value;
             var users = BuildUserService().GetAll()
                 .ToDictionary(x => x.Id, x => BuildUserLabel(x));
             var departments = BuildDepartmentService().GetAll()
                 .ToDictionary(x => x.Id, x => x.Name);
 
-            var assignments = _assignmentService.GetByAsset(assetId)
+            var assignments = _assignmentService.GetByAsset(assetId.Value)
                 .Select(x =>
                 {
                     x.ToUserName = !string.IsNullOrWhiteSpace(x.ToUserId) && users.ContainsKey(x.ToUserId)
