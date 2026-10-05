@@ -91,7 +91,7 @@ namespace AssetManagement.Web.Helpers
                 return false;
             }
 
-            var segments = returnPath.Split('?')[0].Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var segments = AppPathHelper.StripApplicationVirtualPath(returnPath.Split('?')[0]).Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (segments.Length < 2)
             {
                 return false;

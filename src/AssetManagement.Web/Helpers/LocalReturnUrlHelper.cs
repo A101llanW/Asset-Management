@@ -45,7 +45,7 @@ namespace AssetManagement.Web.Helpers
                 return false;
             }
 
-            var path = returnPath.Split('?')[0].Trim();
+            var path = AppPathHelper.StripApplicationVirtualPath(returnPath.Split('?')[0].Trim());
             if (!path.StartsWith("/", StringComparison.Ordinal))
             {
                 path = "/" + path;

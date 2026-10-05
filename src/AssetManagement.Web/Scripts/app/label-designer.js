@@ -648,7 +648,7 @@
             assetName: root.getAttribute('data-sample-name') || 'Sample asset',
             departmentName: root.getAttribute('data-sample-dept') || 'Department',
             serialNumber: 'S/N: ' + (root.getAttribute('data-sample-serial') || 'SN-123456'),
-            scanUrl: window.location.protocol + '//' + window.location.host + '/nanosoft/AssetScan/Lookup?code=AST-1001',
+            scanUrl: root.getAttribute('data-sample-scan-url') || (window.location.protocol + '//' + window.location.host + '/nanosoft/AssetScan/Lookup?code=AST-1001'),
             barcodePayload: root.getAttribute('data-sample-tag') || 'AST-1001'
         };
 

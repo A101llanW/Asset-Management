@@ -130,8 +130,8 @@ namespace AssetManagement.Web.Helpers
             if (url == null)
             {
                 return organizationId.HasValue
-                    ? string.Format("/Platform/Organizations/OrganizationDetails/{0}", organizationId.Value)
-                    : "/Platform/Organizations/Index";
+                    ? AppPathHelper.ToAppAbsolute(string.Format("~/Platform/Organizations/OrganizationDetails/{0}", organizationId.Value))
+                    : AppPathHelper.ToAppAbsolute("~/Platform/Organizations/Index");
             }
 
             return organizationId.HasValue
@@ -144,8 +144,8 @@ namespace AssetManagement.Web.Helpers
             if (url == null)
             {
                 return string.IsNullOrWhiteSpace(organizationSlug)
-                    ? "/Dashboard/Index"
-                    : string.Format("/{0}/Dashboard/Index", organizationSlug);
+                    ? AppPathHelper.ToAppAbsolute("~/Dashboard/Index")
+                    : AppPathHelper.ToAppAbsolute(string.Format("~/{0}/Dashboard/Index", organizationSlug));
             }
 
             return TenantUrlHelper.TenantRouteUrl(url, organizationSlug, "Index", "Dashboard")

@@ -14,7 +14,16 @@ namespace AssetManagement.Web.Helpers
                 return null;
             }
 
-            return urlHelper.Content(logoPath.TrimStart('~'));
+            var trimmed = logoPath.Trim();
+            if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("//", StringComparison.Ordinal))
+            {
+                return trimmed;
+            }
+
+            // Stored as "/Content/OrganizationLogos/..."; resolve through ~/ so the IIS sub-app path is included.
+            return urlHelper.Content("~/" + trimmed.TrimStart('~', '/'));
         }
 
         private const int MaxLogoBytes = 512 * 1024;

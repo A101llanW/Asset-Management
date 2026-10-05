@@ -52,5 +52,38 @@ namespace AssetManagement.Tests.Helpers
 
             Assert.AreEqual("https://assets.example.com/tenant/AssetScan/Lookup?code=AST-001", result);
         }
+
+        [Test]
+        public void ResolvePasswordResetBaseUrl_AppendsIisSubAppPathWhenUsingRequestUrl()
+        {
+            var result = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(
+                null,
+                new Uri("https://nanosoft.africa/NanoAssetSuit/acme/Account/ForgotPassword"),
+                "/NanoAssetSuit/");
+
+            Assert.AreEqual("https://nanosoft.africa/NanoAssetSuit", result);
+        }
+
+        [Test]
+        public void ResolvePasswordResetBaseUrl_RootAppPathLeavesRequestAuthorityUnchanged()
+        {
+            var result = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(
+                null,
+                new Uri("http://localhost:8080/acme/Account/ForgotPassword"),
+                "/");
+
+            Assert.AreEqual("http://localhost:8080", result);
+        }
+
+        [Test]
+        public void ResolvePasswordResetBaseUrl_ConfiguredSubAppUrlIsUsedAsIs()
+        {
+            var result = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(
+                "https://nanosoft.africa/NanoAssetSuit/",
+                new Uri("https://nanosoft.africa/NanoAssetSuit/acme/Account/ForgotPassword"),
+                "/NanoAssetSuit");
+
+            Assert.AreEqual("https://nanosoft.africa/NanoAssetSuit", result);
+        }
     }
 }

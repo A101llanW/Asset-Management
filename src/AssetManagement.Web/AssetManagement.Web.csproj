@@ -227,6 +227,7 @@
     <Compile Include="Helpers\ImpersonationSessionHelper.cs" />
     <Compile Include="Helpers\LegalConsentSession.cs" />
     <Compile Include="Helpers\PostLoginRedirectHelper.cs" />
+    <Compile Include="Helpers\AppPathHelper.cs" />
     <Compile Include="Helpers\LocalReturnUrlHelper.cs" />
     <Compile Include="Helpers\PlatformAdminHelper.cs" />
     <Compile Include="Helpers\PasswordFieldExtensions.cs" />

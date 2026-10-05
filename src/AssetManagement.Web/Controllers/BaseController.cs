@@ -56,7 +56,7 @@ namespace AssetManagement.Web.Controllers
         protected string ResolveApplicationBaseUrl()
         {
             return Request != null && Request.Url != null
-                ? Request.Url.GetLeftPart(UriPartial.Authority)
+                ? Request.Url.GetLeftPart(UriPartial.Authority) + AppPathHelper.NormalizeBasePath(Request.ApplicationPath)
                 : null;
         }
 

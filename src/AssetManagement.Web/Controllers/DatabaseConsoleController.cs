@@ -74,7 +74,7 @@ namespace AssetManagement.Web.Controllers
         {
             if (User == null || User.Identity == null || !User.Identity.IsAuthenticated)
             {
-                var returnUrl = Request != null ? Request.RawUrl : "/Sys/Database";
+                var returnUrl = Request != null ? Request.RawUrl : AssetManagement.Web.Helpers.AppPathHelper.ToAppAbsolute("~/Sys/Database");
                 return RedirectToAction("Login", "Account", new { returnUrl = returnUrl });
             }
 

@@ -215,7 +215,7 @@ namespace AssetManagement.Web.Helpers
 
             var normalized = NormalizeTenantSlug(tenantSlug);
 
-            var path = "/" + normalized + "/" + controller + "/" + action;
+            var path = AppPathHelper.GetAppBasePath() + "/" + normalized + "/" + controller + "/" + action;
 
             string idSegment;
             if (TryFormatRouteId(id, out idSegment))
@@ -434,7 +434,7 @@ namespace AssetManagement.Web.Helpers
 
             {
 
-                return new RedirectResult("/Account/Login");
+                return new RedirectResult(AppPathHelper.ToAppAbsolute("~/Account/Login"));
 
             }
 
@@ -458,13 +458,13 @@ namespace AssetManagement.Web.Helpers
 
                 {
 
-                    return new RedirectResult("/Account/Login");
+                    return new RedirectResult(AppPathHelper.ToAppAbsolute("~/Account/Login"));
 
                 }
 
 
 
-                return new RedirectResult("/Account/Login?returnUrl=" + HttpUtility.UrlEncode(returnUrl));
+                return new RedirectResult(AppPathHelper.ToAppAbsolute("~/Account/Login") + "?returnUrl=" + HttpUtility.UrlEncode(returnUrl));
 
             }
 

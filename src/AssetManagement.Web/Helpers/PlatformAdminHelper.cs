@@ -15,6 +15,12 @@ namespace AssetManagement.Web.Helpers
 
         public const string PlatformOrganizationsIndexPath = "/Platform/Organizations/Index";
 
+        /// <summary>App-absolute URL for the platform organizations list (prefixed with the IIS sub-app path, e.g. /NanoAssetSuit).</summary>
+        public static string PlatformOrganizationsIndexUrl
+        {
+            get { return AppPathHelper.ToAppAbsolute(PlatformOrganizationsIndexPath); }
+        }
+
         public static bool IsPlatformAdmin(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -92,7 +98,7 @@ namespace AssetManagement.Web.Helpers
 
         public static ActionResult CreateOrganizationsRedirect()
         {
-            return new RedirectResult(PlatformOrganizationsIndexPath);
+            return new RedirectResult(PlatformOrganizationsIndexUrl);
         }
     }
 }

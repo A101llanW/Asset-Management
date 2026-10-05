@@ -43,7 +43,7 @@
                 }
                 else
                 {
-                    loginAction = "/" + tenantToken + "/Account/Login";
+                    loginAction = Url.Content("~/" + tenantToken + "/Account/Login");
                     if (ViewBag.ReturnUrl != null)
                     {
                         loginAction += "?returnUrl=" + Server.UrlEncode(ViewBag.ReturnUrl as string);

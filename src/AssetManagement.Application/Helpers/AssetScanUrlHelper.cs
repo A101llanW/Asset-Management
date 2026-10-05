@@ -22,7 +22,22 @@ namespace AssetManagement.Application.Helpers
 
         public static string ResolvePasswordResetBaseUrl(string configuredExternalBaseUrl, Uri requestUrl)
         {
+            return ResolvePasswordResetBaseUrl(configuredExternalBaseUrl, requestUrl, null);
+        }
+
+        /// <summary>
+        /// Same as <see cref="ResolvePasswordResetBaseUrl(string, Uri)"/>, but when the request URL is used as the base
+        /// the IIS application path (e.g. /NanoAssetSuit) is appended so emailed links work under a sub-application.
+        /// A configured ExternalBaseUrl is used as-is and should already include the sub-app path on live.
+        /// </summary>
+        public static string ResolvePasswordResetBaseUrl(string configuredExternalBaseUrl, Uri requestUrl, string applicationPath)
+        {
             var requestAuthority = BuildRequestAuthority(requestUrl);
+            if (requestAuthority != null)
+            {
+                requestAuthority += NormalizeApplicationPath(applicationPath);
+            }
+
             if (string.IsNullOrWhiteSpace(configuredExternalBaseUrl))
             {
                 return requestAuthority ?? string.Empty;
@@ -70,6 +85,22 @@ namespace AssetManagement.Application.Helpers
 
             var baseUri = new Uri(baseUrl.TrimEnd('/') + "/");
             return new Uri(baseUri, relativePath.TrimStart('/')).AbsoluteUri;
+        }
+
+        private static string NormalizeApplicationPath(string applicationPath)
+        {
+            if (string.IsNullOrWhiteSpace(applicationPath))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = applicationPath.Trim().TrimEnd('/');
+            if (trimmed.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            return trimmed.StartsWith("/", StringComparison.Ordinal) ? trimmed : "/" + trimmed;
         }
 
         private static string BuildRequestAuthority(Uri requestUrl)

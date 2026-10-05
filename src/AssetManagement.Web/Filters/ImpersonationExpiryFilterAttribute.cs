@@ -69,7 +69,7 @@ namespace AssetManagement.Web.Filters
                     {
                         var urlHelper = new UrlHelper(filterContext.RequestContext);
                         var redirectUrl = ImpersonationSessionHelper.BuildPlatformAdminPostExpiryUrl(urlHelper, organizationId)
-                            ?? "/Platform/Organizations/Index";
+                            ?? AppPathHelper.ToAppAbsolute("~/Platform/Organizations/Index");
                         filterContext.Result = new RedirectResult(redirectUrl);
                         return;
                     }

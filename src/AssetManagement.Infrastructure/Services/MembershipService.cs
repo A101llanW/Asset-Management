@@ -469,7 +469,7 @@ namespace AssetManagement.Infrastructure.Services
             var requestUrl = HttpContext.Current != null && HttpContext.Current.Request != null
                 ? HttpContext.Current.Request.Url
                 : null;
-            var baseUrl = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(configuredBaseUrl, requestUrl);
+            var baseUrl = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(configuredBaseUrl, requestUrl, HttpRuntime.AppDomainAppVirtualPath);
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
                 baseUrl = "http://localhost";

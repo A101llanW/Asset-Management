@@ -29,7 +29,7 @@ namespace AssetManagement.Web.Helpers
             var baseUrl = AssetManagement.Application.Helpers.AssetScanUrlHelper.ResolveBaseUrl(externalBaseUrl, requestAuthority);
             if (!string.IsNullOrWhiteSpace(baseUrl))
             {
-                return AssetManagement.Application.Helpers.AssetScanUrlHelper.CombineBaseAndRelative(baseUrl, relative);
+                return AppPathHelper.CombineBaseAndAppRelative(baseUrl, relative);
             }
 
             return new Uri(request.Url, relative).AbsoluteUri;
