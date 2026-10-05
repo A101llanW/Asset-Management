@@ -69,16 +69,17 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `docs/VIRTUAL-DIR-ROOT-RELATIVE-SCAN-2026-10-05.md` **(new)**
 - **DB migration/script:** **NONE.** Stored notification `LinkUrl` values (`/Assets/Details/{id}` etc.) are left as they are and resolved at render time.
 - **Config/Web.config keys:** **None changed** (local `Web.config` and IIS untouched). **Live check:** `ExternalBaseUrl` (Platform > Email Settings, or Web.config fallback) should be `https://nanosoft.africa/NanoAssetSuit`, including the sub-app path, same as HireHub's `https://nanosoft.africa/Hirehub`. `forms loginUrl="~/Account/Login"` is already vdir-safe.
-- **IIS/server steps (local):** **NONE.** `C:\inetpub\AssetManagement` was not republished. No local `/NanoAssetSuit` sub-app exists: GET `http://localhost:8080/NanoAssetSuit/Account/Login` returns the root app's "Organization Not Found" page.
+- **IIS/server steps (local):** TEMP prove sub-app `/NanoAssetSuit` and `Publish\NanoAssetSuitProve` were removed after QA OVERALL PASS (2026-10-05). Root `C:\inetpub\AssetManagement` untouched. GET `http://localhost:8080/Account/Login` → 200.
 - **Live-deploy steps (in order):**
-  1. Push/tag `7b3b171` when Allan approves (not pushed).
-  2. Back up the live site folder.
-  3. Publish Web/Application/Infrastructure/Domain DLLs plus the changed views/scripts (`Login.cshtml`, `Notifications/Index.cshtml`, `Settings/LabelDesigner.cshtml`, `Areas/Platform/Views/Shared/_PlatformLayout.cshtml`, `Scripts/app/label-designer.js`). Preserve live `Web.config` and secrets.
-  4. Confirm live `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuit`.
-  5. Recycle the `/NanoAssetSuit` app pool.
+  1. **Migrations first (if live lacks them):** run `065_DepartmentRequisitionApproval.sql` (adds `UseCustomRequisitionApproval`), then `069`, `070`, `079`–`082` as gap analysis requires. Do **not** run `083` on live without an explicit password-change plan.
+  2. Push/tag `7b3b171` when Allan approves (not pushed), or deploy from local SoT.
+  3. Back up the live site folder.
+  4. Publish Web/Application/Infrastructure/Domain DLLs plus the changed views/scripts (`Login.cshtml`, `Notifications/Index.cshtml`, `Settings/LabelDesigner.cshtml`, `Areas/Platform/Views/Shared/_PlatformLayout.cshtml`, `Scripts/app/label-designer.js`). Preserve live `Web.config` and secrets. Ensure IUSR (or app-pool identity) can read `Content`/`Scripts` on the live folder.
+  5. Set `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuit`.
+  6. Recycle the `/NanoAssetSuit` app pool.
 - **Verify (on live under /NanoAssetSuit):**
   - `/NanoAssetSuit/{slug}/Account/Login` → 200, and the form `action` starts with `/NanoAssetSuit/`.
-  - Login (+MFA) lands on `/NanoAssetSuit/{slug}/...` (Dashboard or first permitted page). Platform admin lands on `/NanoAssetSuit/Platform/Organizations/Index`.
+  - Login (+MFA) lands on `/NanoAssetSuit/<code>/Dashboard/Index` (or first permitted page under that tenant prefix). Platform admin lands on `/NanoAssetSuit/Platform/Organizations/Index`.
   - Forced password change redirects to `/NanoAssetSuit/{slug}/Account/ChangePassword`.
   - Sidebar, log-off form, global search, notification "Open", org logo, and QR label URL all include `/NanoAssetSuit` exactly once.
   - Password-reset and invite email links include `/NanoAssetSuit`.
