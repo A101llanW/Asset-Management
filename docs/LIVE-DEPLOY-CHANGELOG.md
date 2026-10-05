@@ -11,6 +11,34 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
+## 2026-10-05 - TEMP /NanoAssetSuit prove QA fixes (IUSR ACL + E2E schema migrations)
+
+- **Date/time EAT:** 2026-10-05 14:45:43 EAT (local commit only; not pushed; no live publish; no SQLEXPRESS writes).
+- **What and why:** QA against TEMP IIS sub-app `/NanoAssetSuit` → `Publish\NanoAssetSuitProve` (LocalDB E2E) found three issues. Fixed setup + E2E schema only; root site `C:\inetpub\AssetManagement` untouched.
+- **Issue 1 (Content/Scripts HTTP 401 under sub-app):** Publish folder lacked `NT AUTHORITY\IUSR:(OI)(CI)(RX)` which the root site folder has. Anonymous static files under the sub-app therefore 401'd while root `/Content` and `/Scripts` returned 200. **Fix (TEMP only):** `icacls Publish\NanoAssetSuitProve /grant "NT AUTHORITY\IUSR:(OI)(CI)(RX)"`. Not a SoT/code/Web.config change; no live ACL step unless live prove folder was copied without IUSR.
+- **Issue 2 (Index 500 / Invalid column UseCustomRequisitionApproval):** E2E DB `AssetManagementModuleDb_E2E` on shared LocalDB (`MSSQLLocalDB` / shared name `MSSQLLocalDBShared`) was missing department/requisition schema from pending SoT migrations. Applied **schema-only** (idempotent IF COL_LENGTH / IF OBJECT_ID; no data deletes; **083 seed RequirePasswordChange UPDATE skipped** so QA creds keep working):
+  - `065_DepartmentRequisitionApproval.sql` (**adds `UseCustomRequisitionApproval`** + stage CSV columns) — **this was the Index 500**
+  - `069_UserInvitations.sql`
+  - `070_PurchaseRequestLineItems.sql`
+  - `079_DepartmentRowVersion.sql`
+  - `080_DepartmentApprovalStage.sql`
+  - `081_DepartmentAcademicAndRoomInherit.sql`
+  - `082_DepartmentClassTeacherRoomCustodian.sql`
+  - Evidence log: `%LOCALAPPDATA%\Temp\nis-nanoassetsuit-vd-2026-10-05\e2e-migrate-*.log`
+- **Issue 3 (rootpath login → Profile vs tenant login → Dashboard):** Compared SoT `7b3b171` diffs: `PostLoginRedirectHelper` / `LocalReturnUrlHelper` / `TenantUrlHelper` only gained app-base strip/prefix for vdir hosting; **destination selection (Dashboard vs Profile fallback) unchanged**. Smoke: `/NanoAssetSuit/nanosoft/Account/Login` → Dashboard; `/NanoAssetSuit/Account/Login` → Profile (same as QA). After Profile landing, `/Account/Landing` and `/Dashboard/Index` still resolve to tenant Dashboard. Root site `/Account/Login` smoke hits `ChangePassword` (SQLEXPRESS Phase B `RequirePasswordChange`) so Profile-vs-Dashboard is not comparable there with these creds. **Treated as pre-existing design for non-tenant login path — no code change.**
+- **Commit hash:** (this docs commit; see git log)
+- **Files changed (SoT):** `docs/LIVE-DEPLOY-CHANGELOG.md` only.
+- **DB migration/script:** E2E LocalDB only (above). **Live may need the same migrations** if live DB lacks `Department.UseCustomRequisitionApproval` (and related 069/070/079–082 objects). Deploy-order: run `065_DepartmentRequisitionApproval.sql` before publishing bits that SELECT that column; then 069, 070, 079–082 as needed. Do **not** blindly run `083` on live without an explicit password-change plan.
+- **Config/Web.config keys:** None.
+- **IIS/server steps (local):** TEMP prove folder ACL only (IUSR RX). Sub-app URL unchanged: `http://localhost:8080/NanoAssetSuit`.
+- **Live-deploy steps:** (1) Confirm live `Department.UseCustomRequisitionApproval` exists; if missing, apply `065_DepartmentRequisitionApproval.sql` (then 069/070/079–082 as gap analysis requires). (2) If a fresh copy of site files is used for `/NanoAssetSuit`, grant IUSR RX on that folder (or ensure app-pool/IUSR can read `Content`/`Scripts`). (3) No code publish required for these three QA items beyond whatever already carries `7b3b171`.
+- **Verify (TEMP prove):**
+  - `GET http://localhost:8080/NanoAssetSuit/Content/bootstrap.min.css` → 200
+  - `GET http://localhost:8080/NanoAssetSuit/Scripts/jquery-3.7.1.min.js` → 200
+  - Authenticated `/NanoAssetSuit/nanosoft/Assets/Index` → 200 title Assets (not UseCustomRequisitionApproval)
+- **Rollback:** Revert IUSR ACE on prove folder if undesired; E2E columns are additive (safe to leave). Changelog revert only for docs.
+
+---
 ## 2026-10-05 — IIS sub-application support (/NanoAssetSuit) for all app URLs
 
 - **Date/time EAT:** Commit **2026-10-05 13:45:09 EAT** (local commit only; not pushed; not published).
@@ -248,3 +276,4 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - Phase B / SecurityLogs / #6 / #7 are committed locally (`fd5ab58`, `5ba25c0`, `56f3f29`) but **not pushed** - confirm `git status` / `git log` before any live cutover.
 - **Do not** clear `RequirePasswordChange` locally unless Allan explicitly asks.
 - **Do not** run `083` revert, `#6`, or `#7` scripts without Allan’s approval.
+
