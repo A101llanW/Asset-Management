@@ -106,3 +106,13 @@ GO
 
 -- Diverse demo assets: database/scripts/004_Migrations/017_DiverseDemoAssets.sql
 -- Second demo organization (tenant B): database/scripts/004_Migrations/013_SecondDemoOrg.sql
+
+-- Phase B (#2): if RequirePasswordChange column exists (post-046), force change on seeded accounts.
+IF COL_LENGTH(N'dbo.Users', N'RequirePasswordChange') IS NOT NULL
+BEGIN
+    UPDATE [Users]
+    SET [RequirePasswordChange] = 1
+    WHERE ([Email] LIKE N'%@asset.local' OR [Email] LIKE N'%@%.asset.local' OR [Id] LIKE N'seed-user-%')
+      AND ISNULL([RequirePasswordChange], 0) = 0;
+END
+GO

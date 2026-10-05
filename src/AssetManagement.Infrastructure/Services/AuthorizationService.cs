@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
+using AssetManagement.Application.Security;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Infrastructure.Identity;
 using AssetManagement.Infrastructure.Persistence;
@@ -37,14 +38,14 @@ namespace AssetManagement.Infrastructure.Services
                 return false;
             }
 
-            var roleName = _users.FindRoleNameByUserId(userId);
-            if (string.IsNullOrWhiteSpace(roleName))
+            var role = _unitOfWork.Repository<Role>().GetById(user.RoleId.Value);
+            if (role == null || !role.IsActive)
             {
                 return false;
             }
 
-            var isPlatformAdmin = string.Equals(roleName, "Platform Admin", StringComparison.OrdinalIgnoreCase);
-            if (isPlatformAdmin)
+            // Platform Admin: require IsSystemRole so a renamed custom role cannot escalate.
+            if (SystemRoleNames.IsPlatformAdmin(role.Name, role.IsSystemRole))
             {
                 if (permissionCode.StartsWith("Platform."))
                 {
@@ -57,28 +58,18 @@ namespace AssetManagement.Infrastructure.Services
                 }
             }
 
-            return HasTenantPermission(user.RoleId.Value, roleName, permissionCode);
+            return HasTenantPermission(role, permissionCode);
         }
 
-        private bool HasTenantPermission(int roleId, string roleName, string permissionCode)
+        private bool HasTenantPermission(Role role, string permissionCode)
         {
             if (permissionCode.StartsWith("Platform."))
             {
                 return false;
             }
 
-            if (string.Equals(roleName, "Company Admin", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            var role = _unitOfWork.Repository<Role>().GetById(roleId);
-            if (role == null || !role.IsActive)
-            {
-                return false;
-            }
-
-            if (role.IsSystemRole && string.Equals(role.Name, "Company Admin", StringComparison.OrdinalIgnoreCase))
+            // Company Admin bypass: IsSystemRole required (name-only grant removed in Phase B).
+            if (SystemRoleNames.IsCompanyAdmin(role.Name, role.IsSystemRole))
             {
                 return true;
             }

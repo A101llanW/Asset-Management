@@ -1,9 +1,5 @@
 using System;
 using System.Configuration;
-using System.Web.Mvc;
-using AssetManagement.Application.Helpers;
-using AssetManagement.Infrastructure.Identity;
-using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Web.Helpers
 {
@@ -220,34 +216,10 @@ namespace AssetManagement.Web.Helpers
                 : "Current password is incorrect or the new password could not be saved.";
         }
 
-        private static string BuildDetailedLoginFailureMessage(string email, string tenantSlug, int remainingAttempts)
+                private static string BuildDetailedLoginFailureMessage(string email, string tenantSlug, int remainingAttempts)
         {
-            var message = BuildInvalidLoginMessage(remainingAttempts);
-            if (!string.IsNullOrWhiteSpace(tenantSlug) || string.IsNullOrWhiteSpace(email))
-            {
-                return message;
-            }
-
-            if (!DemoLoginEmailHelper.IsPlatformAdminEmail(email))
-            {
-                return message;
-            }
-
-            var connectionFactory = DependencyResolver.Current.GetService<ISqlConnectionFactory>();
-            if (connectionFactory == null)
-            {
-                return message;
-            }
-
-            var users = new UserAccountRepository(connectionFactory);
-            if (users.FindPlatformAdminByEmail(email.Trim()) != null)
-            {
-                return message + " Check that the password is P@ssw0rd! for demo accounts.";
-            }
-
-            return message
-                + " No platform administrator account exists yet. Run .\\tools\\database\\Unlock-Logins.ps1 (or .\\tools\\database\\Initialize-Database.ps1), then use superadmin@asset.local / P@ssw0rd! here."
-                + " Company admins must use their organization portal (for example /nanosoft/Account/Login with nanosoft@asset.local).";
+            // Phase B (#2): never append demo passwords or unlock-script hints.
+            return BuildInvalidLoginMessage(remainingAttempts);
         }
 
         private static string BuildInvalidLoginMessage(int remainingAttempts)

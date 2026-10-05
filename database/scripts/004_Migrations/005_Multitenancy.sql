@@ -181,3 +181,13 @@ BEGIN
     CREATE INDEX IX_ImpersonationRequest_OrganizationId_Status ON [ImpersonationRequest]([OrganizationId], [Status]);
 END
 GO
+
+-- Phase B (#2): if RequirePasswordChange column exists (post-046), force change on seeded accounts.
+IF COL_LENGTH(N'dbo.Users', N'RequirePasswordChange') IS NOT NULL
+BEGIN
+    UPDATE [Users]
+    SET [RequirePasswordChange] = 1
+    WHERE ([Email] LIKE N'%@asset.local' OR [Email] LIKE N'%@%.asset.local' OR [Id] LIKE N'seed-user-%')
+      AND ISNULL([RequirePasswordChange], 0) = 0;
+END
+GO

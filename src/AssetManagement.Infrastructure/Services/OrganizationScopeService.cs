@@ -20,6 +20,7 @@ namespace AssetManagement.Infrastructure.Services
         private bool _profileLoaded;
         private ApplicationUser _user;
         private string _roleName;
+        private bool _roleIsSystemRole;
         private int? _instanceFilterOverride;
         private bool _instancePlatformAdminOverride;
         private bool _instanceCompanyAdminOverride;
@@ -191,7 +192,7 @@ namespace AssetManagement.Infrastructure.Services
 
             EnsureProfileLoaded();
             return _user != null
-                && string.Equals(_roleName, "Platform Admin", StringComparison.OrdinalIgnoreCase);
+                && AssetManagement.Application.Security.SystemRoleNames.IsPlatformAdmin(_roleName, _roleIsSystemRole);
         }
 
         public bool IsCompanyAdmin()
@@ -212,7 +213,7 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             EnsureProfileLoaded();
-            return string.Equals(_roleName, "Company Admin", StringComparison.OrdinalIgnoreCase);
+            return AssetManagement.Application.Security.SystemRoleNames.IsCompanyAdmin(_roleName, _roleIsSystemRole);
         }
 
         public string GetImpersonationReason()
@@ -324,7 +325,18 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             _user = _users.FindById(userId);
-            _roleName = _users.FindRoleNameByUserId(userId);
+            string loadedRoleName;
+            bool loadedIsSystemRole;
+            if (_users.TryGetRoleInfoByUserId(userId, out loadedRoleName, out loadedIsSystemRole))
+            {
+                _roleName = loadedRoleName;
+                _roleIsSystemRole = loadedIsSystemRole;
+            }
+            else
+            {
+                _roleName = null;
+                _roleIsSystemRole = false;
+            }
         }
     }
 }

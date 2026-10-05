@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Security;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
@@ -161,13 +162,18 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Role name already exists.");
             }
 
+            if (SystemRoleNames.IsReservedName(model.Name))
+            {
+                throw new BusinessException("That role name is reserved for system roles.");
+            }
+
             var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
             var role = new Role
             {
                 Name = model.Name,
                 Description = model.Description,
                 IsActive = model.IsActive,
-                IsSystemRole = model.IsSystemRole,
+                IsSystemRole = false, // Phase B (#8): never accept client-posted IsSystemRole on create
                 OrganizationId = organizationId,
                 CreatedAt = DateTime.UtcNow
             };
@@ -190,6 +196,19 @@ namespace AssetManagement.Application.Services
             if (role.IsSystemRole && !role.IsActive && model.IsActive)
             {
                 throw new BusinessException("System roles cannot be re-activated this way.");
+            }
+
+            if (role.IsSystemRole
+                && !string.Equals(role.Name, model.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException("System role names cannot be changed.");
+            }
+
+            if (!role.IsSystemRole
+                && SystemRoleNames.IsReservedName(model.Name)
+                && !string.Equals(role.Name, model.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException("That role name is reserved for system roles.");
             }
 
             role.Name = model.Name;

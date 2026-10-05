@@ -30,6 +30,8 @@ namespace AssetManagement.Infrastructure.Services
 
         private const string AuthForgotRequestEventType = "AUTH_FORGOT_REQUEST";
 
+        private const string AuthLockoutEventType = "AUTH_LOCKOUT";
+
         private const int MaxForgotPasswordRequests = 5;
 
         private const int ForgotPasswordWindowMinutes = 10;
@@ -80,11 +82,21 @@ namespace AssetManagement.Infrastructure.Services
 
         {
 
-            var roleName = _users.FindRoleNameByUserId(userId);
+            string roleName;
 
-            return string.Equals(roleName, "Platform Admin", StringComparison.OrdinalIgnoreCase)
+            bool isSystemRole;
 
-                || string.Equals(roleName, "Company Admin", StringComparison.OrdinalIgnoreCase);
+            if (!_users.TryGetRoleInfoByUserId(userId, out roleName, out isSystemRole))
+
+            {
+
+                return false;
+
+            }
+
+            return SystemRoleNames.IsPlatformAdmin(roleName, isSystemRole)
+
+                || SystemRoleNames.IsCompanyAdmin(roleName, isSystemRole);
 
         }
 
@@ -605,10 +617,114 @@ namespace AssetManagement.Infrastructure.Services
 
                 InvalidateSessionsForLockedAccount(username, organizationId);
 
+                TryAlertAccountLockout(username, ipAddress, organizationId, failureReason);
+
             }
 
         }
 
+
+
+        
+        private void TryAlertAccountLockout(string username, string ipAddress, int? organizationId, string failureReason)
+
+        {
+
+            try
+
+            {
+
+                _securityEvents.Record(AuthLockoutEventType, username, ipAddress, organizationId);
+
+            }
+
+            catch
+
+            {
+
+                // Security log must not break login flow.
+
+            }
+
+
+
+            try
+
+            {
+
+                var emails = _users.ListActivePlatformAdminEmails();
+
+                if (emails == null || emails.Count == 0 || _emailService == null)
+
+                {
+
+                    return;
+
+                }
+
+
+
+                var subject = "Security alert: account lockout";
+
+                var body = string.Format(
+
+                    "<p>An account was locked after repeated failed login attempts.</p>"
+
+                    + "<p><strong>Username:</strong> {0}</p>"
+
+                    + "<p><strong>IP:</strong> {1}</p>"
+
+                    + "<p><strong>OrganizationId:</strong> {2}</p>"
+
+                    + "<p><strong>Reason:</strong> {3}</p>"
+
+                    + "<p><strong>UTC:</strong> {4:u}</p>",
+
+                    System.Security.SecurityElement.Escape(username ?? string.Empty),
+
+                    System.Security.SecurityElement.Escape(ipAddress ?? string.Empty),
+
+                    organizationId.HasValue ? organizationId.Value.ToString() : "(platform)",
+
+                    System.Security.SecurityElement.Escape(failureReason ?? string.Empty),
+
+                    DateTime.UtcNow);
+
+
+
+                foreach (var email in emails)
+
+                {
+
+                    try
+
+                    {
+
+                        _emailService.TrySendSecurityAlert(email, subject, body);
+
+                    }
+
+                    catch
+
+                    {
+
+                        // Fail soft per recipient.
+
+                    }
+
+                }
+
+            }
+
+            catch
+
+            {
+
+                // Fail soft if SMTP missing or email path throws.
+
+            }
+
+        }
 
 
         public void ClearFailedLoginAttempts(string username, int? organizationId)

@@ -15,5 +15,10 @@ namespace AssetManagement.Application.Contracts
         void SendMfaCodeEmail(string to, string code);
 
         bool SendTestEmail(string to, out string errorMessage);
+
+        /// <summary>
+        /// Best-effort security alert. Returns false if SMTP is missing or send fails; never throws for soft-fail path.
+        /// </summary>
+        bool TrySendSecurityAlert(string to, string subject, string body);
     }
 }

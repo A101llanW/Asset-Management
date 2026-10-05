@@ -120,6 +120,12 @@ namespace AssetManagement.Tests.Security
                 errorMessage = null;
                 return true;
             }
+
+            public bool TrySendSecurityAlert(string to, string subject, string body)
+            {
+                return false;
+            }
+
         }
 
         [Test]

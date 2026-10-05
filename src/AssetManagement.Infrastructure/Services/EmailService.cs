@@ -168,6 +168,31 @@ namespace AssetManagement.Infrastructure.Services
             }
         }
 
+        
+        public bool TrySendSecurityAlert(string to, string subject, string body)
+        {
+            if (string.IsNullOrWhiteSpace(to))
+            {
+                return false;
+            }
+
+            if (!IsConfigured)
+            {
+                return false;
+            }
+
+            try
+            {
+                SendCore(to.Trim(), subject ?? "Security alert", body ?? string.Empty, critical: false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceWarning("Security alert email failed for {0}: {1}", to, ex.Message);
+                return false;
+            }
+        }
+
         private void EnsureConfiguredForDelivery(string purpose)
         {
             if (IsConfigured)

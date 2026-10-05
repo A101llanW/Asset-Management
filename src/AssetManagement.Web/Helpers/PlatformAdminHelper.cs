@@ -11,7 +11,7 @@ namespace AssetManagement.Web.Helpers
 {
     public static class PlatformAdminHelper
     {
-        public const string PlatformAdminRoleName = "Platform Admin";
+        public const string PlatformAdminRoleName = AssetManagement.Application.Security.SystemRoleNames.PlatformAdmin;
 
         public const string PlatformOrganizationsIndexPath = "/Platform/Organizations/Index";
 
@@ -35,8 +35,14 @@ namespace AssetManagement.Web.Helpers
                 return false;
             }
 
-            var roleName = users.FindRoleNameByUserId(userId);
-            return string.Equals(roleName, PlatformAdminRoleName, StringComparison.OrdinalIgnoreCase);
+            string roleName;
+            bool isSystemRole;
+            if (!users.TryGetRoleInfoByUserId(userId, out roleName, out isSystemRole))
+            {
+                return false;
+            }
+
+            return AssetManagement.Application.Security.SystemRoleNames.IsPlatformAdmin(roleName, isSystemRole);
         }
 
         public static bool IsPlatformAdmin(System.Security.Principal.IPrincipal principal)

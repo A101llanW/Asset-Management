@@ -407,7 +407,89 @@ WHERE u.[Id]=@Id";
             }
         }
 
-        public int? FindOrganizationIdBySlug(string slug)
+        
+
+        /// <summary>
+        /// Returns role name and IsSystemRole for authorization checks that must not
+        /// grant on display-name alone.
+        /// </summary>
+        public bool TryGetRoleInfoByUserId(string userId, out string roleName, out bool isSystemRole)
+        {
+            roleName = null;
+            isSystemRole = false;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+SELECT r.[Name], r.[IsSystemRole]
+FROM [Users] u
+INNER JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
+WHERE u.[Id]=@Id";
+                    AddParameter(command, "@Id", userId);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (!reader.Read())
+                        {
+                            return false;
+                        }
+
+                        roleName = reader["Name"] == null || reader["Name"] == DBNull.Value
+                            ? null
+                            : reader["Name"].ToString();
+                        isSystemRole = reader["IsSystemRole"] != null
+                            && reader["IsSystemRole"] != DBNull.Value
+                            && Convert.ToBoolean(reader["IsSystemRole"]);
+                        return !string.IsNullOrWhiteSpace(roleName);
+                    }
+                }
+            }
+        }
+
+        public System.Collections.Generic.IList<string> ListActivePlatformAdminEmails()
+        {
+            var emails = new System.Collections.Generic.List<string>();
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+SELECT u.[Email]
+FROM [Users] u
+INNER JOIN [Roles] r ON r.[Id] = u.[RoleId]
+WHERE u.[IsActive] = 1
+  AND u.[OrganizationId] IS NULL
+  AND r.[IsSystemRole] = 1
+  AND r.[Name] = N'Platform Admin'
+  AND u.[Email] IS NOT NULL
+  AND LTRIM(RTRIM(u.[Email])) <> N''";
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var email = reader["Email"] == null || reader["Email"] == DBNull.Value
+                                ? null
+                                : reader["Email"].ToString();
+                            if (!string.IsNullOrWhiteSpace(email))
+                            {
+                                emails.Add(email.Trim());
+                            }
+                        }
+                    }
+                }
+            }
+
+            return emails;
+        }
+public int? FindOrganizationIdBySlug(string slug)
         {
             return FindOrganizationIdByTenantToken(slug);
         }
