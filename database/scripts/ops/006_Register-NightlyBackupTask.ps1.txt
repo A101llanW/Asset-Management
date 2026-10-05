@@ -1,0 +1,13 @@
+﻿# DO-NOT-RUN-UNTIL-APPROVED
+# Phase B (#6) — register a nightly sqlcmd backup task for SQL Express (no Agent).
+# Example (elevated PowerShell), edit paths first:
+#
+#   $script = 'C:\Users\allan\Documents\Examples\CodexAsset\database\scripts\ops\006_Backup_AssetManagementModuleDb.sql'
+#   $action = New-ScheduledTaskAction -Execute 'sqlcmd.exe' -Argument "-S .\SQLEXPRESS -E -i `"$script`""
+#   $trigger = New-ScheduledTaskTrigger -Daily -At 2:00AM
+#   Register-ScheduledTask -TaskName 'AssetManagement-NightlyBackup' -Action $action -Trigger $trigger -RunLevel Highest
+#
+# Verify: Get-ScheduledTask -TaskName 'AssetManagement-NightlyBackup'
+# Manual test: Start-ScheduledTask -TaskName 'AssetManagement-NightlyBackup'
+#
+Write-Host 'This file is documentation-only. Copy the Register-ScheduledTask example above after approval.'

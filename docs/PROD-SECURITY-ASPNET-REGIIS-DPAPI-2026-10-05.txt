@@ -1,0 +1,73 @@
+﻿================================================================================
+DO-NOT-RUN-UNTIL-APPROVED
+Phase B prepare-only (#7) — DPAPI encrypt connectionStrings / SMTP on LIVE IIS
+SoT doc: docs/PROD-SECURITY-PHASE-B-2026-10-05.md (section #7)
+This file: database/scripts/ops/007_aspnet_regiis_DPAPI_steps.txt
+
+DO NOT run aspnet_regiis against live until Allan schedules it.
+DO NOT touch C:\inetpub\AssetManagement from this Phase B workstream until approved.
+
+Goal
+----
+Encrypt sensitive config sections with DPAPI (DataProtectionConfigurationProvider)
+so the IIS app pool identity can still decrypt at runtime, without committing
+secrets to git.
+
+Sections of interest
+--------------------
+1) connectionStrings  (Integrated Security today — still worth encrypting)
+2) appSettings that hold SMTP (often via smtp.secrets.config file= attribute)
+3) Optionally a custom config section if SMTP is inlined later
+
+LIVE path (when approved)
+-------------------------
+  Site root: C:\inetpub\AssetManagement
+
+Recommended command shell: elevated "Developer Command Prompt for VS" or
+  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\
+
+Encrypt (DPAPI, local machine store — use on the IIS machine as the app pool):
+  cd /d C:\inetpub\AssetManagement
+
+  :: connectionStrings
+  %WINDIR%\Microsoft.NET\Framework64\v4.0.30319\aspnet_regiis.exe -pef "connectionStrings" "." -prov "DataProtectionConfigurationProvider"
+
+  :: If SMTP keys live in the main Web.config appSettings (not recommended):
+  %WINDIR%\Microsoft.NET\Framework64\v4.0.30319\aspnet_regiis.exe -pef "appSettings" "." -prov "DataProtectionConfigurationProvider"
+
+Notes on smtp.secrets.config
+----------------------------
+- SoT and live use: <appSettings file="smtp.secrets.config">
+- smtp.secrets.config is gitignored (never commit).
+- The `file=` merge is NOT a nested config section aspnet_regiis can -pef directly.
+  Practical options when encrypting SMTP:
+  A) Move SmtpHost/SmtpPort/SmtpUser/SmtpPassword/FromEmail into Web.config
+     <appSettings>, encrypt appSettings with -pef, keep smtp.secrets.config empty
+     or remove the file= attribute after migration; OR
+  B) Keep plaintext smtp.secrets.config ACL'd to the app pool identity only
+     (NTFS: IIS APPPOOL\AssetManagement Read), document rotation; OR
+  C) Store SMTP in Platform Settings DB (already possible) and clear file secrets.
+
+Decrypt (emergency only, elevated, on same machine):
+  aspnet_regiis.exe -pdf "connectionStrings" "."
+  aspnet_regiis.exe -pdf "appSettings" "."
+
+App pool identity
+-----------------
+DataProtectionConfigurationProvider (machine) works for any local identity
+including IIS APPPOOL\AssetManagement after recycle. Prefer machine-level DPAPI
+over user-level so the pool identity can read without a loaded user profile.
+
+SoT Web.config placeholders
+---------------------------
+- connectionStrings: Integrated Security — no SQL password to placeholder.
+- SystemEncryptionKey: still a committed default literal; rotate out-of-band
+  before production hardening (re-encrypt EncryptedData plan required).
+  Do NOT blank the key in SoT without a rotation plan — local F5 / decrypt breaks.
+- smtp.secrets.config: gitignored; encrypt/ACL on the server, never commit.
+
+IIS hold
+--------
+Phase B code lands in SoT only. No publish to C:\inetpub\AssetManagement.
+Run aspnet_regiis only after explicit Allan approval on a maintenance window.
+================================================================================
