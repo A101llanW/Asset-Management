@@ -26,7 +26,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `082_DepartmentClassTeacherRoomCustodian.sql`
   - Evidence log: `%LOCALAPPDATA%\Temp\nis-nanoassetsuit-vd-2026-10-05\e2e-migrate-*.log`
 - **Issue 3 (rootpath login → Profile vs tenant login → Dashboard):** Compared SoT `7b3b171` diffs: `PostLoginRedirectHelper` / `LocalReturnUrlHelper` / `TenantUrlHelper` only gained app-base strip/prefix for vdir hosting; **destination selection (Dashboard vs Profile fallback) unchanged**. Smoke: `/NanoAssetSuit/nanosoft/Account/Login` → Dashboard; `/NanoAssetSuit/Account/Login` → Profile (same as QA). After Profile landing, `/Account/Landing` and `/Dashboard/Index` still resolve to tenant Dashboard. Root site `/Account/Login` smoke hits `ChangePassword` (SQLEXPRESS Phase B `RequirePasswordChange`) so Profile-vs-Dashboard is not comparable there with these creds. **Treated as pre-existing design for non-tenant login path — no code change.**
-- **Commit hash:** (this docs commit; see git log)
+- **Commit hash:** `5e399a711ca8802ce6473da284e7554386743dda` (short `5e399a7`)
 - **Files changed (SoT):** `docs/LIVE-DEPLOY-CHANGELOG.md` only.
 - **DB migration/script:** E2E LocalDB only (above). **Live may need the same migrations** if live DB lacks `Department.UseCustomRequisitionApproval` (and related 069/070/079–082 objects). Deploy-order: run `065_DepartmentRequisitionApproval.sql` before publishing bits that SELECT that column; then 069, 070, 079–082 as needed. Do **not** blindly run `083` on live without an explicit password-change plan.
 - **Config/Web.config keys:** None.
@@ -276,4 +276,5 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - Phase B / SecurityLogs / #6 / #7 are committed locally (`fd5ab58`, `5ba25c0`, `56f3f29`) but **not pushed** - confirm `git status` / `git log` before any live cutover.
 - **Do not** clear `RequirePasswordChange` locally unless Allan explicitly asks.
 - **Do not** run `083` revert, `#6`, or `#7` scripts without Allan’s approval.
+
 
