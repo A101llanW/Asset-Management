@@ -11,6 +11,55 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
+## 2026-10-05 — IIS sub-application support (/NanoAssetSuit) for all app URLs
+
+- **Date/time EAT:** Commit **2026-10-05 13:45:09 EAT** (local commit only; not pushed; not published).
+- **What and why:** Live hosts CodexAsset as the IIS sub-app `/NanoAssetSuit`. Hardcoded root-relative URLs (`"/Account/Login"`, `"/" + slug + "/..."`, `/Platform/...`) sent users outside the app (login form POST, post-login/MFA redirects, forced password change, sidebar/platform links, notification links, logos, QR codes, reset/invite emails). Fixed by mirroring HireHub's working `/HireHub` pattern (`HR.Web\Helpers\TenantAuthRedirectHelper.cs`, `HR.Web\Helpers\ExternalUrlHelper.cs`): prefix app-absolute paths with `HttpRuntime.AppDomainAppVirtualPath`, and strip it before route-segment parsing. At site root the base path is empty, so `localhost:8080` behaviour is unchanged. Full scan: `docs/VIRTUAL-DIR-ROOT-RELATIVE-SCAN-2026-10-05.md`.
+- **Commit hash:** `7b3b1719ce67abc30206d55c13ea5c4095212038` (short `7b3b171`)
+- **Files changed (SoT):**
+  - `src/AssetManagement.Web/Helpers/AppPathHelper.cs` **(new)**
+  - `src/AssetManagement.Web/AssetManagement.Web.csproj` (Compile include)
+  - `src/AssetManagement.Web/Helpers/TenantUrlHelper.cs` (BuildTenantPath prefix; `/Account/Login` fallbacks)
+  - `src/AssetManagement.Web/Helpers/PlatformAdminHelper.cs` (`PlatformOrganizationsIndexUrl`)
+  - `src/AssetManagement.Web/Helpers/ImpersonationSessionHelper.cs`
+  - `src/AssetManagement.Web/Filters/ImpersonationExpiryFilterAttribute.cs`
+  - `src/AssetManagement.Web/Helpers/LocalReturnUrlHelper.cs`
+  - `src/AssetManagement.Web/Helpers/PostLoginRedirectHelper.cs`
+  - `src/AssetManagement.Web/Helpers/AssetQrUrlHelper.cs`
+  - `src/AssetManagement.Web/Helpers/OrganizationLogoHelper.cs`
+  - `src/AssetManagement.Web/Controllers/BaseController.cs` (`ResolveApplicationBaseUrl`)
+  - `src/AssetManagement.Web/Controllers/DatabaseConsoleController.cs`
+  - `src/AssetManagement.Web/Views/Account/Login.cshtml`
+  - `src/AssetManagement.Web/Views/Notifications/Index.cshtml`
+  - `src/AssetManagement.Web/Views/Settings/LabelDesigner.cshtml`
+  - `src/AssetManagement.Web/Areas/Platform/Views/Shared/_PlatformLayout.cshtml`
+  - `src/AssetManagement.Web/Scripts/app/label-designer.js`
+  - `src/AssetManagement.Application/Helpers/AssetScanUrlHelper.cs` (3-arg `ResolvePasswordResetBaseUrl`)
+  - `src/AssetManagement.Infrastructure/Services/MembershipService.cs`
+  - `src/AssetManagement.Infrastructure/Services/UserInvitationService.cs`
+  - `tests/AssetManagement.Tests/Helpers/AssetScanUrlHelperTests.cs` (+3 cases)
+  - `docs/VIRTUAL-DIR-ROOT-RELATIVE-SCAN-2026-10-05.md` **(new)**
+- **DB migration/script:** **NONE.** Stored notification `LinkUrl` values (`/Assets/Details/{id}` etc.) are left as they are and resolved at render time.
+- **Config/Web.config keys:** **None changed** (local `Web.config` and IIS untouched). **Live check:** `ExternalBaseUrl` (Platform > Email Settings, or Web.config fallback) should be `https://nanosoft.africa/NanoAssetSuit`, including the sub-app path, same as HireHub's `https://nanosoft.africa/Hirehub`. `forms loginUrl="~/Account/Login"` is already vdir-safe.
+- **IIS/server steps (local):** **NONE.** `C:\inetpub\AssetManagement` was not republished. No local `/NanoAssetSuit` sub-app exists: GET `http://localhost:8080/NanoAssetSuit/Account/Login` returns the root app's "Organization Not Found" page.
+- **Live-deploy steps (in order):**
+  1. Push/tag `7b3b171` when Allan approves (not pushed).
+  2. Back up the live site folder.
+  3. Publish Web/Application/Infrastructure/Domain DLLs plus the changed views/scripts (`Login.cshtml`, `Notifications/Index.cshtml`, `Settings/LabelDesigner.cshtml`, `Areas/Platform/Views/Shared/_PlatformLayout.cshtml`, `Scripts/app/label-designer.js`). Preserve live `Web.config` and secrets.
+  4. Confirm live `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuit`.
+  5. Recycle the `/NanoAssetSuit` app pool.
+- **Verify (on live under /NanoAssetSuit):**
+  - `/NanoAssetSuit/{slug}/Account/Login` → 200, and the form `action` starts with `/NanoAssetSuit/`.
+  - Login (+MFA) lands on `/NanoAssetSuit/{slug}/...` (Dashboard or first permitted page). Platform admin lands on `/NanoAssetSuit/Platform/Organizations/Index`.
+  - Forced password change redirects to `/NanoAssetSuit/{slug}/Account/ChangePassword`.
+  - Sidebar, log-off form, global search, notification "Open", org logo, and QR label URL all include `/NanoAssetSuit` exactly once.
+  - Password-reset and invite email links include `/NanoAssetSuit`.
+  - Root-hosted local `http://localhost:8080/` still works after a local publish (paths unchanged at root).
+- **Local verification done:** Release build of src projects OK. Path probe against the built DLLs: 25/25 PASS (sub-app vs root, no double prefix). `aspnet_compiler -v /NanoAssetSuit` view precompile OK on a temp copy. Pre-existing unrelated issues: test projects don't compile at `ea07d5b` (tests reference APIs missing from src), and `Views/Permissions/Index.cshtml(11)` has a Razor parse error under `aspnet_compiler`.
+- **Rollback:** Redeploy the previous site backup / prior DLLs and views. No DB or config rollback needed.
+
+---
+
 ## 2026-10-05 — Phase B production security (#2 / #3 / #8 / #9)
 
 - **Date/time EAT:** Commit **2026-10-05 12:47:14 EAT** (local commit only; not pushed). IIS publish of Phase B still ON HOLD.
