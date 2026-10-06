@@ -81,7 +81,10 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
             var items = new List<AssetListVm>();
             var whereClause = BuildWhereClause(filter);
             var orderBy = BuildOrderBy(sort, direction);
-            var sql = SelectColumns + FromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+            // LOOP JOIN: lookup joins are PK seeks; prevents hash joins whose memory grant
+            // (up to ~15 MB for department/category sorts) queues on RESOURCE_SEMAPHORE when
+            // SQL Express is memory-starved (Assets Index timeout, 2026-10-06).
+            var sql = SelectColumns + FromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY OPTION (LOOP JOIN)";
 
             using (var connection = _connectionFactory.CreateConnection())
             {
@@ -141,6 +144,7 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
             // asking for a memory grant larger than SQL Express's small query pool, which queued
             // the request on RESOURCE_SEMAPHORE for ~25s (+ execution) and tripped the 30s timeout.
             // The WHERE clause only references alias "a", so the count needs no joins at all.
+            // OPTION (LOOP JOIN, ORDER GROUP) keeps the grant ~1-2 MB for every sort (department sort was ~6.5 MB).
             var countSql = @"
 SELECT COUNT(*) FROM (
     SELECT 1 AS grp
@@ -195,7 +199,8 @@ LEFT JOIN [AssetCategory] c ON c.[Id] = g.[GroupCategoryId]
 LEFT JOIN [Department] d ON d.[Id] = g.[DepartmentId]
 LEFT JOIN [AssetSubType] st ON st.[Id] = g.[AssetSubTypeId]
 ORDER BY " + orderBy + @"
-OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
+OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY
+OPTION (LOOP JOIN, ORDER GROUP)";
 
                 var items = new List<AssetGroupListVm>();
                 using (var command = connection.CreateCommand())
