@@ -11,6 +11,23 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
+## 2026-10-06 - Raw non-ASCII chars in views/JS -> HTML entities / escapes (mojibake) + DepartmentsController 'Bulk grades 1-6' label
+
+- **Date/time EAT:** 2026-10-06 12:05 EAT (local commit only; not pushed; no live publish; no DB access).
+- **What and why:** Web views are UTF-8 without BOM and ASP.NET reads them as ANSI, so raw em/en dashes, middle dots, ellipses, arrow, small right triangle and division sign rendered as mojibake (`a-euro...`). Continues c7d2651 / 553bfaa. Razor markup -> HTML entities (`&mdash;` `&ndash;` `&middot;` `&hellip;` `&rarr;` `&#9656;` `&divide;`); C# strings inside views (PageHeader Subtitle/Title, string.Format, ToString format) -> `\uXXXX` C# escapes (same glyph at runtime, no literal-entity risk); Scripts/app JS strings/regex -> `\uXXXX` escapes; one JS comment -> ASCII. `DepartmentsController` setup-mode label was stored double-garbled (`1` + mojibake + `6`, originally en dash) -> ASCII `Bulk grades 1-6`.
+- **Commit hash:** `e65f205` (fix); this changelog entry is a separate follow-up docs commit.
+- **Files changed (SoT, 35):** `Controllers/DepartmentsController.cs`; Views: Assets/Edit, Assets/Import, Assets/_AssetClassificationFields, AssetScan/QuickActions, AuditLogs/Index, Departments/Index, Departments/_RoomRequisitionApproval, Home/Privacy, Home/Terms, Maintenance/Complete, Maintenance/Details, Notifications/Index, Purchases/Create, Roles/Create, Shared/_AssetClassificationPickerModal, Shared/_AssetDisposalTab, Shared/_AssetLifecyclePanel, Shared/_PublicLayout, Shared/_TaxonomyDepreciationFields, Users/Index; Scripts/app: approval-approver-picker, asset-classification-picker, asset-documents-tab, asset-label-zebra, asset-scan-batch-print, asset-scan-camera, asset-scan, asset-subtype-picker, assets-grouped, departments-tree, label-designer, purchase-request-create, purchase-request-details, supplier-create.
+- **Scope:** views + Scripts/app + one controller string only. Line endings preserved (CRLF), files stay UTF-8 without BOM.
+- **DB migration/script:** None.
+- **Config/Web.config keys:** None.
+- **IIS/server steps (local):** None for this commit. (Separately, TEMP sub-app `/NanoAssetSuit` was removed from site AssetManagement and `Publish\NanoAssetSuitProve` + `_bak\NanoAssetSuitProve_prev_20261005_1626` deleted; root site/pool untouched.)
+- **Live-deploy steps:** Takes effect on the next normal publish of the web project from a HEAD containing `e65f205` (needs the rebuilt `AssetManagement.Web.dll` for the controller label plus the changed views/scripts). No DB step, no config change.
+- **Verify:** Pages above show proper dashes/dots/ellipses (no `a-euro`); Departments/Index row toggles show the small triangle; Departments setup mode dropdown shows `Bulk grades 1-6`.
+- **Remaining raw non-ASCII (intentional/harmless):** BOM files (Assets/Details, Assets/Index, AssetSubTypes/CreateSelectType incl. its ellipsis, DatabaseConsole/Index, Departments/Create, Departments/Edit, Home/Forbidden, Purchases/Receive, Shared/_DepartmentDispositionPrompt) are decoded correctly; `Content/css/site.css` L3671 em dash in a CSS comment.
+- **Rollback:** Revert `e65f205`.
+
+---
+
 ## 2026-10-06 - Missing csproj Content items (Platform/Users 500) + Platform org banner dash mojibake
 
 - **Date/time EAT:** 2026-10-06 11:42 EAT (local commit only; not pushed; no live publish; no DB access).
