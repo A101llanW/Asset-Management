@@ -55,6 +55,14 @@ LEFT JOIN [AssetType] at ON at.[Id] = a.[AssetTypeId]
 LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]
 LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
 
+        private const string PagedFromClause = @"
+FROM paged p
+INNER JOIN [Asset] a ON a.[Id] = p.[Id]
+LEFT JOIN [AssetCategory] c ON c.[Id] = a.[CategoryId]
+LEFT JOIN [AssetType] at ON at.[Id] = a.[AssetTypeId]
+LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]
+LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
+
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IDepartmentScopeService _departmentScope;
@@ -81,10 +89,15 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
             var items = new List<AssetListVm>();
             var whereClause = BuildWhereClause(filter);
             var orderBy = BuildOrderBy(sort, direction);
-            // LOOP JOIN: lookup joins are PK seeks; prevents hash joins whose memory grant
-            // (up to ~15 MB for department/category sorts) queues on RESOURCE_SEMAPHORE when
-            // SQL Express is memory-starved (Assets Index timeout, 2026-10-06).
-            var sql = SelectColumns + FromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY OPTION (LOOP JOIN)";
+            // Perf (Assets Index timeout, 2026-10-06): page on narrow keys first (sort carries only
+            // Id + sort column), then fetch the wide columns for the page rows. LOOP JOIN keeps the
+            // lookup joins as PK seeks. Memory grant for department/category sorts drops from
+            // ~15 MB (hash joins + wide sort) to ~1.5 MB, so it no longer queues on
+            // RESOURCE_SEMAPHORE when SQL Express is memory-starved.
+            var sql = "WITH paged AS (SELECT a.[Id]" + FromClause + whereClause
+                + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY)"
+                + SelectColumns + PagedFromClause
+                + " ORDER BY " + orderBy + " OPTION (LOOP JOIN)";
 
             using (var connection = _connectionFactory.CreateConnection())
             {
