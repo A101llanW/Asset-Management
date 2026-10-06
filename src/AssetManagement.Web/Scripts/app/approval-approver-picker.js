@@ -290,7 +290,7 @@
 
             label.textContent = roleId && userId
 
-                ? roleName + " — " + userName
+                ? roleName + " \u2014 " + userName
 
                 : "-- Select approver --";
 

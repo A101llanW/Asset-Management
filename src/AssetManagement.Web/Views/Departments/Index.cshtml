@@ -106,7 +106,7 @@ else if (viewMode == "tree")
                             <td class="text-center">
                                 @if (parentExpandable)
                                 {
-                                    <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">▸</button>
+                                    <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">&#9656;</button>
                                 }
                             </td>
                             <td>@parent.Name</td>
@@ -136,7 +136,7 @@ else if (viewMode == "tree")
                                 <td class="text-center">
                                     @if (childHasRooms)
                                     {
-                                        <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@child.Id" aria-expanded="false" title="Expand rooms">▸</button>
+                                        <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@child.Id" aria-expanded="false" title="Expand rooms">&#9656;</button>
                                     }
                                 </td>
                                 <td class="ps-4">@child.Name</td>

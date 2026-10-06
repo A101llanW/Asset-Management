@@ -144,7 +144,7 @@
 
     function buildSuggestedName(brand, model) {
         if (brand && model) {
-            return brand + " – " + model;
+            return brand + " \u2013 " + model;
         }
 
         return brand || model || "Unspecified item";
@@ -172,7 +172,7 @@
             }
         }
 
-        // Allow category→type rebuild to finish before setting type.
+        // Allow category->type rebuild to finish before setting type.
         global.setTimeout(function () {
             if (assetType && assetTypeId) {
                 suppressTypeChangeClear = true;

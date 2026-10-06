@@ -24,7 +24,7 @@
             </nav>
 
             <h2 class="mb-2">Privacy Policy</h2>
-            <p class="text-muted small mb-4">Policy version: <strong>@(ViewBag.PrivacyVersionLabel as string)</strong> · Last updated: @lastUpdated</p>
+            <p class="text-muted small mb-4">Policy version: <strong>@(ViewBag.PrivacyVersionLabel as string)</strong> &middot; Last updated: @lastUpdated</p>
 
             @if (rel == LegalRelationshipKind.PlatformAdmin)
             {
@@ -79,7 +79,7 @@
 
             <h5>5. Contact</h5>
             <p class="mb-0">
-                Questions about this policy: <a href="mailto:@contactEmail">@contactEmail</a> · @contactAddress
+                Questions about this policy: <a href="mailto:@contactEmail">@contactEmail</a> &middot; @contactAddress
             </p>
         </div>
     </div>

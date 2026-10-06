@@ -120,7 +120,7 @@
             var processLabel = trigger.getAttribute("data-am-process-label") || "Linked process";
             requirementIdInput.value = requirementId || "";
             if (requirementSummary) {
-                requirementSummary.textContent = processLabel + " — " + documentType;
+                requirementSummary.textContent = processLabel + " \u2014 " + documentType;
             }
         });
 

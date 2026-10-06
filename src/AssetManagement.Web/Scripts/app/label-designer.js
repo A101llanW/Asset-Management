@@ -232,8 +232,8 @@
 
         if (meta) {
             meta.textContent = dimensions.widthMm + ' x ' + dimensions.heightMm + ' mm'
-                + ' · ' + MARGIN_MM + ' mm margin'
-                + ' · preview x' + displayScale.toFixed(1);
+                + ' \u00b7 ' + MARGIN_MM + ' mm margin'
+                + ' \u00b7 preview x' + displayScale.toFixed(1);
         }
     }
 
@@ -455,7 +455,7 @@
     }
 
     function formatTemplateMeta(template) {
-        return template.WidthMm + ' x ' + template.HeightMm + ' mm · QR x' + template.QrMagnification;
+        return template.WidthMm + ' x ' + template.HeightMm + ' mm \u00b7 QR x' + template.QrMagnification;
     }
 
     function renderTemplateList(listRoot, templates, onLoad, onDelete) {

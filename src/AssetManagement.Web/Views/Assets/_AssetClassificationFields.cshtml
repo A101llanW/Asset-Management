@@ -27,7 +27,7 @@
     var hasClassification = selectedCategoryId > 0 && selectedTypeId > 0
         && Model != null && Model.AssetSubTypeId.HasValue && Model.AssetSubTypeId.Value > 0;
     var subTypeLabel = string.IsNullOrWhiteSpace(Model != null ? Model.AssetSubTypeName : null)
-        ? "Not selected — required"
+        ? "Not selected \u2014 required"
         : Model.AssetSubTypeName;
 
     var classificationData = new

@@ -21,7 +21,7 @@
 
             var originalLabel = button.textContent;
             button.disabled = true;
-            button.textContent = 'Preparing PDF…';
+            button.textContent = 'Preparing PDF\u2026';
 
             fetch(url, { credentials: 'same-origin' })
                 .then(function (response) {

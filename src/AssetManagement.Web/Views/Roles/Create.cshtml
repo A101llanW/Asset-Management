@@ -47,7 +47,7 @@
                     <div id="roleCopyPanel" class="ms-4 mt-1" hidden="hidden">
                         <label class="form-label" for="roleCopyPicker">Existing role</label>
                         <select id="roleCopyPicker" class="form-select" data-role-url="@Url.Action("RolePermissions", "Roles")">
-                            <option value="">— Select a role —</option>
+                            <option value="">&mdash; Select a role &mdash;</option>
                             @foreach (var role in copySourceRoles)
                             {
                                 <option value="@role.Id">@role.Name (@role.PermissionCount permissions)</option>
@@ -67,7 +67,7 @@
                     <div id="roleTemplatePanel" class="ms-4 mt-1" hidden="hidden">
                         <label class="form-label" for="roleTemplatePicker">Saved template</label>
                         <select id="roleTemplatePicker" class="form-select" data-template-url="@Url.Action("TemplatePermissions", "Roles")">
-                            <option value="">— Select a template —</option>
+                            <option value="">&mdash; Select a template &mdash;</option>
                             @foreach (var template in roleTemplates)
                             {
                                 <option value="@template.Id">@template.Name (@template.PermissionCount permissions)</option>

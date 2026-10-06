@@ -55,7 +55,7 @@
                     <div class="col-md-3"><strong>Requested by:</strong><br />@Model.PendingDisposal.RequestedByName</div>
                     <div class="col-md-3"><strong>Submitted:</strong><br />@Model.PendingDisposal.RequestedDateText</div>
                     <div class="col-md-3"><strong>Method:</strong><br />@Model.PendingDisposal.DisposalMethod</div>
-                    <div class="col-md-3"><strong>Awaiting stage:</strong><br />Stage @Model.PendingDisposal.CurrentApprovalStage — @Model.PendingDisposal.CurrentStageRoleName</div>
+                    <div class="col-md-3"><strong>Awaiting stage:</strong><br />Stage @Model.PendingDisposal.CurrentApprovalStage &mdash; @Model.PendingDisposal.CurrentStageRoleName</div>
                     <div class="col-12"><strong>Reason:</strong><br />@Model.PendingDisposal.DisposalReason</div>
                 </div>
                 @if (Model.PendingDisposal.ApprovalHistory != null && Model.PendingDisposal.ApprovalHistory.Any())
@@ -65,7 +65,7 @@
                         <ul class="mb-0 mt-2">
                             @foreach (var decision in Model.PendingDisposal.ApprovalHistory)
                             {
-                                <li>Stage @decision.StageNumber — @decision.RoleName — @decision.Decision by @decision.ApproverName on @decision.DecisionDateText</li>
+                                <li>Stage @decision.StageNumber &mdash; @decision.RoleName &mdash; @decision.Decision by @decision.ApproverName on @decision.DecisionDateText</li>
                             }
                         </ul>
                     </div>

@@ -17,7 +17,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Complete Maintenance",
-    Subtitle = Model.MaintenanceTicketNumber + " · " + Model.AssetTag,
+    Subtitle = Model.MaintenanceTicketNumber + " \u00B7 " + Model.AssetTag,
     BackUrl = Url.Action("Details", new { id = Model.Id }),
     BackLabel = "Back to ticket"
 })

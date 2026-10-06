@@ -410,7 +410,7 @@
         }
 
         printSession.paused = true;
-        setProgress(printSession.index, printSession.total, "Paused — resume to continue.", { paused: true });
+        setProgress(printSession.index, printSession.total, "Paused \u2014 resume to continue.", { paused: true });
         syncPrintControls();
     }
 

@@ -306,9 +306,9 @@
             for (var i = 0; i < buttons.length; i++) {
                 var button = buttons[i];
                 var sortKey = button.getAttribute("data-sort");
-                var label = button.textContent.replace(/\s+[▲▼]$/, "");
+                var label = button.textContent.replace(/\s+[\u25b2\u25bc]$/, "");
                 if (sortKey === state.sort) {
-                    button.textContent = label + (state.direction === "desc" ? " ▼" : " ▲");
+                    button.textContent = label + (state.direction === "desc" ? " \u25bc" : " \u25b2");
                 } else {
                     button.textContent = label;
                 }
@@ -409,7 +409,7 @@
             }
             if (rangeLabel) {
                 if (meta.totalCount > 0) {
-                    rangeLabel.textContent = "Showing " + meta.startItem + "–" + meta.endItem + " of " + meta.totalCount;
+                    rangeLabel.textContent = "Showing " + meta.startItem + "\u2013" + meta.endItem + " of " + meta.totalCount;
                 } else {
                     rangeLabel.textContent = "";
                 }
@@ -464,7 +464,7 @@
                     renderRows([]);
                     var message = "Could not load assets. Try again.";
                     if (error && error.message && error.message.indexOf("(404)") >= 0) {
-                        message += " The asset search endpoint was not found — rebuild and restart the web app.";
+                        message += " The asset search endpoint was not found \u2014 rebuild and restart the web app.";
                     }
                     showError(message);
                 });

@@ -38,25 +38,25 @@
             setHidden(rooms, true);
             document.querySelectorAll("[data-am-dept-toggle]").forEach(function (btn) {
                 btn.setAttribute("aria-expanded", "false");
-                btn.textContent = "▸";
+                btn.textContent = "\u25b8";
             });
         } else if (stage === STAGE_SUBS) {
             setHidden(subs, false);
             setHidden(rooms, true);
             document.querySelectorAll('tr[data-am-dept-row="core"] [data-am-dept-toggle]').forEach(function (btn) {
                 btn.setAttribute("aria-expanded", "true");
-                btn.textContent = "▾";
+                btn.textContent = "\u25be";
             });
             document.querySelectorAll('tr[data-am-dept-row="sub"] [data-am-dept-toggle]').forEach(function (btn) {
                 btn.setAttribute("aria-expanded", "false");
-                btn.textContent = "▸";
+                btn.textContent = "\u25b8";
             });
         } else {
             setHidden(subs, false);
             setHidden(rooms, false);
             document.querySelectorAll("[data-am-dept-toggle]").forEach(function (btn) {
                 btn.setAttribute("aria-expanded", "true");
-                btn.textContent = "▾";
+                btn.textContent = "\u25be";
             });
         }
         updateHint();
@@ -75,7 +75,7 @@
         var expanded = btn.getAttribute("aria-expanded") === "true";
         var next = !expanded;
         btn.setAttribute("aria-expanded", next ? "true" : "false");
-        btn.textContent = next ? "▾" : "▸";
+        btn.textContent = next ? "\u25be" : "\u25b8";
 
         if (level === "core") {
             var children = document.querySelectorAll('tr[data-am-dept-parent="' + id + '"]');
@@ -92,7 +92,7 @@
                         var childToggle = child.querySelector("[data-am-dept-toggle]");
                         if (childToggle) {
                             childToggle.setAttribute("aria-expanded", "false");
-                            childToggle.textContent = "▸";
+                            childToggle.textContent = "\u25b8";
                         }
                     }
                 } else if (childLevel === "room") {

@@ -188,7 +188,7 @@
             return Promise.resolve();
         }
 
-        setCameraMessage("Starting camera…", false);
+        setCameraMessage("Starting camera\u2026", false);
         showWrap(true);
         setToggleLabel(true);
         isActive = true;

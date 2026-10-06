@@ -9,7 +9,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = Model.MaintenanceTicketNumber,
-    Subtitle = Model.AssetTag + " · " + Model.AssetName,
+    Subtitle = Model.AssetTag + " \u00B7 " + Model.AssetName,
     BackUrl = Url.Action("Details", "Assets", new { id = Model.AssetId }),
     BackLabel = "Back to Asset",
     PrimaryActionUrl = canComplete ? Url.Action("Complete", new { id = Model.Id }) : null,

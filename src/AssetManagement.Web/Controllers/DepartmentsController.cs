@@ -608,7 +608,7 @@ namespace AssetManagement.Web.Controllers
             if (includeOrgModes)
             {
                 items.Add(new { Value = DepartmentService.SetupModeGradeStreams, Text = "Grade with class streams" });
-                items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1Ã¢â‚¬â€œ6" });
+                items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1-6" });
             }
 
             return new SelectList(items, "Value", "Text", selected);

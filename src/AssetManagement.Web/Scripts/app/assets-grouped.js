@@ -348,7 +348,7 @@
 
         if (!append) {
             ensureMemberTableHeader(panel);
-            tbody.innerHTML = '<tr class="am-group-member-loading"><td colspan="' + getMemberColspan(panel) + '" class="text-muted small py-2">Loading units…</td></tr>';
+            tbody.innerHTML = '<tr class="am-group-member-loading"><td colspan="' + getMemberColspan(panel) + '" class="text-muted small py-2">Loading units\u2026</td></tr>';
         }
 
         return fetch(buildMembersQuery(panel, skip, memberPageSize), { credentials: "same-origin" })

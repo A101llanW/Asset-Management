@@ -247,7 +247,7 @@
             return;
         }
 
-        setStatus("Looking up asset…", "busy");
+        setStatus("Looking up asset\u2026", "busy");
 
         var url = config.lookupJsonUrl + "?code=" + encodeURIComponent(rawCode.trim());
         fetch(url, {
@@ -270,17 +270,17 @@
                 refocusInput(!!data.Found);
 
                 if (data.Found) {
-                    setStatus("Asset found — scan next code", "success");
+                    setStatus("Asset found \u2014 scan next code", "success");
                 } else if (data.SearchResults && data.SearchResults.Assets && data.SearchResults.Assets.length) {
                     setStatus(data.SearchResults.TotalCount + " match(es) found", "success");
                 } else if (data.Message) {
-                    setStatus("No match — scan again", "warning");
+                    setStatus("No match \u2014 scan again", "warning");
                 } else {
                     setStatus("Ready to scan", "ready");
                 }
             })
             .catch(function () {
-                setStatus("Lookup failed — try again", "error");
+                setStatus("Lookup failed \u2014 try again", "error");
             });
     }
 
@@ -318,7 +318,7 @@
 
         if (config.hasInitialResult) {
             refocusInput(true);
-            setStatus("Asset loaded — scan next code", "success");
+            setStatus("Asset loaded \u2014 scan next code", "success");
         } else {
             var preferManualFocus = !window.matchMedia("(max-width: 767.98px)").matches
                 && !("ontouchstart" in window);

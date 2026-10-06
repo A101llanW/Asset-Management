@@ -226,7 +226,7 @@
                 subTypeDisplay.textContent = selection.subTypeName;
                 subTypeDisplay.classList.remove("am-classification-chip-muted");
             } else {
-                subTypeDisplay.textContent = "Not selected — required";
+                subTypeDisplay.textContent = "Not selected \u2014 required";
                 subTypeDisplay.classList.add("am-classification-chip-muted");
             }
         }

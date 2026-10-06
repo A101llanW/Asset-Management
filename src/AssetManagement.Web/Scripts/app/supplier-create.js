@@ -379,9 +379,9 @@
         function updateSortIndicators() {
             modal.querySelectorAll(".am-catalog-asset-sort").forEach(function (button) {
                 var sortKey = button.getAttribute("data-sort");
-                var label = button.textContent.replace(/\s+[▲▼]$/, "");
+                var label = button.textContent.replace(/\s+[\u25b2\u25bc]$/, "");
                 if (sortKey === state.sort) {
-                    button.textContent = label + (state.direction === "desc" ? " ▼" : " ▲");
+                    button.textContent = label + (state.direction === "desc" ? " \u25bc" : " \u25b2");
                 } else {
                     button.textContent = label;
                 }
@@ -448,7 +448,7 @@
             }
             if (rangeLabel) {
                 rangeLabel.textContent = meta.totalCount > 0
-                    ? "Showing " + meta.startItem + "–" + meta.endItem + " of " + meta.totalCount
+                    ? "Showing " + meta.startItem + "\u2013" + meta.endItem + " of " + meta.totalCount
                     : "";
             }
             if (prevBtn) {

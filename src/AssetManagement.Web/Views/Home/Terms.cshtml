@@ -24,7 +24,7 @@
             </nav>
 
             <h2 class="mb-2">Terms and Conditions</h2>
-            <p class="text-muted small mb-4">Policy version: <strong>@(ViewBag.TermsVersionLabel as string)</strong> · Last updated: @lastUpdated</p>
+            <p class="text-muted small mb-4">Policy version: <strong>@(ViewBag.TermsVersionLabel as string)</strong> &middot; Last updated: @lastUpdated</p>
 
             @if (rel == LegalRelationshipKind.PlatformAdmin)
             {
@@ -74,7 +74,7 @@
 
             <h5>6. Contact</h5>
             <p class="mb-0">
-                Questions about these terms: <a href="mailto:@contactEmail">@contactEmail</a> · @contactAddress
+                Questions about these terms: <a href="mailto:@contactEmail">@contactEmail</a> &middot; @contactAddress
             </p>
         </div>
     </div>

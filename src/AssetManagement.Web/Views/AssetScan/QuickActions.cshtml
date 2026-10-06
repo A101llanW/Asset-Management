@@ -10,7 +10,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = Model.AssetName,
-    Subtitle = Model.AssetTag + " · " + Model.DepartmentName,
+    Subtitle = Model.AssetTag + " \u00B7 " + Model.DepartmentName,
     BackUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetScan"),
     BackLabel = "Scan again"
 })

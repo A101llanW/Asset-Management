@@ -14,7 +14,7 @@
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = isDepartmentScoped && !string.IsNullOrWhiteSpace(scopedDepartmentName) ? scopedDepartmentName + " — Users" : "Users",
+    Title = isDepartmentScoped && !string.IsNullOrWhiteSpace(scopedDepartmentName) ? scopedDepartmentName + " \u2014 Users" : "Users",
     Subtitle = isDepartmentScoped
         ? "Employees registered in your department (including assignees without login access)."
         : "Manage people and their access. Assign department and role from each user's details page.",

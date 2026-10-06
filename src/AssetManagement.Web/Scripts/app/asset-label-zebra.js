@@ -261,7 +261,7 @@
             .then(function (browserPrint) {
                 return listPrinters(browserPrint).then(function (printers) {
                     if (!printers.length) {
-                        setStatusBadges(badges, STATUS_ERROR, 'No printer found — check USB/cable and driver.');
+                        setStatusBadges(badges, STATUS_ERROR, 'No printer found \u2014 check USB/cable and driver.');
                         return;
                     }
 
@@ -282,7 +282,7 @@
             .catch(function (error) {
                 var message = error && error.message ? error.message : 'Browser Print not detected.';
                 if (isBrowserPrintIssue(message)) {
-                    setStatusBadges(badges, STATUS_WARNING, 'Browser Print not detected — install and start it on this PC.');
+                    setStatusBadges(badges, STATUS_WARNING, 'Browser Print not detected \u2014 install and start it on this PC.');
                     return;
                 }
 
