@@ -163,7 +163,7 @@
     {
         var token = TempData["CredentialDownloadToken"].ToString();
         var organizationName = TempData["NewOrganizationName"] ?? "the new organization";
-        // Build outside area routing — Url.Action inherits Platform area and produces /Platform/Account/...
+        // Build outside area routing - Url.Action inherits Platform area and produces /Platform/Account/...
         var securityFilePath = Url.Content("~/Account/DownloadAdminCredentials") + "?token=" + Uri.EscapeDataString(token);
         var securityFileAbsoluteUrl = Request.Url.GetLeftPart(UriPartial.Authority) + securityFilePath;
 
