@@ -11,6 +11,26 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
+## 2026-10-06 - Local main merge check + ROOT local IIS publish (HEAD 22a2d37) + live vdir correction (/NanoAssetSuite)
+
+- **Date/time EAT:** 2026-10-06 11:57 EAT (root publish); entry written ~12:10 EAT. Local only; not pushed; no PR; no live publish.
+- **What and why:** Allan-approved: confirm all recent fix commits are on local `main`, then publish merged `main` to the ROOT local IIS site `C:\inetpub\AssetManagement` (localhost:8080, `.\SQLEXPRESS`).
+- **Merge:** No merge needed. All of these are already ancestors of local `main` (`git merge-base --is-ancestor` = 0 for each): `7b3b171`, `e717f99`, `5e399a7`, `48c4469`, `9dc7a7e`, `058526c`, `7112a1f`, `66ab949`, `553bfaa`, `49ed562`, `e65f205`, `22a2d37`. No conflicts.
+- **Published HEAD:** `22a2d37481853ecfd12043a7f7dfeea1a86a71bd` (code as of `e65f205`).
+- **Build:** Web project Release Rebuild + WebPublish (FileSystem) 0 errors. Full solution: 3 pre-existing failures, not touched: `src/AssetManagement.Runner` (NETSDK1047 net40/win-x86 assets), `tests/AssetManagement.PerformanceTests` (CS0535 FixedOrganizationScopeService missing Set/ClearExecutionContext), `tests/AssetManagement.Tests`.
+- **What was published (local root only):** package `artifacts\web-publish-root-merge-20261006_115556` (264 files: bin, Views, Areas, Content, Scripts, Global.asax, `*.config.example`) copied over the root. Root `Web.config` NOT copied. `Views\web.config` WAS updated from SoT (adds `System.Collections.Generic` + `AssetManagement.Web.ViewModels` Razor namespaces); `Areas\Platform\Views\Web.config` identical. App pool `AssetManagement` stopped/started (recycled). ACL kept: `NT AUTHORITY\IUSR` + `IIS APPPOOL\AssetManagement` `(OI)(CI)(RX)`.
+- **Backup:** `C:\inetpub\_backups\AssetManagement_root_pre_merge_20261006_115719` (full root copy excl. `_bak`, 957 files).
+- **Configs preserved (SHA256 equal before/after/backup):** `Web.config`, `smtp.secrets.config`, `Web.Debug.config`, `Web.Release.config`, `Web.config.e2e-backup`, `Web.config.iis-host-backup`, `packages.config`, `bin\AssetManagement.Web.dll.config`, `*.config.example`. (Root has no separate `connectionStrings.config`.)
+- **DB migration/script:** **NONE run.** Read-only check of `SchemaMigrationHistory` on `.\SQLEXPRESS`/`AssetManagementModuleDb`: NOT recorded = `065_DepartmentRequisitionApproval.sql`, `081_DepartmentAcademicAndRoomInherit.sql`, `083_SeededAccountsRequirePasswordChange.sql`, `084_AssetProductGroupListIndex.sql`. Schema objects for 065 (3 Department columns), 081 (`RoomInheritTarget`, `AcademicFlowMode`) and 084 (`IX_Asset_Org_Active_ProductGroup`) are PRESENT (applied outside the history table). 083 is a data UPDATE: 34 active seeded accounts already have `RequirePasswordChange=1`, 3 still 0. PM to decide whether to record/run anything. `PrePublish_SuperAdmin_SchemaCheck_SELECTS_ONLY.sql` rollup: `PASS_SUPERADMIN_SCHEMA`, MissingCount 0.
+- **Config/Web.config keys:** None changed locally.
+- **LIVE CORRECTION (2026-10-06, Allan):** the live virtual directory is now **`/NanoAssetSuite`** (with an `e`). `https://nanosoft.africa/NanoAssetSuite/Account/Login` -> 200; `/NanoAssetSuit` -> 404. The deploy-order step must set **`ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuite`** (supersedes the earlier `.../NanoAssetSuit` lines in the 7b3b171 entry). Verify on live: tenant login lands on `/NanoAssetSuite/<code>/Dashboard/Index`; SuperAdmin lands on `/NanoAssetSuite/Platform/Organizations/Index`. No code change: the app reads the vdir name at runtime. (The ops SQL check's printed checklist still mentions `/NanoAssetSuit`; treat as superseded.)
+- **IIS/server steps (local):** TEMP sub-app `AssetManagement/NanoAssetSuit` deleted (appcmd), `Publish\NanoAssetSuitProve` and `_bak\NanoAssetSuitProve_prev_20261005_1626` deleted. Root publish as above.
+- **Live-deploy steps:** Back up live, publish a HEAD containing `e65f205` (preserve live Web.config/secrets), set `ExternalBaseUrl` as above, recycle the live pool. Run the read-only schema check first; apply missing migrations only per PM decision (never `083` without a password-change plan).
+- **Verify (local, done):** `/Account/Login` 200; `/` 302 -> `/Account/Login?ReturnUrl=%2f`; `/Content/css/site.css`, `/Content/bootstrap.min.css`, `/Scripts/app/label-designer.js`, `/Scripts/app/departments-tree.js` 200; `/Dashboard/Index`, `/Assets`, `/Departments`, `/Platform/Users` 302 -> login; `Areas\Platform\Views\Users\_PlatformUserList.cshtml` present; `/Home/Privacy`, `/Home/Terms` 200 with `&middot;` and no mojibake.
+- **Rollback:** Stop pool, robocopy the backup folder back over `C:\inetpub\AssetManagement`, start pool.
+
+---
+
 ## 2026-10-06 - Raw non-ASCII chars in views/JS -> HTML entities / escapes (mojibake) + DepartmentsController 'Bulk grades 1-6' label
 
 - **Date/time EAT:** 2026-10-06 12:05 EAT (local commit only; not pushed; no live publish; no DB access).
@@ -103,14 +123,14 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `tests/AssetManagement.Tests/Helpers/AssetScanUrlHelperTests.cs` (+3 cases)
   - `docs/VIRTUAL-DIR-ROOT-RELATIVE-SCAN-2026-10-05.md` **(new)**
 - **DB migration/script:** **NONE.** Stored notification `LinkUrl` values (`/Assets/Details/{id}` etc.) are left as they are and resolved at render time.
-- **Config/Web.config keys:** **None changed** (local `Web.config` and IIS untouched). **Live check:** `ExternalBaseUrl` (Platform > Email Settings, or Web.config fallback) should be `https://nanosoft.africa/NanoAssetSuit`, including the sub-app path, same as HireHub's `https://nanosoft.africa/Hirehub`. `forms loginUrl="~/Account/Login"` is already vdir-safe.
+- **Config/Web.config keys:** **None changed** (local `Web.config` and IIS untouched). **Live check:** `ExternalBaseUrl` (Platform > Email Settings, or Web.config fallback) should be `https://nanosoft.africa/NanoAssetSuit`, including the sub-app path, same as HireHub's `https://nanosoft.africa/Hirehub`. `forms loginUrl="~/Account/Login"` is already vdir-safe. **[SUPERSEDED 2026-10-06: live virtual directory is now `/NanoAssetSuite`; use `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuite`. See the 2026-10-06 local main merge + root IIS publish entry.]**
 - **IIS/server steps (local):** TEMP prove sub-app `/NanoAssetSuit` and `Publish\NanoAssetSuitProve` were removed after QA OVERALL PASS (2026-10-05). Root `C:\inetpub\AssetManagement` untouched. GET `http://localhost:8080/Account/Login` → 200.
 - **Live-deploy steps (in order):**
   1. **Migrations first (if live lacks them):** run `065_DepartmentRequisitionApproval.sql` (adds `UseCustomRequisitionApproval`), then `069`, `070`, `079`–`082` as gap analysis requires. Do **not** run `083` on live without an explicit password-change plan.
   2. Push/tag `7b3b171` when Allan approves (not pushed), or deploy from local SoT.
   3. Back up the live site folder.
   4. Publish Web/Application/Infrastructure/Domain DLLs plus the changed views/scripts (`Login.cshtml`, `Notifications/Index.cshtml`, `Settings/LabelDesigner.cshtml`, `Areas/Platform/Views/Shared/_PlatformLayout.cshtml`, `Scripts/app/label-designer.js`). Preserve live `Web.config` and secrets. Ensure IUSR (or app-pool identity) can read `Content`/`Scripts` on the live folder.
-  5. Set `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuit`.
+  5. Set `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuit`. **[SUPERSEDED 2026-10-06: live virtual directory is now `/NanoAssetSuite`; use `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuite`. See the 2026-10-06 local main merge + root IIS publish entry.]**
   6. Recycle the `/NanoAssetSuit` app pool.
 - **Verify (on live under /NanoAssetSuit):**
   - `/NanoAssetSuit/{slug}/Account/Login` → 200, and the form `action` starts with `/NanoAssetSuit/`.
