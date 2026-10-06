@@ -133,10 +133,18 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
             var safePageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, 100);
             var whereClause = BuildWhereClause(filter);
             var orderBy = BuildGroupedOrderBy(sort, direction);
+
+            // Perf (Assets Index timeout, 2026-10-06): aggregate the narrow Asset rows first
+            // (served in key order by IX_Asset_Org_Active_ProductGroup -> stream aggregate, no hash),
+            // then join display names only onto the grouped rows. The previous shape joined four
+            // lookup tables before GROUP BY and carried MAX(nvarchar) names through hash/sort,
+            // asking for a memory grant larger than SQL Express's small query pool, which queued
+            // the request on RESOURCE_SEMAPHORE for ~25s (+ execution) and tripped the 30s timeout.
+            // The WHERE clause only references alias "a", so the count needs no joins at all.
             var countSql = @"
 SELECT COUNT(*) FROM (
     SELECT 1 AS grp
-    " + FromClause + whereClause + @"
+    FROM [Asset] a" + whereClause + @"
     GROUP BY a.[AssetName], a.[AssetSubTypeId], a.[DepartmentId], a.[CurrentStatus], a.[AssetTypeId]
 ) grouped";
 
@@ -156,20 +164,36 @@ SELECT COUNT(*) FROM (
                 var safePage = Math.Min(Math.Max(page, 1), totalPages);
                 var skip = (safePage - 1) * safePageSize;
                 var sql = @"
+WITH grouped AS (
+    SELECT
+        MIN(a.[Id]) AS RepresentativeId,
+        a.[AssetName],
+        a.[AssetSubTypeId],
+        a.[DepartmentId],
+        a.[CurrentStatus],
+        a.[AssetTypeId],
+        COUNT(*) AS UnitCount,
+        SUM(a.[AcquisitionCost]) AS TotalAcquisitionCost,
+        MAX(a.[CategoryId]) AS GroupCategoryId
+    FROM [Asset] a" + whereClause + @"
+    GROUP BY a.[AssetName], a.[AssetSubTypeId], a.[DepartmentId], a.[CurrentStatus], a.[AssetTypeId]
+)
 SELECT
-    MIN(a.[Id]) AS RepresentativeId,
-    a.[AssetName],
-    a.[AssetSubTypeId],
-    a.[DepartmentId],
-    a.[CurrentStatus],
-    a.[AssetTypeId],
-    COUNT(*) AS UnitCount,
-    SUM(a.[AcquisitionCost]) AS TotalAcquisitionCost,
-    MAX(c.[Name]) AS CategoryName,
-    MAX(d.[Name]) AS DepartmentName,
-    MAX(st.[Name]) AS AssetSubTypeName
-" + FromClause + whereClause + @"
-GROUP BY a.[AssetName], a.[AssetSubTypeId], a.[DepartmentId], a.[CurrentStatus], a.[AssetTypeId]
+    g.[RepresentativeId],
+    g.[AssetName],
+    g.[AssetSubTypeId],
+    g.[DepartmentId],
+    g.[CurrentStatus],
+    g.[AssetTypeId],
+    g.[UnitCount],
+    g.[TotalAcquisitionCost],
+    c.[Name] AS CategoryName,
+    d.[Name] AS DepartmentName,
+    st.[Name] AS AssetSubTypeName
+FROM grouped g
+LEFT JOIN [AssetCategory] c ON c.[Id] = g.[GroupCategoryId]
+LEFT JOIN [Department] d ON d.[Id] = g.[DepartmentId]
+LEFT JOIN [AssetSubType] st ON st.[Id] = g.[AssetSubTypeId]
 ORDER BY " + orderBy + @"
 OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
 
@@ -706,21 +730,24 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             public string NullLabel { get; set; }
         }
 
+        // Columns refer to the outer "g" (grouped CTE) / joined names in GetProductGroupedListPage.
+        // RepresentativeId is a unique tie-breaker so OFFSET paging is deterministic.
         private static string BuildGroupedOrderBy(string sort, string direction)
         {
             var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+            var dir = desc ? " DESC" : " ASC";
             switch ((sort ?? string.Empty).Trim().ToLowerInvariant())
             {
                 case "name":
-                    return desc ? "a.[AssetName] DESC" : "a.[AssetName] ASC";
+                    return "g.[AssetName]" + dir + ", g.[RepresentativeId]" + dir;
                 case "department":
-                    return desc ? "MAX(d.[Name]) DESC" : "MAX(d.[Name]) ASC";
+                    return "d.[Name]" + dir + ", g.[RepresentativeId]" + dir;
                 case "status":
-                    return desc ? "a.[CurrentStatus] DESC" : "a.[CurrentStatus] ASC";
+                    return "g.[CurrentStatus]" + dir + ", g.[RepresentativeId]" + dir;
                 case "acquisition":
-                    return desc ? "SUM(a.[AcquisitionCost]) DESC" : "SUM(a.[AcquisitionCost]) ASC";
+                    return "g.[TotalAcquisitionCost]" + dir + ", g.[RepresentativeId]" + dir;
                 default:
-                    return desc ? "COUNT(*) DESC, a.[AssetName] DESC" : "COUNT(*) ASC, a.[AssetName] ASC";
+                    return "g.[UnitCount]" + dir + ", g.[AssetName]" + dir + ", g.[RepresentativeId]" + dir;
             }
         }
 
