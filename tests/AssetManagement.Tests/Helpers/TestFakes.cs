@@ -801,6 +801,10 @@ namespace AssetManagement.Tests.Helpers
         public void InvalidateSettings(int organizationId)
         {
         }
+
+        public void InvalidateUsers(int organizationId)
+        {
+        }
     }
 
     internal class FakeApprovalWorkflowEngine : IApprovalWorkflowEngine

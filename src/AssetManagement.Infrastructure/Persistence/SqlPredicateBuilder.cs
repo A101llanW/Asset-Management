@@ -156,19 +156,24 @@ namespace AssetManagement.Infrastructure.Persistence
             if (method.Method.Name == "Contains"
                 && (method.Arguments.Count == 1 || method.Arguments.Count == 2))
             {
-                var memberExpression = method.Arguments.Count == 2
-                    ? method.Arguments[1]
-                    : method.Arguments[0];
-                var member = FindMember(memberExpression, map);
+                // Static Enumerable.Contains(values, x.Member): Arguments = [values, member].
+                // Instance values.Contains(x.Member) (List<T>, HashSet<T>, ...): Object = values, Arguments = [member].
+                PropertyInfo member;
                 Expression valuesExpression;
                 if (method.Arguments.Count == 2)
                 {
+                    member = FindMember(method.Arguments[1], map);
                     valuesExpression = method.Arguments[0];
                 }
                 else
                 {
-                    member = FindMember(method.Object, map);
-                    valuesExpression = method.Arguments[0];
+                    member = FindMember(method.Arguments[0], map);
+                    valuesExpression = method.Object;
+                }
+
+                if (valuesExpression == null)
+                {
+                    throw Unsupported(method);
                 }
 
                 if (member == null)

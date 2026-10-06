@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Configuration;
+using System.Data;
 using System.Data.SqlClient;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
@@ -94,11 +95,49 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             var map = EntityMapRegistry.GetMap(typeof(AuditLog));
+
+            // When the caller is inside a unit-of-work transaction (e.g. OrganizationService.CreateOrganization
+            // -> MembershipService.CreateUser), write the audit row on that same connection/transaction.
+            // A separate connection would block on FK_AuditLog_Organization (and similar FKs) waiting for
+            // the still-uncommitted parent row held by our own transaction => self-deadlock until timeout.
+            // This is a direct INSERT of the audit row only; it does not call UoW.SaveChanges(), so
+            // unrelated dirty tracked entities are still never flushed here.
+            SqlConnection enlistedConnection;
+            SqlTransaction enlistedTransaction;
+            if (TryGetEnlistedTransaction(out enlistedConnection, out enlistedTransaction))
+            {
+                EntitySqlWriter.Insert(enlistedConnection, map, auditLog, new SqlWriteOptions { Transaction = enlistedTransaction });
+                return;
+            }
+
             using (var connection = _connectionFactory.CreateConnection())
             {
                 connection.Open();
                 EntitySqlWriter.Insert(connection, map, auditLog, null);
             }
+        }
+
+        private bool TryGetEnlistedTransaction(out SqlConnection connection, out SqlTransaction transaction)
+        {
+            connection = null;
+            transaction = null;
+
+            var enlistment = _unitOfWork as IUnitOfWorkEnlistment;
+            if (enlistment == null)
+            {
+                return false;
+            }
+
+            IDbConnection activeConnection;
+            IDbTransaction activeTransaction;
+            if (!enlistment.TryGetActiveTransaction(out activeConnection, out activeTransaction))
+            {
+                return false;
+            }
+
+            connection = activeConnection as SqlConnection;
+            transaction = activeTransaction as SqlTransaction;
+            return connection != null && transaction != null;
         }
 
         private int? ResolveOrganizationId(string entityType, string entityId, out bool allowNullOrganization)

@@ -112,10 +112,48 @@ namespace AssetManagement.Web.Filters
                     OrganizationId = organization.Id,
                     IsImpersonating = session != null && session["ImpersonatedOrganizationId"] != null,
                     IsPlatformAdmin = filterContext.HttpContext.User.IsInRole("Platform Admin"),
-                    IsCompanyAdmin = filterContext.HttpContext.User.IsInRole("Company Admin"),
+                    IsCompanyAdmin = filterContext.HttpContext.User.IsInRole("Company Admin")
+                        || IsCompanyAdminOfOrganization(filterContext, connectionFactory, organization.Id),
                     ImpersonationReason = session == null ? null : session["ImpersonationReason"] as string
                 });
             }
+        }
+
+        /// <summary>
+        /// Forms-auth principals are built with no role names (Global.asax SetupPrincipal), so
+        /// User.IsInRole("Company Admin") is always false. Resolve the flag from the database instead:
+        /// the signed-in user must belong to this organization and hold the system "Company Admin" role.
+        /// </summary>
+        private static bool IsCompanyAdminOfOrganization(
+            ActionExecutingContext filterContext,
+            ISqlConnectionFactory connectionFactory,
+            int organizationId)
+        {
+            if (connectionFactory == null
+                || filterContext.HttpContext.User == null
+                || filterContext.HttpContext.User.Identity == null
+                || !filterContext.HttpContext.User.Identity.IsAuthenticated)
+            {
+                return false;
+            }
+
+            var userId = filterContext.HttpContext.User.GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            var users = new UserAccountRepository(connectionFactory);
+            var user = users.FindById(userId, organizationId);
+            if (user == null || !user.IsActive)
+            {
+                return false;
+            }
+
+            string roleName;
+            bool isSystemRole;
+            return users.TryGetRoleInfoByUserId(userId, out roleName, out isSystemRole)
+                && AssetManagement.Application.Security.SystemRoleNames.IsCompanyAdmin(roleName, isSystemRole);
         }
 
         private static ActionResult BuildEmailVerificationBlock(ActionExecutingContext filterContext)

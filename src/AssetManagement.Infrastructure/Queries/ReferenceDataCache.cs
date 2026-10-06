@@ -16,6 +16,9 @@ namespace AssetManagement.Infrastructure.Queries
         private static readonly TimeSpan DepartmentTtl = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan RoleTtl = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan SettingsTtl = TimeSpan.FromMinutes(10);
+        // Users change more often than reference data and drive Assignments/Transfers department checks.
+        // Absolute (not sliding) expiry so a busy page can never keep a stale list alive indefinitely.
+        private static readonly TimeSpan UsersTtl = TimeSpan.FromMinutes(2);
 
         private const string DepartmentsSql = @"
 SELECT [Id], [Name], [Code], [Description], [ParentDepartmentId], [DepartmentKind], [IsRequisitionTarget], [IsActive]
@@ -147,7 +150,7 @@ WHERE u.[OrganizationId] = @OrganizationId
 
         public IList<UserVm> GetUsersForDropdown(int organizationId, int? departmentId = null)
         {
-            var cacheKey = "org:" + organizationId + ":users:" + (departmentId.HasValue ? departmentId.Value.ToString() : "all");
+            var cacheKey = UsersCacheKeyPrefix(organizationId) + (departmentId.HasValue ? departmentId.Value.ToString() : "all");
             var cached = GetCached<IList<UserVm>>(cacheKey);
             if (cached != null)
             {
@@ -155,7 +158,7 @@ WHERE u.[OrganizationId] = @OrganizationId
             }
 
             var items = LoadUsersForDropdown(organizationId, departmentId);
-            SetCached(cacheKey, items, DepartmentTtl);
+            SetCachedAbsolute(cacheKey, items, UsersTtl);
             return items;
         }
 
@@ -218,6 +221,33 @@ WHERE u.[OrganizationId] = @OrganizationId
         {
             RemoveCacheKey("org:" + organizationId + ":depts:active");
             RemoveCacheKey("org:" + organizationId + ":depts:all");
+            // User dropdown rows carry DepartmentName and are filtered by department; department
+            // hierarchy/rename/deactivate changes must not leave them stale.
+            InvalidateUsersForOrganization(organizationId);
+        }
+
+        public void InvalidateUsers(int organizationId)
+        {
+            InvalidateUsersForOrganization(organizationId);
+        }
+
+        /// <summary>
+        /// Static entry point for writers that do not hold an IReferenceDataCache instance
+        /// (e.g. UserAccountRepository). Removes all org:{id}:users:* entries.
+        /// </summary>
+        public static void InvalidateUsersForOrganization(int? organizationId)
+        {
+            if (!organizationId.HasValue)
+            {
+                return;
+            }
+
+            RemoveCacheKeysWithPrefix(UsersCacheKeyPrefix(organizationId.Value));
+        }
+
+        internal static string UsersCacheKeyPrefix(int organizationId)
+        {
+            return "org:" + organizationId + ":users:";
         }
 
         public void InvalidateRoles(int organizationId)
@@ -530,6 +560,47 @@ WHERE u.[OrganizationId] = @OrganizationId
                 ttl,
                 CacheItemPriority.Default,
                 null);
+        }
+
+        private static void SetCachedAbsolute(string cacheKey, object value, TimeSpan ttl)
+        {
+            if (HttpRuntime.Cache == null || value == null)
+            {
+                return;
+            }
+
+            HttpRuntime.Cache.Insert(
+                cacheKey,
+                value,
+                null,
+                DateTime.UtcNow.Add(ttl),
+                Cache.NoSlidingExpiration,
+                CacheItemPriority.Default,
+                null);
+        }
+
+        private static void RemoveCacheKeysWithPrefix(string prefix)
+        {
+            if (HttpRuntime.Cache == null || string.IsNullOrEmpty(prefix))
+            {
+                return;
+            }
+
+            var keys = new List<string>();
+            var enumerator = HttpRuntime.Cache.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                var key = enumerator.Key as string;
+                if (key != null && key.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    keys.Add(key);
+                }
+            }
+
+            foreach (var key in keys)
+            {
+                HttpRuntime.Cache.Remove(key);
+            }
         }
 
         private static void RemoveCacheKey(string cacheKey)

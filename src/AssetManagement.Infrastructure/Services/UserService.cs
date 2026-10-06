@@ -147,6 +147,7 @@ namespace AssetManagement.Infrastructure.Services
             user.AccessToken = Application.Security.SecurePasswordGenerator.GenerateAccessToken();
             _unitOfWork.Writer<ApplicationUser>().Update(user);
             _unitOfWork.SaveChanges();
+            InvalidateUserCache(user.OrganizationId);
             _auditWriter.Write(
                 "Users.AssignRole",
                 nameof(ApplicationUser),
@@ -179,12 +180,22 @@ namespace AssetManagement.Infrastructure.Services
             user.UpdatedAt = System.DateTime.UtcNow;
             _unitOfWork.Writer<ApplicationUser>().Update(user);
             _unitOfWork.SaveChanges();
+            InvalidateUserCache(user.OrganizationId);
             _auditWriter.Write(
                 "Users.AssignDepartment",
                 nameof(ApplicationUser),
                 userId,
                 previousDepartmentId.HasValue ? previousDepartmentId.Value.ToString() : null,
                 departmentId.HasValue ? departmentId.Value.ToString() : null);
+        }
+
+        private void InvalidateUserCache(int? organizationId)
+        {
+            var orgId = organizationId ?? _organizationScope.GetCurrentOrganizationId();
+            if (_referenceDataCache != null && orgId.HasValue)
+            {
+                _referenceDataCache.InvalidateUsers(orgId.Value);
+            }
         }
 
         private void EnsureDepartmentHeadAssignment(ApplicationUser user, int? departmentId, int? roleId)

@@ -26,5 +26,11 @@ namespace AssetManagement.Application.Contracts.Queries
         void InvalidateRoles(int organizationId);
 
         void InvalidateSettings(int organizationId);
+
+        /// <summary>
+        /// Drops every cached user dropdown list (all departments) for the organization.
+        /// Call after a user is created, edited, (de)activated, or has their role/department changed.
+        /// </summary>
+        void InvalidateUsers(int organizationId);
     }
 }

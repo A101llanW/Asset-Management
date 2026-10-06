@@ -49,10 +49,12 @@ namespace AssetManagement.Infrastructure.Identity
                     ExecuteInsert(localConnection, null, user);
                 }
 
+                AssetManagement.Infrastructure.Queries.ReferenceDataCache.InvalidateUsersForOrganization(user.OrganizationId);
                 return;
             }
 
             ExecuteInsert(connection, transaction, user);
+            AssetManagement.Infrastructure.Queries.ReferenceDataCache.InvalidateUsersForOrganization(user.OrganizationId);
         }
 
         private void ExecuteInsert(SqlConnection connection, SqlTransaction transaction, ApplicationUser user)
@@ -114,6 +116,9 @@ WHERE [Id]=@Id";
                     command.ExecuteNonQuery();
                 }
             }
+
+            // Profile/department/role/active-state edits must be visible in user dropdowns immediately.
+            AssetManagement.Infrastructure.Queries.ReferenceDataCache.InvalidateUsersForOrganization(user.OrganizationId);
         }
 
         public System.Collections.Generic.IList<ApplicationUser> FindActiveByEmail(string email, int? organizationId)
