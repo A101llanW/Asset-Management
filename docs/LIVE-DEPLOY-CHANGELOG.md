@@ -13,7 +13,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 - **Date/time EAT:** 2026-10-07 ~12:30 EAT (local SoT commit + ROOT local IIS publish). Not pushed; no PR; no live publish; no DB changes.
 - **What and why:** Allan said prior hierarchy indent was too subtle / names still felt left-aligned across levels. Bumped Name-cell padding to clear tab stops (~2rem / 32px per depth) so depth-0 / depth-1 / depth-2 names do not share the same left edge. Kind badges unchanged; left borders kept as nesting cues.
-- **Commit hash:** PENDING (filled after commit)
+- **Commit hash:** `57edbc3` (57edbc373fd0e05cde35ac7ef9298381f88c23c6)
 - **Indent levels (Name column `.am-dept-name.am-dept-indent-N`):**
   - depth 0: `padding-left: calc(0.25rem + 0 * 2rem)` = **0.25rem**
   - depth 1: `padding-left: calc(0.25rem + 1 * 2rem)` = **2.25rem (~36px)** + blue left border
