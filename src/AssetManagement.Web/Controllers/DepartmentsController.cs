@@ -519,6 +519,10 @@ namespace AssetManagement.Web.Controllers
             ViewBag.SubDepartmentParentSelectList = BuildTopLevelAdminParentSelectList(
                 scopedDepartments,
                 model.ParentDepartmentId);
+            ViewBag.ClassGradeParentSelectList = BuildGradeParentSelectList(
+                scopedDepartments,
+                model,
+                model.ParentDepartmentId);
             ViewBag.DepartmentKindSelectList = BuildDepartmentKindSelectList(model.DepartmentKind);
             ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
             ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);
@@ -559,13 +563,43 @@ namespace AssetManagement.Web.Controllers
             }
         }
 
+
+        private static SelectList BuildGradeParentSelectList(
+            IList<DepartmentVm> scopedDepartments,
+            DepartmentVm model,
+            int? selectedParentDepartmentId)
+        {
+            var items = DepartmentRoomParentCandidates.GetGradeParentsForClass(model, scopedDepartments)
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id.ToString(),
+                    Text = DepartmentLabelHelper.FormatCodeName(x.Code, x.Name)
+                })
+                .ToList();
+            return new SelectList(items, "Value", "Text", selectedParentDepartmentId);
+        }
         private static SelectList BuildTopLevelAdminParentSelectList(
             IList<DepartmentVm> scopedDepartments,
             int? selectedParentDepartmentId)
         {
-            var items = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
+            var parents = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
                 .GroupBy(x => x.Id)
                 .Select(g => g.First())
+                .ToList();
+            if (selectedParentDepartmentId.HasValue
+                && !parents.Any(x => x.Id == selectedParentDepartmentId.Value))
+            {
+                var current = (scopedDepartments ?? Enumerable.Empty<DepartmentVm>())
+                    .FirstOrDefault(x => x.Id == selectedParentDepartmentId.Value);
+                if (current != null)
+                {
+                    parents.Insert(0, current);
+                }
+            }
+
+            var items = parents
                 .Select(x => new SelectListItem
                 {
                     Value = x.Id.ToString(),

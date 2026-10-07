@@ -1,4 +1,4 @@
-﻿@model AssetManagement.Application.ViewModels.DepartmentVm
+@model AssetManagement.Application.ViewModels.DepartmentVm
 @using System.Linq
 @using System.Web.Mvc
 @using AssetManagement.Application.Contracts
@@ -19,11 +19,12 @@
     var roomCandidates = ViewBag.RoomParentCandidates as IList<DepartmentVm>;
     var roomOtherGroups = ViewBag.RoomOtherParentGroups as IList<RoomOtherParentGroupVm>;
     var subParentSelectList = ViewBag.SubDepartmentParentSelectList as SelectList;
+    var classGradeParentSelectList = ViewBag.ClassGradeParentSelectList as SelectList;
     var kindSelectList = ViewBag.DepartmentKindSelectList as SelectList;
     var roomOtherValue = ViewBag.RoomParentOtherValue as string ?? DepartmentLabelHelper.RoomParentOtherOptionValue;
 
     // Self-heal when controller ViewBag is incomplete (e.g. Grade/Admin edit needing Room parent after Kind change).
-    if (roomCandidates == null || roomOtherGroups == null || subParentSelectList == null || kindSelectList == null)
+    if (roomCandidates == null || roomOtherGroups == null || subParentSelectList == null || classGradeParentSelectList == null || kindSelectList == null)
     {
         var deptService = DependencyResolver.Current.GetService<IDepartmentService>();
         var scopedDepartments = deptService == null
@@ -50,6 +51,20 @@
                 .ToList();
             subParentSelectList = new SelectList(items, "Value", "Text", Model.ParentDepartmentId);
         }
+        if (classGradeParentSelectList == null)
+        {
+            var gradeItems = DepartmentRoomParentCandidates.GetGradeParentsForClass(Model, scopedDepartments)
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
+                .Select(x => new SelectListItem
+                {
+                    Value = x.Id.ToString(),
+                    Text = DepartmentLabelHelper.FormatCodeName(x.Code, x.Name)
+                })
+                .ToList();
+            classGradeParentSelectList = new SelectList(gradeItems, "Value", "Text", Model.ParentDepartmentId);
+        }
+
         if (kindSelectList == null)
         {
             var kindItems = DepartmentKindSelectListBuilder.BuildItems(Model.DepartmentKind)
@@ -66,6 +81,7 @@
 
     roomCandidates = roomCandidates ?? new List<DepartmentVm>();
     roomOtherGroups = roomOtherGroups ?? new List<RoomOtherParentGroupVm>();
+    classGradeParentSelectList = classGradeParentSelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
     var candidateIds = roomCandidates.Select(x => x.Id).ToList();
     string roomParentSelectValue = string.Empty;
     if (Model.ParentDepartmentId.HasValue && candidateIds.Contains(Model.ParentDepartmentId.Value))
@@ -161,6 +177,15 @@
             new { @class = "form-select", id = "sub-parent-select" })
         <div class="form-text">Sub-departments must belong to a top-level administrative department.</div>
     </div>
+    <div class="mb-3 js-edit-parent-class" id="edit-parent-class" style="@(isClass ? null : "display:none;")">
+        <label class="form-label" for="class-parent-select">Parent grade</label>
+        @Html.DropDownList(
+            "ParentDepartmentId",
+            classGradeParentSelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
+            "-- Select grade parent --",
+            new { @class = "form-select", id = "class-parent-select" })
+        <div class="form-text">Classes must belong to a grade (grouping). Parent options are live grades from this organisation only.</div>
+    </div>
     <div class="mb-3 js-edit-class-teacher" id="edit-class-teacher" style="@(isClass ? null : "display:none;")">
         <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
         @Html.DropDownListFor(
@@ -217,9 +242,11 @@
             var kindSelect = document.getElementById('department-kind-select');
             var roomParent = document.getElementById('edit-parent-room');
             var subParent = document.getElementById('edit-parent-sub');
+            var classParent = document.getElementById('edit-parent-class');
             var roomApproval = document.getElementById('edit-room-approval');
             var roomParentHidden = document.getElementById('room-parent-id-hidden');
             var subParentSelect = document.getElementById('sub-parent-select');
+            var classParentSelect = document.getElementById('class-parent-select');
             var classTeacher = document.getElementById('edit-class-teacher');
             var roomCustodian = document.getElementById('edit-room-custodian');
             var classTeacherSelect = document.getElementById('ClassTeacherUserId');
@@ -234,11 +261,13 @@
                 var showApproval = kind === roomKind || kind === subKind || kind === classKind || kind === adminKind;
                 if (roomParent) { roomParent.style.display = showRoom ? '' : 'none'; }
                 if (subParent) { subParent.style.display = showSub ? '' : 'none'; }
+                if (classParent) { classParent.style.display = showClass ? '' : 'none'; }
                 if (roomApproval) { roomApproval.style.display = showApproval ? '' : 'none'; }
                 if (classTeacher) { classTeacher.style.display = showClass ? '' : 'none'; }
                 if (roomCustodian) { roomCustodian.style.display = showRoom ? '' : 'none'; }
-                if (roomParentHidden) { roomParentHidden.disabled = showSub; } // keep ParentDepartmentId for Class/Grade/Admin/Room; Sub uses its own select
+                if (roomParentHidden) { roomParentHidden.disabled = showSub || showClass; } // Sub/Class use their own ParentDepartmentId selects
                 if (subParentSelect) { subParentSelect.disabled = !showSub; }
+                if (classParentSelect) { classParentSelect.disabled = !showClass; }
                 if (classTeacherSelect) { classTeacherSelect.disabled = !showClass; }
                 if (roomCustodianSelect) { roomCustodianSelect.disabled = !showRoom; }
             }

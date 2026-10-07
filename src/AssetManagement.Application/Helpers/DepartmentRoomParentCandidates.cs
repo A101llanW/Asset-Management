@@ -97,7 +97,8 @@ namespace AssetManagement.Application.Helpers
             if (adminAncestorId.HasValue)
             {
                 candidates = list
-                    .Where(x => x.DepartmentKind == DepartmentKind.SubDepartment
+                    .Where(x => x.IsActive
+                        && x.DepartmentKind == DepartmentKind.SubDepartment
                         && x.ParentDepartmentId == adminAncestorId.Value)
                     .OrderBy(x => x.Code)
                     .ToList();
@@ -128,10 +129,34 @@ namespace AssetManagement.Application.Helpers
             return candidates;
         }
 
+
+        public static IList<DepartmentVm> GetGradeParentsForClass(DepartmentVm classDepartment, IEnumerable<DepartmentVm> scopedDepartments)
+        {
+            var list = DepartmentListHelper.DeduplicateById(scopedDepartments);
+            var grades = list
+                .Where(x => x.DepartmentKind == DepartmentKind.Grade && x.IsActive)
+                .OrderBy(x => x.Code)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            if (classDepartment != null && classDepartment.ParentDepartmentId.HasValue)
+            {
+                var byId = DepartmentListHelper.ToDictionaryById(list);
+                DepartmentVm currentParent;
+                if (byId.TryGetValue(classDepartment.ParentDepartmentId.Value, out currentParent)
+                    && currentParent.DepartmentKind == DepartmentKind.Grade
+                    && !grades.Any(x => x.Id == currentParent.Id))
+                {
+                    grades.Insert(0, currentParent);
+                }
+            }
+
+            return grades;
+        }
         public static IList<DepartmentVm> GetTopLevelAdministrativeParents(IEnumerable<DepartmentVm> scopedDepartments)
         {
             return (scopedDepartments ?? Enumerable.Empty<DepartmentVm>())
-                .Where(DepartmentOrgHierarchyDisplay.IsTopLevelAdministrative)
+                .Where(x => x.IsActive && DepartmentOrgHierarchyDisplay.IsTopLevelAdministrative(x))
                 .OrderBy(x => x.Name)
                 .ToList();
         }
@@ -147,7 +172,8 @@ namespace AssetManagement.Application.Helpers
                     AdminId = admin.Id,
                     AdminLabel = DepartmentLabelHelper.FormatCodeName(admin.Code, admin.Name),
                     SubDepartments = list
-                        .Where(x => x.DepartmentKind == DepartmentKind.SubDepartment
+                        .Where(x => x.IsActive
+                            && x.DepartmentKind == DepartmentKind.SubDepartment
                             && x.ParentDepartmentId == admin.Id)
                         .OrderBy(x => x.Code)
                         .Select(x => new RoomOtherParentSubOptionVm
