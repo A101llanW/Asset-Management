@@ -15,7 +15,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 - **Date/time EAT:** 2026-10-07 ~12:05 EAT (local SoT commit + ROOT local IIS publish). Not pushed; no PR; no live publish; no DB changes.
 - **What and why:** Allan asked for different colored status/kind badges for departments, sub-departments, and rooms on the Departments screen, plus clearer hierarchy indent (sub under department further right; room under sub further still). Reuses the existing `DepartmentKindBadge` helper and Active/Inactive `badge-status` pattern (same idea as Assets "assigned" / "under maintenance" badges).
-- **Commit hash:** (filled after commit)
+- **Commit hash:** `06c2dd8` (06c2dd89950f5f5aa2d03f7cd46792fa09775899)
 - **Badge map (kind -> Bootstrap class / label):**
   - Administrative -> `badge bg-primary badge-kind` / **Department** (blue)
   - SubDepartment -> `badge bg-info text-dark badge-kind` / **Sub-department** (teal)
