@@ -1,4 +1,4 @@
-# LIVE DEPLOY CHANGELOG
+﻿# LIVE DEPLOY CHANGELOG
 
 ## Standing rule
 
@@ -7,10 +7,29 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Order in this file:** newest first (newest at top).
 
-**Required fields per entry:** Date/time EAT · What and why · Commit hash · Files changed · DB migration/script · Config/Web.config keys · IIS/server steps (local) · Live-deploy steps · Verify · Rollback
+**Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
+
+## 2026-10-07 - Departments tree: clearer name-column tab-stop indent (~2rem/level)
+
+- **Date/time EAT:** 2026-10-07 ~12:30 EAT (local SoT commit + ROOT local IIS publish). Not pushed; no PR; no live publish; no DB changes.
+- **What and why:** Allan said prior hierarchy indent was too subtle / names still felt left-aligned across levels. Bumped Name-cell padding to clear tab stops (~2rem / 32px per depth) so depth-0 / depth-1 / depth-2 names do not share the same left edge. Kind badges unchanged; left borders kept as nesting cues.
+- **Commit hash:** PENDING (filled after commit)
+- **Indent levels (Name column `.am-dept-name.am-dept-indent-N`):**
+  - depth 0: `padding-left: calc(0.25rem + 0 * 2rem)` = **0.25rem**
+  - depth 1: `padding-left: calc(0.25rem + 1 * 2rem)` = **2.25rem (~36px)** + blue left border
+  - depth 2: `padding-left: calc(0.25rem + 2 * 2rem)` = **4.25rem (~68px)** + amber left border
+  - narrow screens (<=575.98px): 1.25rem step (1.5rem / 2.75rem)
+- **Files changed (SoT):**
+  - `src/AssetManagement.Web/Content/css/site.css` (`.am-dept-indent-*` tab-stop padding)
+  - `docs/LIVE-DEPLOY-CHANGELOG.md`
+- **DB migration/script:** None.
+- **Config/Web.config keys:** None. Root `Web.config` / secrets preserved on publish.
+- **IIS/server steps (local):** Release rebuild; WebPublish package under `artifacts\web-publish-dept-indent-*`; elevated copy to `C:\inetpub\AssetManagement` (skip root Web.config + secrets); backup under `C:\inetpub\_backups\AssetManagement_root_pre_dept_indent_*`; recycle app pool `AssetManagement`.
+- **Live-deploy steps:** Publish web project (CSS) from a HEAD containing this commit. No DB, no config keys. Verify Departments tree Name column indent on live after `/NanoAssetSuite` publish.
+- **Verify (local):** Open `/A46138179/Departments?view=tree`, expand hierarchy: Name text at depth 1 starts ~2rem further right than depth 0; depth 2 ~4rem further. Confirm `/Content/css/site.css` contains `calc(0.25rem + 1 * 2rem)`.
+- **Rollback:** Revert the commit; restore IIS from the `AssetManagement_root_pre_dept_indent_*` backup (or republish prior HEAD).
 
 ---
-
 ## 2026-10-07 - Departments tree: colored kind badges + hierarchy indent
 
 - **Date/time EAT:** 2026-10-07 ~12:05 EAT (local SoT commit + ROOT local IIS publish). Not pushed; no PR; no live publish; no DB changes.
@@ -98,10 +117,10 @@ Every change must be recorded here so it can be applied to live later. **One ent
 ## 2026-10-05 - TEMP /NanoAssetSuit prove QA fixes (IUSR ACL + E2E schema migrations)
 
 - **Date/time EAT:** 2026-10-05 14:45:43 EAT (local commit only; not pushed; no live publish; no SQLEXPRESS writes).
-- **What and why:** QA against TEMP IIS sub-app `/NanoAssetSuit` → `Publish\NanoAssetSuitProve` (LocalDB E2E) found three issues. Fixed setup + E2E schema only; root site `C:\inetpub\AssetManagement` untouched.
+- **What and why:** QA against TEMP IIS sub-app `/NanoAssetSuit` â†’ `Publish\NanoAssetSuitProve` (LocalDB E2E) found three issues. Fixed setup + E2E schema only; root site `C:\inetpub\AssetManagement` untouched.
 - **Issue 1 (Content/Scripts HTTP 401 under sub-app):** Publish folder lacked `NT AUTHORITY\IUSR:(OI)(CI)(RX)` which the root site folder has. Anonymous static files under the sub-app therefore 401'd while root `/Content` and `/Scripts` returned 200. **Fix (TEMP only):** `icacls Publish\NanoAssetSuitProve /grant "NT AUTHORITY\IUSR:(OI)(CI)(RX)"`. Not a SoT/code/Web.config change; no live ACL step unless live prove folder was copied without IUSR.
 - **Issue 2 (Index 500 / Invalid column UseCustomRequisitionApproval):** E2E DB `AssetManagementModuleDb_E2E` on shared LocalDB (`MSSQLLocalDB` / shared name `MSSQLLocalDBShared`) was missing department/requisition schema from pending SoT migrations. Applied **schema-only** (idempotent IF COL_LENGTH / IF OBJECT_ID; no data deletes; **083 seed RequirePasswordChange UPDATE skipped** so QA creds keep working):
-  - `065_DepartmentRequisitionApproval.sql` (**adds `UseCustomRequisitionApproval`** + stage CSV columns) — **this was the Index 500**
+  - `065_DepartmentRequisitionApproval.sql` (**adds `UseCustomRequisitionApproval`** + stage CSV columns) â€” **this was the Index 500**
   - `069_UserInvitations.sql`
   - `070_PurchaseRequestLineItems.sql`
   - `079_DepartmentRowVersion.sql`
@@ -109,21 +128,21 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `081_DepartmentAcademicAndRoomInherit.sql`
   - `082_DepartmentClassTeacherRoomCustodian.sql`
   - Evidence log: `%LOCALAPPDATA%\Temp\nis-nanoassetsuit-vd-2026-10-05\e2e-migrate-*.log`
-- **Issue 3 (rootpath login → Profile vs tenant login → Dashboard):** Compared SoT `7b3b171` diffs: `PostLoginRedirectHelper` / `LocalReturnUrlHelper` / `TenantUrlHelper` only gained app-base strip/prefix for vdir hosting; **destination selection (Dashboard vs Profile fallback) unchanged**. Smoke: `/NanoAssetSuit/nanosoft/Account/Login` → Dashboard; `/NanoAssetSuit/Account/Login` → Profile (same as QA). After Profile landing, `/Account/Landing` and `/Dashboard/Index` still resolve to tenant Dashboard. Root site `/Account/Login` smoke hits `ChangePassword` (SQLEXPRESS Phase B `RequirePasswordChange`) so Profile-vs-Dashboard is not comparable there with these creds. **Treated as pre-existing design for non-tenant login path — no code change.**
+- **Issue 3 (rootpath login â†’ Profile vs tenant login â†’ Dashboard):** Compared SoT `7b3b171` diffs: `PostLoginRedirectHelper` / `LocalReturnUrlHelper` / `TenantUrlHelper` only gained app-base strip/prefix for vdir hosting; **destination selection (Dashboard vs Profile fallback) unchanged**. Smoke: `/NanoAssetSuit/nanosoft/Account/Login` â†’ Dashboard; `/NanoAssetSuit/Account/Login` â†’ Profile (same as QA). After Profile landing, `/Account/Landing` and `/Dashboard/Index` still resolve to tenant Dashboard. Root site `/Account/Login` smoke hits `ChangePassword` (SQLEXPRESS Phase B `RequirePasswordChange`) so Profile-vs-Dashboard is not comparable there with these creds. **Treated as pre-existing design for non-tenant login path â€” no code change.**
 - **Commit hash:** `5e399a711ca8802ce6473da284e7554386743dda` (short `5e399a7`)
 - **Files changed (SoT):** `docs/LIVE-DEPLOY-CHANGELOG.md` only.
-- **DB migration/script:** E2E LocalDB only (above). **Live may need the same migrations** if live DB lacks `Department.UseCustomRequisitionApproval` (and related 069/070/079–082 objects). Deploy-order: run `065_DepartmentRequisitionApproval.sql` before publishing bits that SELECT that column; then 069, 070, 079–082 as needed. Do **not** blindly run `083` on live without an explicit password-change plan.
+- **DB migration/script:** E2E LocalDB only (above). **Live may need the same migrations** if live DB lacks `Department.UseCustomRequisitionApproval` (and related 069/070/079â€“082 objects). Deploy-order: run `065_DepartmentRequisitionApproval.sql` before publishing bits that SELECT that column; then 069, 070, 079â€“082 as needed. Do **not** blindly run `083` on live without an explicit password-change plan.
 - **Config/Web.config keys:** None.
 - **IIS/server steps (local):** TEMP prove folder ACL only (IUSR RX). Sub-app URL unchanged: `http://localhost:8080/NanoAssetSuit`.
-- **Live-deploy steps:** (1) Confirm live `Department.UseCustomRequisitionApproval` exists; if missing, apply `065_DepartmentRequisitionApproval.sql` (then 069/070/079–082 as gap analysis requires). (2) If a fresh copy of site files is used for `/NanoAssetSuit`, grant IUSR RX on that folder (or ensure app-pool/IUSR can read `Content`/`Scripts`). (3) No code publish required for these three QA items beyond whatever already carries `7b3b171`.
+- **Live-deploy steps:** (1) Confirm live `Department.UseCustomRequisitionApproval` exists; if missing, apply `065_DepartmentRequisitionApproval.sql` (then 069/070/079â€“082 as gap analysis requires). (2) If a fresh copy of site files is used for `/NanoAssetSuit`, grant IUSR RX on that folder (or ensure app-pool/IUSR can read `Content`/`Scripts`). (3) No code publish required for these three QA items beyond whatever already carries `7b3b171`.
 - **Verify (TEMP prove):**
-  - `GET http://localhost:8080/NanoAssetSuit/Content/bootstrap.min.css` → 200
-  - `GET http://localhost:8080/NanoAssetSuit/Scripts/jquery-3.7.1.min.js` → 200
-  - Authenticated `/NanoAssetSuit/nanosoft/Assets/Index` → 200 title Assets (not UseCustomRequisitionApproval)
+  - `GET http://localhost:8080/NanoAssetSuit/Content/bootstrap.min.css` â†’ 200
+  - `GET http://localhost:8080/NanoAssetSuit/Scripts/jquery-3.7.1.min.js` â†’ 200
+  - Authenticated `/NanoAssetSuit/nanosoft/Assets/Index` â†’ 200 title Assets (not UseCustomRequisitionApproval)
 - **Rollback:** Revert IUSR ACE on prove folder if undesired; E2E columns are additive (safe to leave). Changelog revert only for docs.
 
 ---
-## 2026-10-05 — IIS sub-application support (/NanoAssetSuit) for all app URLs
+## 2026-10-05 â€” IIS sub-application support (/NanoAssetSuit) for all app URLs
 
 - **Date/time EAT:** Commit **2026-10-05 13:45:09 EAT** (local commit only; not pushed; not published).
 - **What and why:** Live hosts CodexAsset as the IIS sub-app `/NanoAssetSuit`. Hardcoded root-relative URLs (`"/Account/Login"`, `"/" + slug + "/..."`, `/Platform/...`) sent users outside the app (login form POST, post-login/MFA redirects, forced password change, sidebar/platform links, notification links, logos, QR codes, reset/invite emails). Fixed by mirroring HireHub's working `/HireHub` pattern (`HR.Web\Helpers\TenantAuthRedirectHelper.cs`, `HR.Web\Helpers\ExternalUrlHelper.cs`): prefix app-absolute paths with `HttpRuntime.AppDomainAppVirtualPath`, and strip it before route-segment parsing. At site root the base path is empty, so `localhost:8080` behaviour is unchanged. Full scan: `docs/VIRTUAL-DIR-ROOT-RELATIVE-SCAN-2026-10-05.md`.
@@ -153,16 +172,16 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `docs/VIRTUAL-DIR-ROOT-RELATIVE-SCAN-2026-10-05.md` **(new)**
 - **DB migration/script:** **NONE.** Stored notification `LinkUrl` values (`/Assets/Details/{id}` etc.) are left as they are and resolved at render time.
 - **Config/Web.config keys:** **None changed** (local `Web.config` and IIS untouched). **Live check:** `ExternalBaseUrl` (Platform > Email Settings, or Web.config fallback) should be `https://nanosoft.africa/NanoAssetSuit`, including the sub-app path, same as HireHub's `https://nanosoft.africa/Hirehub`. `forms loginUrl="~/Account/Login"` is already vdir-safe. **[SUPERSEDED 2026-10-06: live virtual directory is now `/NanoAssetSuite`; use `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuite`. See the 2026-10-06 local main merge + root IIS publish entry.]**
-- **IIS/server steps (local):** TEMP prove sub-app `/NanoAssetSuit` and `Publish\NanoAssetSuitProve` were removed after QA OVERALL PASS (2026-10-05). Root `C:\inetpub\AssetManagement` untouched. GET `http://localhost:8080/Account/Login` → 200.
+- **IIS/server steps (local):** TEMP prove sub-app `/NanoAssetSuit` and `Publish\NanoAssetSuitProve` were removed after QA OVERALL PASS (2026-10-05). Root `C:\inetpub\AssetManagement` untouched. GET `http://localhost:8080/Account/Login` â†’ 200.
 - **Live-deploy steps (in order):**
-  1. **Migrations first (if live lacks them):** run `065_DepartmentRequisitionApproval.sql` (adds `UseCustomRequisitionApproval`), then `069`, `070`, `079`–`082` as gap analysis requires. Do **not** run `083` on live without an explicit password-change plan.
+  1. **Migrations first (if live lacks them):** run `065_DepartmentRequisitionApproval.sql` (adds `UseCustomRequisitionApproval`), then `069`, `070`, `079`â€“`082` as gap analysis requires. Do **not** run `083` on live without an explicit password-change plan.
   2. Push/tag `7b3b171` when Allan approves (not pushed), or deploy from local SoT.
   3. Back up the live site folder.
   4. Publish Web/Application/Infrastructure/Domain DLLs plus the changed views/scripts (`Login.cshtml`, `Notifications/Index.cshtml`, `Settings/LabelDesigner.cshtml`, `Areas/Platform/Views/Shared/_PlatformLayout.cshtml`, `Scripts/app/label-designer.js`). Preserve live `Web.config` and secrets. Ensure IUSR (or app-pool identity) can read `Content`/`Scripts` on the live folder.
   5. Set `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuit`. **[SUPERSEDED 2026-10-06: live virtual directory is now `/NanoAssetSuite`; use `ExternalBaseUrl` = `https://nanosoft.africa/NanoAssetSuite`. See the 2026-10-06 local main merge + root IIS publish entry.]**
   6. Recycle the `/NanoAssetSuit` app pool.
 - **Verify (on live under /NanoAssetSuit):**
-  - `/NanoAssetSuit/{slug}/Account/Login` → 200, and the form `action` starts with `/NanoAssetSuit/`.
+  - `/NanoAssetSuit/{slug}/Account/Login` â†’ 200, and the form `action` starts with `/NanoAssetSuit/`.
   - Login (+MFA) lands on `/NanoAssetSuit/<code>/Dashboard/Index` (or first permitted page under that tenant prefix). Platform admin lands on `/NanoAssetSuit/Platform/Organizations/Index`.
   - Forced password change redirects to `/NanoAssetSuit/{slug}/Account/ChangePassword`.
   - Sidebar, log-off form, global search, notification "Open", org logo, and QR label URL all include `/NanoAssetSuit` exactly once.
@@ -173,7 +192,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
-## 2026-10-05 — Phase B production security (#2 / #3 / #8 / #9)
+## 2026-10-05 â€” Phase B production security (#2 / #3 / #8 / #9)
 
 - **Date/time EAT:** Commit **2026-10-05 12:47:14 EAT** (local commit only; not pushed). IIS publish of Phase B still ON HOLD.
 - **What and why:** Harden local SoT toward production security: force password change on seeded accounts; remove demo credentials banner (keep MFA any-code banner); richer `/Sys/Database` audit + IP allowlist setting; remove Company Admin name-only auth bypass / require `IsSystemRole`; lockout alerting (`AUTH_LOCKOUT` + soft-fail email to platform admins).
@@ -202,11 +221,11 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - Docs: `docs/PROD-SECURITY-PHASE-B-2026-10-05.md`, `docs/PROD-SECURITY-AUDIT-2026-10-05.md`
 - **DB migration/script:**
   - Path: `database/scripts/004_Migrations/083_SeededAccountsRequirePasswordChange.sql`
-  - **Ran locally:** YES on `.\SQLEXPRESS` / `AssetManagementModuleDb` — **36 rows** `RequirePasswordChange=1`
+  - **Ran locally:** YES on `.\SQLEXPRESS` / `AssetManagementModuleDb` â€” **36 rows** `RequirePasswordChange=1`
   - **KEEP AS-IS locally** (Allan did not ask to clear)
   - Prepared revert (**DO NOT RUN** unless Allan asks): `database/scripts/ops/083_Revert_RequirePasswordChange_PREPARE_DO_NOT_RUN.sql`
 - **Config/Web.config keys:** `DatabaseConsoleAllowedIps` = `127.0.0.1,::1` (SoT Web.config only)
-- **IIS/server steps (local):** **NONE — IIS publish of Phase B DLLs is ON HOLD until Allan is ready.** `C:\inetpub\AssetManagement` was not modified by Phase B.
+- **IIS/server steps (local):** **NONE â€” IIS publish of Phase B DLLs is ON HOLD until Allan is ready.** `C:\inetpub\AssetManagement` was not modified by Phase B.
 - **Live-deploy steps (in order):**
   1. Phase B committed locally as `5ba25c0` (not pushed); push/tag when Allan approves.
   2. Backup live DB and site.
@@ -228,10 +247,10 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
-## 2026-10-05 — #6 / #7 prepare-only (least-privilege DB + aspnet_regiis DPAPI)
+## 2026-10-05 â€” #6 / #7 prepare-only (least-privilege DB + aspnet_regiis DPAPI)
 
 - **Date/time EAT:** Commit **2026-10-05 12:47:21 EAT** (prepare-only; scripts not executed; local commit only, not pushed)
-- **What and why:** Stage operator scripts/docs for least-privilege app-pool DB login + backup/restore, and aspnet_regiis DPAPI encryption of connection strings / secrets — **without running them** until Allan approves.
+- **What and why:** Stage operator scripts/docs for least-privilege app-pool DB login + backup/restore, and aspnet_regiis DPAPI encryption of connection strings / secrets â€” **without running them** until Allan approves.
 - **Commit hash:** `56f3f29daa63fb143348303ea350c817c36da670` (short `56f3f29`)
 - **Files changed:**
   - `database/scripts/ops/006_AppPool_LeastPrivilege.sql`
@@ -241,16 +260,16 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `database/scripts/ops/007_aspnet_regiis_DPAPI_steps.txt`
   - `docs/PROD-SECURITY-ASPNET-REGIIS-DPAPI-2026-10-05.txt`
   - (also referenced from `docs/PROD-SECURITY-PHASE-B-2026-10-05.md`)
-- **DB migration/script:** prepare-only paths above — **NOT run locally; NOT run on live**
+- **DB migration/script:** prepare-only paths above â€” **NOT run locally; NOT run on live**
 - **Config/Web.config keys:** none applied (DPAPI steps document encrypting live `connectionStrings` / appSettings later)
 - **IIS/server steps (local):** none (docs only)
-- **Live-deploy steps (in order):** **HOLD — do not run until Allan approves.** When approved: (1) backup DB + site, (2) run `#6` least-privilege + backup scripts per Phase B doc, (3) maintenance window for `#7` aspnet_regiis on live site path, (4) rotate Gmail app password after encrypt/ACL, (5) verify app pool still connects and SMTP still sends.
-- **Verify:** After future approval only — app pool login is not `db_owner`; backup file exists; restore-test scratch DB works; site still starts with encrypted config.
+- **Live-deploy steps (in order):** **HOLD â€” do not run until Allan approves.** When approved: (1) backup DB + site, (2) run `#6` least-privilege + backup scripts per Phase B doc, (3) maintenance window for `#7` aspnet_regiis on live site path, (4) rotate Gmail app password after encrypt/ACL, (5) verify app pool still connects and SMTP still sends.
+- **Verify:** After future approval only â€” app pool login is not `db_owner`; backup file exists; restore-test scratch DB works; site still starts with encrypted config.
 - **Rollback:** N/A until scripts are run. If run later: restore pre-change SQL logins/roles from backup; restore unencrypted Web.config from pre-encrypt bak; recycle pool.
 
 ---
 
-## 2026-10-04 — SecurityLogs parser fix (missing closing brace)
+## 2026-10-04 â€” SecurityLogs parser fix (missing closing brace)
 
 - **Date/time EAT:** Published view-only to local IIS **2026-10-04 ~00:06 EAT** (IIS file LastWriteTime `2026-10-04 00:06:35`)
 - **What and why:** `Areas/Platform/Views/SecurityLogs/Index.cshtml` was missing a closing `}` after the Razor variable block, which broke the Security Logs page parser/render. Added the missing brace.
@@ -264,15 +283,15 @@ Every change must be recorded here so it can be applied to live later. **One ent
   1. Checkout commit `fd5ab58` (or later that contains it), or copy the exact view.
   2. Copy `Index.cshtml` to live `Areas/Platform/Views/SecurityLogs/` (or full publish that includes the view).
   3. Recycle app pool if views are precompiled/cached; otherwise soft recycle / touch as needed.
-- **Verify:** Open Platform → Security Logs; page renders (no Razor parse/YSOD); login + security event tabs load.
+- **Verify:** Open Platform â†’ Security Logs; page renders (no Razor parse/YSOD); login + security event tabs load.
 - **Rollback:** Restore previous `Index.cshtml` from IIS bak or prior git revision of the view.
 
 ---
 
-## 2026-10-03 — DatabaseConsoleController include in csproj
+## 2026-10-03 â€” DatabaseConsoleController include in csproj
 
 - **Date/time EAT:** Commit **2026-10-03 23:11:42 EAT**; local IIS bak stamp `sysdb_controller_20261003_231106` (~23:11 EAT)
-- **What and why:** Controller source and routes/views existed, but the type was missing from `AssetManagement.Web.dll` because it was not a `<Compile Include>` in the csproj — `/Sys/Database` could not resolve the controller type.
+- **What and why:** Controller source and routes/views existed, but the type was missing from `AssetManagement.Web.dll` because it was not a `<Compile Include>` in the csproj â€” `/Sys/Database` could not resolve the controller type.
 - **Commit hash:** `88548c88b3eff1f09b6646dae57b7f371fef76e1` (short `88548c8`)
 - **Files changed:**
   - `src/AssetManagement.Web/AssetManagement.Web.csproj` (+1 Compile Include)
@@ -288,7 +307,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
-## 2026-10-03 — 7 FAILs UI fixes (Assignments null id + leftover dash mojibake)
+## 2026-10-03 â€” 7 FAILs UI fixes (Assignments null id + leftover dash mojibake)
 
 - **Date/time EAT:** Commit **2026-10-03 18:02:14 EAT**; local IIS bak stamp `a461_7fails_20261003_221558` (~22:15:58 EAT publish)
 - **What and why:** Stop Assignments/Index throwing when `assetId` is missing (redirect instead). Replace leftover em/en dashes, curly quotes, and baked-in mojibake on login demo banner, requisition workflow help, purchase date hint, and receive warning with ASCII. Show one price and one currency on supplier catalog line when min equals max.
@@ -309,16 +328,16 @@ Every change must be recorded here so it can be applied to live later. **One ent
   2. Publish Web DLL + the seven view/VM files above.
   3. Preserve live Web.config; recycle app pool.
 - **Verify:**
-  - `/…/Assignments` (no assetId) redirects instead of 500.
+  - `/â€¦/Assignments` (no assetId) redirects instead of 500.
   - Login / requisition guide / purchase create / receive / supplier details show ASCII text (no mojibake dashes/quotes).
   - Supplier catalog line with equal min/max shows single price + currency.
 - **Rollback:** Restore site from `a461_7fails_*` bak (local) or prior live bak; recycle pool.
 
 ---
 
-## 2026-10-02 — Blank em-dash fix (empty cells instead of U+2014)
+## 2026-10-02 â€” Blank em-dash fix (empty cells instead of U+2014)
 
-- **Date/time EAT:** Commit **2026-10-02 16:40:19 EAT**; IIS publish ~**16:41:35–16:41:47 EAT** (docs stamp); IIS stamps filled in commit `37bf03b` at 16:42:12 EAT
+- **Date/time EAT:** Commit **2026-10-02 16:40:19 EAT**; IIS publish ~**16:41:35â€“16:41:47 EAT** (docs stamp); IIS stamps filled in commit `37bf03b` at 16:42:12 EAT
 - **What and why:** Empty-cell U+2014 em-dash placeholders were mojibaking under UTF-8/cp1252 misdecode. Replace with empty string across helpers, views, JS, and JSON blanks; keep intentional separators/prose.
 - **Commit hash:** `c7d26515bc1b41afb96062582d2c2ad2678d4851` (short `c7d2651`)
 - **Files changed:**
@@ -343,12 +362,12 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - `src/AssetManagement.Web/Views/UserInvitations/Index.cshtml`
 - **DB migration/script:** none / not run
 - **Config/Web.config keys:** none (Web.config preserved on publish; SHA256 unchanged per fix doc)
-- **IIS/server steps (local):** Pool AssetManagement stopped → copy → Started; bak `C:\inetpub\AssetManagement\_bak\blank_emdash_20261002_164135`; SoT↔IIS DLL SHA256 match for Web/Application/Domain/Infrastructure.
+- **IIS/server steps (local):** Pool AssetManagement stopped â†’ copy â†’ Started; bak `C:\inetpub\AssetManagement\_bak\blank_emdash_20261002_164135`; SoTâ†”IIS DLL SHA256 match for Web/Application/Domain/Infrastructure.
 - **Live-deploy steps (in order):**
   1. Build/publish commit `c7d2651` (or later containing it).
   2. Deploy listed DLLs, views, and JS; **do not overwrite** live secrets in Web.config.
   3. Recycle app pool.
-- **Verify:** Spot-check Departments, AssetSubTypes, Suppliers, Assignments/BatchCreate, UserInvitations — empty cells blank (no `â€"` / mojibake); intentional separators still present where designed.
+- **Verify:** Spot-check Departments, AssetSubTypes, Suppliers, Assignments/BatchCreate, UserInvitations â€” empty cells blank (no `Ã¢â‚¬"` / mojibake); intentional separators still present where designed.
 - **Rollback:** Restore from `blank_emdash_20261002_164135` bak (local) or prior live bak; recycle pool.
 
 ---
@@ -360,6 +379,6 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - Local DB: `.\SQLEXPRESS` / `AssetManagementModuleDb`
 - Phase B / SecurityLogs / #6 / #7 are committed locally (`fd5ab58`, `5ba25c0`, `56f3f29`) but **not pushed** - confirm `git status` / `git log` before any live cutover.
 - **Do not** clear `RequirePasswordChange` locally unless Allan explicitly asks.
-- **Do not** run `083` revert, `#6`, or `#7` scripts without Allan’s approval.
+- **Do not** run `083` revert, `#6`, or `#7` scripts without Allanâ€™s approval.
 
 

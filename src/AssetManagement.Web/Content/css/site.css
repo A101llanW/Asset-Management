@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --am-primary: hsl(200, 85%, 52%);
     --am-primary-strong: hsl(205, 90%, 45%);
     --am-primary-contrast: hsl(210, 70%, 15%);
@@ -3668,7 +3668,7 @@ body.am-login-page .am-shell-header .am-brand-title {
 }
 
 /* ============================================================
-   RESPONSIVE SHELL — shared layout, tables, forms, dashboard
+   RESPONSIVE SHELL â€” shared layout, tables, forms, dashboard
    ============================================================ */
 .am-main-content .card > .card-body.p-0,
 .am-main-content .card > .card-body.p-0 > .table-responsive {
@@ -3777,27 +3777,28 @@ body.am-login-page .am-shell-header .am-brand-title {
     vertical-align: middle;
 }
 
+/* Tab-stop hierarchy: ~2rem (32px) per depth on the Name cell text */
 .am-dept-indent-0 {
-    padding-left: 0.25rem !important;
+    padding-left: calc(0.25rem + 0 * 2rem) !important; /* 0.25rem */
 }
 
 .am-dept-indent-1 {
-    padding-left: 1.5rem !important;
+    padding-left: calc(0.25rem + 1 * 2rem) !important; /* 2.25rem / ~36px */
     border-left: 3px solid rgba(13, 110, 253, 0.28);
 }
 
 .am-dept-indent-2 {
-    padding-left: 3rem !important;
+    padding-left: calc(0.25rem + 2 * 2rem) !important; /* 4.25rem / ~68px */
     border-left: 3px solid rgba(255, 193, 7, 0.45);
 }
 
 @media (max-width: 575.98px) {
     .am-dept-indent-1 {
-        padding-left: 0.85rem !important;
+        padding-left: calc(0.25rem + 1 * 1.25rem) !important; /* 1.5rem */
     }
 
     .am-dept-indent-2 {
-        padding-left: 1.5rem !important;
+        padding-left: calc(0.25rem + 2 * 1.25rem) !important; /* 2.75rem */
     }
 }
 
