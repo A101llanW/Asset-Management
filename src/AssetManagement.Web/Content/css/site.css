@@ -3759,3 +3759,45 @@ body.am-login-page .am-shell-header .am-brand-title {
         display: flex;
     }
 }
+
+
+/* am-dept-tree badges + hierarchy indent */
+.bg-purple {
+    background-color: #6f42c1 !important;
+    color: #fff !important;
+}
+
+.badge-kind {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.am-dept-tree-table td.am-dept-name {
+    vertical-align: middle;
+}
+
+.am-dept-indent-0 {
+    padding-left: 0.25rem !important;
+}
+
+.am-dept-indent-1 {
+    padding-left: 1.5rem !important;
+    border-left: 3px solid rgba(13, 110, 253, 0.28);
+}
+
+.am-dept-indent-2 {
+    padding-left: 3rem !important;
+    border-left: 3px solid rgba(255, 193, 7, 0.45);
+}
+
+@media (max-width: 575.98px) {
+    .am-dept-indent-1 {
+        padding-left: 0.85rem !important;
+    }
+
+    .am-dept-indent-2 {
+        padding-left: 1.5rem !important;
+    }
+}
+

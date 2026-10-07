@@ -1,4 +1,4 @@
-﻿# LIVE DEPLOY CHANGELOG
+# LIVE DEPLOY CHANGELOG
 
 ## Standing rule
 
@@ -11,6 +11,35 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ---
 
+## 2026-10-07 - Departments tree: colored kind badges + hierarchy indent
+
+- **Date/time EAT:** 2026-10-07 ~12:05 EAT (local SoT commit + ROOT local IIS publish). Not pushed; no PR; no live publish; no DB changes.
+- **What and why:** Allan asked for different colored status/kind badges for departments, sub-departments, and rooms on the Departments screen, plus clearer hierarchy indent (sub under department further right; room under sub further still). Reuses the existing `DepartmentKindBadge` helper and Active/Inactive `badge-status` pattern (same idea as Assets "assigned" / "under maintenance" badges).
+- **Commit hash:** (filled after commit)
+- **Badge map (kind -> Bootstrap class / label):**
+  - Administrative -> `badge bg-primary badge-kind` / **Department** (blue)
+  - SubDepartment -> `badge bg-info text-dark badge-kind` / **Sub-department** (teal)
+  - Grade -> `badge bg-purple badge-kind` / **Grade** (purple; `.bg-purple` added in site.css)
+  - Class -> `badge bg-info text-dark badge-kind` / **Class** (teal)
+  - Room -> `badge bg-warning text-dark badge-kind` / **Room** (amber)
+  - Active/Inactive status column unchanged: `badge bg-success|secondary badge-status`
+- **Indent levels (tree Name column):**
+  - depth 0 (core department/grade): `.am-dept-indent-0` = 0.25rem
+  - depth 1 (sub-department / class / direct room): `.am-dept-indent-1` = 1.5rem + blue left border (0.85rem on narrow screens)
+  - depth 2 (room under sub): `.am-dept-indent-2` = 3rem + amber left border (1.5rem on narrow screens)
+- **Files changed (SoT):**
+  - `src/AssetManagement.Web/Helpers/DepartmentKindHtmlHelpers.cs` (colors + Department/Sub-department/Room labels)
+  - `src/AssetManagement.Web/Views/Departments/Index.cshtml` (kind badges in tree + flat list; indent classes)
+  - `src/AssetManagement.Web/Views/Departments/_DepartmentChildList.cshtml` (kind badges)
+  - `src/AssetManagement.Web/Content/css/site.css` (`.bg-purple`, `.badge-kind`, `.am-dept-indent-*`)
+- **DB migration/script:** None.
+- **Config/Web.config keys:** None. Root `Web.config` / secrets preserved on publish.
+- **IIS/server steps (local):** Release rebuild 0 errors; WebPublish package `artifacts\web-publish-dept-badges-20261007_120257`; elevated copy to `C:\inetpub\AssetManagement` (skip root Web.config + secrets); backup under `C:\inetpub\_backups\AssetManagement_root_pre_dept_badges_*`; recycle app pool `AssetManagement`.
+- **Live-deploy steps:** Publish web project from a HEAD containing this commit (views + CSS + rebuilt `AssetManagement.Web.dll`). No DB, no config keys. Verify Departments tree badges + indent on live after `/NanoAssetSuite` publish.
+- **Verify (local):** Login as a tenant user (e.g. Test-WF `A46138179`), open `/A46138179/Departments?view=tree`, expand hierarchy: Kind column shows colored badges; Name column indents by depth; Status still Active/Inactive. Flat list also shows kind badges. `/Content/css/site.css` contains `am-dept-indent-2`.
+- **Rollback:** Revert the commit; restore IIS from the `AssetManagement_root_pre_dept_badges_*` backup (or republish prior HEAD).
+
+---
 ## 2026-10-06 - Local main merge check + ROOT local IIS publish (HEAD 22a2d37) + live vdir correction (/NanoAssetSuite)
 
 - **Date/time EAT:** 2026-10-06 11:57 EAT (root publish); entry written ~12:10 EAT. Local only; not pushed; no PR; no live publish.

@@ -109,8 +109,8 @@ else if (viewMode == "tree")
                                     <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">&#9656;</button>
                                 }
                             </td>
-                            <td>@parent.Name</td>
-                            <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(parent.DepartmentKind)</td>
+                            <td class="am-dept-name am-dept-indent-0">@parent.Name</td>
+                            <td>@Html.DepartmentKindBadge(parent.DepartmentKind)</td>
                             @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(parent.DepartmentKind))
                             {
                                 <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (parent.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
@@ -139,8 +139,8 @@ else if (viewMode == "tree")
                                         <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@child.Id" aria-expanded="false" title="Expand rooms">&#9656;</button>
                                     }
                                 </td>
-                                <td class="ps-4">@child.Name</td>
-                                <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(child.DepartmentKind)</td>
+                                <td class="am-dept-name am-dept-indent-1">@child.Name</td>
+                                <td>@Html.DepartmentKindBadge(child.DepartmentKind)</td>
                                 @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(child.DepartmentKind))
                                 {
                                     <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (child.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
@@ -166,8 +166,8 @@ else if (viewMode == "tree")
                             {
                                 <tr data-am-dept-row="room" data-am-dept-id="@grandchild.Id" data-am-dept-parent="@child.Id" data-am-dept-root="@parent.Id" hidden="hidden">
                                     <td></td>
-                                    <td class="ps-5">@grandchild.Name</td>
-                                    <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(grandchild.DepartmentKind)</td>
+                                    <td class="am-dept-name am-dept-indent-2">@grandchild.Name</td>
+                                    <td>@Html.DepartmentKindBadge(grandchild.DepartmentKind)</td>
                                     @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(grandchild.DepartmentKind))
                                     {
                                         <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (grandchild.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
@@ -209,7 +209,7 @@ else
                 {
                     <tr>
                         <td>@item.Name</td>
-                        <td>@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(item.DepartmentKind)</td>
+                        <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
                         @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
