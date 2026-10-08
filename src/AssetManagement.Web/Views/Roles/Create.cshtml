@@ -97,7 +97,7 @@
         </div>
     </div>
 
-    @if (ViewBag.RoleDepartmentAvailable is bool && (bool)ViewBag.RoleDepartmentAvailable && !Model.IsSystemRole)
+    if (ViewBag.RoleDepartmentAvailable is bool && (bool)ViewBag.RoleDepartmentAvailable && !Model.IsSystemRole)
     {
         <div class="row g-3 mt-0 mb-3">
             <div class="col-md-6">
