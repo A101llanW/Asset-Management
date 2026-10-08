@@ -350,6 +350,7 @@
     <Content Include="Scripts\app\workflow-wizard.js" />
     <Content Include="Scripts\app\asset-classification-picker.js" />
     <Content Include="Scripts\app\asset-price-apply.js" />
+    <Content Include="Scripts\app\asset-label-zebra-loader.js" />
     <Content Include="Scripts\app\asset-scan-batch-print.js" />
     <Content Include="Scripts\app\asset-scan.js" />
     <Content Include="Scripts\app\asset-subtype-details.js" />
