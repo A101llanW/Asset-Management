@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
@@ -14,6 +15,13 @@ namespace AssetManagement.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly UserAccountRepository _users;
+
+        // Registered per HTTP request: a page makes ~36+ permission checks (sidebar, buttons, filters).
+        // Memoise the user row and each role's permission codes so they are read once per request
+        // instead of 2-3 queries per check.
+        private readonly Dictionary<string, ApplicationUser> _userMemo =
+            new Dictionary<string, ApplicationUser>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<int, HashSet<string>> _rolePermissionMemo = new Dictionary<int, HashSet<string>>();
 
         public AuthorizationService(
             IUnitOfWork unitOfWork,
@@ -32,7 +40,7 @@ namespace AssetManagement.Infrastructure.Services
                 return false;
             }
 
-            var user = _users.FindById(userId);
+            var user = FindUser(userId);
             if (user == null || !user.IsActive || !user.RoleId.HasValue)
             {
                 return false;
@@ -74,13 +82,47 @@ namespace AssetManagement.Infrastructure.Services
                 return true;
             }
 
-            return _unitOfWork.Repository<RolePermission>().Find(x => x.RoleId == role.Id)
-                .Join(
-                    _unitOfWork.Repository<Permission>().Find(x => x.Code == permissionCode),
-                    rp => rp.PermissionId,
-                    p => p.Id,
-                    (rp, p) => p)
-                .Any();
+            return GetRolePermissionCodes(role.Id).Contains(permissionCode);
+        }
+
+        private ApplicationUser FindUser(string userId)
+        {
+            ApplicationUser user;
+            if (!_userMemo.TryGetValue(userId, out user))
+            {
+                user = _users.FindById(userId);
+                _userMemo[userId] = user;
+            }
+
+            return user;
+        }
+
+        private HashSet<string> GetRolePermissionCodes(int roleId)
+        {
+            HashSet<string> codes;
+            if (_rolePermissionMemo.TryGetValue(roleId, out codes))
+            {
+                return codes;
+            }
+
+            codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var permissionIds = _unitOfWork.Repository<RolePermission>().Find(x => x.RoleId == roleId)
+                .Select(x => x.PermissionId)
+                .Distinct()
+                .ToList();
+            if (permissionIds.Count > 0)
+            {
+                foreach (var permission in _unitOfWork.Repository<Permission>().Find(x => permissionIds.Contains(x.Id)))
+                {
+                    if (!string.IsNullOrWhiteSpace(permission.Code))
+                    {
+                        codes.Add(permission.Code.Trim());
+                    }
+                }
+            }
+
+            _rolePermissionMemo[roleId] = codes;
+            return codes;
         }
     }
 }
