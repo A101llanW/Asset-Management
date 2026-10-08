@@ -149,7 +149,9 @@ namespace AssetManagement.Application.Services
             var toUserId = NormalizeId(model.ToUserId);
             var handedOverById = NormalizeId(model.HandedOverById);
             var receivedById = NormalizeId(model.ReceivedById);
-            var assignedDate = model.AssignedDate == default(DateTime) ? DateTime.UtcNow : model.AssignedDate;
+            var assignedDate = model.AssignedDate == default(DateTime)
+                ? DateTime.UtcNow
+                : KenyaTimeHelper.LocalDateInputToUtc(model.AssignedDate);
             var type = ParseAssignmentType(model.AssignmentType);
             if (string.IsNullOrWhiteSpace(toUserId) && !model.ToDepartmentId.HasValue)
             {
@@ -161,7 +163,9 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Temporary assignments must have expected return date.");
             }
 
-            if (type == AssignmentType.Temporary && model.ExpectedReturnDate <= assignedDate)
+            if (type == AssignmentType.Temporary
+                && model.ExpectedReturnDate.HasValue
+                && model.ExpectedReturnDate.Value.Date <= KenyaTimeHelper.FromUtc(assignedDate).Date)
             {
                 throw new BusinessException("Expected return date must be later than assignment date.");
             }

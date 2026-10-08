@@ -29,7 +29,7 @@
                         <td>@incident.IncidentNumber</td>
                         <td>@incident.IncidentType</td>
                         <td>@incident.Severity</td>
-                        <td>@incident.IncidentDate.ToString("yyyy-MM-dd")</td>
+                        <td>@KenyaTimeHelper.FormatUtc(incident.IncidentDate, "yyyy-MM-dd")</td>
                         <td>@(incident.ResolutionStatus ?? DisplayText.Empty)</td>
                         <td class="text-end"><a href="@Url.Action("Details", "Incidents", new { id = incident.Id })">View</a></td>
                     </tr>

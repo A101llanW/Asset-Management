@@ -78,7 +78,9 @@ namespace AssetManagement.Application.Services
 
             ValidateReturnCondition(model.ReturnCondition);
 
-            var returnDate = model.ReturnDate == default(DateTime) ? DateTime.UtcNow : model.ReturnDate;
+            var returnDate = model.ReturnDate == default(DateTime)
+                ? DateTime.UtcNow
+                : KenyaTimeHelper.LocalDateInputToUtc(model.ReturnDate);
             var returnRecord = new AssetReturn
             {
                 AssetId = model.AssetId,

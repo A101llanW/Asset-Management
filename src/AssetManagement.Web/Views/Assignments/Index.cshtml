@@ -26,7 +26,7 @@ else
                 @foreach (var item in Model)
                 {
                     <tr>
-                        <td>@item.AssignedDate.ToString("yyyy-MM-dd")</td>
+                        <td>@KenyaTimeHelper.FormatUtc(item.AssignedDate, "yyyy-MM-dd")</td>
                         <td>@(string.IsNullOrWhiteSpace(item.ToUserName) ? "Not specified" : item.ToUserName)</td>
                         <td>@(string.IsNullOrWhiteSpace(item.ToDepartmentName) ? "Not specified" : item.ToDepartmentName)</td>
                         <td>@item.AssignmentType</td>

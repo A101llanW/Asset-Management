@@ -84,7 +84,9 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Invalid incident severity.");
             }
 
-            var incidentDate = model.IncidentDate == default(DateTime) ? DateTime.UtcNow : model.IncidentDate;
+            var incidentDate = model.IncidentDate == default(DateTime)
+                ? DateTime.UtcNow
+                : KenyaTimeHelper.LocalDateInputToUtc(model.IncidentDate);
             if (incidentDate > DateTime.UtcNow.AddMinutes(5))
             {
                 throw new BusinessException("Incident date cannot be in the future.");

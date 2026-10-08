@@ -69,7 +69,7 @@
                     foreach (var item in Model.Items)
                     {
                         <tr class="border-bottom border-light">
-                            <td class="ps-3 text-muted small">@item.AssignedDate.ToString("yyyy-MM-dd")</td>
+                            <td class="ps-3 text-muted small">@KenyaTimeHelper.FormatUtc(item.AssignedDate, "yyyy-MM-dd")</td>
                             <td>
                                 <span class="am-tag-pill am-tag-pill--sm">@item.AssetTag</span>
                                 <div class="fw-semibold text-dark small mt-1">@item.AssetName</div>

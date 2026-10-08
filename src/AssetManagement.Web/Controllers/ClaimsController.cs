@@ -9,6 +9,7 @@ using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Security;
+using AssetManagement.Application.Helpers;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -179,7 +180,7 @@ namespace AssetManagement.Web.Controllers
         private static string BuildIncidentLabel(AssetIncident incident)
         {
             var number = string.IsNullOrWhiteSpace(incident.IncidentNumber) ? ("INC-" + incident.Id) : incident.IncidentNumber;
-            return number + " (" + incident.IncidentType + " - " + incident.IncidentDate.ToString("yyyy-MM-dd") + ")";
+            return number + " (" + incident.IncidentType + " - " + KenyaTimeHelper.FormatUtc(incident.IncidentDate, "yyyy-MM-dd") + ")";
         }
 
         private class IncidentOptionVm

@@ -758,8 +758,8 @@ namespace AssetManagement.Web.Controllers
             var model = new AssetCreateVm
             {
                 CurrentStatus = AssetManagement.Domain.Enums.AssetStatus.InStore,
-                PurchaseDate = System.DateTime.Today,
-                DepreciationStartDate = System.DateTime.Today,
+                PurchaseDate = KenyaTimeHelper.FromUtc(System.DateTime.UtcNow).Date,
+                DepreciationStartDate = KenyaTimeHelper.FromUtc(System.DateTime.UtcNow).Date,
                 ApprovalProcesses = AssetApprovalSettingsHelper.BuildDefaultProcesses(UnitOfWork, GetRolesForOrganization(), ResolveCurrentOrganizationId()).ToList()
             };
 

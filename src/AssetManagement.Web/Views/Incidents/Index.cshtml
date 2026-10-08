@@ -54,7 +54,7 @@ else
                     <td>@(item.AssetTag ?? DisplayText.Empty) - @(item.AssetName ?? "")</td>
                     <td>@item.IncidentType</td>
                     <td>@item.Severity</td>
-                    <td>@item.IncidentDate.ToString("yyyy-MM-dd")</td>
+                    <td>@KenyaTimeHelper.FormatUtc(item.IncidentDate, "yyyy-MM-dd")</td>
                     <td>@(item.ResolutionStatus ?? DisplayText.Empty)</td>
                     <td class="text-end"><a href="@Url.Action("Details", new { id = item.Id })">View</a></td>
                 </tr>

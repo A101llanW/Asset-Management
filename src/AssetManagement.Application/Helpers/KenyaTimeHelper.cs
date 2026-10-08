@@ -76,6 +76,22 @@ namespace AssetManagement.Application.Helpers
             return ToUtc(localStart);
         }
 
+        /// <summary>
+        /// Converts a date-only form value (a calendar day in Kenya time) to the UTC instant stored on
+        /// assignment/return records. Today keeps the real current UTC time; any other day maps to the
+        /// start of that Kenya day so the date renders unchanged through FormatUtc.
+        /// </summary>
+        public static DateTime LocalDateInputToUtc(DateTime localDate)
+        {
+            var utcNow = DateTime.UtcNow;
+            if (localDate.Date == FromUtc(utcNow).Date)
+            {
+                return utcNow;
+            }
+
+            return ToUtc(localDate.Date);
+        }
+
         public static DateTime? ExclusiveEndOfLocalDayToUtc(DateTime? localDate)
         {
             if (!localDate.HasValue)
