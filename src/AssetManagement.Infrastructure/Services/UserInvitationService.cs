@@ -133,13 +133,31 @@ namespace AssetManagement.Infrastructure.Services
                 return InvalidTokenResult();
             }
 
+            // Always the role stored with the invitation (nothing posted by the invitee is used).
+            // If it was deleted, deactivated or is not this organization's, fall back to the pre-change
+            // default for invitations without a role: the account is created with no role (no permissions).
+            var roleId = invitation.RoleId;
+            if (roleId.HasValue && !_invitations.IsActiveTenantRole(roleId.Value, invitation.OrganizationId))
+            {
+                try
+                {
+                    _auditWriter?.Write("Users.InviteRoleFallback", nameof(UserInvitation), invitation.Id.ToString(), "RoleId=" + roleId.Value, "RoleId=none");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Invite role fallback audit failed: " + ex.Message);
+                }
+
+                roleId = null;
+            }
+
             var createRequest = new UserAccountCreateRequest
             {
                 Email = request.Email,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
                 Phone = request.Phone,
-                RoleId = invitation.RoleId,
+                RoleId = roleId,
                 DepartmentId = invitation.DepartmentId,
                 OrganizationId = invitation.OrganizationId
             };
@@ -273,6 +291,16 @@ namespace AssetManagement.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(request.OrganizationSlug))
             {
                 yield return "Organization portal slug is required.";
+            }
+
+            // The invitee's role is chosen and locked in before the link is sent.
+            if (!request.RoleId.HasValue || request.RoleId.Value <= 0)
+            {
+                yield return "Select a role for the invitee.";
+            }
+            else if (request.OrganizationId > 0 && !_invitations.IsActiveTenantRole(request.RoleId.Value, request.OrganizationId))
+            {
+                yield return "The selected role is not an active role of this organization.";
             }
         }
 

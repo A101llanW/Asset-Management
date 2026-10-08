@@ -239,6 +239,24 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             }
         }
 
+        /// <summary>True when the role exists, is active and belongs to the organization (tenant role, never a platform role).</summary>
+        public bool IsActiveTenantRole(int roleId, int organizationId)
+        {
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+SELECT COUNT(1) FROM [Roles]
+WHERE [Id]=@RoleId AND [OrganizationId]=@OrganizationId AND [OrganizationId] IS NOT NULL AND [IsActive]=1";
+                    command.Parameters.Add(CreateParameter(command, "@RoleId", roleId));
+                    command.Parameters.Add(CreateParameter(command, "@OrganizationId", organizationId));
+                    return Convert.ToInt32(command.ExecuteScalar()) > 0;
+                }
+            }
+        }
+
         private static UserInvitation MapInvitation(IDataReader reader)
         {
             return new UserInvitation

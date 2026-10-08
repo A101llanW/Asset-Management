@@ -30,7 +30,9 @@
         </div>
         <div class="col-md-3">
             <label class="form-label">Role</label>
-            @Html.DropDownListFor(m => m.RoleId, roles, "Select role", new { @class = "form-select" })
+            @Html.DropDownListFor(m => m.RoleId, roles, "Select role", new { @class = "form-select", required = "required" })
+                <div class="form-text">Required. The invitee gets exactly this role when they register; they cannot change it. Only this organization's active roles that you may grant are listed.</div>
+                @Html.ValidationMessageFor(m => m.RoleId, "", new { @class = "text-danger small" })
         </div>
         <div class="col-md-4">
             <label class="form-label">Department (optional)</label>

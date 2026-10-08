@@ -62,6 +62,16 @@ namespace AssetManagement.Web.Controllers
 
             ConfigureCreateViewBag(returnUrl, organizationId.Value);
 
+            // Server-side escalation guard: only an active role of this organization that the inviter may grant.
+            if (!model.RoleId.HasValue)
+            {
+                ModelState.AddModelError("RoleId", "Select a role for the invitee.");
+            }
+            else if (!GetInvitableRoles(organizationId.Value).Any(r => r.Id == model.RoleId.Value))
+            {
+                ModelState.AddModelError("RoleId", "You cannot grant the selected role. Choose a role whose permissions you already have.");
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -103,8 +113,51 @@ namespace AssetManagement.Web.Controllers
         private void ConfigureCreateViewBag(string returnUrl, int organizationId)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.Roles = new SelectList(_roleService.GetRoles(), "Id", "Name");
+            ViewBag.Roles = new SelectList(GetInvitableRoles(organizationId), "Id", "Name");
             ViewBag.Departments = new SelectList(BuildDepartmentService().GetAll().Where(x => x.IsActive), "Id", "Name");
+        }
+
+        /// <summary>
+        /// Roles an inviter may lock into an invitation: this organization's active roles only (never platform roles,
+        /// never hardcoded), and only roles whose every permission the inviter already has (no escalation).
+        /// </summary>
+        private System.Collections.Generic.IList<Role> GetInvitableRoles(int organizationId)
+        {
+            var roles = UnitOfWork.Repository<Role>().GetAll()
+                .Where(r => r.OrganizationId.HasValue && r.OrganizationId.Value == organizationId && r.IsActive)
+                .OrderBy(r => r.Name)
+                .ToList();
+            if (roles.Count == 0)
+            {
+                return roles;
+            }
+
+            var userId = User.GetUserId();
+            var auth = BuildAuthorizationService();
+            var roleIds = roles.Select(r => r.Id).ToList();
+            var rolePermissions = UnitOfWork.Repository<RolePermission>().GetAll()
+                .Where(rp => roleIds.Contains(rp.RoleId))
+                .ToList();
+            var codes = UnitOfWork.Repository<Permission>().GetAll()
+                .ToDictionary(p => p.Id, p => p.Code);
+            var held = new System.Collections.Generic.Dictionary<string, bool>(System.StringComparer.OrdinalIgnoreCase);
+            System.Func<string, bool> has = code =>
+            {
+                bool value;
+                if (!held.TryGetValue(code, out value))
+                {
+                    value = !string.IsNullOrWhiteSpace(userId) && auth != null && auth.HasPermission(userId, code);
+                    held[code] = value;
+                }
+
+                return value;
+            };
+
+            return roles
+                .Where(r => rolePermissions
+                    .Where(rp => rp.RoleId == r.Id)
+                    .All(rp => !codes.ContainsKey(rp.PermissionId) || string.IsNullOrWhiteSpace(codes[rp.PermissionId]) || has(codes[rp.PermissionId])))
+                .ToList();
         }
 
         private int? GetCurrentOrganizationIdOrDeny()
