@@ -775,7 +775,8 @@ namespace AssetManagement.Web.Controllers
             // (custody timeline, pending transfers/disposals, maintenance, incidents, claims, policies,
             // cost of ownership): ~10 extra queries that Edit never shows.
             var entity = UnitOfWork.Repository<Asset>().GetById(id);
-            if (entity == null || !CanOpenAssetForEdit(entity))
+            // Soft-deleted assets cannot be saved (AssetService.Update EnsureActive), so do not open the form.
+            if (entity == null || !entity.IsActive || !CanOpenAssetForEdit(entity))
             {
                 return HttpNotFound();
             }

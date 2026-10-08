@@ -129,7 +129,7 @@ namespace AssetManagement.Application.Services
             _workflowGuard.EnsureNoBlockingWorkflow(model.AssetId);
 
             var asset = _unitOfWork.Repository<Asset>().GetById(model.AssetId);
-            if (asset == null)
+            if (asset == null || !asset.IsActive)
             {
                 throw new BusinessException("Asset not found.");
             }
@@ -294,7 +294,7 @@ namespace AssetManagement.Application.Services
                 {
                     AssetAssignment assignment = null;
                     var asset = _unitOfWork.Repository<Asset>().GetById(item.AssetId);
-                    if (asset == null)
+                    if (asset == null || !asset.IsActive)
                     {
                         throw new BusinessException("Asset not found.");
                     }

@@ -148,7 +148,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 {
                     Organization = organization,
                     UserCount = CountUsersForOrganization(id),
-                    AssetCount = _unitOfWork.Repository<Asset>().Query().Count(a => a.OrganizationId == id),
+                    AssetCount = _unitOfWork.Repository<Asset>().Query().Count(a => a.OrganizationId == id && a.IsActive),
                     DepartmentCount = departmentCounts != null
                         ? departmentCounts.ActiveTotal
                         : _unitOfWork.Repository<Department>().Query().Count(d => d.OrganizationId == id && d.IsActive),
@@ -628,7 +628,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         private Dictionary<int, int> LoadAssetCountsByOrganization()
         {
             return _unitOfWork.Repository<Asset>().Query()
-                .Where(a => a.OrganizationId.HasValue)
+                .Where(a => a.OrganizationId.HasValue && a.IsActive)
                 .GroupBy(a => a.OrganizationId.Value)
                 .Select(g => new { OrganizationId = g.Key, Count = g.Count() })
                 .ToList()

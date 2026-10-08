@@ -73,7 +73,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             return UnitOfWork.Repository<Asset>().GetAll()
-                .Where(a => ids.Contains(a.Id) && a.CurrentStatus == AssetStatus.InStore)
+                .Where(a => a.IsActive && ids.Contains(a.Id) && a.CurrentStatus == AssetStatus.InStore)
                 .ToList()
                 .Where(a => string.IsNullOrWhiteSpace(a.CurrentCustodianId))
                 .Select(a => a.Id)

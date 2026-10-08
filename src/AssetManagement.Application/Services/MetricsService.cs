@@ -82,7 +82,7 @@ namespace AssetManagement.Application.Services
                 .ToList();
 
             return _unitOfWork.Repository<InsurancePolicy>().GetAll()
-                .Count(x => scopedAssetIds.Contains(x.AssetId) && x.PolicyEndDate <= threshold);
+                .Count(x => x.IsActive && scopedAssetIds.Contains(x.AssetId) && x.PolicyEndDate <= threshold);
         }
 
         public int CountCustodyMovements(DateTime from, DateTime to)

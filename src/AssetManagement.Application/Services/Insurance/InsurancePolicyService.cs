@@ -44,7 +44,7 @@ namespace AssetManagement.Application.Services
         public int Create(InsurancePolicyEditVm model)
         {
             ValidateModel(model);
-            RequireAsset(model.AssetId);
+            SoftDeletePolicy.EnsureActive(RequireAsset(model.AssetId), "Asset not found.");
 
             var entity = MapEntity(new InsurancePolicy(), model);
             entity.CreatedAt = DateTime.UtcNow;
@@ -58,7 +58,7 @@ namespace AssetManagement.Application.Services
         {
             ValidateModel(model);
             var entity = RequirePolicy(model.Id);
-            RequireAsset(model.AssetId);
+            SoftDeletePolicy.EnsureActive(RequireAsset(model.AssetId), "Asset not found.");
             MapEntity(entity, model);
             entity.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<InsurancePolicy>().Update(entity);

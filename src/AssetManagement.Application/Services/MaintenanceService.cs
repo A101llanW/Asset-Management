@@ -49,7 +49,7 @@ namespace AssetManagement.Application.Services
             }
 
             var asset = _unitOfWork.Repository<Asset>().GetById(model.AssetId);
-            if (asset == null)
+            if (asset == null || !asset.IsActive)
             {
                 throw new BusinessException("Asset not found.");
             }

@@ -52,7 +52,7 @@ namespace AssetManagement.Application.Services
             }
 
             var asset = _unitOfWork.Repository<Asset>().GetById(model.AssetId);
-            if (asset == null)
+            if (asset == null || !asset.IsActive)
             {
                 throw new BusinessException("Asset not found.");
             }
@@ -62,7 +62,7 @@ namespace AssetManagement.Application.Services
                 _departmentScope.EnsureCanAccessAsset(asset);
             }
 
-            var hasInsurancePolicy = _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == asset.Id).Any();
+            var hasInsurancePolicy = _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == asset.Id && x.IsActive).Any();
             if (!asset.IsInsured && !hasInsurancePolicy)
             {
                 throw new BusinessException("Claims can only be created for insured assets.");

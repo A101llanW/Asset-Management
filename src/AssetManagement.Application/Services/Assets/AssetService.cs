@@ -201,9 +201,9 @@ namespace AssetManagement.Application.Services
                 _departmentScope.EnsureCanAccessAsset(asset);
             }
 
-            var maintenanceTotal = _unitOfWork.Repository<AssetMaintenanceRecord>().Find(x => x.AssetId == assetId)
+            var maintenanceTotal = _unitOfWork.Repository<AssetMaintenanceRecord>().Find(x => x.AssetId == assetId && x.IsActive)
                 .Sum(x => x.Cost);
-            var insuranceExposure = _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == assetId)
+            var insuranceExposure = _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == assetId && x.IsActive)
                 .Sum(x => x.InsuredValue);
             // Unpriced ("Not set") assets contribute no acquisition cost; no sub-type fallback.
             var total = (asset.AcquisitionCost ?? 0m) + asset.TaxAmount + maintenanceTotal;
@@ -851,7 +851,7 @@ namespace AssetManagement.Application.Services
         {
             EnsureDisposalRequestInput(model, requestedByUserId);
             var asset = _unitOfWork.Repository<Asset>().GetById(model.AssetId);
-            if (asset == null)
+            if (asset == null || !asset.IsActive)
             {
                 throw new BusinessException("Asset not found.");
             }
