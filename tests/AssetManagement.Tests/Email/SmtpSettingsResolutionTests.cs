@@ -329,6 +329,14 @@ namespace AssetManagement.Tests.Email
             cleared.PasswordEncrypted = null;
             Assert.That(SmtpSettingsAudit.ActionFor(before, cleared, SmtpSettingsAudit.PasswordCleared), Is.EqualTo(SmtpSettingsAudit.ActionClearPassword));
 
+            var credentialsRemoved = cleared.Clone();
+            credentialsRemoved.Username = null;
+            Assert.That(SmtpSettingsAudit.ActionFor(before, credentialsRemoved, SmtpSettingsAudit.PasswordCleared), Is.EqualTo(SmtpSettingsAudit.ActionClearPassword));
+
+            var disabledAndCleared = cleared.Clone();
+            disabledAndCleared.IsEnabled = false;
+            Assert.That(SmtpSettingsAudit.ActionFor(before, disabledAndCleared, SmtpSettingsAudit.PasswordCleared), Is.EqualTo(SmtpSettingsAudit.ActionDisable));
+
             var moved = before.Clone();
             moved.Port = 587;
             Assert.That(SmtpSettingsAudit.ActionFor(before, moved, SmtpSettingsAudit.PasswordUnchanged), Is.EqualTo(SmtpSettingsAudit.ActionUpdate));

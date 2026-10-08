@@ -31,7 +31,9 @@ namespace AssetManagement.Application.Email
                 return after.IsEnabled ? ActionEnable : ActionDisable;
             }
 
-            if (passwordChange == PasswordCleared && SameServerFields(before, after))
+            // Clearing the stored password is its own action even when other fields (e.g. the username) change
+            // in the same save; the old/new snapshots still show every field difference.
+            if (passwordChange == PasswordCleared)
             {
                 return ActionClearPassword;
             }
@@ -68,21 +70,6 @@ namespace AssetManagement.Application.Email
             }
 
             return text;
-        }
-
-        private static bool SameServerFields(OrganizationSmtpSettingsRecord a, OrganizationSmtpSettingsRecord b)
-        {
-            if (a == null || b == null)
-            {
-                return false;
-            }
-
-            return string.Equals(a.Host ?? string.Empty, b.Host ?? string.Empty)
-                && a.Port == b.Port
-                && a.UseSsl == b.UseSsl
-                && string.Equals(a.Username ?? string.Empty, b.Username ?? string.Empty)
-                && string.Equals(a.FromAddress ?? string.Empty, b.FromAddress ?? string.Empty)
-                && string.Equals(a.FromDisplayName ?? string.Empty, b.FromDisplayName ?? string.Empty);
         }
     }
 }
