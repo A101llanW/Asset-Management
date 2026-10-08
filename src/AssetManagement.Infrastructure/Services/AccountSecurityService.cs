@@ -283,44 +283,26 @@ namespace AssetManagement.Infrastructure.Services
 
 
             if (_emailService != null && _emailService.IsConfigured)
-
             {
-
-                try
-
+                // Off the request path: an SMTP round trip took ~3 s on the VerifyMfa GET (up to 3 tries
+                // with a 10 s timeout when the server is slow). The code is already stored and the rate
+                // limit already counted; a failed send is logged (Trace + email_errors.txt) and the user
+                // can use Resend code.
+                var emailService = _emailService;
+                var to = user.Email;
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
                 {
-
-                    _emailService.SendMfaCodeEmail(user.Email, code);
-
-                    return true;
-
-                }
-
-                catch (Exception ex)
-
-                {
-
-                    System.Diagnostics.Trace.WriteLine("MFA email send failed: " + ex.Message);
-
-                    if (!relaxed)
-
+                    try
                     {
-
-                        user.TwoFactorCode = null;
-
-                        user.TwoFactorExpiryUtc = null;
-
-                        _users.Update(user);
-
-                        return false;
-
+                        emailService.SendMfaCodeEmail(to, code);
                     }
-
-                }
-
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Trace.WriteLine("MFA email send failed: " + ex.Message);
+                    }
+                });
+                return true;
             }
-
-
 
             return relaxed;
 
