@@ -14,7 +14,7 @@ namespace AssetManagement.Web.ViewModels
             UseSsl = true;
         }
 
-        [Display(Name = "Use this company's own SMTP server")]
+        [Display(Name = "Use own SMTP server for this company")]
         public bool IsEnabled { get; set; }
 
         [Display(Name = "SMTP host")]

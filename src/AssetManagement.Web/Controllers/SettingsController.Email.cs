@@ -89,7 +89,7 @@ namespace AssetManagement.Web.Controllers
                 var reason = SmtpSettingsResolution.GetIncompleteReason(after, true);
                 if (reason != null)
                 {
-                    ModelState.AddModelError(string.Empty, reason + " Complete it, or untick \"Use this company's own SMTP server\" to keep the platform default.");
+                    ModelState.AddModelError(string.Empty, reason + " Complete it, or untick \"Use own SMTP server for this company\" to keep the platform default.");
                 }
             }
 
@@ -110,8 +110,8 @@ namespace AssetManagement.Web.Controllers
             }
 
             TempData["Message"] = after.IsEnabled
-                ? "Company email settings saved. This company's emails now go through " + after.Host + ":" + after.Port + "."
-                : "Company email settings saved. This company's emails use the platform default.";
+                ? "Company email settings saved. Emails for this company now go through " + after.Host + ":" + after.Port + "."
+                : "Company email settings saved. Emails for this company use the platform default.";
             return RedirectToAction("Email");
         }
 
