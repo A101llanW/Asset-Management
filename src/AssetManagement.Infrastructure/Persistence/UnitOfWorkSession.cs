@@ -488,6 +488,12 @@ namespace AssetManagement.Infrastructure.Persistence
 
                         case TrackedEntityState.Added:
 
+                            if (map.SkipWritesWhenTableMissing && !OptionalTableProbe.Exists(_connection, _transaction, map.TableName))
+                            {
+                                tracked.State = TrackedEntityState.Unchanged;
+                                break;
+                            }
+
                             EntitySqlWriter.Insert(_connection, map, tracked.Entity, writeOptions);
 
                             tracked.State = TrackedEntityState.Unchanged;

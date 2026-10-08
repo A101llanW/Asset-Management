@@ -77,6 +77,10 @@
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actMyAssets)" href="@TenantUrlHelper.TenantRouteUrl(Url, actMyAssets, ctrlAssets)">My Assets</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actDepartmentAssets)" href="@TenantUrlHelper.TenantRouteUrl(Url, actDepartmentAssets, ctrlAssets)">Department Assets</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssignments)" href="@TenantUrlHelper.TenantRouteUrl(Url, actList, ctrlAssignments)">Assignments</a></li>
+                @if (Html.HasPermission("Assets.Movements.View"))
+                {
+                    <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass("AssetMovements")" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, "AssetMovements")">Movements</a></li>
+                }
             </ul>
         </li>
     }

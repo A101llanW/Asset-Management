@@ -41,7 +41,7 @@ namespace AssetManagement.Application.Security
         private static readonly IList<ModulePermissionDefinition> Modules = new List<ModulePermissionDefinition>
         {
             new ModulePermissionDefinition(Assets, "Assets", "Asset inventory, custody, transfers, requests, and disposals.",
-                new[] { "Assets.View", "Assets.Create", "Assets.Edit", "Assets.Delete", "Assets.Assign", "Assets.Transfer", "Assets.Return", "Assets.Receive", "Assets.Dispose", "Assets.ApproveDisposal", "Assets.Request", "Assets.Request.Approve" }),
+                new[] { "Assets.View", "Assets.Create", "Assets.Edit", "Assets.Delete", "Assets.Assign", "Assets.Transfer", "Assets.Return", "Assets.Receive", "Assets.Dispose", "Assets.ApproveDisposal", "Assets.Request", "Assets.Request.Approve", "Assets.Movements.View" }),
             new ModulePermissionDefinition(Purchases, "Purchases", "Requisitions, purchase orders, and procurement approvals.",
                 new[] { "Purchases.View", "Purchases.Create", "Purchases.CreateForAnyDepartment", "Purchases.Edit", "Purchases.Approve" }),
             new ModulePermissionDefinition(Users, "User Management", "Tenant user accounts, department assignment, and role assignment from user details.",
@@ -90,6 +90,7 @@ namespace AssetManagement.Application.Security
                 case "disposals":
                 case "receivings":
                 case "assetrequests":
+                case "assetmovements":
                     return Assets;
                 case "purchaserequests":
                 case "purchases":

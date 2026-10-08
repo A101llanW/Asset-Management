@@ -1,5 +1,6 @@
 using System;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -11,6 +12,7 @@ namespace AssetManagement.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuditWriter _auditWriter;
+        private readonly ICurrentUserContext _currentUser;
         private readonly IUserService _userService;
         private readonly IAssetWorkflowGuard _workflowGuard;
 
@@ -18,8 +20,10 @@ namespace AssetManagement.Application.Services
             IUnitOfWork unitOfWork,
             IAuditWriter auditWriter,
             IUserService userService,
-            IAssetWorkflowGuard workflowGuard)
+            IAssetWorkflowGuard workflowGuard,
+            ICurrentUserContext currentUser = null)
         {
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _userService = userService;
@@ -89,7 +93,7 @@ namespace AssetManagement.Application.Services
             };
 
             _unitOfWork.Repository<AssetReturn>().Add(returnRecord);
-            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+            var returnEvent = new AssetCustodyEvent
             {
                 AssetId = model.AssetId,
                 ActionType = CustodyActionType.Returned,
@@ -100,7 +104,9 @@ namespace AssetManagement.Application.Services
                 ConditionAfter = NormalizeText(model.ReturnCondition),
                 Notes = NormalizeText(model.Notes),
                 CreatedAt = DateTime.UtcNow
-            });
+            };
+            _unitOfWork.Repository<AssetCustodyEvent>().Add(returnEvent);
+            AssetMovementRecorder.FromCustodyEvent(_unitOfWork, asset, returnEvent, AssetMovementType.Return, _currentUser == null ? null : _currentUser.UserId);
 
             asset.CurrentCustodianId = null;
             asset.CurrentStatus = AssetStatus.Returned;

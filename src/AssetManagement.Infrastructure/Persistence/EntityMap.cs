@@ -17,6 +17,9 @@ namespace AssetManagement.Infrastructure.Persistence
         public IList<PropertyInfo> ScalarProperties { get; set; }
 
         public IList<NavigationBinding> Navigations { get; set; }
+
+        /// <summary>Table added by a migration that may not be applied yet: inserts are skipped while it is missing.</summary>
+        public bool SkipWritesWhenTableMissing { get; set; }
     }
 
     public sealed class NavigationBinding

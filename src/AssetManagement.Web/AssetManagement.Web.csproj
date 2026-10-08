@@ -171,6 +171,7 @@
     <Compile Include="Controllers\CustodianController.cs" />
     <Compile Include="Controllers\SearchController.cs" />
     <Compile Include="Controllers\AuditLogsController.cs" />
+    <Compile Include="Controllers\AssetMovementsController.cs" />
     <Compile Include="Controllers\SecurityLogsController.cs" />
     <Compile Include="Controllers\BaseController.cs" />
     <Compile Include="Controllers\ClaimsController.cs" />
@@ -403,6 +404,7 @@
     <Content Include="Views\Assignments\List.cshtml" />
     <Content Include="Views\Assignments\BatchCreate.cshtml" />
     <Content Include="Views\AuditLogs\Index.cshtml" />
+    <Content Include="Views\AssetMovements\Index.cshtml" />
     <Content Include="Views\SecurityLogs\Index.cshtml" />
     <Content Include="Views\Account\Profile.cshtml" />
     <Content Include="Views\Account\ChangePassword.cshtml" />
@@ -475,6 +477,7 @@
     <Content Include="Views\Shared\_AssetMaintenanceTab.cshtml" />
     <Content Include="Views\Shared\_AssetDisposalTab.cshtml" />
     <Content Include="Views\Shared\_AssetAuditTab.cshtml" />
+    <Content Include="Views\Shared\_AssetMovementTab.cshtml" />
     <Content Include="Views\Shared\_AssetLifecyclePanel.cshtml" />
     <Content Include="Views\Shared\_AssetDepreciationFields.cshtml" />
     <Content Include="Views\Shared\_TaxonomyDepreciationFields.cshtml" />

@@ -15,6 +15,7 @@ namespace AssetManagement.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuditWriter _auditWriter;
+        private readonly ICurrentUserContext _currentUser;
         private readonly IUserService _userService;
         private readonly IDepartmentScopeService _departmentScope;
         private readonly IOrganizationScopeService _organizationScope;
@@ -32,8 +33,10 @@ namespace AssetManagement.Application.Services
             IOutboxWriter outboxWriter,
             IWebhookService webhookService,
             IAssetWorkflowGuard workflowGuard,
-            IApprovalWorkflowEngine approvalEngine)
+            IApprovalWorkflowEngine approvalEngine,
+            ICurrentUserContext currentUser = null)
         {
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _userService = userService;
@@ -368,7 +371,7 @@ namespace AssetManagement.Application.Services
         {
             ValidateTransferTargetsAtApproval(asset, transfer);
 
-            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+            var transferEvent = new AssetCustodyEvent
             {
                 AssetId = transfer.AssetId,
                 ActionType = CustodyActionType.Transferred,
@@ -384,7 +387,16 @@ namespace AssetManagement.Application.Services
                 Notes = transfer.DamageNotes,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
-            });
+            };
+            _unitOfWork.Repository<AssetCustodyEvent>().Add(transferEvent);
+            AssetMovementRecorder.FromCustodyEvent(
+                _unitOfWork,
+                asset,
+                transferEvent,
+                AssetMovementType.Transfer,
+                string.IsNullOrWhiteSpace(transfer.ApprovedById) ? (_currentUser == null ? null : _currentUser.UserId) : transfer.ApprovedById,
+                null,
+                "transfer:" + transfer.Id);
 
             if (!string.IsNullOrWhiteSpace(transfer.ToUserId))
             {

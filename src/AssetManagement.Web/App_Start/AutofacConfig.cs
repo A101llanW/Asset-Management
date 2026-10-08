@@ -59,6 +59,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
+            builder.RegisterType<AssetMovementQueryRepository>().As<IAssetMovementQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<MembershipService>().As<IUserAccountService>().InstancePerHttpRequest();
             builder.RegisterType<UserInvitationService>().As<IUserInvitationService>().InstancePerHttpRequest();
             builder.RegisterType<AccountSecurityService>().As<IAccountSecurityService>().InstancePerHttpRequest();
@@ -96,6 +97,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<ReceivingService>().As<IReceivingService>().InstancePerHttpRequest();
             builder.RegisterType<PurchaseRequestService>().As<IPurchaseRequestService>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogService>().As<IAuditLogService>().InstancePerHttpRequest();
+            builder.RegisterType<AssetMovementService>().As<IAssetMovementService>().InstancePerHttpRequest();
             builder.RegisterType<ReportService>().As<IReportService>().InstancePerHttpRequest();
             builder.RegisterType<MetricsService>().As<IMetricsService>().InstancePerHttpRequest();
             builder.RegisterType<PendingApprovalQueryService>().As<IPendingApprovalQueryService>().InstancePerHttpRequest();

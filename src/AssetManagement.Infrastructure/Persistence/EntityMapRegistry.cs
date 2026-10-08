@@ -40,6 +40,8 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(TransferApprovalAction));
             Register(typeof(AssetReturn));
             Register(typeof(AssetCustodyEvent));
+            Register(typeof(AssetMovement));
+            Maps[typeof(AssetMovement)].SkipWritesWhenTableMissing = true; // migration 093
             Register(typeof(AssetMaintenanceRecord));
             Register(typeof(AssetIncident));
             Register(typeof(InsurancePolicy));

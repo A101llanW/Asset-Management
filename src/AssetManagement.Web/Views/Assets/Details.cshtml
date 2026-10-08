@@ -177,6 +177,7 @@
     {
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#disposal">Disposal</a></li>
     }
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#movements">Movement history</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#audit">Audit Trail</a></li>
 </ul>
 
@@ -330,6 +331,7 @@
     {
         <div class="tab-pane fade" id="disposal">@Html.Partial("_AssetDisposalTab", Model)</div>
     }
+    <div class="tab-pane fade" id="movements">@Html.Partial("_AssetMovementTab")</div>
     <div class="tab-pane fade" id="audit">@Html.Partial("_AssetAuditTab")</div>
 </div>
 </div>

@@ -45,6 +45,7 @@ namespace AssetManagement.Application.Services
         private readonly IDepartmentScopeService _departmentScope;
         private readonly IRoleService _roleService;
         private readonly IAuditWriter _auditWriter;
+        private string _importBatchId;
         private readonly IOperationsQueryRepository _operationsQueryRepository;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IReferenceDataCache _referenceDataCache;
@@ -310,11 +311,13 @@ namespace AssetManagement.Application.Services
             _unitOfWork.ClearTracking();
             _reservedImportTags = LoadExistingAssetTags(organizationId.Value);
 
+            _importBatchId = AssetMovementRecorder.NewBatchId();
             for (var batchStart = 0; batchStart < preparedRows.Count; batchStart += ImportBatchSize)
             {
                 var batch = preparedRows.Skip(batchStart).Take(ImportBatchSize).ToList();
                 try
                 {
+                    var importedAssets = new List<Asset>();
                     _unitOfWork.ExecuteInTransaction(() =>
                     {
                         foreach (var prepared in batch)
@@ -323,10 +326,12 @@ namespace AssetManagement.Application.Services
                             var entity = BuildImportAssetEntity(prepared.Model, prepared.RawRow, actorUserId);
                             _unitOfWork.Repository<Asset>().Add(entity);
                             prepared.AssetId = entity.Id;
+                            importedAssets.Add(entity);
                         }
                     });
 
                     result.ImportedCount += batch.Count;
+                    RecordImportMovements(importedAssets, actorUserId);
                     ResetImportBatchState(organizationId.Value);
                 }
                 catch (BusinessException ex)
@@ -466,14 +471,17 @@ namespace AssetManagement.Application.Services
             {
                 try
                 {
+                    Asset importedEntity = null;
                     _unitOfWork.ExecuteInTransaction(() =>
                     {
                         ValidateSerialNotDuplicateInDatabase(organizationId, prepared.Model.SerialNumber);
                         var entity = BuildImportAssetEntity(prepared.Model, prepared.RawRow, actorUserId);
                         _unitOfWork.Repository<Asset>().Add(entity);
                         prepared.AssetId = entity.Id;
+                        importedEntity = entity;
                     });
                     result.ImportedCount++;
+                    RecordImportMovements(new List<Asset> { importedEntity }, actorUserId);
                     ResetImportBatchState(organizationId);
                 }
                 catch (BusinessException ex)
@@ -491,6 +499,49 @@ namespace AssetManagement.Application.Services
                     result.SkippedCount++;
                     result.Messages.Add("Row " + prepared.RowNumber + ": The row could not be imported due to an unexpected error.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// One Import movement per created asset (placement in its first department / custodian), written after the
+        /// assets are committed. A failure here never fails the import: the assets are already saved.
+        /// </summary>
+        private void RecordImportMovements(IList<Asset> assets, string actorUserId)
+        {
+            if (assets == null || assets.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                _unitOfWork.ExecuteInTransaction(() =>
+                {
+                    foreach (var asset in assets)
+                    {
+                        if (asset == null || asset.Id <= 0)
+                        {
+                            continue;
+                        }
+
+                        AssetMovementRecorder.Record(
+                            _unitOfWork,
+                            asset,
+                            AssetMovementType.Import,
+                            null,
+                            asset.DepartmentId,
+                            null,
+                            null,
+                            actorUserId,
+                            _importBatchId,
+                            "Imported",
+                            "import");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning("Asset import: movement rows not written ({0}: {1})", ex.GetType().Name, ex.Message);
             }
         }
 

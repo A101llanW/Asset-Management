@@ -16,6 +16,7 @@ namespace AssetManagement.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuditWriter _auditWriter;
+        private readonly ICurrentUserContext _currentUser;
         private readonly IUserService _userService;
         private readonly IDepartmentScopeService _departmentScope;
         private readonly IAssetWorkflowGuard _workflowGuard;
@@ -29,8 +30,10 @@ namespace AssetManagement.Application.Services
             IDepartmentScopeService departmentScope,
             IAssetWorkflowGuard workflowGuard,
             IOperationsQueryRepository operationsQueryRepository,
-            IOrganizationScopeService organizationScope)
+            IOrganizationScopeService organizationScope,
+            ICurrentUserContext currentUser = null)
         {
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _userService = userService;
@@ -230,6 +233,7 @@ namespace AssetManagement.Application.Services
                 CreatedAt = DateTime.UtcNow
             };
             _unitOfWork.Repository<AssetCustodyEvent>().Add(custody);
+            AssetMovementRecorder.FromCustodyEvent(_unitOfWork, asset, custody, AssetMovementType.Assign, _currentUser == null ? null : _currentUser.UserId);
 
             // Department-only assign: leave CurrentCustodianId null intentionally (status Assigned = department pool).
             asset.CurrentCustodianId = toUserId;

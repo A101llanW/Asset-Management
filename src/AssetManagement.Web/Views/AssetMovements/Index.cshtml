@@ -1,0 +1,114 @@
+@model AssetManagement.Application.ViewModels.AssetMovementPageVm
+@using System.Linq
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Domain.Enums
+@{
+    ViewBag.Title = "Asset Movements";
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
+    var filter = Model.Filter ?? new AssetManagement.Application.ViewModels.AssetMovementFilterVm();
+    var groups = ViewBag.DepartmentGroups as IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
+    var isBatch = !string.IsNullOrWhiteSpace(filter.BatchId);
+    Func<int, string> pageUrl = p =>
+    {
+        var q = HttpUtility.ParseQueryString(Request.QueryString.ToString());
+        q["Page"] = p.ToString();
+        return Request.Path + "?" + q.ToString();
+    };
+}
+
+<h3>@(isBatch ? "Movement batch" : "Asset Movements")</h3>
+<p class="text-muted small mb-3">
+    Every change of an asset's department or custodian: Edit, bulk Move to department, Move to class or room, transfers, assignments, returns and imports.
+    Times are shown in @eatLabel (Africa/Nairobi).
+</p>
+
+@if (Model.Unavailable)
+{
+    <div class="alert alert-warning" role="status">Movement history is not available yet on this server (database migration 093 has not been applied).</div>
+}
+
+@if (isBatch)
+{
+    <div class="alert alert-light border mb-3" role="status">
+        Batch <code>@filter.BatchId</code>: @Model.TotalCount movement(s).
+        <a class="ms-2" href="@Url.Action("Index", "AssetMovements")">Back to all movements</a>
+    </div>
+}
+else
+{
+    <form method="get" class="row g-2 mb-3" action="@Url.Action("Index", "AssetMovements")">
+        <div class="col-md-3"><input class="form-control" name="AssetSearch" placeholder="Asset tag, name or serial" value="@filter.AssetSearch" /></div>
+        <div class="col-md-2">
+            <select class="form-select" name="MovementType" aria-label="Movement type">
+                <option value="">All movement types</option>
+                @foreach (AssetMovementType t in (Array)ViewBag.MovementTypes)
+                {
+                    <option value="@((int)t)" @(filter.MovementType == t ? "selected" : "")>@AssetMovementRecorder.Label(t)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            @if (groups != null)
+            {
+                @Html.GroupedDepartmentDropDown("DepartmentId", groups, "Any department (from or to)", new { @class = "form-select", aria_label = "Department" })
+            }
+        </div>
+        <div class="col-md-2"><input class="form-control" type="date" name="FromDate" title="From (@eatLabel day)" value="@(filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : "")" /></div>
+        <div class="col-md-2"><input class="form-control" type="date" name="ToDate" title="To (@eatLabel day, inclusive)" value="@(filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : "")" /></div>
+        <div class="col-12 d-flex gap-2">
+            <button class="btn btn-outline-primary" type="submit">Filter</button>
+            <a class="btn btn-outline-secondary" href="@Url.Action("Index", "AssetMovements")">Clear</a>
+            <a class="btn btn-outline-primary ms-auto" href="@Url.Action("Export", "AssetMovements", Request.QueryString)">Export CSV</a>
+        </div>
+    </form>
+}
+@if (isBatch)
+{
+    <p><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Export", "AssetMovements", new { BatchId = filter.BatchId })">Export batch CSV</a></p>
+}
+
+<div class="card card-kpi"><div class="card-body p-0">
+@if (Model.Rows.Any())
+{
+    <div class="table-responsive">
+    <table class="table mb-0 table-sm" id="amMovementsTable">
+        <thead class="table-light"><tr><th>When (@eatLabel)</th><th>Asset</th><th>Movement</th><th>From</th><th>To</th><th>Performed by</th><th>Notes</th><th>Batch</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td class="text-nowrap">@KenyaTimeHelper.FormatUtc(r.OccurredAtUtc, KenyaTimeHelper.ShortTimestampFormat)</td>
+                <td><a href="@Url.Action("Details", "Assets", new { id = r.AssetId })">@r.AssetTag</a><div class="small text-muted">@r.AssetName</div></td>
+                <td>@r.MovementTypeLabel</td>
+                <td>@(r.FromDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.FromCustodianUserId)) {<div class="small text-muted">@(r.FromCustodianName ?? r.FromCustodianUserId)</div>}</td>
+                <td>@(r.ToDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.ToCustodianUserId)) {<div class="small text-muted">@(r.ToCustodianName ?? r.ToCustodianUserId)</div>}</td>
+                <td>@(r.PerformedByName ?? r.PerformedByUserId)</td>
+                <td class="small">@r.Notes</td>
+                <td class="small">@if (!string.IsNullOrWhiteSpace(r.BatchId)) {<a href="@Url.Action("Batch", "AssetMovements", new { id = r.BatchId })" title="@r.BatchId">View batch</a>}</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}
+else
+{
+    <div class="p-4 text-muted"><p class="mb-0">No movements match these filters.</p></div>
+}
+</div></div>
+
+@if (!isBatch && Model.TotalPages > 1)
+{
+    <nav class="mt-3" aria-label="Movements pages">
+        <ul class="pagination pagination-sm">
+            <li class="page-item @(Model.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@pageUrl(Math.Max(1, Model.Page - 1))">Previous</a></li>
+            <li class="page-item disabled"><span class="page-link">Page @Model.Page of @Model.TotalPages (@Model.TotalCount movements)</span></li>
+            <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")"><a class="page-link" href="@pageUrl(Math.Min(Model.TotalPages, Model.Page + 1))">Next</a></li>
+        </ul>
+    </nav>
+}
+else if (!isBatch)
+{
+    <p class="small text-muted mt-2">@Model.TotalCount movement(s).</p>
+}

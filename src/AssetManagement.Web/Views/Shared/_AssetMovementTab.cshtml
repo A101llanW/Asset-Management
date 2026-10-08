@@ -1,0 +1,53 @@
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Web.Helpers
+@{
+    var result = ViewBag.AssetMovements as AssetMovementQueryResult;
+    var unavailable = ViewBag.AssetMovementsUnavailable as string;
+    var assetId = ViewBag.AssetId as int?;
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
+    var rows = result == null ? new List<AssetMovementRowVm>() : result.Rows;
+    if (string.IsNullOrEmpty(unavailable) && result != null && result.Unavailable)
+    {
+        unavailable = "Movement history is not available yet on this server.";
+    }
+}
+<div class="card card-kpi">
+    <div class="card-body">
+        <h6 class="mb-3">Movement history</h6>
+        <p class="text-muted small">Department and custodian changes for this asset, newest first. Times in @eatLabel (Africa/Nairobi).</p>
+        @if (!string.IsNullOrEmpty(unavailable))
+        {
+            <div class="alert alert-warning py-2 small mb-0" role="status">@unavailable</div>
+        }
+        else if (rows.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0" id="amAssetMovementHistory">
+                    <thead><tr><th>When (@eatLabel)</th><th>Movement</th><th>From</th><th>To</th><th>Performed by</th><th>Notes</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in rows)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@KenyaTimeHelper.FormatUtc(r.OccurredAtUtc, KenyaTimeHelper.ShortTimestampFormat)</td>
+                            <td>@r.MovementTypeLabel</td>
+                            <td>@(r.FromDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.FromCustodianUserId)) {<div class="small text-muted">@(r.FromCustodianName ?? r.FromCustodianUserId)</div>}</td>
+                            <td>@(r.ToDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.ToCustodianUserId)) {<div class="small text-muted">@(r.ToCustodianName ?? r.ToCustodianUserId)</div>}</td>
+                            <td>@(r.PerformedByName ?? r.PerformedByUserId)</td>
+                            <td class="small">@r.Notes</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mb-0">No movements are recorded for this asset yet.</p>
+        }
+        @if (Html.HasPermission("Assets.Movements.View") && assetId.HasValue)
+        {
+            <div class="mt-3"><a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index", "AssetMovements")">Open all movements</a></div>
+        }
+    </div>
+</div>

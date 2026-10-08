@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -68,6 +69,7 @@ namespace AssetManagement.Application.Services
                 }
             }
 
+            var bulkBatchId = AssetMovementRecorder.NewBatchId();
             foreach (var assetId in request.AssetIds.Distinct())
             {
                 var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
@@ -99,7 +101,7 @@ namespace AssetManagement.Application.Services
                         _unitOfWork.Repository<Asset>().Update(asset);
                         if (!fromDepartmentId.HasValue || fromDepartmentId.Value != toDepartmentId)
                         {
-                            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+                            var bulkEvent = new AssetCustodyEvent
                             {
                                 AssetId = asset.Id,
                                 ActionType = CustodyActionType.Transferred,
@@ -110,7 +112,9 @@ namespace AssetManagement.Application.Services
                                 Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
                                 CreatedAt = now,
                                 IsActive = true
-                            });
+                            };
+                            _unitOfWork.Repository<AssetCustodyEvent>().Add(bulkEvent);
+                            AssetMovementRecorder.FromCustodyEvent(_unitOfWork, asset, bulkEvent, AssetMovementType.BulkDepartment, actorUserId, bulkBatchId);
                         }
 
                         departmentMoves.Add(asset.Id + ":" + (fromDepartmentId.HasValue ? fromDepartmentId.Value.ToString() : "none") + ">" + toDepartmentId);

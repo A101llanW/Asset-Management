@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -13,6 +14,7 @@ namespace AssetManagement.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuditWriter _auditWriter;
+        private readonly ICurrentUserContext _currentUser;
         private readonly IDepartmentScopeService _departmentScope;
         private readonly IAssignmentService _assignmentService;
         private readonly IUserService _userService;
@@ -32,8 +34,10 @@ namespace AssetManagement.Application.Services
             IAuditWriter auditWriter,
             IDepartmentScopeService departmentScope,
             IAssignmentService assignmentService,
-            IUserService userService)
+            IUserService userService,
+            ICurrentUserContext currentUser = null)
         {
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _departmentScope = departmentScope;
@@ -396,7 +400,7 @@ namespace AssetManagement.Application.Services
             int? toDepartmentId,
             string defaultNotes)
         {
-            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+            var maintenanceEvent = new AssetCustodyEvent
             {
                 AssetId = asset.Id,
                 ActionType = CustodyActionType.Recovered,
@@ -408,7 +412,9 @@ namespace AssetManagement.Application.Services
                 ConditionAfter = NormalizeText(model.ConditionAfter),
                 Notes = NormalizeText(model.HandoverNotes) ?? NormalizeText(model.Outcome) ?? defaultNotes,
                 CreatedAt = DateTime.UtcNow
-            });
+            };
+            _unitOfWork.Repository<AssetCustodyEvent>().Add(maintenanceEvent);
+            AssetMovementRecorder.FromCustodyEvent(_unitOfWork, asset, maintenanceEvent, AssetMovementType.Other, _currentUser == null ? null : _currentUser.UserId, null, "maintenance:" + record.Id);
         }
 
         private static void ApplyConditionAfter(Asset asset, string conditionAfter)

@@ -486,7 +486,7 @@ namespace AssetManagement.Application.Services
             RelocateToDepartmentOfKind(assetId, targetDepartmentId, actorUserId, DepartmentKind.Room);
         }
 
-        private void RelocateToDepartmentOfKind(int assetId, int targetDepartmentId, string actorUserId, DepartmentKind targetKind)
+        private void RelocateToDepartmentOfKind(int assetId, int targetDepartmentId, string actorUserId, DepartmentKind targetKind, string batchId = null)
         {
             var label = targetKind == DepartmentKind.Room ? "room" : "class";
             var plural = targetKind == DepartmentKind.Room ? "rooms" : "classes";
@@ -534,7 +534,7 @@ namespace AssetManagement.Application.Services
             }
 
             var now = DateTime.UtcNow;
-            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+            var relocateEvent = new AssetCustodyEvent
             {
                 AssetId = asset.Id,
                 ActionType = CustodyActionType.Transferred,
@@ -544,7 +544,15 @@ namespace AssetManagement.Application.Services
                 Reason = "Relocated between " + plural,
                 CreatedAt = now,
                 IsActive = true
-            });
+            };
+            _unitOfWork.Repository<AssetCustodyEvent>().Add(relocateEvent);
+            AssetMovementRecorder.FromCustodyEvent(
+                _unitOfWork,
+                asset,
+                relocateEvent,
+                targetKind == DepartmentKind.Room ? AssetMovementType.RelocateRoom : AssetMovementType.RelocateClass,
+                actorUserId,
+                batchId);
 
             asset.DepartmentId = targetDepartmentId;
             asset.UpdatedAt = now;
@@ -612,11 +620,12 @@ namespace AssetManagement.Application.Services
             var processed = 0;
             var skipped = 0;
 
+            var groupBatchId = AssetMovementRecorder.NewBatchId();
             foreach (var asset in assets)
             {
                 try
                 {
-                    RelocateToDepartmentOfKind(asset.Id, targetDepartmentId, actorUserId, targetKind);
+                    RelocateToDepartmentOfKind(asset.Id, targetDepartmentId, actorUserId, targetKind, groupBatchId);
                     processed++;
                 }
                 catch (BusinessException ex)
@@ -745,7 +754,7 @@ namespace AssetManagement.Application.Services
 
             if (departmentChanged)
             {
-                _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+                var editEvent = new AssetCustodyEvent
                 {
                     AssetId = entity.Id,
                     ActionType = CustodyActionType.Transferred,
@@ -756,7 +765,9 @@ namespace AssetManagement.Application.Services
                     Notes = "Asset Edit",
                     CreatedAt = entity.UpdatedAt.Value,
                     IsActive = true
-                });
+                };
+                _unitOfWork.Repository<AssetCustodyEvent>().Add(editEvent);
+                AssetMovementRecorder.FromCustodyEvent(_unitOfWork, entity, editEvent, AssetMovementType.Edit, _currentUser == null ? null : _currentUser.UserId);
             }
 
             _unitOfWork.Repository<Asset>().Update(entity);
@@ -1319,7 +1330,7 @@ namespace AssetManagement.Application.Services
 
         private void AddDisposalCustodyEvent(Asset asset, DisposalRecord pendingRequest, string approvedByUserId, string fromUserId, int? fromDepartmentId)
         {
-            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+            var disposalEvent = new AssetCustodyEvent
             {
                 AssetId = asset.Id,
                 ActionType = CustodyActionType.Disposed,
@@ -1331,7 +1342,9 @@ namespace AssetManagement.Application.Services
                 Notes = pendingRequest.Notes,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
-            });
+            };
+            _unitOfWork.Repository<AssetCustodyEvent>().Add(disposalEvent);
+            AssetMovementRecorder.FromCustodyEvent(_unitOfWork, asset, disposalEvent, AssetMovementType.Other, approvedByUserId, null, "disposal:" + pendingRequest.Id);
         }
 
         private void EnsureDisposalRequestInput(AssetDisposalRequestVm model, string requestedByUserId)

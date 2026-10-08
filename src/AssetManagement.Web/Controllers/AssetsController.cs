@@ -627,6 +627,21 @@ namespace AssetManagement.Web.Controllers
                 ViewBag.AssetAuditLogsUnavailable =
                     "Audit history is temporarily unavailable. Reload the page in a moment to try again.";
             }
+            try
+            {
+                ViewBag.AssetMovements = DependencyResolver.Current.GetService<IAssetMovementService>().GetForAsset(assetId, 100);
+            }
+            catch (Exception ex)
+            {
+                // Like the audit tab: the movement history must never take the Details page down.
+                System.Diagnostics.Trace.TraceWarning(
+                    "Assets/Details {0}: movement history omitted ({1}: {2})",
+                    assetId,
+                    ex.GetType().Name,
+                    ex.Message);
+                ViewBag.AssetMovementsUnavailable =
+                    "Movement history is temporarily unavailable. Reload the page in a moment to try again.";
+            }
             ViewBag.DisposalBlockedReason = BuildDisposalBlockedReason(model);
             EnrichAssetDetails(model);
             model.Documents = BuildAssetDocumentService().GetByAsset(assetId).ToList();

@@ -98,6 +98,7 @@ namespace AssetManagement.Infrastructure.Services
             Delete("TransferApprovalAction"),
             Delete("AssetTransfer"),
             Delete("AssetReturn"),
+            Delete("AssetMovement"),
             Delete("AssetCustodyEvent"),
             Delete("AssetMaintenanceRecord"),
             Delete("AssetIncident"),
