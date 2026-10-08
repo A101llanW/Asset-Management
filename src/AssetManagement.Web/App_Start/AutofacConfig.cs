@@ -47,6 +47,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<OrganizationLicenseService>().As<IOrganizationLicenseService>().InstancePerHttpRequest();
             builder.RegisterType<OrganizationLicenseQueryRepository>().As<IOrganizationLicenseQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetQueryService>().As<IAssetQueryService>().InstancePerHttpRequest();
+            builder.RegisterType<AssetRoomGroupQueryService>().As<IAssetRoomGroupQueryService>().InstancePerHttpRequest();
             builder.RegisterType<NotificationQueryService>().As<INotificationQueryService>().InstancePerHttpRequest();
             builder.RegisterType<NotificationScheduleQueryService>().As<INotificationScheduleQueryService>().InstancePerHttpRequest();
             builder.RegisterType<DashboardQueryService>().As<IDashboardQueryService>().InstancePerHttpRequest();

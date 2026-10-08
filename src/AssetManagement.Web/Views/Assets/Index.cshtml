@@ -32,6 +32,12 @@
     var hasResults = isGrouped
         ? groupedPage != null && groupedPage.Items.Any()
         : Model.Items.Any();
+    var roomGroupPage = ViewBag.RoomGroupPage as AssetRoomGroupPageVm;
+    var isRoomView = AssetRoomGroupView.IsRoomView(listViewMode);
+    if (isRoomView)
+    {
+        hasResults = roomGroupPage != null && roomGroupPage.TotalCount > 0;
+    }
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -58,8 +64,9 @@
                 </div>
                 <div class="col-md-2">
                     <select class="form-select" name="view">
-                        <option value="flat" @(isGrouped ? null : "selected")>Flat list</option>
+                        <option value="flat" @(isGrouped || isRoomView ? null : "selected")>Flat list</option>
                         <option value="grouped" @(isGrouped ? "selected" : null)>Grouped</option>
+                        <option value="room" @(isRoomView ? "selected" : null)>Group by room</option>
                     </select>
                 </div>
                 <div class="col-md-1">
@@ -120,6 +127,10 @@
             }
         </div>
     </div>
+}
+else if (isRoomView && roomGroupPage != null)
+{
+    @Html.Partial("_AssetRoomGroups", roomGroupPage)
 }
 else if (isGrouped && groupedPage != null)
 {
@@ -413,6 +424,10 @@ else
     @if (canBulkEdit)
     {
         <script src="@Url.Content("~/Scripts/app/list-bulk.js")"></script>
+    }
+    @if (isRoomView && hasResults)
+    {
+        <script src="@Url.Content("~/Scripts/app/assets-by-room.js")"></script>
     }
     @if (isGrouped)
     {

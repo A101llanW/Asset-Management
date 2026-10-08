@@ -292,6 +292,7 @@
     <Content Include="Scripts\app\role-template-save-modal.js" />
     <Content Include="Scripts\app\role-templates.js" />
     <Content Include="Scripts\app\list-bulk.js" />
+    <Content Include="Scripts\app\assets-by-room.js" />
     <Content Include="Scripts\app\assets-grouped.js" />
     <Content Include="Scripts\app\approval-approver-picker.js" />
     <Content Include="Scripts\app\approval-process-matrix.js" />
@@ -377,6 +378,7 @@
     <Content Include="Views\Assets\Edit.cshtml" />
     <Content Include="Views\Assets\CustodyList.cshtml" />
     <Content Include="Views\Assets\Index.cshtml" />
+    <Content Include="Views\Assets\_AssetRoomGroups.cshtml" />
     <Content Include="Views\Assets\_AssetLabelCodeTypeSelector.cshtml" />
     <Content Include="Views\AssetScan\Lookup.cshtml" />
     <Content Include="Views\AssetScan\_ScanLookupResult.cshtml" />

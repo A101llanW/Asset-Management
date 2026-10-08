@@ -1,0 +1,114 @@
+@model AssetManagement.Application.ViewModels.AssetRoomGroupPageVm
+@using System
+@using System.Linq
+@using System.Web
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Domain.Enums
+@using AssetManagement.Web.Helpers
+@{
+    // Assets Index "Group by room" (view=room). Level 1 is rendered here (server-paged); level 2
+    // (categories) and level 3 (assets) load lazily from RoomCategories / RoomCategoryAssets with
+    // the same effective filters as this page (Scripts/app/assets-by-room.js).
+    var listFilter = ViewBag.Filter as AssetFilterVm ?? new AssetFilterVm();
+    var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
+    var filterQuery = HttpUtility.ParseQueryString(string.Empty);
+    if (!string.IsNullOrWhiteSpace(listFilter.Search)) { filterQuery["Search"] = listFilter.Search; }
+    if (listFilter.DepartmentId.HasValue) { filterQuery["DepartmentId"] = listFilter.DepartmentId.Value.ToString(); }
+    if (listFilter.CategoryId.HasValue) { filterQuery["CategoryId"] = listFilter.CategoryId.Value.ToString(); }
+    if (listFilter.AssetTypeId.HasValue) { filterQuery["AssetTypeId"] = listFilter.AssetTypeId.Value.ToString(); }
+    if (listFilter.AssetSubTypeId.HasValue) { filterQuery["AssetSubTypeId"] = listFilter.AssetSubTypeId.Value.ToString(); }
+    if (listFilter.SupplierId.HasValue) { filterQuery["SupplierId"] = listFilter.SupplierId.Value.ToString(); }
+    if (listFilter.Status.HasValue) { filterQuery["Status"] = ((int)listFilter.Status.Value).ToString(); }
+    if (!string.IsNullOrWhiteSpace(listFilter.CustodianUserId)) { filterQuery["CustodianUserId"] = listFilter.CustodianUserId; }
+    if (listFilter.UnassignedOnly) { filterQuery["UnassignedOnly"] = "true"; }
+    Func<int, decimal, string> formatValue = (pricedCount, total) => pricedCount > 0 ? CurrencyFormatter.Format(total) : AssetPriceRules.NotSetLabel;
+}
+<div class="card card-kpi border-0 shadow-sm am-fade-content mb-4 am-room-groups"
+     data-am-room-groups
+     data-am-room-categories-url="@Url.Action("RoomCategories", "Assets")"
+     data-am-room-assets-url="@Url.Action("RoomCategoryAssets", "Assets")"
+     data-am-room-filter-query="@filterQuery.ToString()"
+     data-am-room-can-bulk="@(canBulkEdit ? "true" : "false")"
+     data-am-room-asset-page-size="@AssetRoomGroupView.DefaultAssetPageSize">
+    <div class="card-body p-0">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
+            <span class="text-muted small" data-am-room-summary>
+                Grouped by room:
+                <strong>@Model.TotalCount.ToString("N0")</strong> @(Model.TotalCount == 1 ? "unit" : "units")
+                (@Model.RoomCount.ToString("N0") @(Model.RoomCount == 1 ? "room" : "rooms")),
+                <strong>@Model.TotalAssetCount.ToString("N0")</strong> @(Model.TotalAssetCount == 1 ? "asset" : "assets").
+                Rooms are listed first, then other units. Expand a room for its categories, then a category for its assets.
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-am-room-collapse-all>Collapse all</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 am-room-table">
+                <thead>
+                    <tr class="bg-light text-secondary">
+                        <th class="ps-3">Room / unit</th>
+                        <th>Kind</th>
+                        <th class="text-end">Assets</th>
+                        <th class="text-end">Value (own prices)</th>
+                        <th class="text-end pe-3"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var room in Model.Items)
+                {
+                    var panelId = "am-room-panel-" + room.RoomId;
+                    <tr class="am-room-row" data-am-room-row data-am-room-id="@room.RoomId">
+                        <td class="ps-3">
+                            <div class="fw-bold text-dark" data-am-room-name>@room.DisplayName</div>
+                            @if (!string.IsNullOrWhiteSpace(room.ParentName))
+                            {
+                                <div class="text-muted small">in @room.ParentName</div>
+                            }
+                        </td>
+                        <td>
+                            @if (room.DepartmentKind.HasValue)
+                            {
+                                @Html.DepartmentKindBadge((DepartmentKind)room.DepartmentKind.Value)
+                            }
+                            else
+                            {
+                                <span class="text-muted small">&ndash;</span>
+                            }
+                        </td>
+                        <td class="text-end fw-medium" data-am-room-count>@room.AssetCount.ToString("N0")</td>
+                        <td class="text-end">
+                            <span class="@(room.PricedCount > 0 ? "fw-medium text-primary" : "text-muted fst-italic")">@formatValue(room.PricedCount, room.PricedTotal)</span>
+                            @if (room.UnpricedCount > 0 && room.PricedCount > 0)
+                            {
+                                <div class="text-muted small">@room.UnpricedCount.ToString("N0") unpriced (excluded)</div>
+                            }
+                        </td>
+                        <td class="text-end pe-3 text-nowrap">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    data-am-room-toggle
+                                    aria-expanded="false"
+                                    aria-controls="@panelId">Expand</button>
+                        </td>
+                    </tr>
+                    <tr class="am-room-detail-row" id="@panelId" hidden="hidden" data-am-room-panel data-am-room-id="@room.RoomId">
+                        <td colspan="5" class="bg-light px-3 py-2 border-0">
+                            <div class="text-muted small py-1 d-none" data-am-room-loading>Loading categories...</div>
+                            <div class="text-danger small py-1 d-none" data-am-room-error></div>
+                            <div data-am-room-categories></div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel
+{
+    Page = Model.Page,
+    TotalPages = Model.TotalPages,
+    TotalCount = Model.TotalCount,
+    StartItem = Model.TotalCount == 0 ? 0 : ((Model.Page - 1) * Model.PageSize) + 1,
+    EndItem = Math.Min(Model.Page * Model.PageSize, Model.TotalCount)
+})

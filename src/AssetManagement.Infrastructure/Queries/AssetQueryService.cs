@@ -1031,7 +1031,7 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
             }
         }
 
-        private static string BuildWhereClause(AssetFilterVm filter)
+        internal static string BuildWhereClause(AssetFilterVm filter)
         {
             var clauses = new List<string>
             {
@@ -1096,7 +1096,7 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
             return " WHERE " + string.Join(" AND ", clauses.ToArray());
         }
 
-        private static void AddFilterParameters(IDbCommand command, AssetFilterVm filter)
+        internal static void AddFilterParameters(IDbCommand command, AssetFilterVm filter)
         {
             var searchPrefix = filter == null || string.IsNullOrWhiteSpace(filter.Search)
                 ? null

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -48,7 +48,10 @@ namespace AssetManagement.Web.Controllers
                 filter = new AssetFilterVm();
             }
 
-            filter.ListViewMode = string.Equals(view, "grouped", StringComparison.OrdinalIgnoreCase) ? "grouped" : "flat";
+            var isRoomView = AssetRoomGroupView.IsRoomView(view);
+            filter.ListViewMode = isRoomView
+                ? AssetRoomGroupView.ViewMode
+                : string.Equals(view, "grouped", StringComparison.OrdinalIgnoreCase) ? "grouped" : "flat";
             filter.GroupBy = AssetListGroupBy.ResolveFromRequest(filter, groupBy);
             ViewBag.ListViewMode = filter.ListViewMode;
             ViewBag.GroupBy = filter.GroupBy;
@@ -59,6 +62,24 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ClassDepartments = BuildClassDepartmentSelectList();
             ViewBag.Filter = filter;
             SetListSortViewBag(sort, direction);
+
+            if (isRoomView)
+            {
+                // Group by room: level 1 (one row per unit, rooms first) is a grant-free aggregate;
+                // categories and assets load lazily via RoomCategories / RoomCategoryAssets.
+                var roomPage = BuildRoomGroupQueryService().GetRoomPage(filter, page, pageSize);
+                ViewBag.RoomGroupPage = roomPage;
+                return View(ToAssetListPage(new AssetListPageVm
+                {
+                    Items = new List<AssetListVm>(),
+                    TotalCount = roomPage.TotalAssetCount,
+                    Search = filter.Search,
+                    Sort = sort,
+                    Direction = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc",
+                    Page = roomPage.Page,
+                    PageSize = roomPage.PageSize
+                }));
+            }
 
             if (string.Equals(filter.ListViewMode, "grouped", StringComparison.OrdinalIgnoreCase))
             {
@@ -174,6 +195,96 @@ namespace AssetManagement.Web.Controllers
                 hasMore = loadedCount < pageModel.TotalCount,
                 remainingCount = Math.Max(0, pageModel.TotalCount - loadedCount)
             }, JsonRequestBehavior.AllowGet);
+        }
+
+        /// <summary>Group by room, level 2: categories of the filtered assets in one unit (roomId 0 = no unit).</summary>
+        [PermissionAuthorize("Assets.View")]
+        public JsonResult RoomCategories(AssetFilterVm filter, int roomId = 0)
+        {
+            filter = ApplyRoomGroupListDefaults(filter);
+            var categories = BuildRoomGroupQueryService().GetRoomCategories(filter, roomId);
+            var items = categories.Select(x => new
+            {
+                categoryId = x.CategoryId,
+                name = x.Name,
+                count = x.AssetCount,
+                pricedCount = x.PricedCount,
+                unpricedCount = x.UnpricedCount,
+                pricedTotal = x.PricedTotal,
+                pricedTotalDisplay = x.PricedCount > 0 ? CurrencyFormatter.Format(x.PricedTotal) : AssetPriceRules.NotSetLabel
+            }).ToList();
+
+            return Json(new
+            {
+                items = items,
+                totalCount = categories.Sum(x => x.AssetCount)
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        /// <summary>Group by room, level 3: the filtered assets in one unit + category, by tag, paged.</summary>
+        [PermissionAuthorize("Assets.View")]
+        public JsonResult RoomCategoryAssets(AssetFilterVm filter, int roomId = 0, int roomCategoryId = 0, int skip = 0, int take = AssetRoomGroupView.DefaultAssetPageSize)
+        {
+            filter = ApplyRoomGroupListDefaults(filter);
+            var pageModel = BuildRoomGroupQueryService().GetRoomCategoryAssets(filter, roomId, roomCategoryId, skip, take);
+
+            // Reuse the list's custodian label lookup (one batched user query for the page).
+            var custodianRows = pageModel.Items
+                .Select(x => new AssetListVm { Id = x.Id, CurrentCustodianId = x.CurrentCustodianId, CurrentStatus = x.CurrentStatus })
+                .ToList();
+            EnrichAssetListCustodianNames(custodianRows);
+            var custodianNames = custodianRows.ToDictionary(x => x.Id, x => x.CurrentCustodianName);
+
+            var canEdit = HtmlHasPermission("Assets.Edit");
+            var items = pageModel.Items.Select(x =>
+            {
+                string custodianName;
+                custodianNames.TryGetValue(x.Id, out custodianName);
+                return new
+                {
+                    id = x.Id,
+                    assetTag = x.AssetTag,
+                    assetName = x.AssetName,
+                    assetSubTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? DisplayText.Empty : x.AssetSubTypeName,
+                    custodianName = DisplayText.FormatCustodian(custodianName, x.CurrentStatus),
+                    custodianIsPerson = !string.IsNullOrWhiteSpace(custodianName),
+                    statusLabel = x.CurrentStatus.ToString()
+                        .Replace("AwaitingApproval", "Pending Approval")
+                        .Replace("InStore", "In Store"),
+                    statusBadgeClass = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
+                    price = x.Price,
+                    // The asset's own price only: blank = "Not set", never the sub-type price.
+                    priceDisplay = x.Price.HasValue ? CurrencyFormatter.Format(x.Price.Value) : AssetPriceRules.NotSetLabel,
+                    detailsUrl = Url.Action("Details", new { id = x.Id }),
+                    editUrl = canEdit ? Url.Action("Edit", new { id = x.Id }) : null
+                };
+            }).ToList();
+
+            var loadedCount = pageModel.Skip + pageModel.Items.Count;
+            return Json(new
+            {
+                items = items,
+                totalCount = pageModel.TotalCount,
+                skip = pageModel.Skip,
+                take = pageModel.Take,
+                hasMore = loadedCount < pageModel.TotalCount
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        private AssetManagement.Application.Contracts.Queries.IAssetRoomGroupQueryService BuildRoomGroupQueryService()
+        {
+            return DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Queries.IAssetRoomGroupQueryService>();
+        }
+
+        /// <summary>Same role defaults as Index so the lazy levels see exactly the Index's asset set.</summary>
+        private AssetFilterVm ApplyRoomGroupListDefaults(AssetFilterVm filter)
+        {
+            filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
+                filter,
+                GetCurrentUserProfile(),
+                CanApproveAssetRequests(),
+                IsCurrentUserSuperAdmin());
+            return filter ?? new AssetFilterVm();
         }
 
         [HttpPost]
