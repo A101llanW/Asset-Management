@@ -355,7 +355,11 @@
                 bindButton(buttons[i], config, root);
             }
 
-            pollPrinterStatus(root, config);
+            // Do not load the Browser Print SDK or query devices here. Contacting the local
+            // Browser Print service makes it ask "<site> wants to access your Zebra Devices"
+            // on every page that merely contains a label button. The printer is discovered
+            // only when the user clicks a print action (printToZebra / printZplDirectly),
+            // and the status badge is refreshed after that print attempt.
         }).catch(function () {
             hideStatusBadges(root);
         });
