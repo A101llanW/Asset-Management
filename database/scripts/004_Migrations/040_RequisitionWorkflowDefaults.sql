@@ -12,7 +12,7 @@ BEGIN
         (N'Procurement Officer', N'Approves requisitions org-wide; manages suppliers, catalog, and purchase orders.'),
         (N'Asset Manager', N'Manages assets; approves in-store requests and receives goods against POs.'),
         (N'Finance Officer', N'Financial reporting and depreciation; not the default requisition approver.'),
-        (N'Staff', N'Assignee-only profile — register employees without assigning this login role.'),
+        (N'Staff', N'Assignee-only profile - register employees without assigning this login role.'),
         (N'Auditor', N'Read-only access to reports and audit data.')
     ) AS v([Name], [Description])
         ON r.[Name] = v.[Name]
@@ -30,7 +30,7 @@ BEGIN
         (N'Procurement Officer', N'Approves requisitions org-wide; manages suppliers, catalog, and purchase orders.'),
         (N'Asset Manager', N'Manages assets; approves in-store requests and receives goods against POs.'),
         (N'Finance Officer', N'Financial reporting and depreciation; not the default requisition approver.'),
-        (N'Staff', N'Assignee-only profile — register employees without assigning this login role.'),
+        (N'Staff', N'Assignee-only profile - register employees without assigning this login role.'),
         (N'Auditor', N'Read-only access to reports and audit data.')
     ) AS v([Name], [Description])
         ON r.[Name] = v.[Name]

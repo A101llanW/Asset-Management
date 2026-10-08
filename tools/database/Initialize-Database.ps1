@@ -78,7 +78,7 @@ try {
         }
 
         Write-Host "Applying large dataset seed (dev-only, 100k assets)..."
-        $largeDatasetContent = (Get-Content -Path $largeDatasetScript -Raw) -replace '@RunLargeDatasetSeed BIT = 0', '@RunLargeDatasetSeed BIT = 1'
+        $largeDatasetContent = (Get-Content -Path $largeDatasetScript -Raw -Encoding UTF8) -replace '@RunLargeDatasetSeed BIT = 0', '@RunLargeDatasetSeed BIT = 1'
         Invoke-SqlScriptFile -Connection $connection -ScriptPath $largeDatasetScript -CommandTimeout 3600 -ContentOverride $largeDatasetContent
     }
 }

@@ -158,7 +158,7 @@ function Invoke-SqlScriptFile {
         [string]$ContentOverride = $null
     )
 
-    $script = if ($ContentOverride) { $ContentOverride } else { Get-Content -Path $ScriptPath -Raw }
+    $script = if ($ContentOverride) { $ContentOverride } else { Get-Content -Path $ScriptPath -Raw -Encoding UTF8 }
     foreach ($batch in (Split-SqlBatches -Script $script)) {
         Invoke-SqlBatch -Connection $Connection -Batch $batch -CommandTimeout $CommandTimeout
     }
