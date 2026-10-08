@@ -187,7 +187,8 @@ namespace AssetManagement.Web.Controllers
             model.CanCurrentUserRaisePurchaseOrder = PurchaseOrderRaiserRules.CanRaise(poRaiserConfig, currentUserId, currentRoleId);
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
+            // The path this requisition resolves to (its snapshot / unit flow), not the org default.
+            ViewBag.PurchaseApprovalSummary = BuildPurchaseRequestApprovalSummary(entity);
             return View(model);
         }
 

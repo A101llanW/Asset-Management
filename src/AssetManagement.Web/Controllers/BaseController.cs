@@ -721,6 +721,42 @@ namespace AssetManagement.Web.Controllers
             return BuildApprovalConfigurationSummary(GetApprovalProcessConfiguration(processCode));
         }
 
+        /// <summary>
+        /// The approval path a submitted requisition actually follows. This is its stage snapshot (the roles and
+        /// persons that approval enforces). Legacy rows without a snapshot fall back to the unit / inherit / custom flow
+        /// of the requisition's department, the same fallback approval uses. Never the org default on its own.
+        /// </summary>
+        protected string BuildPurchaseRequestApprovalSummary(Domain.Entities.PurchaseRequest request)
+        {
+            if (request == null)
+            {
+                return BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
+            }
+
+            var roleIds = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(request.ApprovalStageRoleIds);
+            if (roleIds.Count == 0)
+            {
+                return BuildDepartmentRequisitionApprovalSummary(request.DepartmentId);
+            }
+
+            var userIds = ApprovalWorkflowSettingsHelper.ParseStageUserIds(request.ApprovalStageUserIds);
+            var orgId = request.OrganizationId ?? ResolveCurrentOrganizationId();
+            IDictionary<string, string> userLookup = null;
+            if (userIds.Any(x => !string.IsNullOrWhiteSpace(x)))
+            {
+                var users = orgId.HasValue
+                    ? BuildReferenceDataCache().GetUsersForDropdown(orgId.Value)
+                    : GetActiveUsers();
+                userLookup = ApproverPickerHelper.BuildUserNameLookup(users);
+            }
+
+            return ApprovalWorkflowSettingsHelper.BuildAssetStageSummary(
+                roleIds.Select(x => (int?)x),
+                userIds,
+                BuildRoleNameLookup(orgId),
+                userLookup);
+        }
+
         protected string BuildDepartmentRequisitionApprovalSummary(int? departmentId)
         {
             Domain.Entities.Department department = null;
