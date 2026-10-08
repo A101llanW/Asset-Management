@@ -200,6 +200,7 @@
     <Compile Include="Areas\Platform\Controllers\PlatformSettingsController.cs" />
     <Compile Include="Areas\Platform\Controllers\SecurityLogsController.cs" />
     <Compile Include="Areas\Platform\Controllers\UsersController.cs" />
+    <Compile Include="Areas\Platform\Controllers\UsageController.cs" />
     <Compile Include="Filters\RequireTenantRouteAttribute.cs" />
     <Compile Include="Filters\ImpersonationExpiryFilterAttribute.cs" />
     <Compile Include="Filters\TenantAuthorizeAttribute.cs" />
@@ -497,6 +498,7 @@
     <Content Include="Areas\Platform\Views\Shared\_PlatformNav.cshtml" />
     <Content Include="Areas\Platform\Views\SecurityLogs\Index.cshtml" />
     <Content Include="Areas\Platform\Views\PlatformSettings\Email.cshtml" />
+    <Content Include="Areas\Platform\Views\Usage\Index.cshtml" />
     <Content Include="Views\Account\LicenseSuspended.cshtml" />
     <Content Include="Views\Account\LicenseExpired.cshtml" />
     <Content Include="Views\Account\VerifyEmail.cshtml" />

@@ -1,11 +1,13 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
+using AssetManagement.Application.Contracts.Platform;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.Contracts.Organizations;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
+using AssetManagement.Application.Services.Platform;
 using AssetManagement.Application.Services.Organizations;
 using AssetManagement.Infrastructure.Identity;
 using AssetManagement.Infrastructure.Persistence;
@@ -59,6 +61,8 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
+            builder.RegisterType<PlatformUsageQueryRepository>().As<IPlatformUsageQueryRepository>().InstancePerHttpRequest();
+            builder.RegisterType<PlatformUsageService>().As<IPlatformUsageService>().InstancePerHttpRequest();
             builder.RegisterType<MembershipService>().As<IUserAccountService>().InstancePerHttpRequest();
             builder.RegisterType<UserInvitationService>().As<IUserInvitationService>().InstancePerHttpRequest();
             builder.RegisterType<AccountSecurityService>().As<IAccountSecurityService>().InstancePerHttpRequest();
