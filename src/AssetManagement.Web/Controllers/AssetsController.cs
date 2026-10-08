@@ -445,12 +445,39 @@ namespace AssetManagement.Web.Controllers
             return View("CustodyList", ToAssetListPage(pageModel));
         }
 
+        /// <summary>
+        /// Safe "Back to Assets" target: a local path (FormatSafeReturnPath: no scheme/host, virtual-path aware)
+        /// that stays under the current tenant's /Assets pages; anything else (other tenant, other area, external)
+        /// falls back to this tenant's Assets/Index.
+        /// </summary>
+        private string ResolveAssetsListReturnUrl(string returnUrl)
+        {
+            var fallback = Url.Action("Index");
+            var safe = FormatSafeReturnPath(returnUrl);
+            if (string.IsNullOrWhiteSpace(safe) || string.IsNullOrWhiteSpace(fallback))
+            {
+                return fallback;
+            }
+
+            var listBase = fallback.Split('?')[0].TrimEnd('/');
+            if (listBase.EndsWith("/Index", StringComparison.OrdinalIgnoreCase))
+            {
+                listBase = listBase.Substring(0, listBase.Length - "/Index".Length);
+            }
+
+            var path = safe.Split('?')[0].TrimEnd('/');
+            return string.Equals(path, listBase, StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith(listBase + "/", StringComparison.OrdinalIgnoreCase)
+                ? safe
+                : fallback;
+        }
+
         [PermissionAuthorize("Assets.View")]
         public ActionResult Details(string id, string returnUrl = null)
         {
-            // "Back to Assets" returns to the list the user came from (view, filters, page); only a safe local,
-            // tenant-aware path is accepted, otherwise Assets/Index.
-            ViewBag.AssetsBackUrl = ResolveReturnUrl(returnUrl, "Index");
+            // "Back to Assets" returns to the list the user came from (view, filters, page); only a safe local path
+            // under this tenant's Assets pages is accepted, otherwise Assets/Index.
+            ViewBag.AssetsBackUrl = ResolveAssetsListReturnUrl(returnUrl);
             int assetId;
             if (!TryResolveAssetId(id, out assetId))
             {
