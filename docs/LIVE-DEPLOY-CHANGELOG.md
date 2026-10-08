@@ -9,6 +9,19 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-09 00:40 - Requisitions: remove the "Order by" field (`59ef566`) - BUILT, NOT YET PUBLISHED
+
+- **Date/time EAT:** 2026-10-09 00:40 (commit). Not published (needs one UAC prompt: `artifacts\rel1009b-launch-elevated.ps1`).
+- **What and why:** Allan 00:34: "Remove the order by on requisition page". The only "order by" on the requisition pages was the **"Order by (optional)"** dropdown (teacher / class contact) on New requisition (shown to users with `Purchases.CreateForAnyDepartment`), echoed as an "Order by" row on requisition Details and the printed requisition. There was no sort control: the Requisitions list has no sortable headers or sort querystring (fixed newest-first order, unchanged). Removed the field from Create, Details and the printout; the controller now ignores any posted `OrderByUserId`; the workflow guide no longer mentions it.
+- **Commit hash:** `59ef566`
+- **Files changed:** `src/AssetManagement.Web/Controllers/PurchaseRequestsController.cs`, `Views/PurchaseRequests/Create.cshtml`, `Views/PurchaseRequests/Details.cshtml`, `Views/Shared/_RequisitionWorkflowGuide.cshtml`, `src/AssetManagement.Application/Helpers/ReportHtmlBuilder.cs`.
+- **DB migration/script:** None. `PurchaseRequest.OrderByUserId` and existing values are kept (just no longer shown or set). **Config/Web.config keys:** None.
+- **IIS/server steps (local):** `artifacts\rel1009b-launch-elevated.ps1` (pre-check live Web.dll `FF9B1237...D585`); not yet run.
+- **Live-deploy steps:** ships with the web publish (see live kit delta note).
+- **Verify:** IIS Express :8092, Test-WF A461: Requisitions list and New requisition 200 with no "Order by"; output `artifacts\orderby-2026-10-09\`.
+- **Rollback:** `git revert 59ef566`; after publish restore the `pre_rel1009b` IIS backup.
+
+---
 ## 2026-10-09 00:32 - ROOT local IIS publish rel1009 (HEAD `7a7570c`): bypass revert + Role Active + DB console audit + asset movement rules
 
 - **Date/time EAT:** UAC accepted by Allan; elevated run started 2026-10-09 00:32:23; **PUBLISHED_AT 00:32:42 EAT**. Local only: not pushed, no PR, not live nanosoft.africa.
