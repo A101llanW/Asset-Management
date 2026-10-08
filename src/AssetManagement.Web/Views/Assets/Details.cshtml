@@ -219,7 +219,7 @@
                     <div class="col-md-3"><strong>Depreciation life:</strong><br />@string.Format("{0} months ({1})", Model.DepreciationSettings.EffectiveLifeMonths, Model.DepreciationSettings.LifeSource)</div>
                     <div class="col-md-3"><strong>Annual rate:</strong><br />@string.Format("{0:N2}% ({1})", Model.DepreciationSettings.EffectiveRatePercent, Model.DepreciationSettings.RateSource)</div>
                     <div class="col-md-3"><strong>Method:</strong><br />@Model.DepreciationMethod</div>
-                    <div class="col-md-3"><strong>Current book value:</strong><br />@Html.FormatCurrency(Model.CurrentBookValue)</div>
+                    <div class="col-md-3"><strong>Current book value:</strong><br />@if (Model.AcquisitionCost.HasValue) { @Html.FormatCurrency(Model.CurrentBookValue) } else { <span class="text-muted fst-italic">@AssetManagement.Application.Helpers.AssetPriceRules.NotSetLabel</span> }</div>
                     <div class="col-md-3"><strong>Accumulated depreciation:</strong><br />@Html.FormatCurrency(Model.AccumulatedDepreciation)</div>
                     <div class="col-md-3"><strong>Salvage value:</strong><br />@Html.FormatCurrency(Model.SalvageValue)</div>
                     <div class="col-md-12">
