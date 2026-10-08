@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title</title>
     <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
+    @* This layout has no Bootstrap; PrintLabel and asset-label-zebra.js rely on d-none to hide the printer status line and Zebra button until BrowserPrint answers. *@
+    <style>.d-none { display: none !important; }</style>
     @RenderSection("head", required: false)
 </head>
 <body class="am-print-body">
