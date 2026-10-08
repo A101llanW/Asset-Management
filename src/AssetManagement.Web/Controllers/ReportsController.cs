@@ -5,6 +5,7 @@ using AssetManagement.Application.ViewModels;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
+using AssetManagement.Application.Helpers;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -70,7 +71,7 @@ namespace AssetManagement.Web.Controllers
             return File(
                 _reportService.ExportAssetRegisterCsv(),
                 "text/csv",
-                "asset-register-" + DateTime.UtcNow.ToString("yyyyMMdd") + ".csv");
+                "asset-register-" + KenyaTimeHelper.LocalDateStamp(DateTime.UtcNow) + ".csv");
         }
 
         public ActionResult ExportCustodyMovement(DateTime? fromDate, DateTime? toDate)
@@ -78,7 +79,7 @@ namespace AssetManagement.Web.Controllers
             return File(
                 _reportService.ExportCustodyMovementCsv(fromDate, toDate),
                 "text/csv",
-                "custody-movement-" + DateTime.UtcNow.ToString("yyyyMMdd") + ".csv");
+                "custody-movement-" + KenyaTimeHelper.LocalDateStamp(DateTime.UtcNow) + ".csv");
         }
 
         public ActionResult ExportDepartmentSummary()
@@ -86,7 +87,7 @@ namespace AssetManagement.Web.Controllers
             return File(
                 _reportService.ExportDepartmentSummaryCsv(),
                 "text/csv",
-                "department-summary-" + DateTime.UtcNow.ToString("yyyyMMdd") + ".csv");
+                "department-summary-" + KenyaTimeHelper.LocalDateStamp(DateTime.UtcNow) + ".csv");
         }
 
         public ActionResult ExportPendingApprovalsAging()
@@ -94,7 +95,7 @@ namespace AssetManagement.Web.Controllers
             return File(
                 _reportService.ExportPendingApprovalsAgingCsv(),
                 "text/csv",
-                "pending-approvals-aging-" + DateTime.UtcNow.ToString("yyyyMMdd") + ".csv");
+                "pending-approvals-aging-" + KenyaTimeHelper.LocalDateStamp(DateTime.UtcNow) + ".csv");
         }
 
         public ActionResult ExportGeneralLedger()
@@ -102,7 +103,7 @@ namespace AssetManagement.Web.Controllers
             return File(
                 _reportService.ExportGeneralLedgerCsv(),
                 "text/csv",
-                "general-ledger-" + DateTime.UtcNow.ToString("yyyyMMdd") + ".csv");
+                "general-ledger-" + KenyaTimeHelper.LocalDateStamp(DateTime.UtcNow) + ".csv");
         }
 
         private string ResolveGeneratedBy()

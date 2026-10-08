@@ -1264,7 +1264,7 @@ namespace AssetManagement.Application.Services
             {
                 Id = transfer.Id,
                 RequestedByName = transfer.RequestedById,
-                RequestedDateText = transfer.TransferDate.ToString("yyyy-MM-dd HH:mm"),
+                RequestedDateText = KenyaTimeHelper.FormatUtc(transfer.TransferDate, KenyaTimeHelper.ShortTimestampFormat),
                 FromEntity = BuildTransferEntityLabel(transfer.FromUserId, transfer.FromDepartmentId, departmentLookup),
                 ToEntity = BuildTransferEntityLabel(transfer.ToUserId, transfer.ToDepartmentId, departmentLookup),
                 Reason = transfer.Reason,
@@ -1290,7 +1290,7 @@ namespace AssetManagement.Application.Services
             {
                 DisposalRecordId = disposal.Id,
                 RequestedByName = disposal.RequestedById,
-                RequestedDateText = disposal.DisposalRequestDate.ToString("yyyy-MM-dd HH:mm"),
+                RequestedDateText = KenyaTimeHelper.FormatUtc(disposal.DisposalRequestDate, KenyaTimeHelper.ShortTimestampFormat),
                 DisposalMethod = disposal.DisposalMethod.ToString(),
                 DisposalReason = disposal.DisposalReason,
                 Notes = disposal.Notes,

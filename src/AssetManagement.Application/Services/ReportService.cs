@@ -309,7 +309,7 @@ namespace AssetManagement.Application.Services
             var assetIds = assets.Keys.ToList();
             var rows = new List<string[]>
             {
-                new[] { "MovementType", "AssetTag", "AssetName", "EventDate", "FromParty", "ToParty", "Status", "Notes" }
+                new[] { "MovementType", "AssetTag", "AssetName", "EventDate (EAT)", "FromParty", "ToParty", "Status", "Notes" }
             };
 
             var transfers = _unitOfWork.Repository<AssetTransfer>().GetAll()
@@ -325,7 +325,7 @@ namespace AssetManagement.Application.Services
                     "Transfer",
                     asset?.AssetTag ?? ("Asset#" + transfer.AssetId),
                     asset?.AssetName ?? string.Empty,
-                    transfer.TransferDate.ToString("yyyy-MM-dd HH:mm"),
+                    KenyaTimeHelper.FormatUtc(transfer.TransferDate, KenyaTimeHelper.ShortTimestampFormat),
                     transfer.FromDepartmentId.ToString(),
                     transfer.ToDepartmentId.ToString(),
                     transfer.ApprovalStatus.ToString(),
@@ -345,7 +345,7 @@ namespace AssetManagement.Application.Services
                     "Assignment",
                     asset?.AssetTag ?? ("Asset#" + assignment.AssetId),
                     asset?.AssetName ?? string.Empty,
-                    assignment.AssignedDate.ToString("yyyy-MM-dd HH:mm"),
+                    KenyaTimeHelper.FormatUtc(assignment.AssignedDate, KenyaTimeHelper.ShortTimestampFormat),
                     assignment.HandedOverById ?? string.Empty,
                     assignment.ToUserId ?? string.Empty,
                     assignment.IsActive ? "Active" : "Closed",
@@ -436,7 +436,7 @@ namespace AssetManagement.Application.Services
                 new[]
                 {
                     "Process", "RequestId", "AssetTag", "AssetName", "RequestedBy",
-                    "SubmittedUtc", "AgeDays", "AgingBand", "ApprovalStatus", "CurrentStage"
+                    "Submitted (EAT)", "AgeDays", "AgingBand", "ApprovalStatus", "CurrentStage"
                 }
             };
 
@@ -484,7 +484,7 @@ namespace AssetManagement.Application.Services
                     purchaseRequest.RequestNumber ?? string.Empty,
                     deptLabel,
                     purchaseRequest.RequestedById ?? string.Empty,
-                    purchaseRequest.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
+                    KenyaTimeHelper.FormatUtc(purchaseRequest.CreatedAt, KenyaTimeHelper.ShortTimestampFormat),
                     ageDays.ToString(),
                     ResolveAgingBand(ageDays),
                     purchaseRequest.ApprovalStatus.ToString(),
@@ -521,7 +521,7 @@ namespace AssetManagement.Application.Services
                         ? requestedAsset.AssetName
                         : "Employee asset request",
                     assetRequest.RequestedById ?? string.Empty,
-                    assetRequest.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
+                    KenyaTimeHelper.FormatUtc(assetRequest.CreatedAt, KenyaTimeHelper.ShortTimestampFormat),
                     ageDays.ToString(),
                     ResolveAgingBand(ageDays),
                     assetRequest.Status.ToString(),
@@ -560,7 +560,7 @@ namespace AssetManagement.Application.Services
                 asset?.AssetTag ?? (assetId > 0 ? ("Asset#" + assetId) : string.Empty),
                 asset?.AssetName ?? string.Empty,
                 requestedById ?? string.Empty,
-                submittedUtc.ToString("yyyy-MM-dd HH:mm"),
+                KenyaTimeHelper.FormatUtc(submittedUtc, KenyaTimeHelper.ShortTimestampFormat),
                 ageDays.ToString(),
                 ResolveAgingBand(ageDays),
                 approvalStatus,

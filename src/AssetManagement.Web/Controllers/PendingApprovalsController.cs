@@ -7,6 +7,7 @@ using AssetManagement.Application.ViewModels;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.ViewModels;
 using AssetManagement.Web.Security;
+using AssetManagement.Application.Helpers;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -85,7 +86,7 @@ namespace AssetManagement.Web.Controllers
                 AssetName = item.AssetName,
                 RequestedById = item.RequestedById,
                 RequestedByName = item.RequestedByName,
-                RequestedDateText = item.RequestedDateUtc.ToString("yyyy-MM-dd HH:mm"),
+                RequestedDateText = KenyaTimeHelper.FormatUtc(item.RequestedDateUtc, KenyaTimeHelper.ShortTimestampFormat),
                 RequestedDateUtc = item.RequestedDateUtc,
                 StageNumber = item.StageNumber,
                 StageRoleName = item.StageRoleName,

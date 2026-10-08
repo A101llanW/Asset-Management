@@ -45,10 +45,10 @@
                         }
                     </dd>
                     <dt class="col-sm-4">Justification</dt><dd class="col-sm-8">@Model.Justification</dd>
-                    <dt class="col-sm-4">Submitted</dt><dd class="col-sm-8">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+                    <dt class="col-sm-4">Submitted</dt><dd class="col-sm-8">@KenyaTimeHelper.FormatUtc(Model.CreatedAt, KenyaTimeHelper.ShortTimestampFormat) @KenyaTimeHelper.DisplayAbbreviation</dd>
                     @if (Model.ReviewedAt.HasValue)
                     {
-                        <dt class="col-sm-4">Reviewed</dt><dd class="col-sm-8">@Model.ReviewedByName on @Model.ReviewedAt.Value.ToString("yyyy-MM-dd HH:mm")</dd>
+                        <dt class="col-sm-4">Reviewed</dt><dd class="col-sm-8">@Model.ReviewedByName on @KenyaTimeHelper.FormatUtc(Model.ReviewedAt.Value, KenyaTimeHelper.ShortTimestampFormat) @KenyaTimeHelper.DisplayAbbreviation</dd>
                         <dt class="col-sm-4">Review notes</dt><dd class="col-sm-8">@(Model.ReviewNotes ?? DisplayText.Empty)</dd>
                     }
                     @if (Model.FulfilledAssetId.HasValue)

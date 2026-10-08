@@ -208,7 +208,7 @@ namespace AssetManagement.Application.Services
                     ApproverName = x.ApproverUserId,
                     Decision = x.Decision.ToString(),
                     Notes = x.Notes,
-                    DecisionDateText = x.DecisionDate.ToString("yyyy-MM-dd HH:mm")
+                    DecisionDateText = KenyaTimeHelper.FormatUtc(x.DecisionDate, KenyaTimeHelper.ShortTimestampFormat)
                 })
                 .ToList();
         }

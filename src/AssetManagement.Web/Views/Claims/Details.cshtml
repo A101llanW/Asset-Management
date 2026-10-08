@@ -40,7 +40,7 @@
             {
                 <dt class="col-sm-3">Assessor</dt><dd class="col-sm-9">@Model.Assessor</dd>
             }
-            <dt class="col-sm-3">Created</dt><dd class="col-sm-9">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+            <dt class="col-sm-3">Created</dt><dd class="col-sm-9">@KenyaTimeHelper.FormatUtc(Model.CreatedAt, KenyaTimeHelper.ShortTimestampFormat) @KenyaTimeHelper.DisplayAbbreviation</dd>
         </dl>
         @if (canEdit)
         {

@@ -292,7 +292,7 @@
                 <table class="table table-sm align-middle">
                     <thead>
                         <tr>
-                            <th>Date</th>
+                            <th>Date (@KenyaTimeHelper.DisplayAbbreviation)</th>
                             <th>Action</th>
                             <th>From</th>
                             <th>To</th>
@@ -306,7 +306,7 @@
                     @foreach (var eventItem in Model.CustodyHistory)
                     {
                         <tr>
-                            <td>@eventItem.ActionDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@KenyaTimeHelper.FormatUtc(eventItem.ActionDate, KenyaTimeHelper.ShortTimestampFormat)</td>
                             <td>@eventItem.ActionType</td>
                             <td>@eventItem.FromEntity</td>
                             <td>@eventItem.ToEntity</td>
