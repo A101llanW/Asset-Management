@@ -116,7 +116,10 @@
     <script src="@Url.Content("~/Scripts/app/asset-scan-camera.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-scan-camera.js")).Ticks"></script>
     @if (Model.CanBatchPrintLabels)
     {
-        <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
+        <script>
+        window.AssetLabelZebraScriptUrl = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Content("~/Scripts/app/asset-label-zebra.js") + "?v=" + System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks));
+    </script>
+    <script src="@Url.Content("~/Scripts/app/asset-label-zebra-loader.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra-loader.js")).Ticks" data-am-zebra-loader="true" data-zebra-src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
         <script src="@Url.Content("~/Scripts/app/asset-scan-batch-print.js")"></script>
     }
     <script>

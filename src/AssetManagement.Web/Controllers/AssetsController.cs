@@ -571,13 +571,13 @@ namespace AssetManagement.Web.Controllers
             int assetId;
             if (!TryResolveAssetId(id, out assetId))
             {
-                return HttpNotFound();
+                return NotFoundPage("Asset not found.");
             }
 
             var model = _assetService.GetById(assetId);
             if (model == null)
             {
-                return HttpNotFound();
+                return NotFoundPage("This asset was not found or is outside your department.");
             }
 
             var currentRoleId = GetCurrentUserRoleId();
@@ -661,13 +661,13 @@ namespace AssetManagement.Web.Controllers
             int assetId;
             if (!TryResolveAssetId(id, out assetId))
             {
-                return HttpNotFound();
+                return NotFoundPage("Asset not found.");
             }
 
             var model = AssetLabelPrintHelper.CreateModel(_assetService, Request, Url, assetId, GetExternalBaseUrl());
             if (model == null)
             {
-                return HttpNotFound();
+                return NotFoundPage("This asset was not found or is outside your department.");
             }
 
             return View(model);
@@ -1044,7 +1044,10 @@ namespace AssetManagement.Web.Controllers
                     DisposalMethod = disposalMethod,
                     Notes = notes
                 }, User.GetUserId());
-                TempData["Message"] = "Disposal request submitted.";
+                var afterDisposal = _assetService.GetById(id);
+                TempData["Message"] = afterDisposal != null && afterDisposal.CurrentStatus == AssetStatus.Disposed
+                    ? "Asset disposed."
+                    : "Disposal request submitted for approval.";
             }
             catch (BusinessException ex)
             {

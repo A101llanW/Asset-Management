@@ -35,7 +35,10 @@
     <script src="@Url.Content("~/Scripts/vendor/jsbarcode.all.min.js")"></script>
 
     <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
-    <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
+    <script>
+        window.AssetLabelZebraScriptUrl = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Content("~/Scripts/app/asset-label-zebra.js") + "?v=" + System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks));
+    </script>
+    <script src="@Url.Content("~/Scripts/app/asset-label-zebra-loader.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra-loader.js")).Ticks" data-am-zebra-loader="true" data-zebra-src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
 
     <script>
 
@@ -46,9 +49,13 @@
             if (printButton && window.AssetLabel) {
 
                 printButton.addEventListener("click", function () {
-
-                    AssetLabel.print();
-
+                    var run = function () { if (window.AssetLabel) { AssetLabel.print(); } };
+                    if (window.AssetLabelZebraEnsure) {
+                        window.AssetLabelZebraEnsure().then(function (zebra) {
+                            if (zebra && zebra.initRoot) { zebra.initRoot(document); }
+                            run();
+                        }).catch(function () { run(); });
+                    } else { run(); }
                 });
 
             }

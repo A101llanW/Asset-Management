@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --am-primary: hsl(200, 85%, 52%);
     --am-primary-strong: hsl(205, 90%, 45%);
     --am-primary-contrast: hsl(210, 70%, 15%);
@@ -1210,9 +1210,7 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
     display: none !important;
 }
 
-.am-group-summary-row .btn-outline-primary {
-    display: none;
-}
+/* edce908 hid .btn-outline-primary on group summary rows (Move group / Move group to room). Expand uses btn-outline-secondary so it stayed visible. Removed so Move group buttons show. */
 
 .am-group-members-table .am-group-member-row td {
     padding-top: 0.25rem;

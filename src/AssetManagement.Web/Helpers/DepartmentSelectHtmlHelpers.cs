@@ -22,7 +22,7 @@ namespace AssetManagement.Web.Helpers
 
             if (htmlAttributes != null)
             {
-                tag.MergeAttributes(new RouteValueDictionary(htmlAttributes));
+                tag.MergeAttributes(new RouteValueDictionary(htmlAttributes), true);
             }
 
             var body = new StringBuilder();

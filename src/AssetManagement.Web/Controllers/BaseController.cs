@@ -778,6 +778,19 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Direction = direction;
         }
 
+        /// <summary>
+        /// Friendly 404 page (skips IIS custom errors) so out-of-scope / missing records look the same for every role.
+        /// </summary>
+        protected ActionResult NotFoundPage(string message = null)
+        {
+            Response.StatusCode = 404;
+            Response.TrySkipIisCustomErrors = true;
+            ViewBag.NotFoundMessage = string.IsNullOrWhiteSpace(message)
+                ? "The page or record you requested was not found."
+                : message;
+            return View("~/Views/Shared/NotFound.cshtml");
+        }
+
         protected ActionResult RedirectToAssetDetails(int assetId)
         {
             return RedirectToTenantAware("Assets", "Details", new { id = assetId });

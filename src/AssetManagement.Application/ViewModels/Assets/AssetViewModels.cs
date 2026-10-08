@@ -302,6 +302,8 @@ namespace AssetManagement.Application.ViewModels
 
         public string ApprovedById { get; set; }
 
+        public string ApprovedBy { get; set; }
+
         public string Notes { get; set; }
     }
 

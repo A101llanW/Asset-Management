@@ -59,7 +59,8 @@
             <div class="row g-2 align-items-center">
                 @* Selects size to their longest option (col-lg-auto) so "Group by room" / "All statuses" are never clipped; search fills the rest. *@
                 <div class="col-12 col-lg" style="min-width: 12rem;">
-                    <input type="text" class="form-control" name="Search" placeholder="Search tag, name, serial, custodian..." value="@Model.Search" data-am-table-filter />
+                    <!-- server Search matches serial; omit data-am-table-filter so client filter cannot hide those rows -->
+                    <input type="text" class="form-control" name="Search" placeholder="Search tag, name, serial, custodian..." value="@Model.Search" />
                 </div>
                 <div class="col-12 col-sm-6 col-lg-3">
                     @Html.DropDownList("DepartmentId", departments, "All departments", new { @class = "form-select" })
@@ -587,6 +588,7 @@ else
                 groupMembersUrl: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Action("GroupMembers", "Assets"))),
                 groupBy: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(groupBy)),
                 canBulkEdit: @(canBulkEdit ? "true" : "false"),
+                canMoveToClass: @(canRelocateAsset && classDepartments != null && classDepartments.Any() ? "true" : "false"),
                 canMoveToRoom: @(canRelocateToRoom ? "true" : "false"),
                 unassignedLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Unassigned)),
                 emptyLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Empty)),

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -266,20 +266,29 @@ namespace AssetManagement.Application.Services
 
             // Newest first by the effective action time (same-day date-only events use their recording time),
             // then CreatedAt and Id so events with the same timestamp keep a stable, newest-first order.
-            var timeline = _unitOfWork.Repository<AssetCustodyEvent>().Find(x => x.AssetId == id).ToList()
+            var custodyEvents = _unitOfWork.Repository<AssetCustodyEvent>().Find(x => x.AssetId == id).ToList()
                 .OrderByDescending(x => CustodyTimelineOrdering.EffectiveActionDate(x.ActionDate, x.CreatedAt))
                 .ThenByDescending(x => x.CreatedAt)
                 .ThenByDescending(x => x.Id)
+                .ToList();
+            var timelineUserIds = custodyEvents
+                .SelectMany(x => new[] { x.FromUserId, x.ToUserId, x.ApprovedById })
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var userLookup = BuildUserDisplayLookup(organizationId.Value, timelineUserIds);
+            var timeline = custodyEvents
                 .Select(x => new AssetCustodyTimelineVm
                 {
                     ActionDate = CustodyTimelineOrdering.EffectiveActionDate(x.ActionDate, x.CreatedAt),
                     ActionType = x.ActionType.ToString(),
-                    FromEntity = BuildTransferEntityLabel(x.FromUserId, x.FromDepartmentId, departmentLookup),
-                    ToEntity = BuildTransferEntityLabel(x.ToUserId, x.ToDepartmentId, departmentLookup),
+                    FromEntity = BuildTransferEntityLabel(x.FromUserId, x.FromDepartmentId, departmentLookup, userLookup),
+                    ToEntity = BuildTransferEntityLabel(x.ToUserId, x.ToDepartmentId, departmentLookup, userLookup),
                     ConditionBefore = x.ConditionBefore,
                     ConditionAfter = x.ConditionAfter,
                     Reason = x.Reason,
                     ApprovedById = x.ApprovedById,
+                    ApprovedBy = ResolveUserDisplayName(x.ApprovedById, userLookup),
                     Notes = x.Notes
                 }).ToList();
 
@@ -1357,13 +1366,18 @@ namespace AssetManagement.Application.Services
             var stageRoleId = transfer.CurrentApprovalStage > 0 && transfer.CurrentApprovalStage <= stageRoleIds.Count ? (int?)stageRoleIds[transfer.CurrentApprovalStage - 1] : null;
             var stageUserId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageUserId(transfer.ApprovalStageUserIds, transfer.CurrentApprovalStage);
 
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var transferUserLookup = organizationId.HasValue
+                ? BuildUserDisplayLookup(organizationId.Value, new[] { transfer.FromUserId, transfer.ToUserId, transfer.RequestedById })
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
             return new PendingTransferApprovalVm
             {
                 Id = transfer.Id,
-                RequestedByName = transfer.RequestedById,
+                RequestedByName = ResolveUserDisplayName(transfer.RequestedById, transferUserLookup),
                 RequestedDateText = KenyaTimeHelper.FormatUtc(transfer.TransferDate, KenyaTimeHelper.ShortTimestampFormat),
-                FromEntity = BuildTransferEntityLabel(transfer.FromUserId, transfer.FromDepartmentId, departmentLookup),
-                ToEntity = BuildTransferEntityLabel(transfer.ToUserId, transfer.ToDepartmentId, departmentLookup),
+                FromEntity = BuildTransferEntityLabel(transfer.FromUserId, transfer.FromDepartmentId, departmentLookup, transferUserLookup),
+                ToEntity = BuildTransferEntityLabel(transfer.ToUserId, transfer.ToDepartmentId, departmentLookup, transferUserLookup),
                 Reason = transfer.Reason,
                 CurrentApprovalStage = transfer.CurrentApprovalStage,
                 CurrentStageRoleId = stageRoleId,
@@ -1617,11 +1631,76 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        private IDictionary<string, string> BuildUserDisplayLookup(int organizationId, IEnumerable<string> userIds)
+        {
+            var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (userIds == null || _referenceDataCache == null)
+            {
+                return lookup;
+            }
+
+            var ids = userIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (ids.Count == 0)
+            {
+                return lookup;
+            }
+
+            var users = _referenceDataCache.GetUsersByIds(organizationId, ids) ?? new List<UserVm>();
+            foreach (var user in users)
+            {
+                if (user == null || string.IsNullOrWhiteSpace(user.Id))
+                {
+                    continue;
+                }
+
+                lookup[user.Id] = FormatUserDisplayName(user, user.Id);
+            }
+
+            return lookup;
+        }
+
+        private static string FormatUserDisplayName(UserVm user, string fallbackId)
+        {
+            if (user == null)
+            {
+                return fallbackId;
+            }
+
+            var name = ((user.FirstName ?? string.Empty) + " " + (user.LastName ?? string.Empty)).Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+
+            return string.IsNullOrWhiteSpace(user.Email) ? fallbackId : user.Email;
+        }
+
+        private static string ResolveUserDisplayName(string userId, IDictionary<string, string> userLookup)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return null;
+            }
+
+            string label;
+            if (userLookup != null && userLookup.TryGetValue(userId, out label) && !string.IsNullOrWhiteSpace(label))
+            {
+                return label;
+            }
+
+            return userId;
+        }
+
         private static string BuildTransferEntityLabel(string userId, int? departmentId, IDictionary<int, string> departmentLookup)
+        {
+            return BuildTransferEntityLabel(userId, departmentId, departmentLookup, null);
+        }
+
+        private static string BuildTransferEntityLabel(string userId, int? departmentId, IDictionary<int, string> departmentLookup, IDictionary<string, string> userLookup)
         {
             if (!string.IsNullOrWhiteSpace(userId))
             {
-                return userId;
+                return ResolveUserDisplayName(userId, userLookup);
             }
 
             if (departmentId.HasValue && departmentLookup != null && departmentLookup.ContainsKey(departmentId.Value))
