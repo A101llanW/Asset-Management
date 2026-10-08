@@ -403,8 +403,34 @@ namespace AssetManagement.Application.Services
         public byte[] ExportPendingApprovalsAgingCsv()
         {
             var now = DateTime.UtcNow;
-            var visibleAssetIds = new HashSet<int>(_departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query()).Select(x => x.Id));
-            var assets = _unitOfWork.Repository<Asset>().GetAll().ToDictionary(x => x.Id, x => x);
+            var pendingTransfers = _unitOfWork.Repository<AssetTransfer>()
+                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
+                .OrderByDescending(x => x.TransferDate)
+                .ToList();
+            var pendingDisposals = _unitOfWork.Repository<DisposalRecord>()
+                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
+                .OrderByDescending(x => x.DisposalRequestDate)
+                .ToList();
+
+            // Only the assets named by pending transfers/disposals (was: every asset id of the org for
+            // visibility plus every asset row of the org). Each asset is read by Id in SQL, then the
+            // department scope is applied to that one row in memory, so a scope predicate that SQL
+            // cannot translate never turns into a full-table load per asset.
+            var assets = new Dictionary<int, Asset>();
+            foreach (var assetId in pendingTransfers.Select(x => x.AssetId).Concat(pendingDisposals.Select(x => x.AssetId)).Distinct())
+            {
+                var id = assetId;
+                var asset = _unitOfWork.Repository<Asset>().Query()
+                    .Where(x => x.Id == id)
+                    .ToList()
+                    .FirstOrDefault();
+                if (asset != null && _departmentScope.ApplyAssetScope(new[] { asset }.AsQueryable()).Any())
+                {
+                    assets[id] = asset;
+                }
+            }
+
+            var visibleAssetIds = new HashSet<int>(assets.Keys);
             var rows = new List<string[]>
             {
                 new[]
@@ -414,9 +440,7 @@ namespace AssetManagement.Application.Services
                 }
             };
 
-            foreach (var transfer in _unitOfWork.Repository<AssetTransfer>()
-                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
-                .OrderByDescending(x => x.TransferDate))
+            foreach (var transfer in pendingTransfers)
             {
                 if (!visibleAssetIds.Contains(transfer.AssetId))
                 {
@@ -428,9 +452,7 @@ namespace AssetManagement.Application.Services
                     transfer.CurrentApprovalStage.ToString());
             }
 
-            foreach (var disposal in _unitOfWork.Repository<DisposalRecord>()
-                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
-                .OrderByDescending(x => x.DisposalRequestDate))
+            foreach (var disposal in pendingDisposals)
             {
                 if (!visibleAssetIds.Contains(disposal.AssetId))
                 {
