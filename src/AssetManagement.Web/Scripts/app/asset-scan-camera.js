@@ -135,24 +135,40 @@
     }
 
     function describeCameraError(error) {
+        if (window.isSecureContext === false) {
+            return "The camera needs a secure (https) connection. Open this page over https, or type or paste the tag instead.";
+        }
+
         if (!error) {
             return "Could not access the camera.";
         }
 
-        var name = error.name || "";
-        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-            return "Camera permission denied. Allow camera access in your browser settings, then try again.";
+        // html5-qrcode often rejects with a plain string such as "NotAllowedError: Permission denied",
+        // so match the DOMException name in the text as well as on error.name.
+        var name = typeof error === "string" ? "" : (error.name || "");
+        var text = typeof error === "string" ? error : (error.message || String(error));
+        function is(names) {
+            for (var i = 0; i < names.length; i++) {
+                if (name === names[i] || text.indexOf(names[i]) >= 0) {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        if (is(["NotAllowedError", "PermissionDeniedError", "Permission denied"])) {
+            return "Camera permission denied. Allow camera access for this site in your browser settings, then try again.";
+        }
+
+        if (is(["NotFoundError", "DevicesNotFoundError", "OverconstrainedError", "No camera", "Requested device not found"])) {
             return "No camera was found on this device.";
         }
 
-        if (error.message) {
-            return error.message;
+        if (is(["NotReadableError", "TrackStartError", "Could not start video source"])) {
+            return "The camera is in use by another app or tab. Close it, then try again.";
         }
 
-        return "Could not access the camera.";
+        return text ? "Could not access the camera: " + text : "Could not access the camera.";
     }
 
     function resetScannerInstance() {

@@ -111,8 +111,9 @@
         window.Html5Qrcode = window.Html5Qrcode
             || (window.__Html5QrcodeLibrary__ && window.__Html5QrcodeLibrary__.Html5Qrcode);
     </script>
-    <script src="@Url.Content("~/Scripts/app/asset-scan.js")"></script>
-    <script src="@Url.Content("~/Scripts/app/asset-scan-camera.js")"></script>
+    @* Versioned so browsers that cached the broken asset-scan.js (pre-84c7cc1) pick up the fix. *@
+    <script src="@Url.Content("~/Scripts/app/asset-scan.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-scan.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-scan-camera.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-scan-camera.js")).Ticks"></script>
     @if (Model.CanBatchPrintLabels)
     {
         <script src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
