@@ -1040,7 +1040,10 @@ namespace AssetManagement.Web.Controllers
                     DisposalMethod = disposalMethod,
                     Notes = notes
                 }, User.GetUserId());
-                TempData["Message"] = "Disposal request submitted.";
+                var afterDisposal = _assetService.GetById(id);
+                TempData["Message"] = afterDisposal != null && afterDisposal.CurrentStatus == AssetStatus.Disposed
+                    ? "Asset disposed."
+                    : "Disposal request submitted for approval.";
             }
             catch (BusinessException ex)
             {
