@@ -30,6 +30,11 @@
 
     var approverRoleUsersJson = ViewBag.ApproverRoleUsersJson as string ?? "[]";
 
+    // Optional per-stage "Approver (person)" next to the Role dropdown (requisition stages only).
+    var stagePersonOptionsJson = ViewBag.StagePersonOptionsJson as string;
+    var stagePersonOptions = ViewBag.StagePersonOptions as IDictionary<int, IList<SelectListItem>>;
+    var useStagePersonPicker = !useApproverUserPicker && !string.IsNullOrWhiteSpace(stagePersonOptionsJson);
+
 }
 
 
@@ -42,7 +47,8 @@
 
      data-use-approver-user-picker="@(useApproverUserPicker ? "true" : "false")"
 
-     data-approver-options="@approverRoleUsersJson">
+     data-approver-options="@approverRoleUsersJson"
+     data-person-options="@(useStagePersonPicker ? stagePersonOptionsJson : string.Empty)">
 
     @for (var i = 0; i < processes.Count; i++)
 
@@ -68,7 +74,9 @@
 
 
 
-        <div class="am-approval-process border rounded p-3 mb-3" data-process-index="@i" data-max-stages="@maxStages">
+        var processUsesPerson = useStagePersonPicker
+            && string.Equals(process.ProcessCode, AssetManagement.Application.ViewModels.ApprovalProcessCodes.Purchase, System.StringComparison.OrdinalIgnoreCase);
+        <div class="am-approval-process border rounded p-3 mb-3" data-process-index="@i" data-max-stages="@maxStages" data-stage-person="@(processUsesPerson ? "true" : "false")">
 
             <div class="row g-3 align-items-start">
 
@@ -184,6 +192,33 @@
 
                                     }
 
+                                    else if (processUsesPerson)
+                                    {
+                                        var stageRoleId = stages[j].RoleId;
+                                        var stageUserId = stages[j].UserId ?? string.Empty;
+                                        IList<SelectListItem> personItems = null;
+                                        if (stageRoleId.HasValue && stagePersonOptions != null)
+                                        {
+                                            stagePersonOptions.TryGetValue(stageRoleId.Value, out personItems);
+                                        }
+                                        <div class="row g-2 am-person-pair">
+                                            <div class="col-sm-6">
+                                                <label class="form-label small text-muted mb-0">Role</label>
+                                                @Html.DropDownList(fieldPrefix + "[" + i + "].Stages[" + j + "].RoleId", new SelectList(roleOptions, "Value", "Text", stageRoleId), "-- Select approver role --", new { @class = "form-select am-stage-role-select am-person-role" })
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <label class="form-label small text-muted mb-0">Approver (person)</label>
+                                                <select class="form-select am-stage-person-select am-person-select" name="@(fieldPrefix)[@i].Stages[@j].UserId" data-saved-user-id="@stageUserId" aria-label="Approver (person) for stage @(j + 1)">
+                                                    <option value="">Any user in role</option>
+                                                    @foreach (var personItem in personItems ?? new List<SelectListItem>())
+                                                    {
+                                                        <option value="@personItem.Value" @(string.Equals(personItem.Value, stageUserId, System.StringComparison.OrdinalIgnoreCase) ? "selected=\"selected\"" : null)>@personItem.Text</option>
+                                                    }
+                                                </select>
+                                                <div class="form-text am-person-note d-none"></div>
+                                            </div>
+                                        </div>
+                                    }
                                     else
 
                                     {
@@ -238,5 +273,7 @@
 
 <script src="@Url.Content("~/Scripts/app/approval-approver-picker.js")"></script>
 
-<script src="@Url.Content("~/Scripts/app/approval-process-matrix.js")"></script>
+<script src="@Url.Content("~/Scripts/app/approval-stage-person.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/approval-stage-person.js")).Ticks"></script>
+
+<script src="@Url.Content("~/Scripts/app/approval-process-matrix.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/approval-process-matrix.js")).Ticks"></script>
 

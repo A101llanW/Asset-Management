@@ -40,6 +40,16 @@ namespace AssetManagement.Application.ViewModels
 
         public string EffectiveRequisitionFlowSummary { get; set; }
 
+        /// <summary>Custom flow only: role that raises the PO after final approval (null = not configured).</summary>
+        public int? PurchaseOrderRaiserRoleId { get; set; }
+
+        /// <summary>Custom flow only: optional person in <see cref="PurchaseOrderRaiserRoleId"/> (null = any role holder).</summary>
+        [StringLength(128)]
+        public string PurchaseOrderRaiserUserId { get; set; }
+
+        /// <summary>Display: effective PO raiser, e.g. "PO: Procurement Officer" / "PO: inherited from Sub: Science".</summary>
+        public string EffectivePurchaseOrderRaiserSummary { get; set; }
+
         public bool IsActive { get; set; }
 
         public bool UseCustomRequisitionApproval { get; set; }

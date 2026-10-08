@@ -96,11 +96,19 @@
 
             } else {
 
-                var select = stageEl.querySelector("select");
+                var select = stageEl.querySelector("select.am-stage-role-select") || stageEl.querySelector("select");
 
                 if (select) {
 
                     select.name = fieldPrefix + "[" + processIndex + "].Stages[" + stageIndex + "].RoleId";
+
+                }
+
+                var personSelect = stageEl.querySelector("select.am-stage-person-select");
+
+                if (personSelect) {
+
+                    personSelect.name = fieldPrefix + "[" + processIndex + "].Stages[" + stageIndex + "].UserId";
 
                 }
 
@@ -198,6 +206,42 @@
 
             selectCol.appendChild(window.ApprovalApproverPicker.createPickerElement(getApproverOptions(matrixEl)));
 
+        } else if (processEl.getAttribute("data-stage-person") === "true") {
+
+            // Role + optional "Approver (person)" pair (see approval-stage-person.js).
+            var pair = document.createElement("div");
+            pair.className = "row g-2 am-person-pair";
+            var roleCol = document.createElement("div");
+            roleCol.className = "col-sm-6";
+            var roleLabel = document.createElement("label");
+            roleLabel.className = "form-label small text-muted mb-0";
+            roleLabel.textContent = "Role";
+            var roleSelect = document.createElement("select");
+            roleSelect.className = "form-select am-stage-role-select am-person-role";
+            cloneSelectOptions(roleTemplate, roleSelect, "");
+            roleCol.appendChild(roleLabel);
+            roleCol.appendChild(roleSelect);
+            var personCol = document.createElement("div");
+            personCol.className = "col-sm-6";
+            var personLabel = document.createElement("label");
+            personLabel.className = "form-label small text-muted mb-0";
+            personLabel.textContent = "Approver (person)";
+            var personSelectNew = document.createElement("select");
+            personSelectNew.className = "form-select am-stage-person-select am-person-select";
+            personSelectNew.setAttribute("aria-label", "Approver (person)");
+            var anyOption = document.createElement("option");
+            anyOption.value = "";
+            anyOption.textContent = "Any user in role";
+            personSelectNew.appendChild(anyOption);
+            var note = document.createElement("div");
+            note.className = "form-text am-person-note d-none";
+            personCol.appendChild(personLabel);
+            personCol.appendChild(personSelectNew);
+            personCol.appendChild(note);
+            pair.appendChild(roleCol);
+            pair.appendChild(personCol);
+            selectCol.appendChild(pair);
+
         } else {
 
             var select = document.createElement("select");
@@ -235,6 +279,12 @@
         stagesList.appendChild(stageEl);
 
         reindexProcess(processEl, fieldPrefix, useUserPicker);
+
+        if (window.AmPersonPicker) {
+
+            window.AmPersonPicker.init(stageEl);
+
+        }
 
     }
 

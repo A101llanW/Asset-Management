@@ -276,6 +276,20 @@
             var roomCustodian = document.getElementById('edit-room-custodian');
             var classTeacherSelect = document.getElementById('ClassTeacherUserId');
             var roomCustodianSelect = document.getElementById('RoomCustodianUserId');
+            var submitButton = kindSelect && kindSelect.form
+                ? kindSelect.form.querySelector('.am-form-actions button[type="submit"]')
+                : null;
+
+            // Submit label follows the selected Kind (same wording as the server-rendered label).
+            function syncSubmitLabel() {
+                if (!kindSelect || !submitButton) { return; }
+                var kind = kindSelect.value;
+                submitButton.textContent = kind === roomKind
+                    ? 'Update room'
+                    : kind === subKind
+                        ? 'Update sub-department'
+                        : kind === classKind ? 'Update class' : 'Update Department';
+            }
 
             function syncParentSections() {
                 if (!kindSelect) { return; }
@@ -295,6 +309,7 @@
                 if (classParentSelect) { classParentSelect.disabled = !showClass; }
                 if (classTeacherSelect) { classTeacherSelect.disabled = !showClass; }
                 if (roomCustodianSelect) { roomCustodianSelect.disabled = !showRoom; }
+                syncSubmitLabel();
             }
 
             if (kindSelect) {
@@ -362,7 +377,10 @@
                     var sel = document.createElement('select');
                     sel.className = 'form-select form-select-sm js-kind-change-new-parent';
                     sel.name = 'ChildMoves[' + index + '].NewParentDepartmentId';
-                    sel.required = true;
+                    // No HTML "required": the browser popup would pre-empt the app's own message
+                    // ("Choose a new parent for every listed child unit") shown by the submit guard below;
+                    // the server re-validates every child move on save.
+                    sel.setAttribute('aria-required', 'true');
                     var placeholder = addOption(sel, '', '-- Select new parent --');
                     placeholder.disabled = false;
                     var ids = [];

@@ -206,6 +206,12 @@ namespace AssetManagement.Application.ViewModels
 
         public bool CanCurrentUserApprove { get; set; }
 
+        /// <summary>False when a "Purchase order raised by" is configured for this requisition's flow and the current user is not it.</summary>
+        public bool CanCurrentUserRaisePurchaseOrder { get; set; } = true;
+
+        /// <summary>Configured PO raiser label (null = not configured: anyone with Purchases permission).</summary>
+        public string PurchaseOrderRaiserLabel { get; set; }
+
         public bool IsPending { get; set; }
 
         public bool IsApproved { get; set; }

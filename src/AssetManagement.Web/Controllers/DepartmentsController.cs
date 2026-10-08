@@ -64,17 +64,57 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Legacy Admin list; flow overview now lives on Departments Index.
+        /// Requisition flows overview: every flow-configurable unit (Department / Sub / Room / Class) with its mode,
+        /// effective flow and PO raiser. Renders in place (no redirect to Index); Edit returns to the unit.
         /// </summary>
         public ActionResult RequisitionFlows(string search = null, string status = null, string view = null)
         {
-            TempData["Message"] = "Requisition flow mode, effective source, and stage summary are shown on the Departments index.";
-            return RedirectToAction("Index", new
+            var all = _departmentService.GetAll().ToList();
+            var names = all.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
+            IEnumerable<DepartmentVm> items = all.Where(x => DepartmentHierarchyRules.ShowsRequisitionFlowColumns(x.DepartmentKind));
+            foreach (var item in items)
             {
-                search = search,
-                status = string.IsNullOrWhiteSpace(status) ? "active" : status,
-                view = string.IsNullOrWhiteSpace(view) ? "tree" : view
-            });
+                string parentName;
+                if (string.IsNullOrWhiteSpace(item.ParentDepartmentName)
+                    && item.ParentDepartmentId.HasValue
+                    && names.TryGetValue(item.ParentDepartmentId.Value, out parentName))
+                {
+                    item.ParentDepartmentName = parentName;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                items = items.Where(x =>
+                    (x.Name ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.Code ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.ParentDepartmentName ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.EffectiveRequisitionFlowSummary ?? string.Empty).ToLowerInvariant().Contains(term)
+                    || (x.EffectivePurchaseOrderRaiserSummary ?? string.Empty).ToLowerInvariant().Contains(term));
+            }
+
+            switch ((status ?? "active").ToLowerInvariant())
+            {
+                case "all":
+                    status = "all";
+                    break;
+                case "inactive":
+                    status = "inactive";
+                    items = items.Where(x => !x.IsActive);
+                    break;
+                default:
+                    status = "active";
+                    items = items.Where(x => x.IsActive);
+                    break;
+            }
+
+            ViewBag.StatusFilter = status;
+            ViewBag.Search = search;
+            return View(items
+                .OrderBy(x => DepartmentOrgHierarchyDisplay.FormatDepartmentKind(x.DepartmentKind))
+                .ThenBy(x => x.Name)
+                .ToList());
         }
 
         public ActionResult Details(int id, string returnUrl = null)
@@ -86,6 +126,11 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(model.DepartmentKind))
+            {
+                ViewBag.RequisitionFlowApprovalSummary = BuildDepartmentRequisitionApprovalSummary(model.Id);
+            }
+
             var organizationId = ResolveCurrentOrganizationId();
             ViewBag.ActiveUserCount = organizationId.HasValue
                 ? DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Queries.IUserAccountQueryRepository>()
@@ -187,7 +232,8 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
-            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id });
+            // Back/Cancel and Save both return to this unit (Details), carrying the original list URL onward.
+            ViewBag.ReturnUrl = BuildUnitReturnUrl(id, returnUrl);
             ApplyEditViewBag(model);
             return View(model);
         }
@@ -197,12 +243,23 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Departments.Edit")]
         public ActionResult Edit(DepartmentVm model, string returnUrl = null)
         {
-            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
-            if (model != null && DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
+            if (model == null)
             {
+                return HttpNotFound();
+            }
+
+            ViewBag.ReturnUrl = BuildUnitReturnUrl(model.Id, returnUrl);
+            var flowConfigurable = DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind);
+            if (flowConfigurable)
+            {
+                // Model-level errors so they show in the form summary and the page re-renders in place.
                 DepartmentRequisitionApprovalSettingsHelper.ValidateCustomApproval(
                     model,
-                    (key, message) => ModelState.AddModelError(key, message));
+                    (key, message) => ModelState.AddModelError(string.Empty, message));
+                if (model.UseCustomRequisitionApproval)
+                {
+                    ValidateStagePeopleAndPurchaseOrderRaiser(model);
+                }
             }
 
             if (!ModelState.IsValid)
@@ -214,8 +271,12 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 _departmentService.Update(model);
-                TempData["Message"] = "Department updated.";
-                return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+                TempData["Message"] = flowConfigurable
+                    ? (model.DepartmentKind == DepartmentKind.Administrative
+                        ? "Department"
+                        : DepartmentOrgHierarchyDisplay.FormatDepartmentKind(model.DepartmentKind)) + " updated. Requisition flow saved."
+                    : "Department updated.";
+                return Redirect((string)ViewBag.ReturnUrl);
             }
             catch (BusinessException ex)
             {
@@ -573,6 +634,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.RequisitionInheritOptions = model.Id > 0
                 ? _departmentService.GetRequisitionInheritOptions(model.Id)
                 : new List<RequisitionInheritOptionVm>();
+            ViewBag.EffectivePurchaseOrderRaiserSummary = stored != null ? stored.EffectivePurchaseOrderRaiserSummary : null;
             ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
             ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);
 
@@ -679,6 +741,96 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.RoleOptions = BuildRoleOptionList();
+            PopulateStagePersonOptions();
+        }
+
+        /// <summary>
+        /// Return target for Edit (Back/Cancel and after Save): this unit's Details page. A safe local returnUrl
+        /// (tenant-slug and virtual-path aware via FormatSafeReturnPath) is kept as the Details page's own Back link,
+        /// so the user stays on the unit instead of bouncing to the list.
+        /// </summary>
+        private string BuildUnitReturnUrl(int id, string returnUrl)
+        {
+            var unitDetails = Url.Action("Details", new { id });
+            var safe = FormatSafeReturnPath(returnUrl);
+            if (string.IsNullOrWhiteSpace(safe) || string.IsNullOrWhiteSpace(unitDetails))
+            {
+                return unitDetails;
+            }
+
+            var safePath = safe.Split('?')[0].TrimEnd('/');
+            var detailsPath = unitDetails.Split('?')[0].TrimEnd('/');
+            if (string.Equals(safePath, detailsPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return safe;
+            }
+
+            var editPath = (Url.Action("Edit", new { id }) ?? string.Empty).Split('?')[0].TrimEnd('/');
+            if (string.Equals(safePath, editPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return unitDetails;
+            }
+
+            return Url.Action("Details", new { id, returnUrl = safe });
+        }
+
+        /// <summary>
+        /// Server validation for the optional per-stage approver person and the PO raiser: user must be active,
+        /// in this org and hold the role; role must exist in this org. A person whose role changed is cleared.
+        /// Stored values come from the DB (never trusted from the post); users/roles are current-org only.
+        /// </summary>
+        private void ValidateStagePeopleAndPurchaseOrderRaiser(DepartmentVm model)
+        {
+            var organizationId = ResolveCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return;
+            }
+
+            var stored = UnitOfWork.Repository<Department>().GetById(model.Id);
+            if (stored == null || (stored.OrganizationId.HasValue && stored.OrganizationId.Value != organizationId.Value))
+            {
+                ModelState.AddModelError(string.Empty, "Department not found in this organisation.");
+                return;
+            }
+
+            var storedIsCustom = stored.UseCustomRequisitionApproval || stored.RequisitionFlowMode == RequisitionFlowMode.Custom;
+            var storedRoleIds = storedIsCustom
+                ? ApprovalWorkflowSettingsHelper.ParseStageRoleIds(
+                    !string.IsNullOrWhiteSpace(stored.CustomStageRoleIds) ? stored.CustomStageRoleIds : stored.RequisitionApprovalStageRoleIds)
+                : new List<int>();
+            var roleIds = GetOrganizationRoleIdSet(organizationId.Value);
+            var findUser = BuildOrgApproverUserFinder(organizationId.Value);
+            Action<string, string> addError = (key, message) => ModelState.AddModelError(string.Empty, message);
+
+            var processes = model.RequisitionApprovalProcesses ?? new List<ApprovalProcessSettingsVm>();
+            foreach (var process in processes.Where(x => x != null))
+            {
+                StageApproverRules.ValidateStages(
+                    process.Stages,
+                    storedRoleIds,
+                    organizationId.Value,
+                    roleIds,
+                    findUser,
+                    addError,
+                    "RequisitionApprovalProcesses.Stages");
+            }
+
+            model.PurchaseOrderRaiserUserId = StageApproverRules.ValidatePurchaseOrderRaiser(
+                model.PurchaseOrderRaiserRoleId,
+                model.PurchaseOrderRaiserUserId,
+                storedIsCustom ? stored.PurchaseOrderRaiserRoleId : null,
+                organizationId.Value,
+                roleIds,
+                findUser,
+                addError);
+            if (model.PurchaseOrderRaiserRoleId.HasValue && model.PurchaseOrderRaiserRoleId.Value <= 0)
+            {
+                model.PurchaseOrderRaiserRoleId = null;
+            }
+
+            // Validated values replace the posted ones in ModelState so a re-render shows the normalized choice.
+            ModelState.Remove("PurchaseOrderRaiserUserId");
         }
 
         private static SelectList BuildSetupModeSelectList(string selected, bool includeOrgModes)

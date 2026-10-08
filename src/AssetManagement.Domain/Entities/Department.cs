@@ -41,6 +41,16 @@ namespace AssetManagement.Domain.Entities
 
         public string RequisitionApprovalStageUserIds { get; set; }
 
+        /// <summary>
+        /// Migration 088. Custom-flow units only: role that raises the purchase order after final approval.
+        /// Null = not configured (legacy: anyone with Purchases permissions). Resolved from the unit the
+        /// requisition flow is effectively taken from (same resolver path as the approval stages).
+        /// </summary>
+        public int? PurchaseOrderRaiserRoleId { get; set; }
+
+        /// <summary>Migration 088. Optional person within <see cref="PurchaseOrderRaiserRoleId"/>; null = any active role holder.</summary>
+        public string PurchaseOrderRaiserUserId { get; set; }
+
         /// <summary>Optional Class PIC (Kind=Class). Never required; no cascade reassign.</summary>
         public string ClassTeacherUserId { get; set; }
 

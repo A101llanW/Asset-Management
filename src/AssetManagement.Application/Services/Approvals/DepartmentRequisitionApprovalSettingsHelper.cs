@@ -69,6 +69,7 @@ namespace AssetManagement.Application.Services
                 entity.CustomStageUserIds = null;
                 entity.RequisitionApprovalStageRoleIds = null;
                 entity.RequisitionApprovalStageUserIds = null;
+                ClearPurchaseOrderRaiser(entity);
                 return;
             }
 
@@ -85,8 +86,19 @@ namespace AssetManagement.Application.Services
                 entity.CustomStageUserIds = null;
                 entity.RequisitionApprovalStageRoleIds = null;
                 entity.RequisitionApprovalStageUserIds = null;
+                // Inherit: the PO raiser follows the inherited flow's source unit (resolver), not this unit.
+                ClearPurchaseOrderRaiser(entity);
                 return;
             }
+
+            // Custom: PO raiser lives with the Custom stages (validated by the controller before save).
+            entity.PurchaseOrderRaiserRoleId = model.PurchaseOrderRaiserRoleId.HasValue && model.PurchaseOrderRaiserRoleId.Value > 0
+                ? model.PurchaseOrderRaiserRoleId
+                : null;
+            entity.PurchaseOrderRaiserUserId = entity.PurchaseOrderRaiserRoleId.HasValue
+                && !string.IsNullOrWhiteSpace(model.PurchaseOrderRaiserUserId)
+                    ? model.PurchaseOrderRaiserUserId.Trim()
+                    : null;
 
             var process = (model.RequisitionApprovalProcesses ?? new List<ApprovalProcessSettingsVm>())
                 .FirstOrDefault(x => x != null
@@ -110,6 +122,12 @@ namespace AssetManagement.Application.Services
             // Keep resolver SoT columns in sync with Room/Class UI columns.
             entity.CustomStageRoleIds = roleIds;
             entity.CustomStageUserIds = userIds;
+        }
+
+        private static void ClearPurchaseOrderRaiser(Department entity)
+        {
+            entity.PurchaseOrderRaiserRoleId = null;
+            entity.PurchaseOrderRaiserUserId = null;
         }
 
         public static void ValidateCustomApproval(DepartmentVm model, Action<string, string> addModelError)

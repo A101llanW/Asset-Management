@@ -5,7 +5,8 @@
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
     var canApprove = Model.CanCurrentUserApprove && Html.HasPermission("Purchases.Approve");
-    var canCreatePo = Model.IsApproved && !Model.HasPurchaseRecord && Html.HasPermission("Purchases.Create");
+    var canCreatePo = Model.IsApproved && !Model.HasPurchaseRecord && Html.HasPermission("Purchases.Create") && Model.CanCurrentUserRaisePurchaseOrder;
+    var poBlockedForMe = Model.IsApproved && !Model.HasPurchaseRecord && !Model.CanCurrentUserRaisePurchaseOrder;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -120,9 +121,17 @@
                 {
                     <p class="mb-2"><strong>Current stage:</strong> Stage @Model.CurrentApprovalStage - @(string.IsNullOrWhiteSpace(Model.CurrentStageRoleName) ? DisplayText.Empty : Model.CurrentStageRoleName)</p>
                 }
+                @if (!string.IsNullOrWhiteSpace(Model.PurchaseOrderRaiserLabel))
+                {
+                    <p class="mb-2" id="po-raiser-info"><strong>Purchase order raised by:</strong> @Model.PurchaseOrderRaiserLabel</p>
+                }
                 @if (canCreatePo)
                 {
-                    <a class="btn btn-primary mb-3" href="@Url.Action("Create", "Purchases", new { purchaseRequestId = Model.Id, returnUrl = Request.RawUrl })">Record purchase order</a>
+                    <a class="btn btn-primary mb-3" id="record-purchase-order-btn" href="@Url.Action("Create", "Purchases", new { purchaseRequestId = Model.Id, returnUrl = Request.RawUrl })">Record purchase order</a>
+                }
+                else if (poBlockedForMe)
+                {
+                    <p class="text-muted mb-3" id="po-raiser-blocked">Ready for purchase order. Only @Model.PurchaseOrderRaiserLabel can record it.</p>
                 }
                 else if (Model.IsApproved && Model.HasPurchaseRecord && Model.LinkedPurchaseRecordId.HasValue)
                 {

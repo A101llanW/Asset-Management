@@ -109,6 +109,10 @@
         if (customPanel) {
             customPanel.classList.toggle("d-none", !useCustom);
         }
+        var inheritPoSummary = document.getElementById("requisition-inherit-po-summary");
+        if (inheritPoSummary) {
+            inheritPoSummary.style.display = useCustom ? "none" : "";
+        }
         if (useCustom) {
             syncMatrixFromCountSelect();
         }

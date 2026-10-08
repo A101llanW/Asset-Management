@@ -22,6 +22,17 @@
     var showCustomPanel = Model.UseCustomRequisitionApproval;
     var inheritOptions = ViewBag.RequisitionInheritOptions as IList<RequisitionInheritOptionVm> ?? new List<RequisitionInheritOptionVm>();
     var inheritSelected = Model.RequisitionInheritFrom.HasValue ? Model.RequisitionInheritFrom.Value.ToString() : string.Empty;
+    var poRoleOptions = ViewBag.RoleOptions as IEnumerable<System.Web.Mvc.SelectListItem> ?? Enumerable.Empty<System.Web.Mvc.SelectListItem>();
+    var poPersonOptions = ViewBag.StagePersonOptions as IDictionary<int, IList<System.Web.Mvc.SelectListItem>>;
+    var poPersonOptionsJson = ViewBag.StagePersonOptionsJson as string ?? "[]";
+    IList<System.Web.Mvc.SelectListItem> poPersonItems = null;
+    if (Model.PurchaseOrderRaiserRoleId.HasValue && poPersonOptions != null)
+    {
+        poPersonOptions.TryGetValue(Model.PurchaseOrderRaiserRoleId.Value, out poPersonItems);
+    }
+    var poSelectedRole = Model.PurchaseOrderRaiserRoleId.HasValue ? Model.PurchaseOrderRaiserRoleId.Value.ToString() : string.Empty;
+    var poSelectedUser = Model.PurchaseOrderRaiserUserId ?? string.Empty;
+    var effectivePoSummary = ViewBag.EffectivePurchaseOrderRaiserSummary as string;
 }
 <div class="card card-kpi mb-3" id="room-requisition-approval-panel" data-am-room-requisition-approval="true">
     <div class="card-header">Requisition approval</div>
@@ -47,6 +58,13 @@
                 <div class="form-text text-warning d-none" id="requisition-inherit-source-stale">Kind or parent changed: the inherit source resets to Nearest parent. Save first, then choose which ancestor to inherit from.</div>
             </div>
         }
+        @if (!string.IsNullOrWhiteSpace(effectivePoSummary))
+        {
+            <div class="ms-4 mb-3 small text-muted" id="requisition-inherit-po-summary" style="@(showCustomPanel ? "display:none;" : null)">
+                <strong>Purchase order raised by (effective):</strong> <span data-am-effective-po>@effectivePoSummary</span>
+                <div>When inheriting, the purchase order raiser comes from the unit the flow is inherited from. Choose Custom to set one for this unit.</div>
+            </div>
+        }
         <div class="form-check mb-3">
             <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-custom" value="custom" @(showCustomPanel ? "checked=\"checked\"" : null) />
             <label class="form-check-label" for="requisition-approval-custom">Custom approval stages (at least one role required)</label>
@@ -69,6 +87,33 @@
                         ViewData.TemplateInfo.HtmlFieldPrefix = "RequisitionApprovalProcesses";
                     }
                     @Html.Partial("_ApprovalProcessMatrix", Model.RequisitionApprovalProcesses)
+                </div>
+            </div>
+            <div class="border-top pt-3 mt-2" id="purchase-order-raiser-panel" data-person-options="@poPersonOptionsJson">
+                <h6 class="mb-1">Purchase order raised by</h6>
+                <div class="form-text mb-2">After final approval, only this role (or the chosen person) can record the purchase order for this unit's requisitions, and only they get the "Ready for purchase order" notification. Leave the role empty to keep today's behaviour (anyone with Purchases permission). Rooms, classes and sub-units that inherit this flow use this setting too.</div>
+                <div class="row g-2 am-person-pair">
+                    <div class="col-sm-6">
+                        <label class="form-label small text-muted mb-0" for="PurchaseOrderRaiserRoleId">Role</label>
+                        <select class="form-select am-person-role" id="PurchaseOrderRaiserRoleId" name="PurchaseOrderRaiserRoleId">
+                            <option value="">-- Not set (anyone with Purchases permission) --</option>
+                            @foreach (var roleOption in poRoleOptions)
+                            {
+                                <option value="@roleOption.Value" @(roleOption.Value == poSelectedRole ? "selected=\"selected\"" : null)>@roleOption.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label small text-muted mb-0" for="PurchaseOrderRaiserUserId">Person</label>
+                        <select class="form-select am-person-select" id="PurchaseOrderRaiserUserId" name="PurchaseOrderRaiserUserId" data-saved-user-id="@poSelectedUser">
+                            <option value="">Any user in role</option>
+                            @foreach (var personItem in poPersonItems ?? new List<System.Web.Mvc.SelectListItem>())
+                            {
+                                <option value="@personItem.Value" @(string.Equals(personItem.Value, poSelectedUser, System.StringComparison.OrdinalIgnoreCase) ? "selected=\"selected\"" : null)>@personItem.Text</option>
+                            }
+                        </select>
+                        <div class="form-text am-person-note d-none"></div>
+                    </div>
                 </div>
             </div>
         </div>

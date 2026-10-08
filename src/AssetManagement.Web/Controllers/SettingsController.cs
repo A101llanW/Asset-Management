@@ -5,6 +5,7 @@ using System.Web.Mvc;
 using AssetManagement.Application;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Helpers;
+using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
@@ -271,6 +272,8 @@ namespace AssetManagement.Web.Controllers
         private void PopulateApprovalMatrixOptions()
         {
             PopulateRoleOptions();
+            // Requisition row: optional per-stage "Approver (person)" (same component as Departments Edit).
+            PopulateStagePersonOptions();
         }
 
         private void PopulateRoleOptions()
@@ -283,6 +286,52 @@ namespace AssetManagement.Web.Controllers
             ApprovalWorkflowSettingsHelper.ValidateApprovalProcessSettings(
                 model?.ApprovalProcesses,
                 (key, message) => ModelState.AddModelError(key, message));
+            ValidateStagePeople(model);
+        }
+
+        /// <summary>
+        /// Org Approval Matrix: the person picker is offered on the Requisition row only. Persons there must be
+        /// active, in this org and hold the stage role (cleared when the role changed); other rows stay role-only.
+        /// </summary>
+        private void ValidateStagePeople(SettingsVm model)
+        {
+            var organizationId = ResolveCurrentOrganizationId();
+            if (model == null || model.ApprovalProcesses == null || !organizationId.HasValue)
+            {
+                return;
+            }
+
+            var settings = ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll());
+            var roleIds = GetOrganizationRoleIdSet(organizationId.Value);
+            Func<string, ApproverUserRecord> findUser = null;
+            foreach (var process in model.ApprovalProcesses.Where(x => x != null && x.Stages != null))
+            {
+                if (!string.Equals(process.ProcessCode, ApprovalProcessCodes.Purchase, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var stage in process.Stages.Where(x => x != null))
+                    {
+                        stage.UserId = null;
+                    }
+
+                    continue;
+                }
+
+                if (findUser == null)
+                {
+                    findUser = BuildOrgApproverUserFinder(organizationId.Value);
+                }
+
+                var storedRoleIds = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(
+                    ApprovalWorkflowSettingsHelper.GetString(settings, ApprovalProcessCodes.GetStageRoleIdsSettingKey(process.ProcessCode)));
+                StageApproverRules.ValidateStages(
+                    process.Stages,
+                    storedRoleIds,
+                    organizationId.Value,
+                    roleIds,
+                    findUser,
+                    (key, message) => ModelState.AddModelError(string.Empty, process.DisplayName + " " + message),
+                    "ApprovalProcesses.Stages");
+            }
         }
 
         private static int GetInt(IDictionary<string, SystemSetting> settings, string key, int fallback)

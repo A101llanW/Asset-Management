@@ -22,6 +22,15 @@
         return "core";
     };
 }
+@helper PurchaseOrderRaiserLine(AssetManagement.Application.ViewModels.DepartmentVm unit)
+{
+    if (unit != null
+        && !string.IsNullOrWhiteSpace(unit.EffectivePurchaseOrderRaiserSummary)
+        && !unit.EffectivePurchaseOrderRaiserSummary.StartsWith("PO: any user", System.StringComparison.OrdinalIgnoreCase))
+    {
+        <div class="small text-muted" data-am-po-raiser>@unit.EffectivePurchaseOrderRaiserSummary</div>
+    }
+}
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Departments",
@@ -115,7 +124,7 @@ else if (viewMode == "tree")
                             {
                                 <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (parent.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                 <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
-                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "" : parent.EffectiveRequisitionFlowSummary)</td>
+                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "" : parent.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(parent)</td>
                             }
                             else
                             {
@@ -145,7 +154,7 @@ else if (viewMode == "tree")
                                 {
                                     <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (child.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                     <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "" : child.EffectiveRequisitionFlowSummary)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "" : child.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(child)</td>
                                 }
                                 else
                                 {
@@ -172,7 +181,7 @@ else if (viewMode == "tree")
                                     {
                                         <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (grandchild.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                         <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
-                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "" : grandchild.EffectiveRequisitionFlowSummary)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "" : grandchild.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(grandchild)</td>
                                     }
                                     else
                                     {
@@ -214,7 +223,7 @@ else
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                             <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "" : item.EffectiveRequisitionFlowSummary)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "" : item.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(item)</td>
                         }
                         else
                         {

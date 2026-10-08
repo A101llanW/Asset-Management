@@ -188,6 +188,14 @@ namespace AssetManagement.Web.Controllers
             if (purchaseRequestId.HasValue)
             {
                 var req = UnitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId.Value);
+                string raiserBlock;
+                if (req != null && !CanCurrentUserRaisePurchaseOrder(req, out raiserBlock))
+                {
+                    // "Purchase order raised by" configured for this requisition's flow and this user is not it.
+                    TempData["Error"] = raiserBlock;
+                    return RedirectToAction("Details", "PurchaseRequests", new { id = req.Id, returnUrl = returnUrl });
+                }
+
                 if (req != null && req.ApprovalStatus == ApprovalStatus.Approved)
                 {
                     model.Currency = req.Currency ?? model.Currency;
@@ -231,7 +239,8 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
-                var purchaseId = _purchaseService.Create(model);
+                // Server-side PO-raiser enforcement lives in the service (covers every create path).
+                var purchaseId = _purchaseService.Create(model, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
                 TempData["Message"] = "Purchase record created.";
                 TempData["Guidance"] = "Next step: review the purchase details and verify the supplier, invoice, and cost values.";
                 return RedirectToAction("Details", new { id = purchaseId, returnUrl = ViewBag.ReturnUrl });
@@ -241,6 +250,21 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("", ex.Message);
                 return View(model);
             }
+        }
+
+        private bool CanCurrentUserRaisePurchaseOrder(PurchaseRequest request, out string message)
+        {
+            message = null;
+            var config = Application.Services.PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, request);
+            if (Application.Services.PurchaseOrderRaiserRules.CanRaise(config, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin()))
+            {
+                return true;
+            }
+
+            var label = Application.Services.PurchaseOrderRaiserRules.Describe(UnitOfWork, BuildUserService(), config);
+            message = "Only " + (string.IsNullOrWhiteSpace(label) ? "the configured purchase order raiser" : label)
+                + " can raise the purchase order for this requisition.";
+            return false;
         }
 
         private void PopulateLookups(PurchaseRecordVm model)

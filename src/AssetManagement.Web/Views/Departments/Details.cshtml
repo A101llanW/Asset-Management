@@ -110,6 +110,39 @@
     </div>
 </div>
 
+@if (AssetManagement.Application.Helpers.DepartmentHierarchyRules.ShowsRequisitionFlowColumns(Model.DepartmentKind))
+{
+    var flowApprovalSummary = ViewBag.RequisitionFlowApprovalSummary as string;
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="card card-kpi" id="department-requisition-flow-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Requisition flow</span>
+                    @if (canEditDepartment)
+                    {
+                        <a class="btn btn-sm btn-outline-primary" id="edit-requisition-flow-link" href="@(Url.Action("Edit", new { id = Model.Id, returnUrl = Request.RawUrl }) + "#room-requisition-approval-panel")">Edit requisition flow</a>
+                    }
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Mode</dt>
+                        <dd class="col-sm-9">@(Model.RequisitionFlowMode == AssetManagement.Domain.Enums.RequisitionFlowMode.Custom ? "Custom" : Model.RequisitionFlowMode == AssetManagement.Domain.Enums.RequisitionFlowMode.AutoApprove ? "Auto-approve" : "Inherit")</dd>
+                        <dt class="col-sm-3">Effective flow</dt>
+                        <dd class="col-sm-9" data-am-flow-summary>@(string.IsNullOrWhiteSpace(Model.EffectiveRequisitionFlowSummary) ? "-" : Model.EffectiveRequisitionFlowSummary)</dd>
+                        @if (!string.IsNullOrWhiteSpace(flowApprovalSummary))
+                        {
+                            <dt class="col-sm-3">Approval stages</dt>
+                            <dd class="col-sm-9" data-am-flow-stages>@flowApprovalSummary</dd>
+                        }
+                        <dt class="col-sm-3">Purchase order raised by</dt>
+                        <dd class="col-sm-9" data-am-flow-po>@(string.IsNullOrWhiteSpace(Model.EffectivePurchaseOrderRaiserSummary) ? "-" : Model.EffectivePurchaseOrderRaiserSummary)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @if (isTopLevelAdmin)
 {
     <div class="row g-3 mt-1">

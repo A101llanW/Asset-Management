@@ -315,7 +315,12 @@ namespace AssetManagement.Application.Services
             entity.ApprovalStatus = ApprovalStatus.Pending;
             entity.CurrentApprovalStage = 1;
             entity.ApprovalStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(approvalConfig.StageRoleIds.Select(x => (int?)x));
-            entity.ApprovalStageUserIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(approvalConfig.StageUserIds);
+            // Snapshot: a configured person is kept only while active and still in the stage role (else any role holder).
+            var snapshotUserIds = StageApproverRules.SanitizeForSnapshot(
+                approvalConfig.StageRoleIds,
+                approvalConfig.StageUserIds,
+                FindApproverUser);
+            entity.ApprovalStageUserIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(snapshotUserIds);
             entity.ApprovedAt = null;
             entity.ApprovedById = null;
             _unitOfWork.Repository<PurchaseRequest>().Add(entity);
@@ -340,7 +345,7 @@ namespace AssetManagement.Application.Services
                 _organizationScope,
                 _userService,
                 approvalConfig.StageRoleIds.FirstOrDefault(),
-                ApprovalWorkflowHelper.GetStageUserId(approvalConfig.StageUserIds, 1),
+                ApprovalWorkflowHelper.GetStageUserId(snapshotUserIds, 1),
                 "Purchase approval required",
                 "Purchase request " + entity.RequestNumber + " is awaiting Stage 1 approval.",
                 "/PurchaseRequests/Details/" + entity.Id);
@@ -399,6 +404,7 @@ namespace AssetManagement.Application.Services
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Purchase);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
             var isFinalStage = stageNumber >= stageRoleIds.Count;
+            var poRaiserConfig = isFinalStage ? PurchaseOrderRaiserRules.ResolveForRequest(_unitOfWork, request) : null;
 
             _approvalEngine.ExecuteStageDecision(new ApprovalStageDecisionRequest
             {
@@ -429,7 +435,11 @@ namespace AssetManagement.Application.Services
                 },
                 WriteNotifications = uow =>
                 {
-                    if (isFinalStage)
+                    if (isFinalStage && PurchaseOrderRaiserRules.IsConfigured(poRaiserConfig))
+                    {
+                        WriteReadyForPurchaseOrderNotifications(uow, request, poRaiserConfig);
+                    }
+                    else if (isFinalStage)
                     {
                         NotificationHelper.AddNotification(
                             uow,
@@ -597,8 +607,11 @@ namespace AssetManagement.Application.Services
         private IList<string> ResolveStageUserIds(PurchaseRequest request, bool persistBackfill)
         {
             var stageUserIds = ApprovalWorkflowSettingsHelper.ParseStageUserIds(request.ApprovalStageUserIds);
-            if (stageUserIds.Count > 0)
+            if (stageUserIds.Count > 0 || !string.IsNullOrWhiteSpace(request.ApprovalStageRoleIds))
             {
+                // A submitted requisition keeps the approval path it was submitted with: when the stage roles were
+                // snapshotted, the person snapshot (possibly empty = any role holder) is authoritative. Only legacy
+                // rows with no stage snapshot at all fall back to the live department configuration below.
                 return stageUserIds;
             }
 
@@ -618,6 +631,64 @@ namespace AssetManagement.Application.Services
             }
 
             return config.StageUserIds ?? new List<string>();
+        }
+
+        private ApproverUserRecord FindApproverUser(string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || _userService == null)
+            {
+                return null;
+            }
+
+            return PurchaseOrderRaiserRules.ToRecord(_userService.GetById(userId.Trim()), _organizationScope.GetCurrentOrganizationId());
+        }
+
+        /// <summary>
+        /// Final approval with a configured PO raiser: only the configured person (or active holders of the
+        /// configured role) get "ready for purchase order"; the requester is told who will raise it.
+        /// </summary>
+        private void WriteReadyForPurchaseOrderNotifications(IUnitOfWork uow, PurchaseRequest request, ApprovalProcessConfiguration poRaiserConfig)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var orgUsers = string.IsNullOrWhiteSpace(poRaiserConfig.PurchaseOrderRaiserUserId) && _userService != null
+                ? _userService.GetAll().Select(x => PurchaseOrderRaiserRules.ToRecord(x, organizationId)).Where(x => x != null).ToList()
+                : new List<ApproverUserRecord>();
+            var raiserIds = PurchaseOrderRaiserRules.ResolveNotifyUserIds(poRaiserConfig, orgUsers);
+            var requesterId = string.IsNullOrWhiteSpace(request.RequestedById) ? null : request.RequestedById.Trim();
+            var requesterIsRaiser = requesterId != null
+                && raiserIds.Any(x => string.Equals(x, requesterId, StringComparison.OrdinalIgnoreCase));
+            var raiserLabel = PurchaseOrderRaiserRules.Describe(_unitOfWork, _userService, poRaiserConfig);
+            var link = "/PurchaseRequests/Details/" + request.Id;
+
+            NotificationHelper.AddNotification(
+                uow,
+                _outboxWriter,
+                _organizationScope,
+                request.RequestedById,
+                NotificationType.General,
+                "Purchase request approved",
+                requesterIsRaiser
+                    ? "Purchase request " + request.RequestNumber + " has been fully approved. You can record the purchase order when ready."
+                    : "Purchase request " + request.RequestNumber + " has been fully approved. The purchase order will be raised by " + raiserLabel + ".",
+                link);
+
+            foreach (var raiserId in raiserIds)
+            {
+                if (requesterIsRaiser && string.Equals(raiserId, requesterId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                NotificationHelper.AddNotification(
+                    uow,
+                    _outboxWriter,
+                    _organizationScope,
+                    raiserId,
+                    NotificationType.General,
+                    "Ready for purchase order",
+                    "Purchase request " + request.RequestNumber + " is fully approved and ready for a purchase order. You are configured to raise it (" + raiserLabel + ").",
+                    link);
+            }
         }
 
         private string ResolveApproverDisplayName(string userId)

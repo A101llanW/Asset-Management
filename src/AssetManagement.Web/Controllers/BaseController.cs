@@ -779,6 +779,44 @@ namespace AssetManagement.Web.Controllers
                 userLookup);
         }
 
+        /// <summary>
+        /// Live, org-scoped (tenant-filtered) active users per role for the optional requisition stage
+        /// "Approver (person)" and "Purchase order raised by" person pickers.
+        /// </summary>
+        protected void PopulateStagePersonOptions()
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (!orgId.HasValue)
+            {
+                ViewBag.StagePersonOptions = null;
+                ViewBag.StagePersonOptionsJson = null;
+                return;
+            }
+
+            var options = ApproverPickerHelper.BuildStagePersonOptions(GetRolesForOrganization(orgId), BuildUserService().GetAll());
+            ViewBag.StagePersonOptions = options;
+            ViewBag.StagePersonOptionsJson = ApproverPickerHelper.SerializeStagePersonOptions(options);
+        }
+
+        /// <summary>Server-side lookup over the current org's users only (posted ids from other orgs resolve to null).</summary>
+        protected Func<string, ApproverUserRecord> BuildOrgApproverUserFinder(int organizationId)
+        {
+            var users = BuildUserService().GetAll()
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Id))
+                .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => PurchaseOrderRaiserRules.ToRecord(g.First(), organizationId), StringComparer.OrdinalIgnoreCase);
+            return id =>
+            {
+                ApproverUserRecord record;
+                return !string.IsNullOrWhiteSpace(id) && users.TryGetValue(id.Trim(), out record) ? record : null;
+            };
+        }
+
+        protected ISet<int> GetOrganizationRoleIdSet(int organizationId)
+        {
+            return new HashSet<int>(GetRolesForOrganization(organizationId).Where(x => x != null && x.Id > 0).Select(x => x.Id));
+        }
+
         protected void PopulateAssetApproverPickerOptions(int? organizationId = null)
         {
             ViewBag.UseApproverUserPicker = true;

@@ -96,6 +96,24 @@ namespace AssetManagement.Application.ViewModels
 
         public IList<string> StageUserIds { get; set; } = new List<string>();
 
+        /// <summary>
+        /// Requisition only: role that raises the purchase order after final approval, taken from the unit the
+        /// flow is effectively resolved from (Custom unit). Null = not configured (legacy: any Purchases user).
+        /// </summary>
+        public int? PurchaseOrderRaiserRoleId { get; set; }
+
+        /// <summary>Optional person within <see cref="PurchaseOrderRaiserRoleId"/>; null = any active user in that role.</summary>
+        public string PurchaseOrderRaiserUserId { get; set; }
+
+        public int? PurchaseOrderRaiserSourceDepartmentId { get; set; }
+
+        public string PurchaseOrderRaiserSourceDepartmentName { get; set; }
+
+        public bool HasPurchaseOrderRaiser
+        {
+            get { return PurchaseOrderRaiserRoleId.HasValue && PurchaseOrderRaiserRoleId.Value > 0; }
+        }
+
         public bool UsesApproval
         {
             get { return RequiresApproval && StageRoleIds != null && StageRoleIds.Count > 0; }
@@ -297,20 +315,45 @@ namespace AssetManagement.Application.ViewModels
                 .Select(x => x.Value.ToString()));
         }
 
+        /// <summary>
+        /// Positional parse: slot i is stage i+1's optional approver person (null = any user in the stage role).
+        /// Empty slots are kept so ",u2" means "Stage 1 any, Stage 2 = u2". Trailing empty slots are trimmed,
+        /// so a blank / all-empty value returns an empty list (no person on any stage, i.e. role-based).
+        /// </summary>
         public static IList<string> ParseStageUserIds(string value)
         {
-            return (value ?? string.Empty)
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return new List<string>();
+            }
+
+            var items = value
                 .Split(',')
                 .Select(x => string.IsNullOrWhiteSpace(x) ? null : x.Trim())
-                .Where(x => !string.IsNullOrWhiteSpace(x))
                 .ToList();
+            TrimTrailingEmpty(items);
+            return items;
         }
 
+        /// <summary>
+        /// Positional serialize (inverse of <see cref="ParseStageUserIds"/>): keeps empty slots between stages,
+        /// trims trailing empty slots; returns "" when no stage has a person.
+        /// </summary>
         public static string SerializeStageUserIds(IEnumerable<string> userIds)
         {
-            return string.Join(",", (userIds ?? Enumerable.Empty<string>())
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.Trim()));
+            var items = (userIds ?? Enumerable.Empty<string>())
+                .Select(x => string.IsNullOrWhiteSpace(x) ? null : x.Trim())
+                .ToList();
+            TrimTrailingEmpty(items);
+            return string.Join(",", items.Select(x => x ?? string.Empty));
+        }
+
+        private static void TrimTrailingEmpty(IList<string> items)
+        {
+            while (items.Count > 0 && string.IsNullOrWhiteSpace(items[items.Count - 1]))
+            {
+                items.RemoveAt(items.Count - 1);
+            }
         }
 
         public static string BuildStageSummary(IEnumerable<int?> roleIds, IDictionary<int, string> roleLookup)

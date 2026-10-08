@@ -788,7 +788,9 @@ namespace AssetManagement.Application.Services
                 UseCustomRequisitionApproval = entity.UseCustomRequisitionApproval
                     || mode == RequisitionFlowMode.Custom,
                 ClassTeacherUserId = entity.ClassTeacherUserId,
-                RoomCustodianUserId = entity.RoomCustodianUserId
+                RoomCustodianUserId = entity.RoomCustodianUserId,
+                PurchaseOrderRaiserRoleId = entity.PurchaseOrderRaiserRoleId,
+                PurchaseOrderRaiserUserId = entity.PurchaseOrderRaiserUserId
             };
         }
 
@@ -815,15 +817,75 @@ namespace AssetManagement.Application.Services
                 .GroupBy(x => x.Id)
                 .ToDictionary(g => g.Key, g => g.First().Name);
 
+            var personLabels = BuildPurchaseOrderRaiserPersonLabels(walkById.Values);
             var result = new List<DepartmentVm>(list.Count);
             foreach (var entity in list)
             {
                 var model = MapDepartment(entity);
                 ApplyEffectiveFlowFields(model, entity, getById, orgDefault, roleLookup);
+                ApplyEffectivePurchaseOrderRaiser(model, entity, getById, orgDefault, roleLookup, personLabels);
                 result.Add(model);
             }
 
             return result;
+        }
+
+        /// <summary>Org-scoped labels for the (few) PO-raiser persons referenced by departments; one query, only when any is set.</summary>
+        private IDictionary<string, string> BuildPurchaseOrderRaiserPersonLabels(IEnumerable<Department> departments)
+        {
+            var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var ids = (departments ?? Enumerable.Empty<Department>())
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.PurchaseOrderRaiserUserId))
+                .Select(x => x.PurchaseOrderRaiserUserId.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (ids.Count == 0 || !organizationId.HasValue || _referenceDataCache == null)
+            {
+                return labels;
+            }
+
+            foreach (var user in _referenceDataCache.GetUsersByIds(organizationId.Value, ids) ?? new List<UserVm>())
+            {
+                if (user != null && !string.IsNullOrWhiteSpace(user.Id) && !labels.ContainsKey(user.Id))
+                {
+                    labels[user.Id] = StageApproverRules.BuildPersonLabel(user.Email, user.FirstName, user.LastName, user.Id);
+                }
+            }
+
+            return labels;
+        }
+
+        private static void ApplyEffectivePurchaseOrderRaiser(
+            DepartmentVm model,
+            Department entity,
+            Func<int, Department> getById,
+            ApprovalProcessConfiguration orgDefault,
+            IDictionary<int, string> roleLookup,
+            IDictionary<string, string> personLabels)
+        {
+            if (model == null || entity == null || !DepartmentHierarchyRules.ShowsRequisitionFlowColumns(entity.DepartmentKind))
+            {
+                return;
+            }
+
+            var config = DepartmentRequisitionFlowResolver.Resolve(entity, getById, orgDefault);
+            if (!PurchaseOrderRaiserRules.IsConfigured(config))
+            {
+                model.EffectivePurchaseOrderRaiserSummary = "PO: any user with Purchases permission";
+                return;
+            }
+
+            var label = PurchaseOrderRaiserRules.BuildLabel(config, roleLookup, id =>
+            {
+                string found;
+                return personLabels != null && personLabels.TryGetValue(id, out found) ? found : null;
+            });
+            var inherited = config.PurchaseOrderRaiserSourceDepartmentId.HasValue
+                && config.PurchaseOrderRaiserSourceDepartmentId.Value != entity.Id;
+            model.EffectivePurchaseOrderRaiserSummary = inherited
+                ? "PO: " + label + " (inherited from " + config.PurchaseOrderRaiserSourceDepartmentName + ")"
+                : "PO: " + label;
         }
 
         private static void ApplyEffectiveFlowFields(

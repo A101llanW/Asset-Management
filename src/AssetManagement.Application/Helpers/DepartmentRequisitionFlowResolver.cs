@@ -272,7 +272,11 @@ namespace AssetManagement.Application.Helpers
                             DisplayName = ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
                             RequiresApproval = false,
                             StageRoleIds = new List<int>(),
-                            StageUserIds = new List<string>()
+                            StageUserIds = new List<string>(),
+                            PurchaseOrderRaiserRoleId = NormalizeRaiserRoleId(current.PurchaseOrderRaiserRoleId),
+                            PurchaseOrderRaiserUserId = NormalizeRaiserUserId(current),
+                            PurchaseOrderRaiserSourceDepartmentId = current.Id,
+                            PurchaseOrderRaiserSourceDepartmentName = current.Name
                         }
                     };
                 }
@@ -305,7 +309,12 @@ namespace AssetManagement.Application.Helpers
                             DisplayName = ApprovalProcessCodes.GetDisplayName(ApprovalProcessCodes.Purchase),
                             RequiresApproval = roles.Count > 0,
                             StageRoleIds = roles,
-                            StageUserIds = users
+                            StageUserIds = users,
+                            // PO raiser comes from the same unit that supplies the flow (Custom unit).
+                            PurchaseOrderRaiserRoleId = NormalizeRaiserRoleId(current.PurchaseOrderRaiserRoleId),
+                            PurchaseOrderRaiserUserId = NormalizeRaiserUserId(current),
+                            PurchaseOrderRaiserSourceDepartmentId = current.Id,
+                            PurchaseOrderRaiserSourceDepartmentName = current.Name
                         }
                     };
                 }
@@ -345,12 +354,29 @@ namespace AssetManagement.Application.Helpers
 
             return new ResolveResult
             {
+                // Org matrix carries no PO raiser: unconfigured = legacy behaviour.
                 SourceKind = "OrganizationMatrix",
                 AppliedInheritChoice = appliedChoice,
                 ChosenAncestorId = chosenAncestor == null ? (int?)null : chosenAncestor.Id,
                 ChosenAncestorName = chosenAncestor == null ? null : chosenAncestor.Name,
                 Configuration = orgDefault
             };
+        }
+
+        private static int? NormalizeRaiserRoleId(int? roleId)
+        {
+            return roleId.HasValue && roleId.Value > 0 ? roleId : null;
+        }
+
+        private static string NormalizeRaiserUserId(Department source)
+        {
+            if (source == null || NormalizeRaiserRoleId(source.PurchaseOrderRaiserRoleId) == null
+                || string.IsNullOrWhiteSpace(source.PurchaseOrderRaiserUserId))
+            {
+                return null;
+            }
+
+            return source.PurchaseOrderRaiserUserId.Trim();
         }
     }
 }
