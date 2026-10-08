@@ -140,23 +140,36 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
             var codes = UnitOfWork.Repository<Permission>().GetAll()
                 .ToDictionary(p => p.Id, p => p.Code);
-            var held = new System.Collections.Generic.Dictionary<string, bool>(System.StringComparer.OrdinalIgnoreCase);
-            System.Func<string, bool> has = code =>
+            // The inviter's own role permissions (by id) plus anything the authorization service grants them.
+            var inviter = string.IsNullOrWhiteSpace(userId) ? null : BuildUserService().GetById(userId);
+            var ownPermissionIds = new System.Collections.Generic.HashSet<int>();
+            if (inviter != null && inviter.RoleId.HasValue)
+            {
+                var ownRoleId = inviter.RoleId.Value;
+                foreach (var rp in UnitOfWork.Repository<RolePermission>().GetAll().Where(x => x.RoleId == ownRoleId))
+                {
+                    ownPermissionIds.Add(rp.PermissionId);
+                }
+            }
+
+            var held = new System.Collections.Generic.Dictionary<int, bool>();
+            System.Func<int, bool> has = permissionId =>
             {
                 bool value;
-                if (!held.TryGetValue(code, out value))
+                if (!held.TryGetValue(permissionId, out value))
                 {
-                    value = !string.IsNullOrWhiteSpace(userId) && auth != null && auth.HasPermission(userId, code);
-                    held[code] = value;
+                    string code;
+                    value = ownPermissionIds.Contains(permissionId)
+                        || (codes.TryGetValue(permissionId, out code) && !string.IsNullOrWhiteSpace(code)
+                            && !string.IsNullOrWhiteSpace(userId) && auth != null && auth.HasPermission(userId, code));
+                    held[permissionId] = value;
                 }
 
                 return value;
             };
 
             return roles
-                .Where(r => rolePermissions
-                    .Where(rp => rp.RoleId == r.Id)
-                    .All(rp => !codes.ContainsKey(rp.PermissionId) || string.IsNullOrWhiteSpace(codes[rp.PermissionId]) || has(codes[rp.PermissionId])))
+                .Where(r => rolePermissions.Where(rp => rp.RoleId == r.Id).All(rp => has(rp.PermissionId)))
                 .ToList();
         }
 
