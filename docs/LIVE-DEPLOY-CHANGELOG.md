@@ -1,4 +1,4 @@
-﻿# LIVE DEPLOY CHANGELOG
+# LIVE DEPLOY CHANGELOG
 
 ## Standing rule
 
@@ -9,6 +9,22 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-09 00:31 - Asset movement rules: classes are immovable; assets move room<->room, room<->sub-department, class->room only (`107fd27`, `a5292c1`) - BUILT, NOT YET PUBLISHED
+
+- **Date/time EAT:** 2026-10-09 00:26 / 00:31 (commits). Ships in the rel1009 package (rebuilt; see `artifacts\rel1009-pkg-path.txt`). Not published (needs one UAC prompt).
+- **What and why:** Allan (D), priority. A class acts as a room. It cannot be moved or re-parented; only the assets in it can be moved to a room (single or "Move group to room"). Allowed asset moves: room->room, room->sub-department, sub-department->room, class->room. Every other move is refused server-side with "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, or from a class to a room." and hidden in the UI.
+  - Before: Move to room was offered from any source (Administrative, Grade, sub-department, class, custody); Move to class (single and group) went into any class; bulk "Move to department" took any kind except Grade; the asset Edit department change was unrestricted; a class could be re-parented to another grade (Edit, or child moves during a kind change). Create under a room was already refused (class parent must be a grade).
+  - Now: `AssetMoveRules` (Application/Helpers) is enforced in RelocateToRoom / RelocateGroupToRoom, RelocateToClass / RelocateGroupToClass (always refused), asset Edit department change (also refuses department -> none) and bulk "Move to department" (refused assets are skipped with the message). `DepartmentService.Update` refuses a class re-parent, including ChildMoves. UI: Move to room / Move group to room only on assets in a room, sub-department or class (or with no department); Move to class hidden; bulk target list = rooms + sub-departments; Departments Edit for a class lists only its stored grade.
+  - Not changed (flag for Allan): Transfer approval and Assignment flows still set the asset department as a side effect (TransferService ~L420, AssignmentService ~L248). Placing an asset that has no department is treated as not a move and stays allowed.
+- **Commit hash:** `107fd27`, `a5292c1`
+- **Files changed:** `src/AssetManagement.Application/Helpers/AssetMoveRules.cs` (new; SDK project, auto-included), `Services/Assets/AssetService.cs`, `Services/Assets/AssetBulkService.cs`, `Services/DepartmentService.cs`, `src/AssetManagement.Web/Controllers/AssetsController.cs`, `Views/Assets/Index.cshtml`, `Views/Departments/Edit.cshtml`.
+- **DB migration/script:** None. Movements still write AssetMovement rows (093). **Config/Web.config keys:** None.
+- **IIS/server steps (local):** ships with `artifacts\rel1009-launch-elevated.ps1` (not yet run).
+- **Live-deploy steps:** ships with the web publish. Needs 093 on live for AssetMovement rows.
+- **Verify (IIS Express :8092, Test-WF A461 only, wambua9912, 00:27-00:30 EAT):** UI: Administrative list has 0 Move to room buttons, room and class lists show them, no Move to class anywhere. Allowed: room->room 23001 Art room->Music Room (AssetMovement 48), sub->room 24989 Dining->Art room (49), class->room group "Audio mixer" Grade 6A->Art room, 1 moved (50, batch), room->sub bulk 23102 Art room->Dining (51, type BulkDepartment). Refused with the friendly message: bulk room->Administrative (skipped), Administrative->room, room->class. Class re-parent Grade 6A to Grade 2 (injected option) -> "A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead."; the Edit page lists only Grade 6; an unchanged save still works. COPY_ONLY backup first: `AssetMgmt_pre_moverules_20261009_002709.bak`. Assets 23001/23102/24989/25554 and Department 1482 UpdatedAt restored by SQL; AssetMovement rows 48-51 kept as an audit trail. Output: `artifacts\moverules-2026-10-09\`.
+- **Rollback:** `git revert a5292c1 107fd27`; after publish restore the `pre_rel1009` IIS backup.
+
+---
 ## 2026-10-09 00:21 - /Sys/Database (DataConsole) audits every page view and refused attempt (`2525ac9`) - BUILT, NOT YET PUBLISHED
 
 - **Date/time EAT:** 2026-10-09 00:19:57 (commit). In package `web-publish-oct8-merge-20261009_001958` (rel1009). Not published (needs one UAC prompt).
