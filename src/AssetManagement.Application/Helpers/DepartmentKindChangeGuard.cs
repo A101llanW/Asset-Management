@@ -125,7 +125,7 @@ namespace AssetManagement.Application.Helpers
             var original = Simulate(list, int.MinValue, newKind, null, null);
             var final = Simulate(list, unitId, newKind, newParentId, moves);
             var toCheck = new HashSet<int> { unitId };
-            foreach (var id in CollectDescendantIds(unitId, final))
+            foreach (var id in DepartmentSubtreeHelper.GetSelfAndDescendantIds(unitId, final.Values))
             {
                 toCheck.Add(id);
             }
@@ -133,7 +133,7 @@ namespace AssetManagement.Application.Helpers
             foreach (var movedId in moves.Keys)
             {
                 toCheck.Add(movedId);
-                foreach (var id in CollectDescendantIds(movedId, final))
+                foreach (var id in DepartmentSubtreeHelper.GetSelfAndDescendantIds(movedId, final.Values))
                 {
                     toCheck.Add(id);
                 }
@@ -209,7 +209,7 @@ namespace AssetManagement.Application.Helpers
 
         private static IList<Department> GetCandidateParents(Department child, IDictionary<int, Department> simulated)
         {
-            var excluded = new HashSet<int>(CollectDescendantIds(child.Id, simulated)) { child.Id };
+            var excluded = DepartmentSubtreeHelper.GetSelfAndDescendantIds(child.Id, simulated.Values);
             return simulated.Values
                 .Where(x => x.IsActive && !excluded.Contains(x.Id))
                 .Where(x => Validate(child.Id, child.DepartmentKind, x.Id, simulated) == null)
@@ -271,38 +271,6 @@ namespace AssetManagement.Application.Helpers
             }
 
             return false;
-        }
-
-        private static IList<int> CollectDescendantIds(int rootId, IDictionary<int, Department> state)
-        {
-            var byParent = state.Values
-                .Where(x => x.ParentDepartmentId.HasValue)
-                .GroupBy(x => x.ParentDepartmentId.Value)
-                .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
-            var result = new List<int>();
-            var seen = new HashSet<int> { rootId };
-            var queue = new Queue<int>();
-            queue.Enqueue(rootId);
-            while (queue.Count > 0)
-            {
-                var current = queue.Dequeue();
-                List<int> children;
-                if (!byParent.TryGetValue(current, out children))
-                {
-                    continue;
-                }
-
-                foreach (var childId in children)
-                {
-                    if (seen.Add(childId))
-                    {
-                        result.Add(childId);
-                        queue.Enqueue(childId);
-                    }
-                }
-            }
-
-            return result;
         }
 
         private static IList<Department> Deduplicate(IEnumerable<Department> departments)

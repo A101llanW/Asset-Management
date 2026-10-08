@@ -136,9 +136,12 @@ namespace AssetManagement.Application.Helpers
             var byId = (allDepartments ?? Enumerable.Empty<Department>())
                 .GroupBy(x => x.Id)
                 .ToDictionary(g => g.Key, g => g.First());
-            if (parentDepartmentId.HasValue && parentDepartmentId.Value == departmentId)
+            if (DepartmentSubtreeHelper.IsSelfOrDescendantParent(departmentId, parentDepartmentId, byId.Values))
             {
-                throw new BusinessException("A department cannot be its own parent.");
+                throw new BusinessException(
+                    parentDepartmentId.HasValue && parentDepartmentId.Value == departmentId
+                        ? "A department cannot be its own parent."
+                        : "A department cannot be parented by one of its own descendants.");
             }
 
             switch (kind)

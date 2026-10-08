@@ -615,11 +615,12 @@ namespace AssetManagement.Web.Controllers
 
             // Always populate parent pickers so Kind changes (e.g. Grade->Room) can show Parent in the UI.
             ViewBag.RoomParentCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(model, scopedDepartments);
-            ViewBag.RoomOtherParentGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
+            ViewBag.RoomOtherParentGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments, model.Id);
             ViewBag.RoomParentOtherValue = DepartmentLabelHelper.RoomParentOtherOptionValue;
             ViewBag.SubDepartmentParentSelectList = BuildTopLevelAdminParentSelectList(
                 scopedDepartments,
-                model.ParentDepartmentId);
+                model.ParentDepartmentId,
+                model.Id);
             ViewBag.ClassGradeParentSelectList = BuildGradeParentSelectList(
                 scopedDepartments,
                 model,
@@ -699,13 +700,18 @@ namespace AssetManagement.Web.Controllers
         }
         private static SelectList BuildTopLevelAdminParentSelectList(
             IList<DepartmentVm> scopedDepartments,
-            int? selectedParentDepartmentId)
+            int? selectedParentDepartmentId,
+            int? excludeSubtreeRootId = null)
         {
-            var parents = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
+            var excluded = excludeSubtreeRootId.HasValue && excludeSubtreeRootId.Value > 0
+                ? DepartmentSubtreeHelper.GetSelfAndDescendantIds(excludeSubtreeRootId.Value, scopedDepartments)
+                : new HashSet<int>();
+            var parents = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments, excludeSubtreeRootId)
                 .GroupBy(x => x.Id)
                 .Select(g => g.First())
                 .ToList();
             if (selectedParentDepartmentId.HasValue
+                && !excluded.Contains(selectedParentDepartmentId.Value)
                 && !parents.Any(x => x.Id == selectedParentDepartmentId.Value))
             {
                 var current = (scopedDepartments ?? Enumerable.Empty<DepartmentVm>())
