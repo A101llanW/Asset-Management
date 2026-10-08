@@ -295,6 +295,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             ViewBag.ReturnUrl = BuildUnitReturnUrl(model.Id, returnUrl);
+            IgnoreCodeErrorsWhenCodeUnchanged(model);
             var flowConfigurable = DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind);
             if (flowConfigurable)
             {
@@ -329,6 +330,30 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("", ex.Message);
                 ApplyEditViewBag(model);
                 return View(model);
+            }
+        }
+
+        /// <summary>
+        /// QA3-2(c): some generated room codes are 21 characters (older BuildRoomCode). The Code field's
+        /// [StringLength(20)] then blocks every save of that unit even when the user did not touch the code.
+        /// An unchanged code was already accepted when it was stored, so drop its validation errors.
+        /// </summary>
+        private void IgnoreCodeErrorsWhenCodeUnchanged(DepartmentVm model)
+        {
+            ModelState codeState;
+            if (model == null
+                || string.IsNullOrWhiteSpace(model.Code)
+                || !ModelState.TryGetValue(nameof(DepartmentVm.Code), out codeState)
+                || codeState.Errors.Count == 0)
+            {
+                return;
+            }
+
+            var stored = UnitOfWork.Repository<Department>().GetById(model.Id);
+            if (stored != null
+                && string.Equals((stored.Code ?? string.Empty).Trim(), model.Code.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                codeState.Errors.Clear();
             }
         }
 

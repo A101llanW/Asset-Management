@@ -9,6 +9,12 @@ namespace AssetManagement.Application.Helpers
         private const int MaxAdminCodeLength = 8;
         private const int MaxSubCodeLength = 10;
 
+        /// <summary>
+        /// Department codes are validated at 20 characters by DepartmentVm/DepartmentCreateVm (the column is 40).
+        /// Generated codes must fit, otherwise the unit can never be saved from Edit (QA3-2).
+        /// </summary>
+        public const int MaxDepartmentCodeLength = 20;
+
         private static readonly Dictionary<string, string> KnownAdminCodes =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -129,14 +135,49 @@ namespace AssetManagement.Application.Helpers
 
         public static string BuildRoomCode(string parentCode, string roomName)
         {
-            var parentToken = NormalizeToken(parentCode, MaxSubCodeLength);
             var roomToken = NormalizeToken(roomName, MaxSubCodeLength);
             if (string.IsNullOrWhiteSpace(roomToken))
             {
                 throw new ArgumentException("Room name is required.", "roomName");
             }
 
+            // Keep the whole room token; shorten the parent stem so PARENT-ROOM fits MaxDepartmentCodeLength.
+            var parentMax = Math.Min(MaxSubCodeLength, MaxDepartmentCodeLength - 1 - roomToken.Length);
+            var parentToken = NormalizeToken(parentCode, parentMax);
             return parentToken + "-" + roomToken;
+        }
+
+        /// <summary>
+        /// Returns <paramref name="baseCode"/> when it is free, otherwise baseCode with a numeric suffix (2, 3, ...)
+        /// whose stem is trimmed so the result stays within <paramref name="maxLength"/>.
+        /// </summary>
+        public static string MakeUniqueCode(string baseCode, Func<string, bool> isTaken, int maxLength = MaxDepartmentCodeLength)
+        {
+            if (string.IsNullOrWhiteSpace(baseCode))
+            {
+                throw new ArgumentException("Code is required.", "baseCode");
+            }
+
+            var code = baseCode.Length <= maxLength ? baseCode : baseCode.Substring(0, maxLength);
+            if (isTaken == null || !isTaken(code))
+            {
+                return code;
+            }
+
+            for (var n = 2; n < 10000; n++)
+            {
+                var suffix = n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var stem = baseCode.Length + suffix.Length <= maxLength
+                    ? baseCode
+                    : baseCode.Substring(0, maxLength - suffix.Length);
+                var candidate = stem.TrimEnd('-') + suffix;
+                if (!isTaken(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            throw new InvalidOperationException("Could not generate a unique code for '" + baseCode + "'.");
         }
 
         public static bool ShouldResolveAsSubDepartment(string departmentName, string classOrSubUnitValue)
