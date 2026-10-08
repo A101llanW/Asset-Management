@@ -1,4 +1,4 @@
-﻿namespace AssetManagement.Tests.Organizations
+namespace AssetManagement.Tests.Organizations
 {
     /// <summary>
     /// Checked-in snapshot of every foreign key in AssetManagementModuleDb (taken 2026-10-08 from a
@@ -37,6 +37,10 @@
             new ForeignKeyEdge("FK_AssetAssignment_Organization", "AssetAssignment", "OrganizationId", "Organization", "NO_ACTION"),
             new ForeignKeyEdge("FK_AssetAssignment_Department", "AssetAssignment", "ToDepartmentId", "Department", "NO_ACTION"),
             new ForeignKeyEdge("FK_AssetCategory_Organization", "AssetCategory", "OrganizationId", "Organization", "NO_ACTION"),
+            new ForeignKeyEdge("FK_AssetMovement_Asset", "AssetMovement", "AssetId", "Asset", "NO_ACTION"),
+            new ForeignKeyEdge("FK_AssetMovement_Organization", "AssetMovement", "OrganizationId", "Organization", "NO_ACTION"),
+            new ForeignKeyEdge("FK_AssetMovement_FromDepartment", "AssetMovement", "FromDepartmentId", "Department", "NO_ACTION"),
+            new ForeignKeyEdge("FK_AssetMovement_ToDepartment", "AssetMovement", "ToDepartmentId", "Department", "NO_ACTION"),
             new ForeignKeyEdge("FK_AssetCustodyEvent_Asset", "AssetCustodyEvent", "AssetId", "Asset", "NO_ACTION"),
             new ForeignKeyEdge("FK_AssetCustodyEvent_Organization", "AssetCustodyEvent", "OrganizationId", "Organization", "NO_ACTION"),
             new ForeignKeyEdge("FK_AssetDocument_Asset", "AssetDocument", "AssetId", "Asset", "NO_ACTION"),
