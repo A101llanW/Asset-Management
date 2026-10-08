@@ -264,6 +264,43 @@ namespace AssetManagement.Web.Controllers
             applyDepartment(lockedDepartmentId);
         }
 
+        /// <summary>
+        /// Same visibility rule as Assets/Details: the asset is in the current organization (tenant-filtered
+        /// repository) and passes DepartmentScopeService.EnsureCanAccessAsset (Company Admin bypasses; others
+        /// limited to their department scope). Fails closed. Use it on GET forms that render asset context
+        /// so an out-of-scope asset returns 404 instead of leaking its name, custodian and department.
+        /// </summary>
+        protected bool CanViewAssetInScope(Asset asset, bool allowCurrentCustodian = false)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            if (allowCurrentCustodian
+                && !string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
+                && string.Equals(asset.CurrentCustodianId, User.GetUserId(), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var departmentScope = DependencyResolver.Current.GetService<IDepartmentScopeService>();
+            if (departmentScope == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                departmentScope.EnsureCanAccessAsset(asset);
+                return true;
+            }
+            catch (AssetManagement.Application.DTOs.BusinessException)
+            {
+                return false;
+            }
+        }
+
         protected bool EnsureAssetInCurrentUserDepartment(Asset asset, out string errorMessage)
         {
             errorMessage = null;
