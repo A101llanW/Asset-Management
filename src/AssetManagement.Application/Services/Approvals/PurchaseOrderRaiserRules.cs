@@ -12,7 +12,7 @@ namespace AssetManagement.Application.Services
     /// "Purchase order raised by" enforcement. Configuration comes from the requisition flow resolver
     /// (the unit the flow is effectively taken from). Unconfigured = legacy behaviour (anyone who already has
     /// the Purchases permission). Configured person = only that person; role only = any active role holder.
-    /// Company Admin keeps the same break-glass bypass as approvals (audited by the caller).
+    /// There is no Company Admin exemption ("only the configured role/person"); admins can change the setting.
     /// </summary>
     public static class PurchaseOrderRaiserRules
     {
@@ -42,19 +42,18 @@ namespace AssetManagement.Application.Services
             return roleId.HasValue && roleId.Value == config.PurchaseOrderRaiserRoleId.Value;
         }
 
-        public static bool CanRaise(ApprovalProcessConfiguration config, string userId, int? roleId, bool bypassesRaiserCheck)
+        public static bool CanRaise(ApprovalProcessConfiguration config, string userId, int? roleId)
         {
-            return !IsConfigured(config) || bypassesRaiserCheck || IsConfiguredRaiser(config, userId, roleId);
+            return !IsConfigured(config) || IsConfiguredRaiser(config, userId, roleId);
         }
 
         public static void EnsureCanRaise(
             ApprovalProcessConfiguration config,
             string userId,
             int? roleId,
-            bool bypassesRaiserCheck,
             string raiserLabel)
         {
-            if (CanRaise(config, userId, roleId, bypassesRaiserCheck))
+            if (CanRaise(config, userId, roleId))
             {
                 return;
             }

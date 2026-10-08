@@ -362,17 +362,17 @@ namespace AssetManagement.Tests.Requisitions
         public void PoRaiserRules_CanRaise()
         {
             var person = new ApprovalProcessConfiguration { PurchaseOrderRaiserRoleId = ProcManagerRole, PurchaseOrderRaiserUserId = "pm-2" };
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(person, "pm-2", ProcManagerRole, false));
-            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(person, "pm-1", ProcManagerRole, false), "same role, not the person");
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(person, "admin", 1, true), "Company Admin break-glass");
+            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(person, "pm-2", ProcManagerRole));
+            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(person, "pm-1", ProcManagerRole), "same role, not the person");
+            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(person, "admin", 59), "Company Admin is not exempt");
 
             var roleOnly = new ApprovalProcessConfiguration { PurchaseOrderRaiserRoleId = ProcManagerRole };
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(roleOnly, "pm-1", ProcManagerRole, false));
-            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(roleOnly, "po-1", ProcOfficerRole, false));
+            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(roleOnly, "pm-1", ProcManagerRole));
+            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(roleOnly, "po-1", ProcOfficerRole));
 
             var none = new ApprovalProcessConfiguration();
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(none, "anyone", ProcOfficerRole, false));
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(null, "anyone", null, false));
+            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(none, "anyone", ProcOfficerRole));
+            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(null, "anyone", null));
 
             var everyone = Users().Values.ToList();
             CollectionAssert.AreEquivalent(new[] { "pm-2" }, PurchaseOrderRaiserRules.ResolveNotifyUserIds(person, everyone));
@@ -401,9 +401,10 @@ namespace AssetManagement.Tests.Requisitions
             SeedApprovedRequest(unitOfWork, 700);
             var service = BuildPurchaseService(unitOfWork);
 
-            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-1", ProcManagerRole, false));
+            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-1", ProcManagerRole));
+            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "company-admin", 59), "Company Admin not exempt");
             Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }), "no actor = fail closed");
-            var id = service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-2", ProcManagerRole, false);
+            var id = service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-2", ProcManagerRole);
             Assert.Greater(id, -1);
         }
 
@@ -413,7 +414,7 @@ namespace AssetManagement.Tests.Requisitions
             var unitOfWork = SeedHierarchy(configureSub: false, configureDept: false);
             SeedApprovedRequest(unitOfWork, 701);
             var service = BuildPurchaseService(unitOfWork);
-            Assert.DoesNotThrow(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 701, Quantity = 1, UnitCost = 10, Currency = "KES" }, "po-1", ProcOfficerRole, false));
+            Assert.DoesNotThrow(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 701, Quantity = 1, UnitCost = 10, Currency = "KES" }, "po-1", ProcOfficerRole));
         }
 
         [Test]

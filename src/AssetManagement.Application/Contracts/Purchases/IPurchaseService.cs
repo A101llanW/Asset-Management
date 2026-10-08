@@ -21,8 +21,8 @@ namespace AssetManagement.Application.Contracts
 
         /// <summary>
         /// Create with the acting user: when linked to a requisition whose flow has a "Purchase order raised by"
-        /// configured, only that person / role (or Company Admin break-glass, audited) may create it.
+        /// configured, only that person / role may create it (no Company Admin exemption: admins change the setting).
         /// </summary>
-        int Create(PurchaseRecordVm model, string actingUserId, int? actingRoleId, bool bypassesRaiserCheck);
+        int Create(PurchaseRecordVm model, string actingUserId, int? actingRoleId);
     }
 }

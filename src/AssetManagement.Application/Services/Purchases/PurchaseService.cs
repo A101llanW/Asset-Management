@@ -99,10 +99,10 @@ namespace AssetManagement.Application.Services
         public int Create(PurchaseRecordVm model)
         {
             // No actor supplied: fail closed for requisitions with a configured PO raiser.
-            return Create(model, null, null, false);
+            return Create(model, null, null);
         }
 
-        public int Create(PurchaseRecordVm model, string actingUserId, int? actingRoleId, bool bypassesRaiserCheck)
+        public int Create(PurchaseRecordVm model, string actingUserId, int? actingRoleId)
         {
             if (model == null)
             {
@@ -134,7 +134,7 @@ namespace AssetManagement.Application.Services
                     throw new BusinessException("A purchase record is already linked to this request.");
                 }
 
-                EnsurePurchaseOrderRaiser(request, actingUserId, actingRoleId, bypassesRaiserCheck);
+                EnsurePurchaseOrderRaiser(request, actingUserId, actingRoleId);
             }
 
             if (!organizationId.HasValue)
@@ -171,7 +171,7 @@ namespace AssetManagement.Application.Services
         }
 
         /// <summary>Server-side "Purchase order raised by" check for a requisition-linked PO (all create paths).</summary>
-        private void EnsurePurchaseOrderRaiser(PurchaseRequest request, string actingUserId, int? actingRoleId, bool bypassesRaiserCheck)
+        private void EnsurePurchaseOrderRaiser(PurchaseRequest request, string actingUserId, int? actingRoleId)
         {
             var config = PurchaseOrderRaiserRules.ResolveForRequest(_unitOfWork, request);
             if (!PurchaseOrderRaiserRules.IsConfigured(config))
@@ -179,24 +179,8 @@ namespace AssetManagement.Application.Services
                 return; // Unconfigured anywhere in the chain: legacy behaviour.
             }
 
-            if (PurchaseOrderRaiserRules.IsConfiguredRaiser(config, actingUserId, actingRoleId))
-            {
-                return;
-            }
-
-            if (bypassesRaiserCheck && !string.IsNullOrWhiteSpace(actingUserId))
-            {
-                _auditWriter?.Write(
-                    "Purchases.PoRaiserBypass",
-                    nameof(PurchaseRequest),
-                    request.Id.ToString(),
-                    actingUserId,
-                    "ExpectedRole:" + config.PurchaseOrderRaiserRoleId
-                        + (string.IsNullOrWhiteSpace(config.PurchaseOrderRaiserUserId) ? string.Empty : ";ExpectedUser:" + config.PurchaseOrderRaiserUserId));
-                return;
-            }
-
-            PurchaseOrderRaiserRules.EnsureCanRaise(config, actingUserId, actingRoleId, false, null);
+            // Configured: only the raiser (person, else any active holder of the role). No Company Admin exemption.
+            PurchaseOrderRaiserRules.EnsureCanRaise(config, actingUserId, actingRoleId, null);
         }
     }
 }

@@ -184,7 +184,7 @@ namespace AssetManagement.Web.Controllers
             var entity = UnitOfWork.Repository<Domain.Entities.PurchaseRequest>().GetById(id);
             var poRaiserConfig = PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, entity);
             model.PurchaseOrderRaiserLabel = PurchaseOrderRaiserRules.Describe(UnitOfWork, BuildUserService(), poRaiserConfig);
-            model.CanCurrentUserRaisePurchaseOrder = PurchaseOrderRaiserRules.CanRaise(poRaiserConfig, currentUserId, currentRoleId, isSuperAdmin);
+            model.CanCurrentUserRaisePurchaseOrder = PurchaseOrderRaiserRules.CanRaise(poRaiserConfig, currentUserId, currentRoleId);
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);

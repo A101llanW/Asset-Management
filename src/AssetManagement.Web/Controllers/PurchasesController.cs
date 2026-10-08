@@ -240,7 +240,7 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 // Server-side PO-raiser enforcement lives in the service (covers every create path).
-                var purchaseId = _purchaseService.Create(model, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                var purchaseId = _purchaseService.Create(model, User.GetUserId(), GetCurrentUserRoleId());
                 TempData["Message"] = "Purchase record created.";
                 TempData["Guidance"] = "Next step: review the purchase details and verify the supplier, invoice, and cost values.";
                 return RedirectToAction("Details", new { id = purchaseId, returnUrl = ViewBag.ReturnUrl });
@@ -256,7 +256,7 @@ namespace AssetManagement.Web.Controllers
         {
             message = null;
             var config = Application.Services.PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, request);
-            if (Application.Services.PurchaseOrderRaiserRules.CanRaise(config, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin()))
+            if (Application.Services.PurchaseOrderRaiserRules.CanRaise(config, User.GetUserId(), GetCurrentUserRoleId()))
             {
                 return true;
             }
