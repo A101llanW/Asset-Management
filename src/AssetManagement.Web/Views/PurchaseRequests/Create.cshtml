@@ -63,15 +63,6 @@
             }
             <div class="form-text">Room, class, or admin unit that will receive these goods.</div>
         </div>
-        @if (ViewBag.CanCreateForAnyDepartment == true)
-        {
-            var orderByUsers = ViewBag.OrderByUsers as System.Web.Mvc.SelectList;
-            <div class="col-md-4">
-                <label class="form-label">Order by (optional)</label>
-                @Html.DropDownListFor(m => m.OrderByUserId, orderByUsers, "-- Teacher / class contact (optional) --", new { @class = "form-select" })
-                <div class="form-text">Class contact or teacher in the selected department. This person is not the approver.</div>
-            </div>
-        }
         <div class="col-12">
             <label class="form-label">Tag existing asset (optional)</label>
             @Html.HiddenFor(m => m.TargetAssetId)

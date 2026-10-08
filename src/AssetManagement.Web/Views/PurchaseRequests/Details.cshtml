@@ -39,11 +39,6 @@
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
                     <dt class="col-sm-4">Submitted by</dt>
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.RequestedByName) ? Model.RequestedById : Model.RequestedByName)</dd>
-                    @if (!string.IsNullOrWhiteSpace(Model.OrderByUserName) || !string.IsNullOrWhiteSpace(Model.OrderByUserId))
-                    {
-                        <dt class="col-sm-4">Order by</dt>
-                        <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.OrderByUserName) ? Model.OrderByUserId : Model.OrderByUserName)</dd>
-                    }
                     @if (Model.LineItems != null && Model.LineItems.Count > 1)
                     {
                         <dt class="col-sm-4">Items</dt>

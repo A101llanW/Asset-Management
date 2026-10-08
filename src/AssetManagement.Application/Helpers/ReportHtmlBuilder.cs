@@ -151,10 +151,6 @@ namespace AssetManagement.Application.Helpers
             sb.Append("<div class=\"detail-section\">");
             sb.Append("<h2 class=\"detail-section-title\">Request details</h2>");
             sb.Append(BuildDetailRow("Submitted by", string.IsNullOrWhiteSpace(model.RequestedByName) ? model.RequestedById : model.RequestedByName));
-            if (!string.IsNullOrWhiteSpace(model.OrderByUserName) || !string.IsNullOrWhiteSpace(model.OrderByUserId))
-            {
-                sb.Append(BuildDetailRow("Order by", string.IsNullOrWhiteSpace(model.OrderByUserName) ? model.OrderByUserId : model.OrderByUserName));
-            }
 
             if (model.LineItems != null && model.LineItems.Count > 1)
             {

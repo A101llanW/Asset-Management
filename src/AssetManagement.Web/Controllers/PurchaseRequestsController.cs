@@ -115,10 +115,8 @@ namespace AssetManagement.Web.Controllers
 
             model.RequestForSelf = true;
             model.Currency = GetDefaultCurrencyCode();
-            if (!HasPermission("Purchases.CreateForAnyDepartment"))
-            {
-                model.OrderByUserId = null;
-            }
+            // "Order by" was removed from the requisition page (Allan, 2026-10-09); never accept a posted value.
+            model.OrderByUserId = null;
 
             if (model.Lines == null || model.Lines.Count == 0)
             {
@@ -401,7 +399,6 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Departments = canCreateForAnyDepartment
                 ? BuildRequisitionDepartmentSelectList(departmentId)
                 : BuildDepartmentSelectList(departmentId);
-            ViewBag.OrderByUsers = BuildOrderByUserSelectList(departmentId, model?.OrderByUserId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
             ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
@@ -409,29 +406,6 @@ namespace AssetManagement.Web.Controllers
             ViewBag.RequestingAsDisplayName = profile == null
                 ? (User != null && User.Identity != null ? User.Identity.Name : "Current user")
                 : BuildUserLabel(profile);
-        }
-
-        private SelectList BuildOrderByUserSelectList(int? departmentId, string selectedUserId)
-        {
-            if (!departmentId.HasValue || departmentId.Value <= 0)
-            {
-                return new SelectList(Enumerable.Empty<SelectListItem>(), "Value", "Text");
-            }
-
-            var orgId = ResolveCurrentOrganizationId();
-            var users = orgId.HasValue
-                ? BuildReferenceDataCache().GetUsersForDropdown(orgId.Value, departmentId)
-                : BuildUserService().GetAll().Where(x => x.IsActive && x.DepartmentId == departmentId).ToList();
-            var items = users
-                .OrderBy(x => x.LastName)
-                .ThenBy(x => x.FirstName)
-                .Select(x => new SelectListItem
-                {
-                    Value = x.Id,
-                    Text = BuildUserLabel(x)
-                })
-                .ToList();
-            return new SelectList(items, "Value", "Text", selectedUserId);
         }
 
         private string ResolveSelectedTargetAssetLabel(int? assetId)
@@ -583,11 +557,6 @@ namespace AssetManagement.Web.Controllers
         {
             var requester = BuildUserService().GetById(model.RequestedById);
             model.RequestedByName = requester == null ? model.RequestedById : BuildUserLabel(requester);
-            if (!string.IsNullOrWhiteSpace(model.OrderByUserId))
-            {
-                var orderBy = BuildUserService().GetById(model.OrderByUserId);
-                model.OrderByUserName = orderBy == null ? model.OrderByUserId : BuildUserLabel(orderBy);
-            }
         }
 
         private void SaveOptionalAttachment(int purchaseRequestId, HttpPostedFileBase attachment)
