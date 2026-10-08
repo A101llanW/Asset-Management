@@ -51,6 +51,16 @@ namespace AssetManagement.Application.Contracts
 
         void RelocateToClassDepartment(int assetId, int targetDepartmentId, string actorUserId);
 
+        void RelocateToRoomDepartment(int assetId, int targetDepartmentId, string actorUserId);
+
+        AssetBulkActionResultVm RelocateGroupToRoomDepartment(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus status,
+            int targetDepartmentId,
+            string actorUserId);
+
         AssetBulkActionResultVm RelocateGroupToClassDepartment(
             string assetName,
             int? assetSubTypeId,

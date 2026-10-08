@@ -57,6 +57,16 @@ namespace AssetManagement.Application.Services
             var messages = new List<string>();
             var processed = 0;
             var skipped = 0;
+            var departmentMoves = new List<string>();
+            Department targetDepartment = null;
+            if (string.Equals(action, "department", StringComparison.OrdinalIgnoreCase) && request.TargetDepartmentId.HasValue)
+            {
+                targetDepartment = _unitOfWork.Repository<Department>().GetById(request.TargetDepartmentId.Value);
+                if (targetDepartment == null || !targetDepartment.IsActive || targetDepartment.DepartmentKind == DepartmentKind.Grade)
+                {
+                    throw new BusinessException("Target department was not found, is inactive, or is a grade. Choose an active department, sub-department, class or room.");
+                }
+            }
 
             foreach (var assetId in request.AssetIds.Distinct())
             {
@@ -81,9 +91,29 @@ namespace AssetManagement.Application.Services
                             throw new BusinessException("Target department is required.");
                         }
 
-                        asset.DepartmentId = request.TargetDepartmentId.Value;
-                        asset.UpdatedAt = DateTime.UtcNow;
+                        var fromDepartmentId = asset.DepartmentId.HasValue && asset.DepartmentId.Value > 0 ? asset.DepartmentId : null;
+                        var toDepartmentId = request.TargetDepartmentId.Value;
+                        var now = DateTime.UtcNow;
+                        asset.DepartmentId = toDepartmentId;
+                        asset.UpdatedAt = now;
                         _unitOfWork.Repository<Asset>().Update(asset);
+                        if (!fromDepartmentId.HasValue || fromDepartmentId.Value != toDepartmentId)
+                        {
+                            _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+                            {
+                                AssetId = asset.Id,
+                                ActionType = CustodyActionType.Transferred,
+                                ActionDate = now,
+                                FromDepartmentId = fromDepartmentId,
+                                ToDepartmentId = toDepartmentId,
+                                Reason = "Department changed (bulk move)",
+                                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
+                                CreatedAt = now,
+                                IsActive = true
+                            });
+                        }
+
+                        departmentMoves.Add(asset.Id + ":" + (fromDepartmentId.HasValue ? fromDepartmentId.Value.ToString() : "none") + ">" + toDepartmentId);
                         processed++;
                     }
                     else if (string.Equals(action, "status", StringComparison.OrdinalIgnoreCase))
@@ -137,7 +167,10 @@ namespace AssetManagement.Application.Services
                     nameof(Asset),
                     string.Join(",", request.AssetIds.Distinct()),
                     null,
-                    "processed=" + processed + ";skipped=" + skipped + ";notes=" + (request.Notes ?? string.Empty));
+                    "processed=" + processed + ";skipped=" + skipped
+                        + (targetDepartment != null ? ";toDepartmentId=" + targetDepartment.Id + ";toDepartment=" + targetDepartment.Name : string.Empty)
+                        + (departmentMoves.Count > 0 ? ";moves(assetId:from>to)=" + string.Join(",", departmentMoves) : string.Empty)
+                        + ";notes=" + (request.Notes ?? string.Empty));
             }
 
             return new AssetBulkActionResultVm

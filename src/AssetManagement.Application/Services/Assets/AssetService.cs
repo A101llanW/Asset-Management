@@ -474,6 +474,22 @@ namespace AssetManagement.Application.Services
 
         public void RelocateToClassDepartment(int assetId, int targetDepartmentId, string actorUserId)
         {
+            RelocateToDepartmentOfKind(assetId, targetDepartmentId, actorUserId, DepartmentKind.Class);
+        }
+
+        /// <summary>
+        /// Move to room: same eligibility, scope and permissions as Move to class, but the target must be an
+        /// active Room (DepartmentKind.Room). The source can be any kind of department (or company custody).
+        /// </summary>
+        public void RelocateToRoomDepartment(int assetId, int targetDepartmentId, string actorUserId)
+        {
+            RelocateToDepartmentOfKind(assetId, targetDepartmentId, actorUserId, DepartmentKind.Room);
+        }
+
+        private void RelocateToDepartmentOfKind(int assetId, int targetDepartmentId, string actorUserId, DepartmentKind targetKind)
+        {
+            var label = targetKind == DepartmentKind.Room ? "room" : "class";
+            var plural = targetKind == DepartmentKind.Room ? "rooms" : "classes";
             if (string.IsNullOrWhiteSpace(actorUserId))
             {
                 throw new BusinessException("Current user is required to relocate an asset.");
@@ -481,13 +497,13 @@ namespace AssetManagement.Application.Services
 
             if (targetDepartmentId <= 0)
             {
-                throw new BusinessException("Target class is required.");
+                throw new BusinessException("Target " + label + " is required.");
             }
 
             if (!_authorizationService.HasPermission(actorUserId, "Assets.Edit")
                 && !_authorizationService.HasPermission(actorUserId, "Assets.Transfer"))
             {
-                throw new BusinessException("You do not have permission to move assets between classes.");
+                throw new BusinessException("You do not have permission to move assets between " + plural + ".");
             }
 
             var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
@@ -499,22 +515,22 @@ namespace AssetManagement.Application.Services
             var targetDepartment = _unitOfWork.Repository<Department>().GetById(targetDepartmentId);
             if (targetDepartment == null || !targetDepartment.IsActive)
             {
-                throw new BusinessException("Target class was not found or is inactive.");
+                throw new BusinessException("Target " + label + " was not found or is inactive.");
             }
 
-            if (targetDepartment.DepartmentKind != DepartmentKind.Class)
+            if (targetDepartment.DepartmentKind != targetKind)
             {
-                throw new BusinessException("Target department must be a class.");
+                throw new BusinessException("Target department must be a " + label + ".");
             }
 
             EnsureRelocateScope(asset, targetDepartment, actorUserId);
-            EnsureRelocatableAssetState(asset);
+            EnsureRelocatableAssetState(asset, plural);
             _workflowGuard.EnsureNoBlockingWorkflow(assetId);
 
             var fromDepartmentId = NormalizeOptionalId(asset.DepartmentId);
             if (fromDepartmentId.HasValue && fromDepartmentId.Value == targetDepartmentId)
             {
-                throw new BusinessException("Asset is already registered to the selected class.");
+                throw new BusinessException("Asset is already registered to the selected " + label + ".");
             }
 
             var now = DateTime.UtcNow;
@@ -525,7 +541,7 @@ namespace AssetManagement.Application.Services
                 ActionDate = now,
                 FromDepartmentId = fromDepartmentId,
                 ToDepartmentId = targetDepartmentId,
-                Reason = "Relocated between classes",
+                Reason = "Relocated between " + plural,
                 CreatedAt = now,
                 IsActive = true
             });
@@ -535,7 +551,7 @@ namespace AssetManagement.Application.Services
             _unitOfWork.Repository<Asset>().Update(asset);
             _unitOfWork.SaveChanges();
             _auditWriter.Write(
-                "Assets.RelocateClass",
+                targetKind == DepartmentKind.Room ? "Assets.RelocateRoom" : "Assets.RelocateClass",
                 nameof(Asset),
                 asset.Id.ToString(),
                 fromDepartmentId.HasValue ? fromDepartmentId.Value.ToString() : null,
@@ -549,6 +565,29 @@ namespace AssetManagement.Application.Services
             AssetStatus status,
             int targetDepartmentId,
             string actorUserId)
+        {
+            return RelocateGroupToDepartmentOfKind(assetName, assetSubTypeId, groupDepartmentId, status, targetDepartmentId, actorUserId, DepartmentKind.Class);
+        }
+
+        public AssetBulkActionResultVm RelocateGroupToRoomDepartment(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus status,
+            int targetDepartmentId,
+            string actorUserId)
+        {
+            return RelocateGroupToDepartmentOfKind(assetName, assetSubTypeId, groupDepartmentId, status, targetDepartmentId, actorUserId, DepartmentKind.Room);
+        }
+
+        private AssetBulkActionResultVm RelocateGroupToDepartmentOfKind(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus status,
+            int targetDepartmentId,
+            string actorUserId,
+            DepartmentKind targetKind)
         {
             if (string.IsNullOrWhiteSpace(assetName))
             {
@@ -577,7 +616,7 @@ namespace AssetManagement.Application.Services
             {
                 try
                 {
-                    RelocateToClassDepartment(asset.Id, targetDepartmentId, actorUserId);
+                    RelocateToDepartmentOfKind(asset.Id, targetDepartmentId, actorUserId, targetKind);
                     processed++;
                 }
                 catch (BusinessException ex)
@@ -634,6 +673,14 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Disposed assets cannot be modified.");
             }
 
+            var oldDepartmentId = NormalizeOptionalId(entity.DepartmentId);
+            var newDepartmentId = NormalizeOptionalId(model.DepartmentId);
+            var departmentChanged = oldDepartmentId != newDepartmentId;
+            if (departmentChanged)
+            {
+                EnsureEditDepartmentChangeAllowed(entity, newDepartmentId);
+            }
+
             var oldSnapshot = entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus;
             var oldPrice = entity.AcquisitionCost;
             model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
@@ -650,7 +697,7 @@ namespace AssetManagement.Application.Services
                 ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())
                 : model.Currency.Trim().ToUpperInvariant();
             entity.SupplierId = NormalizeOptionalId(model.SupplierId);
-            entity.DepartmentId = NormalizeOptionalId(model.DepartmentId);
+            entity.DepartmentId = newDepartmentId;
             entity.ConditionOnReceipt = model.ConditionOnReceipt;
             entity.UsefulLifeMonths = UsefulLifeResolver.Resolve(_unitOfWork, model.AssetTypeId, model.CategoryId);
             entity.IsInsured = model.IsInsured;
@@ -674,9 +721,34 @@ namespace AssetManagement.Application.Services
             AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
             ApplySubType(entity, model);
 
+            if (departmentChanged)
+            {
+                _unitOfWork.Repository<AssetCustodyEvent>().Add(new AssetCustodyEvent
+                {
+                    AssetId = entity.Id,
+                    ActionType = CustodyActionType.Transferred,
+                    ActionDate = entity.UpdatedAt.Value,
+                    FromDepartmentId = oldDepartmentId,
+                    ToDepartmentId = newDepartmentId,
+                    Reason = "Department changed",
+                    Notes = "Asset Edit",
+                    CreatedAt = entity.UpdatedAt.Value,
+                    IsActive = true
+                });
+            }
+
             _unitOfWork.Repository<Asset>().Update(entity);
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Assets.Edit", nameof(Asset), entity.Id.ToString(), oldSnapshot, entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus);
+            if (departmentChanged)
+            {
+                _auditWriter.Write(
+                    "Assets.Edit.Department",
+                    nameof(Asset),
+                    entity.Id.ToString(),
+                    DescribeDepartmentForAudit(oldDepartmentId),
+                    DescribeDepartmentForAudit(newDepartmentId));
+            }
             if (oldPrice != entity.AcquisitionCost)
             {
                 _auditWriter.Write(
@@ -1637,11 +1709,46 @@ namespace AssetManagement.Application.Services
             _departmentScope.EnsureCanAccessDepartment(targetDepartment);
         }
 
-        private static void EnsureRelocatableAssetState(Asset asset)
+        /// <summary>
+        /// Edit may change the department only for unassigned assets, and only to an active department.
+        /// An Assigned asset (person or department pool) must move through Transfer so the custodian and the
+        /// department never disagree.
+        /// </summary>
+        private void EnsureEditDepartmentChangeAllowed(Asset entity, int? newDepartmentId)
+        {
+            if (entity.CurrentStatus == AssetStatus.Assigned || !string.IsNullOrWhiteSpace(entity.CurrentCustodianId))
+            {
+                throw new BusinessException(string.IsNullOrWhiteSpace(entity.CurrentCustodianId)
+                    ? "This asset is assigned to a department pool, so its department can't be changed here. Use Transfer to move it to another department."
+                    : "This asset is assigned to a custodian, so its department can't be changed here. Use Transfer to move it to another department or person.");
+            }
+
+            if (newDepartmentId.HasValue)
+            {
+                var target = _unitOfWork.Repository<Department>().GetById(newDepartmentId.Value);
+                if (target == null || !target.IsActive)
+                {
+                    throw new BusinessException("The selected department is inactive or no longer exists. Choose an active department.");
+                }
+            }
+        }
+
+        private string DescribeDepartmentForAudit(int? departmentId)
+        {
+            if (!departmentId.HasValue)
+            {
+                return "department=(company custody)";
+            }
+
+            var department = _unitOfWork.Repository<Department>().GetById(departmentId.Value);
+            return "departmentId=" + departmentId.Value + ";department=" + (department == null ? "#" + departmentId.Value : department.Name);
+        }
+
+        private static void EnsureRelocatableAssetState(Asset asset, string plural)
         {
             if (AssetCustodyRules.BlocksCustodyChange(asset.CurrentStatus))
             {
-                throw new BusinessException("This asset cannot be moved between classes in its current status.");
+                throw new BusinessException("This asset cannot be moved between " + plural + " in its current status.");
             }
 
             // Assigned (including department pool with null CurrentCustodianId): Move is not allowed.
@@ -1650,7 +1757,7 @@ namespace AssetManagement.Application.Services
             {
                 if (string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
                 {
-                    throw new BusinessException("This asset is in the department pool. Transfer it to a person before moving between classes, or return it to store first.");
+                    throw new BusinessException("This asset is in the department pool. Transfer it to a person before moving between " + plural + ", or return it to store first.");
                 }
 
                 throw new BusinessException("This asset is assigned to a custodian. Use Transfer to move custody first.");
@@ -1665,7 +1772,7 @@ namespace AssetManagement.Application.Services
                 && asset.CurrentStatus != AssetStatus.Received
                 && asset.CurrentStatus != AssetStatus.Returned)
             {
-                throw new BusinessException("Only in-store assets without a custodian can be moved between classes.");
+                throw new BusinessException("Only in-store assets without a custodian can be moved between " + plural + ".");
             }
         }
 

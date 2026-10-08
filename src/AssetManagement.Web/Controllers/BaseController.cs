@@ -948,14 +948,87 @@ namespace AssetManagement.Web.Controllers
                 }
             }
         }
+        /// <summary>
+        /// Move targets grouped by parent (optgroup = parent path, e.g. "Administration \u2192 Facilities").
+        /// Only active departments (soft-deleted units are IsActive = 0) and never Grades, which are containers.
+        /// <paramref name="kindFilter"/> narrows to one kind (e.g. Room for Move to room); null = every movable kind
+        /// (Administrative, Sub-department, Class and Room at any depth).
+        /// </summary>
+        protected IList<DepartmentSelectGroupVm> BuildMoveTargetDepartmentGroups(DepartmentKind? kindFilter = null, int? selectedDepartmentId = null)
+        {
+            var all = BuildDepartmentService().GetAll().ToList();
+            var byId = all.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
+            Func<int?, string> pathOf = null;
+            pathOf = id =>
+            {
+                var parts = new List<string>();
+                var guard = 0;
+                while (id.HasValue && byId.ContainsKey(id.Value) && guard++ < 10)
+                {
+                    parts.Insert(0, byId[id.Value].Name);
+                    id = byId[id.Value].ParentDepartmentId;
+                }
+
+                return string.Join(" \u2192 ", parts);
+            };
+
+            var targets = all
+                .Where(x => x.IsActive
+                    && x.DepartmentKind != DepartmentKind.Grade
+                    && (!kindFilter.HasValue || x.DepartmentKind == kindFilter.Value))
+                .Select(x => new { Department = x, Group = x.ParentDepartmentId.HasValue ? pathOf(x.ParentDepartmentId) : string.Empty })
+                .ToList();
+
+            var groups = new List<DepartmentSelectGroupVm>();
+            foreach (var group in targets
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Group) ? "Top level" : x.Group)
+                .OrderBy(x => x.Key == "Top level" ? 0 : 1)
+                .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var vm = new DepartmentSelectGroupVm { Label = group.Key };
+                foreach (var item in group.OrderBy(x => x.Department.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    vm.Items.Add(new DepartmentSelectOptionVm
+                    {
+                        Value = item.Department.Id.ToString(),
+                        Text = item.Department.Name + (kindFilter.HasValue ? string.Empty : " (" + DescribeDepartmentKind(item.Department.DepartmentKind) + ")"),
+                        Selected = selectedDepartmentId.HasValue && item.Department.Id == selectedDepartmentId.Value
+                    });
+                }
+
+                groups.Add(vm);
+            }
+
+            return groups;
+        }
+
+        private static string DescribeDepartmentKind(DepartmentKind kind)
+        {
+            switch (kind)
+            {
+                case DepartmentKind.SubDepartment:
+                    return "sub-department";
+                case DepartmentKind.Class:
+                    return "class";
+                case DepartmentKind.Room:
+                    return "room";
+                default:
+                    return "department";
+            }
+        }
+
         protected IList<DepartmentSelectGroupVm> BuildGroupedDepartmentSelectGroups(
             int? selectedDepartmentId = null,
-            bool activeOnly = true)
+            bool activeOnly = true,
+            int? includeInactiveDepartmentId = null)
         {
             var departments = BuildDepartmentService().GetAll();
             if (activeOnly)
             {
-                departments = departments.Where(x => x.IsActive);
+                // Inactive = deactivated or soft-deleted. The asset's own current department stays visible
+                // (labelled "(inactive)") so an Edit save doesn't silently clear it.
+                departments = departments.Where(x => x.IsActive
+                    || (includeInactiveDepartmentId.HasValue && x.Id == includeInactiveDepartmentId.Value));
             }
 
             var list = departments
@@ -976,6 +1049,10 @@ namespace AssetManagement.Web.Controllers
                         : dept.Code + " — " + dept.Name,
                     Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
                 };
+                if (!dept.IsActive)
+                {
+                    option.Text += " (inactive)";
+                }
 
                 if (DepartmentHierarchyRules.IsAcademic(dept.DepartmentKind))
                 {

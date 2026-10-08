@@ -36,7 +36,14 @@
                 </div>
                 <div class="col-md-3" data-am-bulk-dept>
                     <label class="form-label small mb-0">Department</label>
-                    @Html.DropDownList("TargetDepartmentId", departments, string.Empty, new { @class = "form-select form-select-sm", form = "amBulkForm" })
+                    @if (ViewBag.MoveDepartmentGroups is System.Collections.Generic.IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>)
+                {
+                    @Html.GroupedDepartmentDropDown("TargetDepartmentId", (System.Collections.Generic.IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>)ViewBag.MoveDepartmentGroups, " ", new { @class = "form-select form-select-sm", form = "amBulkForm" })
+                }
+                else
+                {
+                    @Html.DropDownList("TargetDepartmentId", departments, string.Empty, new { @class = "form-select form-select-sm", form = "amBulkForm" })
+                }
                 </div>
                 <div class="col-md-3 d-none" data-am-bulk-status>
                     <label class="form-label small mb-0">Status</label>

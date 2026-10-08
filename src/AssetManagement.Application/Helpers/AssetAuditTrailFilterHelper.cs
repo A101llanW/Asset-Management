@@ -22,6 +22,8 @@ namespace AssetManagement.Application.Helpers
                 "Assets.Transfer",
                 "Assets.UpdateStatus",
                 "Assets.RelocateClass",
+                "Assets.RelocateRoom",
+                "Assets.Edit.Department",
                 "Assets.AcknowledgeReceipt",
                 "Assets.RequestReturn",
                 "Assets.RequestDisposal",

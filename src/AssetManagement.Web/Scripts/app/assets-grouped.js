@@ -264,6 +264,9 @@
         var actionsHtml = '<a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + withListReturnUrl(item.detailsUrl) + '">Details</a>';
         if (item.canMove) {
             actionsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" data-am-relocate-open data-asset-id="' + item.id + '" data-asset-tag="' + item.assetTag + '">Move</button>';
+            if (config.canMoveToRoom) {
+                actionsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" data-am-relocate-room-open data-asset-id="' + item.id + '" data-asset-tag="' + item.assetTag + '">Move to room</button>';
+            }
         }
         actionsCell.innerHTML = actionsHtml;
         row.appendChild(actionsCell);

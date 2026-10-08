@@ -60,6 +60,8 @@ namespace AssetManagement.Web.Controllers
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
             ViewBag.CanRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
             ViewBag.ClassDepartments = BuildClassDepartmentSelectList();
+            ViewBag.RoomDepartmentGroups = BuildMoveTargetDepartmentGroups(DepartmentKind.Room);
+            ViewBag.MoveDepartmentGroups = BuildMoveTargetDepartmentGroups();
             ViewBag.Filter = filter;
             SetListSortViewBag(sort, direction);
 
@@ -400,6 +402,90 @@ namespace AssetManagement.Web.Controllers
                 page,
                 pageSize,
                 view
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AnyPermissionAuthorize("Assets.Edit", "Assets.Transfer")]
+        public ActionResult RelocateToRoom(
+            int assetId,
+            int targetDepartmentId,
+            AssetFilterVm filter,
+            string sort = "tag",
+            string direction = "asc",
+            int page = 1,
+            int pageSize = 10,
+            string view = "grouped",
+            string groupBy = null)
+        {
+            try
+            {
+                _assetService.RelocateToRoomDepartment(assetId, targetDepartmentId, User.GetUserId());
+                TempData["Message"] = "Asset moved to the selected room.";
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToRelocateList(filter, sort, direction, page, pageSize, view, groupBy);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AnyPermissionAuthorize("Assets.Edit", "Assets.Transfer")]
+        public ActionResult RelocateGroupToRoom(
+            string assetName,
+            int? assetSubTypeId,
+            int? groupDepartmentId,
+            AssetStatus groupStatus,
+            int targetDepartmentId,
+            AssetFilterVm filter,
+            string sort = "tag",
+            string direction = "asc",
+            int page = 1,
+            int pageSize = 10,
+            string view = "grouped",
+            string groupBy = null)
+        {
+            try
+            {
+                var result = _assetService.RelocateGroupToRoomDepartment(
+                    assetName,
+                    assetSubTypeId,
+                    groupDepartmentId,
+                    groupStatus,
+                    targetDepartmentId,
+                    User.GetUserId());
+                TempData["Message"] = "Group move completed: " + result.ProcessedCount + " moved, " + result.SkippedCount + " skipped.";
+                if (result.Messages != null && result.Messages.Count > 0)
+                {
+                    TempData["Guidance"] = string.Join(" ", result.Messages.Take(5));
+                }
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToRelocateList(filter, sort, direction, page, pageSize, view, groupBy);
+        }
+
+        private ActionResult RedirectToRelocateList(AssetFilterVm filter, string sort, string direction, int page, int pageSize, string view, string groupBy)
+        {
+            filter = filter ?? new AssetFilterVm();
+            return RedirectToAction("Index", new
+            {
+                Search = filter.Search,
+                DepartmentId = filter.DepartmentId,
+                Status = filter.Status,
+                sort,
+                direction,
+                page,
+                pageSize,
+                view,
+                groupBy
             });
         }
 
@@ -1066,7 +1152,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.AssetTypeOptions = BuildAssetTypeLookupList(activeOnly: false);
 
             ViewBag.Departments = BuildDepartmentSelectList(model?.DepartmentId, activeOnly: false);
-            ViewBag.DepartmentGroups = BuildGroupedDepartmentSelectGroups(model?.DepartmentId, activeOnly: false);
+            ViewBag.DepartmentGroups = BuildGroupedDepartmentSelectGroups(model?.DepartmentId, activeOnly: true, includeInactiveDepartmentId: model?.DepartmentId);
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId, activeOnly: false);
             ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             ViewBag.SubTypeLookupUrl = TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
