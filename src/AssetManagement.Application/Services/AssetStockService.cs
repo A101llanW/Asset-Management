@@ -39,15 +39,22 @@ namespace AssetManagement.Application.Services
         }
         private int CountAvailableAssets(int subTypeId, int? departmentId)
         {
-            var query = _unitOfWork.Repository<Asset>().GetAll()
-                .Where(x => x.IsActive
-                    && x.AssetSubTypeId == subTypeId
-                    && AvailableStatuses.Contains(x.CurrentStatus));
+            // One SQL COUNT (org-scoped by the repository). This used to be GetAll().Where(...).Count(),
+            // which read every asset row of the organisation into memory on Asset Create/Edit.
+            var statuses = AvailableStatuses;
+            var repository = _unitOfWork.Repository<Asset>();
             if (departmentId.HasValue)
             {
-                query = query.Where(x => x.DepartmentId == departmentId.Value);
+                var deptId = departmentId.Value;
+                return repository.Count(x => x.IsActive
+                    && x.AssetSubTypeId == subTypeId
+                    && statuses.Contains(x.CurrentStatus)
+                    && x.DepartmentId == deptId);
             }
-            return query.Count();
+
+            return repository.Count(x => x.IsActive
+                && x.AssetSubTypeId == subTypeId
+                && statuses.Contains(x.CurrentStatus));
         }
     }
 }

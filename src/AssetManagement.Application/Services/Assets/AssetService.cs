@@ -1313,10 +1313,22 @@ namespace AssetManagement.Application.Services
                 return model.AssetTag;
             }
 
-            var takenTags = _unitOfWork.Repository<Asset>().Query()
-                .Where(x => x.IsActive && x.AssetTag != null)
-                .Select(x => x.AssetTag);
-            return AssetTagHelper.GenerateUniqueRandomTag(takenTags);
+            // Random 10-char tag (32^10 space); check only the candidate instead of reading every
+            // tagged asset of the organisation (SELECT * FROM Asset) on each Create.
+            var repository = _unitOfWork.Repository<Asset>();
+            var tried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                var candidate = AssetTagHelper.GenerateUniqueRandomTag(null, tried);
+                tried.Add(candidate);
+                var taken = candidate;
+                if (repository.Count(x => x.IsActive && x.AssetTag == taken) == 0)
+                {
+                    return candidate;
+                }
+            }
+
+            throw new BusinessException("Unable to generate a unique asset tag. Enter one manually.");
         }
 
         private void ApplyCalculatedDepreciation(Asset entity)
@@ -1513,7 +1525,9 @@ namespace AssetManagement.Application.Services
                 _departmentScope.EnsureCanAccessAsset(source);
             }
 
-            var query = _unitOfWork.Repository<Asset>().GetAll()
+            // Query() (not GetAll()): the Where clauses below run as one SQL WHERE instead of filtering
+            // every asset of the organisation in memory.
+            var query = _unitOfWork.Repository<Asset>().Query()
                 .Where(x => x.IsActive && x.CurrentStatus != AssetStatus.Disposed);
 
             if (sourceAssetId > 0 && !includeSource)

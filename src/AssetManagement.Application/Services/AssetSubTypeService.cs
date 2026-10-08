@@ -30,8 +30,9 @@ namespace AssetManagement.Application.Services
         }
         public IEnumerable<AssetSubTypeListItemVm> GetByAssetTypeId(int assetTypeId, bool activeOnly = true)
         {
-            var items = _unitOfWork.Repository<AssetSubType>().GetAll()
+            var items = _unitOfWork.Repository<AssetSubType>().Query()
                 .Where(x => x.AssetTypeId == assetTypeId)
+                .ToList()
                 .OrderBy(x => x.Name)
                 .ToList();
             if (activeOnly)
@@ -48,10 +49,11 @@ namespace AssetManagement.Application.Services
             {
                 return null;
             }
-            var match = _unitOfWork.Repository<AssetSubType>().GetAll()
-                .FirstOrDefault(x => x.IsActive
-                    && x.AssetTypeId == assetTypeId
-                    && AssetSubTypeNormalizer.BrandModelEquals(x.Brand, x.Model, normalizedBrand, normalizedModel));
+            // SQL narrows to the type's active sub-types; the brand/model match stays in memory.
+            var match = _unitOfWork.Repository<AssetSubType>().Query()
+                .Where(x => x.IsActive && x.AssetTypeId == assetTypeId)
+                .ToList()
+                .FirstOrDefault(x => AssetSubTypeNormalizer.BrandModelEquals(x.Brand, x.Model, normalizedBrand, normalizedModel));
             return match == null ? null : MapDetail(match);
         }
         public int Create(AssetSubTypeEditVm model)
@@ -105,7 +107,8 @@ namespace AssetManagement.Application.Services
             {
                 return 0;
             }
-            return _unitOfWork.Repository<Asset>().GetAll()
+            // SQL COUNT instead of loading every asset of the organisation.
+            return _unitOfWork.Repository<Asset>()
                 .Count(x => x.IsActive && x.AssetSubTypeId == subTypeId);
         }
         public int GetTotalQuantityOnHand(int subTypeId)

@@ -771,21 +771,23 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.Edit")]
         public ActionResult Edit(int id)
         {
-            var item = _assetService.GetById(id);
+            // The form needs only the asset row. _assetService.GetById builds the whole Details model
+            // (custody timeline, pending transfers/disposals, maintenance, incidents, claims, policies,
+            // cost of ownership): ~10 extra queries that Edit never shows.
             var entity = UnitOfWork.Repository<Asset>().GetById(id);
-            if (item == null)
+            if (entity == null || !CanOpenAssetForEdit(entity))
             {
                 return HttpNotFound();
             }
 
             var model = new AssetEditVm
             {
-                Id = item.Id,
-                AssetName = item.AssetName,
-                AssetTag = item.AssetTag,
-                SerialNumber = item.SerialNumber,
-                Brand = item.Brand,
-                Model = item.Model,
+                Id = entity.Id,
+                AssetName = entity.AssetName,
+                AssetTag = entity.AssetTag,
+                SerialNumber = entity.SerialNumber,
+                Brand = entity.Brand,
+                Model = entity.Model,
                 CategoryId = entity.CategoryId,
                 AssetTypeId = entity.AssetTypeId,
                 AssetSubTypeId = entity.AssetSubTypeId,
@@ -795,10 +797,10 @@ namespace AssetManagement.Web.Controllers
                 DepartmentId = entity.DepartmentId,
                 SupplierId = entity.SupplierId,
                 PurchaseDate = entity.PurchaseDate,
-                AcquisitionCost = item.AcquisitionCost,
-                PreviousAcquisitionCost = item.AcquisitionCost,
+                AcquisitionCost = entity.AcquisitionCost,
+                PreviousAcquisitionCost = entity.AcquisitionCost,
                 Currency = entity.Currency,
-                CurrentStatus = item.CurrentStatus,
+                CurrentStatus = entity.CurrentStatus,
                 UsefulLifeMonths = entity.UsefulLifeMonths,
                 SalvageValue = entity.SalvageValue,
                 TaxAmount = entity.TaxAmount,
@@ -1077,10 +1079,35 @@ namespace AssetManagement.Web.Controllers
             ViewBag.PriceApplyPreviewUrl = TenantUrlHelper.TenantRouteUrl(Url, "AcquisitionCostApplyPreview", "Assets");
         }
 
+        /// <summary>
+        /// Same visibility as _assetService.GetById (department scope, or an approver of a pending
+        /// transfer of this asset) without building the Details model. The fallback only runs when the
+        /// department-scope check fails.
+        /// </summary>
+        private bool CanOpenAssetForEdit(Asset entity)
+        {
+            var departmentScope = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.IDepartmentScopeService>();
+            if (departmentScope == null)
+            {
+                return _assetService.GetById(entity.Id) != null;
+            }
+
+            try
+            {
+                departmentScope.EnsureCanAccessAsset(entity);
+                return ResolveCurrentOrganizationId().HasValue;
+            }
+            catch (BusinessException)
+            {
+                return _assetService.GetById(entity.Id) != null;
+            }
+        }
+
         private string ResolveAssetSubTypeName(int subTypeId)
         {
-            var subType = BuildAssetSubTypeService().GetById(subTypeId);
-            return subType == null ? null : subType.Name;
+            // Name only: the sub-type service's GetById also computes stock counts, type and category.
+            var subType = UnitOfWork.Repository<AssetSubType>().GetById(subTypeId);
+            return subType == null ? null : AssetSubTypeNormalizer.NormalizeName(subType.Name);
         }
 
         private bool CanManageDepreciationSettings()
