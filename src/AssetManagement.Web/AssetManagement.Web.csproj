@@ -1,4 +1,4 @@
-﻿<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -202,6 +202,7 @@
     <Compile Include="Areas\Platform\Controllers\PlatformSettingsController.cs" />
     <Compile Include="Areas\Platform\Controllers\SecurityLogsController.cs" />
     <Compile Include="Areas\Platform\Controllers\UsersController.cs" />
+    <Compile Include="Areas\Platform\Controllers\UsageController.cs" />
     <Compile Include="Filters\RequireTenantRouteAttribute.cs" />
     <Compile Include="Filters\ImpersonationExpiryFilterAttribute.cs" />
     <Compile Include="Filters\TenantAuthorizeAttribute.cs" />
@@ -219,6 +220,7 @@
     <Compile Include="Filters\RequireMfaEnforcementFilterAttribute.cs" />
     <Compile Include="Helpers\EncryptionHelper.cs" />
     <Compile Include="Helpers\EncryptionHelperSecretProtector.cs" />
+    <Compile Include="Helpers\FeatureFlags.cs" />
     <Compile Include="Helpers\ExternalUrlHelper.cs" />
     <Compile Include="Helpers\UserAgentFingerprint.cs" />
     <Compile Include="Helpers\OrganizationLogoHelper.cs" />
@@ -503,6 +505,7 @@
     <Content Include="Areas\Platform\Views\Shared\_PlatformNav.cshtml" />
     <Content Include="Areas\Platform\Views\SecurityLogs\Index.cshtml" />
     <Content Include="Areas\Platform\Views\PlatformSettings\Email.cshtml" />
+    <Content Include="Areas\Platform\Views\Usage\Index.cshtml" />
     <Content Include="Views\Account\LicenseSuspended.cshtml" />
     <Content Include="Views\Account\LicenseExpired.cshtml" />
     <Content Include="Views\Account\VerifyEmail.cshtml" />

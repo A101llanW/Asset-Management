@@ -5,6 +5,7 @@
     const string ctrlLicenses = "Licenses";
     const string ctrlSecurityLogs = "SecurityLogs";
     const string ctrlPlatformSettings = "PlatformSettings";
+    const string ctrlPlatformUsage = "Usage";
     const string actIndex = "Index";
     const string actEmail = "Email";
 }
@@ -38,6 +39,9 @@
             }
             @if (Html.HasPermission("Platform.Organizations.View"))
             {
+                <li class="nav-item">
+                    <a class="nav-link @Html.SidebarLinkClass(ctrlPlatformUsage)" href="@(Url.Action(actIndex, ctrlPlatformUsage, new { area = "Platform" }))">Usage</a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link @Html.SidebarLinkClass(ctrlSecurityLogs)" href="@(Url.Action(actIndex, ctrlSecurityLogs, new { area = "Platform" }))">Security Logs</a>
                 </li>

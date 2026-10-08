@@ -1,4 +1,4 @@
-﻿@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
+@model AssetManagement.Web.ViewModels.ListPageViewModel<AssetManagement.Application.ViewModels.AssetListVm>
 @using System
 @using System.Linq
 @using AssetManagement.Application.Helpers
@@ -47,8 +47,8 @@
     Subtitle = "Search, review, and act on every tracked asset from one place.",
     PrimaryActionUrl = canCreateAsset ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateAsset ? "Create Asset" : null,
-    SecondaryActionUrl = canCreateAsset ? Url.Action("Import") : null,
-    SecondaryActionLabel = canCreateAsset ? "Import from Excel" : null
+    SecondaryActionUrl = (canCreateAsset && FeatureFlags.AssetExcelImportUiEnabled) ? Url.Action("Import") : null,
+    SecondaryActionLabel = (canCreateAsset && FeatureFlags.AssetExcelImportUiEnabled) ? "Import from Excel" : null
 })
 
 <div class="card card-kpi border-0 shadow-sm mb-4 am-fade-content">

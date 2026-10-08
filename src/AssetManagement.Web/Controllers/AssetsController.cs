@@ -825,6 +825,12 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.Create")]
         public ActionResult Import()
         {
+            if (!FeatureFlags.AssetExcelImportUiEnabled)
+            {
+                TempData["Message"] = "Excel asset import is temporarily unavailable.";
+                return RedirectToAction("Index");
+            }
+
             return View();
         }
 
@@ -833,6 +839,12 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.Create")]
         public ActionResult Import(System.Web.HttpPostedFileBase importFile)
         {
+            if (!FeatureFlags.AssetExcelImportUiEnabled)
+            {
+                TempData["Message"] = "Excel asset import is temporarily unavailable.";
+                return RedirectToAction("Index");
+            }
+
             if (importFile == null || importFile.ContentLength == 0)
             {
                 TempData["Error"] = "Select an Excel or CSV file to import.";
@@ -863,6 +875,12 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Assets.Create")]
         public ActionResult DownloadImportTemplate()
         {
+            if (!FeatureFlags.AssetExcelImportUiEnabled)
+            {
+                TempData["Message"] = "Excel asset import is temporarily unavailable.";
+                return RedirectToAction("Index");
+            }
+
             return File(
                 _assetImportService.GetImportTemplate(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

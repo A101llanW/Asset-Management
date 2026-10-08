@@ -36,11 +36,11 @@
         }
         if (roomOtherGroups == null)
         {
-            roomOtherGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments);
+            roomOtherGroups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(scopedDepartments, Model.Id);
         }
         if (subParentSelectList == null)
         {
-            var items = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments)
+            var items = DepartmentRoomParentCandidates.GetTopLevelAdministrativeParents(scopedDepartments, Model.Id)
                 .GroupBy(x => x.Id)
                 .Select(g => g.First())
                 .Select(x => new SelectListItem

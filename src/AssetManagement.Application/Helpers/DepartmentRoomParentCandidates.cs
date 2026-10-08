@@ -91,6 +91,10 @@ namespace AssetManagement.Application.Helpers
                 return new List<DepartmentVm>();
             }
 
+            var excluded = room.Id > 0
+                ? DepartmentSubtreeHelper.GetSelfAndDescendantIds(room.Id, list)
+                : new HashSet<int>();
+
             var byId = DepartmentListHelper.ToDictionaryById(list);
             var adminAncestorId = ResolveAdministrativeAncestorId(room, list);
             var candidates = new List<DepartmentVm>();
@@ -99,12 +103,13 @@ namespace AssetManagement.Application.Helpers
                 candidates = list
                     .Where(x => x.IsActive
                         && x.DepartmentKind == DepartmentKind.SubDepartment
-                        && x.ParentDepartmentId == adminAncestorId.Value)
+                        && x.ParentDepartmentId == adminAncestorId.Value
+                        && !excluded.Contains(x.Id))
                     .OrderBy(x => x.Code)
                     .ToList();
             }
 
-            if (room.ParentDepartmentId.HasValue)
+            if (room.ParentDepartmentId.HasValue && !excluded.Contains(room.ParentDepartmentId.Value))
             {
                 DepartmentVm currentParent;
                 if (!byId.TryGetValue(room.ParentDepartmentId.Value, out currentParent))
@@ -129,17 +134,22 @@ namespace AssetManagement.Application.Helpers
             return candidates;
         }
 
-
         public static IList<DepartmentVm> GetGradeParentsForClass(DepartmentVm classDepartment, IEnumerable<DepartmentVm> scopedDepartments)
         {
             var list = DepartmentListHelper.DeduplicateById(scopedDepartments);
+            var excluded = classDepartment != null && classDepartment.Id > 0
+                ? DepartmentSubtreeHelper.GetSelfAndDescendantIds(classDepartment.Id, list)
+                : new HashSet<int>();
+
             var grades = list
-                .Where(x => x.DepartmentKind == DepartmentKind.Grade && x.IsActive)
+                .Where(x => x.DepartmentKind == DepartmentKind.Grade && x.IsActive && !excluded.Contains(x.Id))
                 .OrderBy(x => x.Code)
                 .ThenBy(x => x.Name)
                 .ToList();
 
-            if (classDepartment != null && classDepartment.ParentDepartmentId.HasValue)
+            if (classDepartment != null
+                && classDepartment.ParentDepartmentId.HasValue
+                && !excluded.Contains(classDepartment.ParentDepartmentId.Value))
             {
                 var byId = DepartmentListHelper.ToDictionaryById(list);
                 DepartmentVm currentParent;
@@ -153,19 +163,35 @@ namespace AssetManagement.Application.Helpers
 
             return grades;
         }
-        public static IList<DepartmentVm> GetTopLevelAdministrativeParents(IEnumerable<DepartmentVm> scopedDepartments)
+
+        public static IList<DepartmentVm> GetTopLevelAdministrativeParents(
+            IEnumerable<DepartmentVm> scopedDepartments,
+            int? excludeSubtreeRootId = null)
         {
-            return (scopedDepartments ?? Enumerable.Empty<DepartmentVm>())
-                .Where(x => x.IsActive && DepartmentOrgHierarchyDisplay.IsTopLevelAdministrative(x))
+            var list = scopedDepartments ?? Enumerable.Empty<DepartmentVm>();
+            var excluded = excludeSubtreeRootId.HasValue && excludeSubtreeRootId.Value > 0
+                ? DepartmentSubtreeHelper.GetSelfAndDescendantIds(excludeSubtreeRootId.Value, list)
+                : new HashSet<int>();
+
+            return list
+                .Where(x => x.IsActive
+                    && DepartmentOrgHierarchyDisplay.IsTopLevelAdministrative(x)
+                    && !excluded.Contains(x.Id))
                 .OrderBy(x => x.Name)
                 .ToList();
         }
 
-        public static IList<RoomOtherParentGroupVm> BuildOtherParentPickerGroups(IEnumerable<DepartmentVm> scopedDepartments)
+        public static IList<RoomOtherParentGroupVm> BuildOtherParentPickerGroups(
+            IEnumerable<DepartmentVm> scopedDepartments,
+            int? excludeSubtreeRootId = null)
         {
             var list = DepartmentListHelper.DeduplicateById(scopedDepartments);
+            var excluded = excludeSubtreeRootId.HasValue && excludeSubtreeRootId.Value > 0
+                ? DepartmentSubtreeHelper.GetSelfAndDescendantIds(excludeSubtreeRootId.Value, list)
+                : new HashSet<int>();
+
             var groups = new List<RoomOtherParentGroupVm>();
-            foreach (var admin in GetTopLevelAdministrativeParents(list))
+            foreach (var admin in GetTopLevelAdministrativeParents(list, excludeSubtreeRootId))
             {
                 var group = new RoomOtherParentGroupVm
                 {
@@ -174,7 +200,8 @@ namespace AssetManagement.Application.Helpers
                     SubDepartments = list
                         .Where(x => x.IsActive
                             && x.DepartmentKind == DepartmentKind.SubDepartment
-                            && x.ParentDepartmentId == admin.Id)
+                            && x.ParentDepartmentId == admin.Id
+                            && !excluded.Contains(x.Id))
                         .OrderBy(x => x.Code)
                         .Select(x => new RoomOtherParentSubOptionVm
                         {

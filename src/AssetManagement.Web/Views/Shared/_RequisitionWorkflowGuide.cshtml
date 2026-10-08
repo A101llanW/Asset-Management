@@ -1,3 +1,6 @@
+@using AssetManagement.Web.Helpers
+
+
 @using System.Web.Mvc
 
 
@@ -104,7 +107,10 @@
 
         Requisition creators may approve their own request when they match the current stage role or pinned user. Transfer and disposal keep the self-approval block.
 
-        Opening-balance assets are imported separately via <strong>Import Assets</strong>.
+        @if (FeatureFlags.AssetExcelImportUiEnabled)
+        {
+            <text>Opening-balance assets are imported separately via <strong>Import Assets</strong>.</text>
+        }
 
     </p>
 
