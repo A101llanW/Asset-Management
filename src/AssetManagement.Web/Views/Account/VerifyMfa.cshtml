@@ -12,7 +12,10 @@
 
     ViewBag.AuthPortalTitle = "Enter verification code";
 
-    ViewBag.AuthPortalSubtitle = "A 6-digit code was sent to <strong>" + ViewBag.EmailHint + "</strong>. Codes expire after 10 minutes.";
+    // No code was sent when the send was refused (rate limit) or failed: show only that alert.
+    ViewBag.AuthPortalSubtitle = ViewBag.MfaSendError != null
+        ? null
+        : "A 6-digit code was sent to <strong>" + ViewBag.EmailHint + "</strong>. Codes expire after 10 minutes.";
 
 }
 
