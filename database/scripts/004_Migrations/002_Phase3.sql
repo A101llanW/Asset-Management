@@ -41,69 +41,55 @@ BEGIN
 END
 GO
 
-DECLARE @apiReadId INT = (SELECT [Id] FROM [Permission] WHERE [Code] = N'Api.Assets.Read');
+-- Role -> permission grants for the Phase 3 permissions.
+-- RolePermission.OrganizationId is taken from the role (JOIN [Roles]) so a grant can never
+-- be stamped with another org (see artifacts/roleperm-org-fix-2026-10-08). Idempotent:
+-- a grant is skipped when (RoleId, PermissionId) already exists. The unique index
+-- IX_RolePermission_Role_Permission is on (RoleId, PermissionId) and a role belongs to
+-- exactly one org, so this also covers (OrganizationId, RoleId, PermissionId).
+-- On a fresh install this script runs before 005 adds the OrganizationId columns, so the
+-- org-aware insert is dynamic SQL and only used when both columns exist.
+DECLARE @grants TABLE ([PermissionCode] NVARCHAR(100) NOT NULL, [RoleName] NVARCHAR(256) NOT NULL);
+INSERT INTO @grants ([PermissionCode],[RoleName]) VALUES
+(N'Api.Assets.Read', N'Super Admin'), (N'Api.Assets.Read', N'Asset Manager'), (N'Api.Assets.Read', N'Auditor'),
+(N'Api.Assets.Write', N'Super Admin'), (N'Api.Assets.Write', N'Asset Manager'),
+(N'Api.Webhooks.Manage', N'Super Admin'),
+(N'Insurance.View', N'Super Admin'), (N'Insurance.View', N'Asset Manager'), (N'Insurance.View', N'Finance Officer'), (N'Insurance.View', N'Auditor'),
+(N'Insurance.Manage', N'Super Admin'), (N'Insurance.Manage', N'Asset Manager'), (N'Insurance.Manage', N'Finance Officer'),
+(N'AuditLogs.Export', N'Super Admin'), (N'AuditLogs.Export', N'Auditor');
 
-IF @apiReadId IS NOT NULL
+DECLARE @pairs TABLE ([RoleId] INT NOT NULL, [PermissionId] INT NOT NULL, PRIMARY KEY ([RoleId],[PermissionId]));
+INSERT INTO @pairs ([RoleId],[PermissionId])
+SELECT DISTINCT r.[Id], p.[Id]
+FROM @grants g
+INNER JOIN [Permission] p ON p.[Code] = g.[PermissionCode]
+INNER JOIN [Roles] r ON r.[Name] = g.[RoleName];
+
+IF COL_LENGTH(N'[RolePermission]', N'OrganizationId') IS NOT NULL
+   AND COL_LENGTH(N'[Roles]', N'OrganizationId') IS NOT NULL
 BEGIN
-    INSERT INTO [RolePermission] ([RoleId],[PermissionId])
-    SELECT r.[Id], @apiReadId FROM [Roles] r
-    WHERE r.[Name] IN (N'Super Admin', N'Asset Manager', N'Auditor')
-      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = @apiReadId);
+    -- table variables are not visible inside sp_executesql, so pass the pairs as a temp table
+    IF OBJECT_ID(N'tempdb..#Phase3Grants') IS NOT NULL DROP TABLE #Phase3Grants;
+    SELECT [RoleId],[PermissionId] INTO #Phase3Grants FROM @pairs;
+
+    EXEC sp_executesql N'
+    INSERT INTO [RolePermission] ([RoleId],[PermissionId],[OrganizationId])
+    SELECT g.[RoleId], g.[PermissionId], r.[OrganizationId]
+    FROM #Phase3Grants g
+    INNER JOIN [Roles] r ON r.[Id] = g.[RoleId]
+    WHERE NOT EXISTS (SELECT 1 FROM [RolePermission] rp
+                      WHERE rp.[RoleId] = g.[RoleId] AND rp.[PermissionId] = g.[PermissionId]);';
+
+    DROP TABLE #Phase3Grants;
 END
-GO
-
-DECLARE @apiWriteId INT = (SELECT [Id] FROM [Permission] WHERE [Code] = N'Api.Assets.Write');
-
-IF @apiWriteId IS NOT NULL
+ELSE
 BEGIN
+    -- pre-multitenancy schema: no org columns yet; 005 assigns the org afterwards
     INSERT INTO [RolePermission] ([RoleId],[PermissionId])
-    SELECT r.[Id], @apiWriteId FROM [Roles] r
-    WHERE r.[Name] IN (N'Super Admin', N'Asset Manager')
-      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = @apiWriteId);
-END
-GO
-
-DECLARE @apiWebhookId INT = (SELECT [Id] FROM [Permission] WHERE [Code] = N'Api.Webhooks.Manage');
-
-IF @apiWebhookId IS NOT NULL
-BEGIN
-    INSERT INTO [RolePermission] ([RoleId],[PermissionId])
-    SELECT r.[Id], @apiWebhookId FROM [Roles] r
-    WHERE r.[Name] = N'Super Admin'
-      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = @apiWebhookId);
-END
-GO
-
-DECLARE @insViewId INT = (SELECT [Id] FROM [Permission] WHERE [Code] = N'Insurance.View');
-
-IF @insViewId IS NOT NULL
-BEGIN
-    INSERT INTO [RolePermission] ([RoleId],[PermissionId])
-    SELECT r.[Id], @insViewId FROM [Roles] r
-    WHERE r.[Name] IN (N'Super Admin', N'Asset Manager', N'Finance Officer', N'Auditor')
-      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = @insViewId);
-END
-GO
-
-DECLARE @insManageId INT = (SELECT [Id] FROM [Permission] WHERE [Code] = N'Insurance.Manage');
-
-IF @insManageId IS NOT NULL
-BEGIN
-    INSERT INTO [RolePermission] ([RoleId],[PermissionId])
-    SELECT r.[Id], @insManageId FROM [Roles] r
-    WHERE r.[Name] IN (N'Super Admin', N'Asset Manager', N'Finance Officer')
-      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = @insManageId);
-END
-GO
-
-DECLARE @auditExportId INT = (SELECT [Id] FROM [Permission] WHERE [Code] = N'AuditLogs.Export');
-
-IF @auditExportId IS NOT NULL
-BEGIN
-    INSERT INTO [RolePermission] ([RoleId],[PermissionId])
-    SELECT r.[Id], @auditExportId FROM [Roles] r
-    WHERE r.[Name] IN (N'Super Admin', N'Auditor')
-      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = @auditExportId);
+    SELECT g.[RoleId], g.[PermissionId]
+    FROM @pairs g
+    WHERE NOT EXISTS (SELECT 1 FROM [RolePermission] rp
+                      WHERE rp.[RoleId] = g.[RoleId] AND rp.[PermissionId] = g.[PermissionId]);
 END
 GO
 

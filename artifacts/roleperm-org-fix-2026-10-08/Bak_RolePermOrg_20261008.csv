@@ -1,0 +1,32 @@
+﻿Id,RoleId,PermissionId,OrganizationId,RoleOrganizationId,RoleName,PermissionCode,BackedUpAtUtc
+11,4,21,1,2,Facilities Manager,Purchases.CreateForAnyDepartment,2026-10-08T17:56:19.6252468
+573,4,50,1,2,Facilities Manager,Purchases.Create,2026-10-08T17:56:19.6252468
+574,4,49,1,2,Facilities Manager,Purchases.View,2026-10-08T17:56:19.6252468
+575,4,39,1,2,Facilities Manager,Assets.View,2026-10-08T17:56:19.6252468
+576,4,43,1,2,Facilities Manager,Assets.Assign,2026-10-08T17:56:19.6252468
+577,4,44,1,2,Facilities Manager,Assets.Transfer,2026-10-08T17:56:19.6252468
+578,5,49,1,2,Procurement Manager,Purchases.View,2026-10-08T17:56:19.6252468
+579,5,52,1,2,Procurement Manager,Purchases.Approve,2026-10-08T17:56:19.6252468
+580,5,51,1,2,Procurement Manager,Purchases.Edit,2026-10-08T17:56:19.6252468
+581,5,46,1,2,Procurement Manager,Assets.Receive,2026-10-08T17:56:19.6252468
+582,5,35,1,2,Procurement Manager,Suppliers.View,2026-10-08T17:56:19.6252468
+583,5,36,1,2,Procurement Manager,Suppliers.Create,2026-10-08T17:56:19.6252468
+584,5,37,1,2,Procurement Manager,Suppliers.Edit,2026-10-08T17:56:19.6252468
+883,24,3,1,9,Asset Manager,Api.Assets.Read,2026-10-08T17:56:19.6252468
+884,29,3,1,9,Auditor,Api.Assets.Read,2026-10-08T17:56:19.6252468
+885,33,3,1,10,Asset Manager,Api.Assets.Read,2026-10-08T17:56:19.6252468
+886,38,3,1,10,Auditor,Api.Assets.Read,2026-10-08T17:56:19.6252468
+888,24,4,1,9,Asset Manager,Api.Assets.Write,2026-10-08T17:56:19.6252468
+889,33,4,1,10,Asset Manager,Api.Assets.Write,2026-10-08T17:56:19.6252468
+893,24,6,1,9,Asset Manager,Insurance.View,2026-10-08T17:56:19.6252468
+894,26,6,1,9,Finance Officer,Insurance.View,2026-10-08T17:56:19.6252468
+895,29,6,1,9,Auditor,Insurance.View,2026-10-08T17:56:19.6252468
+896,33,6,1,10,Asset Manager,Insurance.View,2026-10-08T17:56:19.6252468
+897,35,6,1,10,Finance Officer,Insurance.View,2026-10-08T17:56:19.6252468
+898,38,6,1,10,Auditor,Insurance.View,2026-10-08T17:56:19.6252468
+901,24,7,1,9,Asset Manager,Insurance.Manage,2026-10-08T17:56:19.6252468
+902,26,7,1,9,Finance Officer,Insurance.Manage,2026-10-08T17:56:19.6252468
+903,33,7,1,10,Asset Manager,Insurance.Manage,2026-10-08T17:56:19.6252468
+904,35,7,1,10,Finance Officer,Insurance.Manage,2026-10-08T17:56:19.6252468
+906,29,8,1,9,Auditor,AuditLogs.Export,2026-10-08T17:56:19.6252468
+907,38,8,1,10,Auditor,AuditLogs.Export,2026-10-08T17:56:19.6252468

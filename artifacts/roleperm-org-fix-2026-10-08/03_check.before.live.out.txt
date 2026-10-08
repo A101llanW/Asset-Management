@@ -1,0 +1,38 @@
+tenant_role_mismatches platform_role_rows_left_alone duplicate_triples
+---------------------- ----------------------------- -----------------
+31 9 0
+
+Id RoleId RoleName PermissionId rp_org role_org
+-- ------ -------- ------------ ------ --------
+11 4 Facilities Manager 21 1 2
+573 4 Facilities Manager 50 1 2
+574 4 Facilities Manager 49 1 2
+575 4 Facilities Manager 39 1 2
+576 4 Facilities Manager 43 1 2
+577 4 Facilities Manager 44 1 2
+578 5 Procurement Manager 49 1 2
+579 5 Procurement Manager 52 1 2
+580 5 Procurement Manager 51 1 2
+581 5 Procurement Manager 46 1 2
+582 5 Procurement Manager 35 1 2
+583 5 Procurement Manager 36 1 2
+584 5 Procurement Manager 37 1 2
+883 24 Asset Manager 3 1 9
+888 24 Asset Manager 4 1 9
+893 24 Asset Manager 6 1 9
+901 24 Asset Manager 7 1 9
+894 26 Finance Officer 6 1 9
+902 26 Finance Officer 7 1 9
+884 29 Auditor 3 1 9
+895 29 Auditor 6 1 9
+906 29 Auditor 8 1 9
+885 33 Asset Manager 3 1 10
+889 33 Asset Manager 4 1 10
+896 33 Asset Manager 6 1 10
+903 33 Asset Manager 7 1 10
+897 35 Finance Officer 6 1 10
+904 35 Finance Officer 7 1 10
+886 38 Auditor 3 1 10
+898 38 Auditor 6 1 10
+907 38 Auditor 8 1 10
+

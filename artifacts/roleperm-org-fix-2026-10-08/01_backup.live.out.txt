@@ -1,0 +1,16 @@
+Created dbo.Bak_RolePermOrg_20261008
+RoleOrganizationId RoleId RoleName rows
+------------------ ------ -------- ----
+2 4 Facilities Manager 6
+2 5 Procurement Manager 7
+9 24 Asset Manager 4
+9 26 Finance Officer 2
+9 29 Auditor 3
+10 33 Asset Manager 4
+10 35 Finance Officer 2
+10 38 Auditor 3
+
+backup_rows
+-----------
+31
+
