@@ -255,6 +255,60 @@ namespace AssetManagement.Application.Helpers
         }
 
         /// <summary>
+        /// Org/template copy of one approval SystemSetting. Returns the value to write in the target organisation,
+        /// or null to skip the key (the approval defaults then fill it in). Stage role ids are mapped through
+        /// <paramref name="roleMap"/> and unmapped ones are dropped; stage persons are never copied (empty value).
+        /// Every dropped id is added to <paramref name="droppedIds"/> ("role #45", "person abc").
+        /// </summary>
+        public static string MapCopiedApprovalSetting(
+            string settingKey,
+            string settingValue,
+            IDictionary<int, int> roleMap,
+            ICollection<string> droppedIds)
+        {
+            if (string.IsNullOrWhiteSpace(settingKey))
+            {
+                return null;
+            }
+
+            foreach (var processCode in ApprovalProcessCodes.Ordered)
+            {
+                if (string.Equals(settingKey.Trim(), ApprovalProcessCodes.GetStageRoleIdsSettingKey(processCode), StringComparison.OrdinalIgnoreCase))
+                {
+                    var mapped = MapStageCsv(settingValue, null, roleMap);
+                    if (droppedIds != null)
+                    {
+                        foreach (var roleId in mapped.DroppedRoleIds)
+                        {
+                            droppedIds.Add("role #" + roleId);
+                        }
+                    }
+
+                    return mapped.RoleIds.Count == 0 ? null : mapped.RoleCsv;
+                }
+
+                if (string.Equals(settingKey.Trim(), ApprovalProcessCodes.GetStageUserIdsSettingKey(processCode), StringComparison.OrdinalIgnoreCase))
+                {
+                    if (droppedIds != null)
+                    {
+                        foreach (var user in ApprovalWorkflowSettingsHelper.ParseStageUserIds(settingValue))
+                        {
+                            var userId = Normalize(user);
+                            if (userId != null)
+                            {
+                                droppedIds.Add("person " + userId);
+                            }
+                        }
+                    }
+
+                    return string.Empty;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Builds source-role-id -> target-role-id by role name (case/space-insensitive). When a name occurs more
         /// than once in the target, the lowest id wins (deterministic). Source roles with no same-named target
         /// role are left out (callers drop and report them).
