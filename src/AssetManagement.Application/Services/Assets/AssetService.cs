@@ -426,6 +426,27 @@ namespace AssetManagement.Application.Services
             model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
             model.AssetTag = NormalizeAssetTag(ResolveAssetTagForCreate(model));
             ValidateUniqueness(model.AssetTag, model.SerialNumber, null);
+            var createOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            var referenceGuard = NewReferenceGuard();
+            if (createOrganizationId.HasValue)
+            {
+                // Same-org guard: every referenced id must belong to the organisation the asset is created in.
+                referenceGuard.EnsureAssetReferencesInOrganization(
+                    createOrganizationId.Value,
+                    NormalizeOptionalId(model.DepartmentId),
+                    model.CategoryId,
+                    model.AssetTypeId,
+                    NormalizeOptionalId(model.AssetSubTypeId),
+                    NormalizeOptionalId(model.SupplierId),
+                    "Assets.Create",
+                    null);
+                referenceGuard.EnsureProcessesInOrganization(
+                    createOrganizationId.Value,
+                    model.ApprovalProcesses,
+                    "Assets.Create",
+                    nameof(Asset),
+                    null);
+            }
             var entity = new Asset
             {
                 AssetName = model.AssetName,
@@ -463,7 +484,7 @@ namespace AssetManagement.Application.Services
             DepreciationSettingsHelper.ApplyAssetOverrides(entity, model, model.CanManageDepreciationSettings);
             ApplyCalculatedDepreciation(entity);
 
-            AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
+            ApplyGuardedApprovalStages(entity, model.ApprovalProcesses, createOrganizationId, referenceGuard, "Assets.Create");
             ApplySubType(entity, model);
 
             _unitOfWork.Repository<Asset>().Add(entity);
@@ -515,6 +536,13 @@ namespace AssetManagement.Application.Services
             var targetDepartment = _unitOfWork.Repository<Department>().GetById(targetDepartmentId);
             if (targetDepartment == null || !targetDepartment.IsActive)
             {
+                throw new BusinessException("Target " + label + " was not found or is inactive.");
+            }
+
+            if (asset.OrganizationId.HasValue && targetDepartment.OrganizationId.HasValue
+                && targetDepartment.OrganizationId != asset.OrganizationId)
+            {
+                NewReferenceGuard().Report(asset.OrganizationId.Value, "Assets.Relocate", nameof(Asset), asset.Id.ToString(), "DepartmentId", targetDepartmentId.ToString(), true);
                 throw new BusinessException("Target " + label + " was not found or is inactive.");
             }
 
@@ -690,6 +718,30 @@ namespace AssetManagement.Application.Services
                 EnsureEditDepartmentChangeAllowed(entity, newDepartmentId);
             }
 
+            var editOrganizationId = entity.OrganizationId
+                ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId());
+            var referenceGuard = NewReferenceGuard();
+            if (editOrganizationId.HasValue)
+            {
+                // Same-org guard on changed references only (unchanged values were already stored; keeps Edit fast).
+                referenceGuard.EnsureAssetReferencesInOrganization(
+                    editOrganizationId.Value,
+                    departmentChanged ? newDepartmentId : null,
+                    model.CategoryId != entity.CategoryId ? (int?)model.CategoryId : null,
+                    model.AssetTypeId != entity.AssetTypeId ? (int?)model.AssetTypeId : null,
+                    NormalizeOptionalId(model.AssetSubTypeId) != NormalizeOptionalId(entity.AssetSubTypeId) ? NormalizeOptionalId(model.AssetSubTypeId) : null,
+                    NormalizeOptionalId(model.SupplierId) != NormalizeOptionalId(entity.SupplierId) ? NormalizeOptionalId(model.SupplierId) : null,
+                    "Assets.Edit",
+                    entity.Id.ToString());
+                // Posted stages only count for processes that require approval (others keep the stored stages).
+                referenceGuard.EnsureProcessesInOrganization(
+                    editOrganizationId.Value,
+                    (model.ApprovalProcesses ?? new List<ApprovalProcessSettingsVm>()).Where(x => x != null && x.RequiresApproval).ToList(),
+                    "Assets.Edit",
+                    nameof(Asset),
+                    entity.Id.ToString());
+            }
+
             var oldSnapshot = entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus;
             var oldPrice = entity.AcquisitionCost;
             model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
@@ -735,19 +787,44 @@ namespace AssetManagement.Application.Services
             var storedTransferUserIds = entity.TransferApprovalStageUserIds;
             var storedDisposalRoleIds = entity.DisposalApprovalStageRoleIds;
             var storedDisposalUserIds = entity.DisposalApprovalStageUserIds;
-            AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
+            ApplyGuardedApprovalStages(entity, model.ApprovalProcesses, editOrganizationId, referenceGuard, "Assets.Edit");
             // When a process does not require approval its stage pickers are not in play (and may show no
-            // match for a stored role, posting ""): keep the stored stage roles/users instead of wiping them.
+            // match for a stored role, posting ""): keep the stored stage roles/users instead of wiping them,
+            // but never keep ids that belong to another organisation: those are dropped, logged and flagged.
             if (!entity.RequireTransferApproval)
             {
-                entity.TransferApprovalStageRoleIds = storedTransferRoleIds;
-                entity.TransferApprovalStageUserIds = storedTransferUserIds;
+                RestoreStoredStages(
+                    entity,
+                    editOrganizationId,
+                    referenceGuard,
+                    storedTransferRoleIds,
+                    storedTransferUserIds,
+                    "TransferApprovalStageRoleIds",
+                    "Transfer",
+                    model,
+                    (roles, users) =>
+                    {
+                        entity.TransferApprovalStageRoleIds = roles;
+                        entity.TransferApprovalStageUserIds = users;
+                    });
             }
 
             if (!entity.RequireDisposalApproval)
             {
-                entity.DisposalApprovalStageRoleIds = storedDisposalRoleIds;
-                entity.DisposalApprovalStageUserIds = storedDisposalUserIds;
+                RestoreStoredStages(
+                    entity,
+                    editOrganizationId,
+                    referenceGuard,
+                    storedDisposalRoleIds,
+                    storedDisposalUserIds,
+                    "DisposalApprovalStageRoleIds",
+                    "Disposal",
+                    model,
+                    (roles, users) =>
+                    {
+                        entity.DisposalApprovalStageRoleIds = roles;
+                        entity.DisposalApprovalStageUserIds = users;
+                    });
             }
 
             ApplySubType(entity, model);
@@ -970,6 +1047,14 @@ namespace AssetManagement.Application.Services
                 CompleteDisposalWithoutApproval(asset, model, requestedByUserId);
                 return;
             }
+
+            // Snapshot guard: never copy another organisation's role/person ids onto the disposal request.
+            NewReferenceGuard().EnsureConfigurationInOrganization(
+                asset.OrganizationId ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()),
+                approvalConfig,
+                "Assets.RequestDisposal",
+                nameof(Asset),
+                asset.Id.ToString());
 
             var disposal = new DisposalRecord
             {
@@ -1579,6 +1664,85 @@ namespace AssetManagement.Application.Services
         private static string NormalizeText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private OrgReferenceValidator NewReferenceGuard()
+        {
+            return new OrgReferenceValidator(_unitOfWork, _auditWriter, _referenceDataCache, _userService);
+        }
+
+        /// <summary>Serializes posted stages after the same-org check (foreign stages are dropped and logged).</summary>
+        private void ApplyGuardedApprovalStages(
+            Asset entity,
+            IList<ApprovalProcessSettingsVm> processes,
+            int? organizationId,
+            OrgReferenceValidator referenceGuard,
+            string context)
+        {
+            if (!organizationId.HasValue)
+            {
+                // No organisation context (should not happen for tenant writes): store nothing we cannot verify.
+                AssetApprovalSettingsHelper.ApplyToAsset(entity, processes, id => false, id => false);
+                return;
+            }
+
+            var org = organizationId.Value;
+            var dropped = AssetApprovalSettingsHelper.ApplyToAsset(
+                entity,
+                processes,
+                id => referenceGuard.RoleInOrganization(org, id),
+                id => referenceGuard.UserInOrganization(org, id));
+            foreach (var item in dropped)
+            {
+                referenceGuard.Report(org, context, nameof(Asset), entity.Id > 0 ? entity.Id.ToString() : null, item.Key + " stages", item.Value.DescribeDrops(), false);
+            }
+        }
+
+        /// <summary>
+        /// Edit: keeps stored stages of a process that does not require approval, minus any role/person that is
+        /// not in the asset's organisation (dropped, audit-logged, and listed in <see cref="AssetEditVm.ReferenceGuardNotices"/>).
+        /// Clean stored values are written back byte-for-byte so an unchanged save stays a no-op on these columns.
+        /// </summary>
+        private void RestoreStoredStages(
+            Asset entity,
+            int? organizationId,
+            OrgReferenceValidator referenceGuard,
+            string storedRoleIds,
+            string storedUserIds,
+            string column,
+            string processLabel,
+            AssetEditVm model,
+            Action<string, string> write)
+        {
+            if (!organizationId.HasValue || string.IsNullOrWhiteSpace(storedRoleIds))
+            {
+                write(storedRoleIds, storedUserIds);
+                return;
+            }
+
+            var checkedStages = referenceGuard.GuardStoredStages(
+                organizationId.Value,
+                storedRoleIds,
+                storedUserIds,
+                column,
+                "Assets.Edit",
+                nameof(Asset),
+                entity.Id.ToString());
+            if (!checkedStages.HasDrops)
+            {
+                write(storedRoleIds, storedUserIds);
+                return;
+            }
+
+            write(
+                string.IsNullOrEmpty(checkedStages.RoleCsv) ? null : checkedStages.RoleCsv,
+                string.IsNullOrEmpty(checkedStages.UserCsv) ? null : checkedStages.UserCsv);
+            if (model != null)
+            {
+                model.ReferenceGuardNotices.Add(
+                    processLabel + " approval stages: removed " + checkedStages.DescribeDrops()
+                    + " that belonged to another company. Review the approval stages for this asset.");
+            }
         }
 
         private static string NormalizeId(string value)

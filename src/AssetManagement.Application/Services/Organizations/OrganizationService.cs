@@ -17,6 +17,9 @@ namespace AssetManagement.Application.Services.Organizations
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IUserAccountService _userAccountService;
         private readonly IAuditWriter _auditWriter;
+        // Ids dropped while copying template settings; reported after the copy commits (audit + result message).
+        private readonly List<KeyValuePair<string, string>> _copyDrops = new List<KeyValuePair<string, string>>();
+        private int _copyDropsOrganizationId;
 
         public OrganizationService(
             IUnitOfWork unitOfWork,
@@ -106,6 +109,7 @@ namespace AssetManagement.Application.Services.Organizations
             }
             catch (InvalidOperationException ex)
             {
+                _copyDrops.Clear();
                 return new OrganizationCreateResult
                 {
                     Succeeded = false,
@@ -116,6 +120,7 @@ namespace AssetManagement.Application.Services.Organizations
 
             _auditWriter.Write("ORGANIZATION_CREATED", "Organization", organization.Id.ToString(), null,
                 "{\"Name\":\"" + organization.Name + "\",\"Slug\":\"" + organization.Slug + "\"}");
+            var copyWarning = FlushCopyDrops();
 
             return new OrganizationCreateResult
             {
@@ -124,7 +129,9 @@ namespace AssetManagement.Application.Services.Organizations
                 CompanyAdminUserId = adminResult.CompanyAdminUserId,
                 AdminEmail = adminResult.AdminEmail,
                 ProvisionalPassword = adminResult.ProvisionalPassword,
-                Message = "Organization created successfully."
+                Message = copyWarning == null
+                    ? "Organization created successfully."
+                    : "Organization created successfully. " + copyWarning
             };
         }
 
@@ -138,6 +145,27 @@ namespace AssetManagement.Application.Services.Organizations
             EnsureTenantRoles(organizationId, DateTime.UtcNow, roleTemplateOrganizationSlug);
             EnsureApprovalSettings(organizationId, DateTime.UtcNow, refreshInvalidStageRoleIds: true);
             _unitOfWork.SaveChanges();
+            FlushCopyDrops();
+        }
+
+        /// <summary>Audits ids dropped by the last template copy and returns a one-line warning (or null).</summary>
+        private string FlushCopyDrops()
+        {
+            if (_copyDrops.Count == 0)
+            {
+                return null;
+            }
+
+            var validator = new OrgReferenceValidator(_unitOfWork, _auditWriter);
+            foreach (var drop in _copyDrops)
+            {
+                validator.Report(_copyDropsOrganizationId, "Organization template copy", "SystemSetting", drop.Key, drop.Key, drop.Value, false);
+            }
+
+            var warning = "Template approval settings referenced ids with no equivalent in the new company; they were dropped: "
+                + string.Join("; ", _copyDrops.Select(x => x.Key + " (" + x.Value + ")")) + ".";
+            _copyDrops.Clear();
+            return warning;
         }
 
         private void EnsureTenantRoles(int organizationId, DateTime now, string roleTemplateOrganizationSlug)
@@ -226,19 +254,35 @@ namespace AssetManagement.Application.Services.Organizations
 
                 if (!targetHasSettings)
                 {
+                    _copyDrops.Clear();
+                    _copyDropsOrganizationId = organizationId;
                     foreach (var setting in _unitOfWork.Repository<SystemSetting>().Query()
                         .Where(x => x.OrganizationId == templateOrgId)
                         .ToList())
                     {
+                        var settingValue = setting.SettingValue;
                         if (OrganizationApprovalDefaults.IsApprovalSettingKey(setting.SettingKey))
                         {
-                            continue;
+                            // Never copy raw ids across companies: stage roles are mapped to the new company's
+                            // copies of the template roles (roleMap), persons are not copied. Enabled/Require
+                            // flags still come from the approval defaults below (off), as before.
+                            var dropped = new List<string>();
+                            settingValue = OrgReferenceGuard.MapCopiedApprovalSetting(setting.SettingKey, setting.SettingValue, roleMap, dropped);
+                            if (dropped.Count > 0)
+                            {
+                                _copyDrops.Add(new KeyValuePair<string, string>(setting.SettingKey, string.Join(",", dropped)));
+                            }
+
+                            if (settingValue == null)
+                            {
+                                continue;
+                            }
                         }
 
                         _unitOfWork.Repository<SystemSetting>().Add(new SystemSetting
                         {
                             SettingKey = setting.SettingKey,
-                            SettingValue = setting.SettingValue,
+                            SettingValue = settingValue,
                             Description = setting.Description,
                             OrganizationId = organizationId,
                             CreatedAt = now,
@@ -247,7 +291,11 @@ namespace AssetManagement.Application.Services.Organizations
                     }
                 }
 
-                EnsureApprovalSettings(organizationId, now, refreshInvalidStageRoleIds: true);
+                // Persist the copied settings first so the defaults below see them (no duplicate keys), and do
+                // not force-refresh: mapped stage roles that are valid for this company are kept; missing or
+                // invalid ones are still replaced with the default approver role.
+                _unitOfWork.SaveChanges();
+                EnsureApprovalSettings(organizationId, now, refreshInvalidStageRoleIds: false);
                 _unitOfWork.SaveChanges();
             }
             finally

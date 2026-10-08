@@ -105,6 +105,9 @@ namespace AssetManagement.Tests
         public void AssetService_CreateGeneratesAssetTagWhenOmitted()
         {
             var unitOfWork = new FakeUnitOfWork();
+            // Same-org guard (xorg-guard): referenced category/supplier must exist in the company.
+            unitOfWork.Seed(new AssetCategory { Id = 1, Name = "Computers", CreatedAt = DateTime.UtcNow, IsActive = true });
+            unitOfWork.Seed(new Supplier { Id = 1, SupplierName = "Dell Kenya", CreatedAt = DateTime.UtcNow, IsActive = true });
             unitOfWork.Seed(new Department
             {
                 Id = 1,
@@ -902,6 +905,8 @@ namespace AssetManagement.Tests
         {
             var unitOfWork = new FakeUnitOfWork();
             SeedDisposalApprovalSettings(unitOfWork);
+            // Same-org guard (xorg-guard): the snapshotted stage role must be a role of the company.
+            unitOfWork.Seed(new Role { Id = 1, Name = "Company Admin", CreatedAt = DateTime.UtcNow, IsActive = true });
             var asset = BuildAsset(id: 90, assetTag: "AST-090", status: AssetStatus.InStore);
             asset.RequireDisposalApproval = true;
             asset.DisposalApprovalStageRoleIds = "1";

@@ -305,6 +305,31 @@ namespace AssetManagement.Web.Controllers
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll());
             var roleIds = GetOrganizationRoleIdSet(organizationId.Value);
             Func<string, ApproverUserRecord> findUser = null;
+
+            // Same-org guard for every process row (Transfer/Disposal rows were role-unchecked before): a stage role
+            // that is not one of this organisation's roles is rejected and logged before any setting is written.
+            var foreignStages = OrgReferenceGuard.FindForeignStages(model.ApprovalProcesses, roleIds.Contains, null);
+            if (foreignStages.Count > 0)
+            {
+                new OrgReferenceValidator(UnitOfWork, AuditWriter, BuildReferenceDataCache()).Report(
+                    organizationId.Value,
+                    "Settings.ApprovalMatrix",
+                    "SystemSetting",
+                    null,
+                    "Approval.*.StageRoleIds",
+                    string.Join(" | ", foreignStages.ToArray()),
+                    true);
+                // The Requisition row gets its role error from StageApproverRules.ValidateStages below.
+                foreach (var message in OrgReferenceGuard.FindForeignStages(
+                    model.ApprovalProcesses.Where(x => x != null
+                        && !string.Equals(x.ProcessCode, ApprovalProcessCodes.Purchase, StringComparison.OrdinalIgnoreCase)),
+                    roleIds.Contains,
+                    null))
+                {
+                    ModelState.AddModelError(string.Empty, message);
+                }
+            }
+
             foreach (var process in model.ApprovalProcesses.Where(x => x != null && x.Stages != null))
             {
                 if (!string.Equals(process.ProcessCode, ApprovalProcessCodes.Purchase, StringComparison.OrdinalIgnoreCase))

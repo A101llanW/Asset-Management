@@ -51,6 +51,8 @@ namespace AssetManagement.Application.Services
         private readonly IReferenceDataCache _referenceDataCache;
         private readonly IAssetSubTypeService _assetSubTypeService;
         private HashSet<string> _reservedImportTags;
+        private OrgReferenceValidator _importReferenceGuard;
+        private int? _importOrganizationId;
 
         public AssetImportService(
             IUnitOfWork unitOfWork,
@@ -263,17 +265,31 @@ namespace AssetManagement.Application.Services
             _unitOfWork.ClearTracking();
 
             var lookups = BuildLookups();
-            var defaultProcesses = AssetApprovalSettingsHelper
-                .BuildDefaultProcesses(_unitOfWork, _roleService.GetRoles())
-                .ToList();
-
             var organizationId = _organizationScope.GetCurrentOrganizationId();
             if (!organizationId.HasValue)
             {
                 throw new BusinessException("Organization context is required for asset import.");
             }
 
+            // Defaults come from THIS organisation's approval settings (explicit org filter), and any role/person
+            // that is not in this organisation is dropped (with a warning) before it can reach an asset row.
+            _importOrganizationId = organizationId.Value;
+            _importReferenceGuard = new OrgReferenceValidator(_unitOfWork, _auditWriter, _referenceDataCache);
+            var defaultProcesses = AssetApprovalSettingsHelper
+                .BuildDefaultProcesses(_unitOfWork, _roleService.GetRoles(), organizationId.Value)
+                .ToList();
+            var defaultStageWarning = _importReferenceGuard.DropForeignStages(
+                organizationId.Value,
+                defaultProcesses,
+                "Assets.Import",
+                nameof(Asset),
+                null);
+
             var result = new AssetImportResultVm();
+            if (!string.IsNullOrWhiteSpace(defaultStageWarning))
+            {
+                result.Messages.Add(defaultStageWarning + " Fix Settings > Approval Matrix for this company.");
+            }
             var preparedRows = new List<PreparedImportRow>();
             var rowNumber = 1;
             foreach (var row in rowMaps)
@@ -554,6 +570,29 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        private void ApplyImportApprovalStages(Asset entity, IList<ApprovalProcessSettingsVm> processes)
+        {
+            var organizationId = _importOrganizationId ?? _organizationScope.GetCurrentOrganizationId();
+            if (_importReferenceGuard == null)
+            {
+                _importReferenceGuard = new OrgReferenceValidator(_unitOfWork, _auditWriter, _referenceDataCache);
+            }
+
+            var guard = _importReferenceGuard;
+            if (!organizationId.HasValue)
+            {
+                AssetApprovalSettingsHelper.ApplyToAsset(entity, processes, id => false, id => false);
+                return;
+            }
+
+            var org = organizationId.Value;
+            AssetApprovalSettingsHelper.ApplyToAsset(
+                entity,
+                processes,
+                id => guard.RoleInOrganization(org, id),
+                id => guard.UserInOrganization(org, id));
+        }
+
         private int CreateAssetInTransaction(AssetCreateVm model)
         {
             var entity = BuildImportAssetEntity(model, null, null);
@@ -602,7 +641,7 @@ namespace AssetManagement.Application.Services
             };
 
             DepreciationSettingsHelper.ApplyAssetOverrides(entity, model, model.CanManageDepreciationSettings);
-            AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
+            ApplyImportApprovalStages(entity, model.ApprovalProcesses);
 
             if (row != null)
             {
