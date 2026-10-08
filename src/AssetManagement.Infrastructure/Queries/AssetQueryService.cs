@@ -1116,11 +1116,22 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
             {
                 if (!string.IsNullOrWhiteSpace(filter.Search))
                 {
+                    // Current custodian name/email (QA2 T3-search-DemoStaff): same-org user rows only, prefix match
+                    // on first name, last name, "First Last" and email, evaluated in SQL as a correlated EXISTS.
                     clauses.Add(@"(
     a.[AssetTag] LIKE @SearchPrefix
     OR a.[AssetName] LIKE @SearchPrefix
     OR a.[SerialNumber] LIKE @SearchPrefix
     OR a.[BarcodeOrQRCode] LIKE @SearchPrefix
+    OR EXISTS (
+        SELECT 1 FROM [Users] cu
+        WHERE cu.[Id] = a.[CurrentCustodianId]
+          AND cu.[OrganizationId] = @OrganizationId
+          AND (cu.[FirstName] LIKE @SearchPrefix
+            OR cu.[LastName] LIKE @SearchPrefix
+            OR cu.[Email] LIKE @SearchPrefix
+            OR (cu.[FirstName] + N' ' + cu.[LastName]) LIKE @SearchPrefix)
+    )
 )");
                 }
 
