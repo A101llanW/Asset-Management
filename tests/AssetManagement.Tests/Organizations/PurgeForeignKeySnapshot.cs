@@ -113,6 +113,7 @@ namespace AssetManagement.Tests.Organizations
             new ForeignKeyEdge("FK_SupplierCatalogItem_Supplier", "SupplierCatalogItem", "SupplierId", "Supplier", "NO_ACTION"),
             new ForeignKeyEdge("FK_SupplierCatalogItem_TaggedAsset", "SupplierCatalogItem", "TaggedAssetId", "Asset", "NO_ACTION"),
             new ForeignKeyEdge("FK_SystemSetting_Organization", "SystemSetting", "OrganizationId", "Organization", "NO_ACTION"),
+            new ForeignKeyEdge("FK_OrganizationSmtpSettings_Organization", "OrganizationSmtpSettings", "OrganizationId", "Organization", "NO_ACTION"),
             new ForeignKeyEdge("FK_TransferApprovalAction_AssetTransfer", "TransferApprovalAction", "AssetTransferId", "AssetTransfer", "NO_ACTION"),
             new ForeignKeyEdge("FK_TransferApprovalAction_Organization", "TransferApprovalAction", "OrganizationId", "Organization", "NO_ACTION"),
             new ForeignKeyEdge("FK_UserInvitation_Department", "UserInvitation", "DepartmentId", "Department", "NO_ACTION"),

@@ -243,7 +243,9 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             var relaxed = DeploymentSecuritySettings.MfaAllowAnyCode;
-            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            // Company SMTP for the user's organization when on and complete; platform default otherwise.
+            var mailer = _emailService == null ? null : _emailService.ForOrganization(EmailOrganizationRouting.ForUser(_users, user));
+            if (!relaxed && (mailer == null || !mailer.IsConfigured))
             {
                 System.Diagnostics.Trace.WriteLine(
                     "Password reset suppressed: SMTP is not configured while MfaAllowAnyCode=false.");
@@ -257,11 +259,11 @@ namespace AssetManagement.Infrastructure.Services
             var tokenHash = ComputeTokenHash(user.SecurityStamp, token);
             var resetLink = BuildPasswordResetLink(token, user.Email, organizationSlug);
 
-            if (_emailService != null && _emailService.IsConfigured)
+            if (mailer != null && mailer.IsConfigured)
             {
                 try
                 {
-                    _emailService.SendPasswordResetEmail(user.Email, resetLink);
+                    mailer.SendPasswordResetEmail(user.Email, resetLink);
                 }
                 catch (Exception ex)
                 {

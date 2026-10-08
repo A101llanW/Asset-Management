@@ -1,0 +1,127 @@
+@model AssetManagement.Web.ViewModels.CompanySmtpSettingsViewModel
+@{
+    ViewBag.Title = "Email (SMTP)";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Email (SMTP)",
+    Subtitle = "Send this company's emails (sign-in codes, invitations, password resets, alerts) through its own mail server, or keep the platform default.",
+    BackUrl = Url.Action("Index", "Settings"),
+    BackLabel = "Back to Settings"
+})
+
+<div class="am-stagger">
+    <div class="card card-kpi mb-3">
+        <div class="card-header">Currently in use</div>
+        <div class="card-body">
+            <p class="mb-1">
+                <span class="badge @(Model.UsesOwnSmtp ? "bg-success" : "bg-secondary")" id="smtp-route-label">@Model.CurrentRouteLabel</span>
+                @if (!string.IsNullOrWhiteSpace(Model.OrganizationName))
+                {
+                    <span class="ms-2 text-muted">@Model.OrganizationName</span>
+                }
+            </p>
+            <p class="mb-0 small text-muted" id="smtp-route-detail">@Model.CurrentRouteDetail</p>
+            @if (!string.IsNullOrWhiteSpace(Model.LastUpdatedLabel))
+            {
+                <p class="mb-0 small text-muted">Last changed @Model.LastUpdatedLabel</p>
+            }
+        </div>
+    </div>
+
+    @if (!Model.StoreAvailable)
+    {
+        <div class="alert alert-info">Company email settings will be available after the next database update. Until then every email uses the platform default.</div>
+    }
+    else
+    {
+        using (Html.BeginForm("Email", "Settings", FormMethod.Post, new { autocomplete = "off", id = "smtp-settings-form" }))
+        {
+            @Html.AntiForgeryToken()
+            @Html.ValidationSummary(true, "", new { @class = "alert alert-danger" })
+
+            <div class="card card-kpi mb-3">
+                <div class="card-header">Company SMTP server</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        @Html.CheckBoxFor(m => m.IsEnabled, new { @class = "form-check-input", role = "switch" })
+                        @Html.LabelFor(m => m.IsEnabled, new { @class = "form-check-label" })
+                        <div class="form-text">When off, or when the settings below are incomplete, this company's emails use the platform default.</div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            @Html.LabelFor(m => m.Host, new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.Host, new { @class = "form-control", placeholder = "smtp.yourcompany.com", maxlength = "255" })
+                            @Html.ValidationMessageFor(m => m.Host, "", new { @class = "text-danger small" })
+                        </div>
+                        <div class="col-md-3">
+                            @Html.LabelFor(m => m.Port, new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.Port, new { @class = "form-control", type = "number", min = "1", max = "65535" })
+                            @Html.ValidationMessageFor(m => m.Port, "", new { @class = "text-danger small" })
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                @Html.CheckBoxFor(m => m.UseSsl, new { @class = "form-check-input" })
+                                @Html.LabelFor(m => m.UseSsl, new { @class = "form-check-label" })
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            @Html.LabelFor(m => m.Username, new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.Username, new { @class = "form-control", autocomplete = "off", maxlength = "256" })
+                            <div class="form-text">Leave blank if the server does not require a login.</div>
+                        </div>
+                        <div class="col-md-6">
+                            @Html.LabelFor(m => m.NewPassword, new { @class = "form-label" })
+                            <input type="password" name="NewPassword" id="NewPassword" class="form-control" autocomplete="new-password" maxlength="256"
+                                   placeholder="@(Model.HasStoredPassword ? "Saved - leave blank to keep it" : "Not set")" />
+                            <div class="form-text">
+                                @(Model.HasStoredPassword ? "A password is saved (encrypted). It is never shown." : "No password is saved.")
+                            </div>
+                            @if (Model.HasStoredPassword)
+                            {
+                                <div class="form-check mt-1">
+                                    @Html.CheckBoxFor(m => m.ClearPassword, new { @class = "form-check-input" })
+                                    @Html.LabelFor(m => m.ClearPassword, new { @class = "form-check-label" })
+                                </div>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            @Html.LabelFor(m => m.FromAddress, new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.FromAddress, new { @class = "form-control", type = "email", placeholder = "noreply@yourcompany.com", maxlength = "256" })
+                            @Html.ValidationMessageFor(m => m.FromAddress, "", new { @class = "text-danger small" })
+                        </div>
+                        <div class="col-md-6">
+                            @Html.LabelFor(m => m.FromDisplayName, new { @class = "form-label" })
+                            @Html.TextBoxFor(m => m.FromDisplayName, new { @class = "form-control", placeholder = "Your company name", maxlength = "200" })
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary" id="smtp-save">Save email settings</button>
+                </div>
+            </div>
+        }
+
+        <div class="card card-kpi mb-3">
+            <div class="card-header">Send test email</div>
+            <div class="card-body">
+                <p class="mb-2">
+                    Sends one message through the <strong>saved</strong> company SMTP settings (even before you turn them on) to
+                    <strong>@(string.IsNullOrWhiteSpace(Model.TestRecipient) ? "your account email" : Model.TestRecipient)</strong>.
+                    Save any changes first.
+                </p>
+                @using (Html.BeginForm("SendTestEmail", "Settings", FormMethod.Post, new { id = "smtp-test-form" }))
+                {
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-primary" id="smtp-send-test" @(Model.CanSendTest ? "" : "disabled")>Send test email</button>
+                    if (!Model.CanSendTest)
+                    {
+                        <span class="ms-2 small text-muted">Save a host, port and From address first.</span>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>

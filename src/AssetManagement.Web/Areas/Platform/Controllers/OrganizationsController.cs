@@ -166,11 +166,43 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                         ? licenseDetail.History.ToList()
                         : new List<LicenseHistoryItemVm>()
                 };
+                ApplyEmailRoute(model, id);
                 return View(model);
             }
             finally
             {
                 _organizationScope.SetOrganizationFilterOverride(null);
+            }
+        }
+
+        private static void ApplyEmailRoute(OrganizationDetailsViewModel model, int organizationId)
+        {
+            model.EmailRouteLabel = "Platform default";
+            try
+            {
+                var store = DependencyResolver.Current.GetService<IOrganizationSmtpSettingsStore>();
+                if (store == null || !store.IsAvailable())
+                {
+                    model.EmailRouteDetail = "Company SMTP not available yet (migration 094 pending).";
+                    return;
+                }
+
+                var record = store.Get(organizationId);
+                if (AssetManagement.Application.Email.SmtpSettingsResolution.IsUsable(record))
+                {
+                    model.UsesOwnSmtp = true;
+                    model.EmailRouteLabel = "Own SMTP";
+                    model.EmailRouteDetail = record.Host + ":" + record.Port;
+                    return;
+                }
+
+                model.EmailRouteDetail = record == null
+                    ? null
+                    : AssetManagement.Application.Email.SmtpSettingsResolution.GetIncompleteReason(record, true);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning("Organization SMTP status lookup failed: " + ex.Message);
             }
         }
 
@@ -818,6 +850,14 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         public int? DaysUntilExpiry { get; set; }
 
         public List<LicenseHistoryItemVm> LicenseHistory { get; set; }
+
+        /// <summary>"Own SMTP" or "Platform default".</summary>
+        public string EmailRouteLabel { get; set; }
+
+        /// <summary>Company SMTP host:port or why the default is used. Never a password.</summary>
+        public string EmailRouteDetail { get; set; }
+
+        public bool UsesOwnSmtp { get; set; }
     }
 
     public class CreateOrganizationViewModel

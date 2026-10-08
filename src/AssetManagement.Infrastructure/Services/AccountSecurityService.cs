@@ -237,8 +237,10 @@ namespace AssetManagement.Infrastructure.Services
 
 
             var relaxed = IsMfaCodeValidationRelaxed();
+            // Company SMTP when the user's organization has it on and complete; platform default otherwise.
+            var mailer = _emailService == null ? null : _emailService.ForOrganization(EmailOrganizationRouting.ForUser(_users, user));
 
-            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            if (!relaxed && (mailer == null || !mailer.IsConfigured))
 
             {
 
@@ -282,13 +284,13 @@ namespace AssetManagement.Infrastructure.Services
 
 
 
-            if (_emailService != null && _emailService.IsConfigured)
+            if (mailer != null && mailer.IsConfigured)
             {
                 // Off the request path: an SMTP round trip took ~3 s on the VerifyMfa GET (up to 3 tries
                 // with a 10 s timeout when the server is slow). The code is already stored and the rate
                 // limit already counted; a failed send is logged (Trace + email_errors.txt) and the user
                 // can use Resend code.
-                var emailService = _emailService;
+                var emailService = mailer;
                 var to = user.Email;
                 System.Threading.ThreadPool.QueueUserWorkItem(_ =>
                 {
@@ -634,6 +636,7 @@ namespace AssetManagement.Infrastructure.Services
 
             {
 
+                // Platform admins only, so this stays on the platform default SMTP (_emailService is the platform sender).
                 var emails = _users.ListActivePlatformAdminEmails();
 
                 if (emails == null || emails.Count == 0 || _emailService == null)
@@ -773,7 +776,8 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             var relaxed = IsMfaCodeValidationRelaxed();
-            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            var mailer = _emailService == null ? null : _emailService.ForOrganization(EmailOrganizationRouting.ForUser(_users, user));
+            if (!relaxed && (mailer == null || !mailer.IsConfigured))
             {
                 System.Diagnostics.Trace.WriteLine(
                     "Email verification code not sent: SMTP is not configured while MfaAllowAnyCode=false.");
@@ -784,11 +788,11 @@ namespace AssetManagement.Infrastructure.Services
             user.EmailVerificationExpiryUtc = DateTime.UtcNow.AddMinutes(30);
             _users.Update(user);
 
-            if (_emailService != null && _emailService.IsConfigured)
+            if (mailer != null && mailer.IsConfigured)
             {
                 try
                 {
-                    _emailService.SendMfaCodeEmail(user.Email, user.EmailVerificationCode);
+                    mailer.SendMfaCodeEmail(user.Email, user.EmailVerificationCode);
                     return true;
                 }
                 catch (Exception ex)
@@ -844,6 +848,12 @@ namespace AssetManagement.Infrastructure.Services
 
         public bool SendVerificationCodeToAddress(string email, out string code)
         {
+            return SendVerificationCodeToAddress(email, null, out code);
+        }
+
+        /// <summary>Sends a code to a new address; <paramref name="userId"/> picks the user's organization SMTP.</summary>
+        public bool SendVerificationCodeToAddress(string email, string userId, out string code)
+        {
             code = null;
             if (string.IsNullOrWhiteSpace(email))
             {
@@ -851,7 +861,9 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             var relaxed = IsMfaCodeValidationRelaxed();
-            if (!relaxed && (_emailService == null || !_emailService.IsConfigured))
+            var owner = string.IsNullOrWhiteSpace(userId) ? null : _users.FindById(userId);
+            var mailer = _emailService == null ? null : _emailService.ForOrganization(EmailOrganizationRouting.ForUser(_users, owner));
+            if (!relaxed && (mailer == null || !mailer.IsConfigured))
             {
                 System.Diagnostics.Trace.WriteLine(
                     "Verification code not sent: SMTP is not configured while MfaAllowAnyCode=false.");
@@ -860,11 +872,11 @@ namespace AssetManagement.Infrastructure.Services
 
             code = GenerateNumericCode(6);
 
-            if (_emailService != null && _emailService.IsConfigured)
+            if (mailer != null && mailer.IsConfigured)
             {
                 try
                 {
-                    _emailService.SendMfaCodeEmail(email.Trim(), code);
+                    mailer.SendMfaCodeEmail(email.Trim(), code);
                     return true;
                 }
                 catch (Exception ex)

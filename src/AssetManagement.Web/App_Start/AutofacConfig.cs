@@ -66,6 +66,10 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<AuthFlowRateLimiterService>().As<IAuthFlowRateLimiter>().InstancePerHttpRequest();
             builder.RegisterType<SqlDistributedRateLimiter>().As<IDistributedRateLimiter>().InstancePerHttpRequest();
             builder.RegisterType<EmailService>().As<IEmailService>().InstancePerHttpRequest();
+            // Per-company SMTP (094): EmailService.ForOrganization resolves through these; password via EncryptionHelper v2.
+            builder.RegisterType<AssetManagement.Web.Helpers.EncryptionHelperSecretProtector>().As<ISecretProtector>().SingleInstance();
+            builder.RegisterType<OrganizationSmtpSettingsRepository>().As<IOrganizationSmtpSettingsStore>().InstancePerHttpRequest();
+            builder.RegisterType<OrganizationSmtpSettingsResolver>().As<ISmtpSettingsResolver>().InstancePerHttpRequest();
             builder.RegisterType<PlatformSettingsService>().As<IPlatformSettingsService>().InstancePerHttpRequest();
             builder.RegisterType<SecurityLogQueryRepository>().As<ISecurityLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<SecurityLogService>().As<ISecurityLogService>().InstancePerHttpRequest();

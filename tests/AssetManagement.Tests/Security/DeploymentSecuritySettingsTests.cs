@@ -98,9 +98,29 @@ namespace AssetManagement.Tests.Security
                 get { return _status.IsReadyForAuthDelivery; }
             }
 
+            public bool UsesOrganizationSmtp
+            {
+                get { return false; }
+            }
+
+            public string RouteDescription
+            {
+                get { return "stub"; }
+            }
+
             public EmailConfigurationStatus GetConfigurationStatus()
             {
                 return _status;
+            }
+
+            public IEmailService ForOrganization(int? organizationId)
+            {
+                return this;
+            }
+
+            public IEmailService ForSettings(AssetManagement.Application.Email.SmtpSettings settings)
+            {
+                return this;
             }
 
             public void SendPasswordResetEmail(string to, string resetLink)

@@ -14,7 +14,7 @@ using AssetManagement.Web.Helpers;
 namespace AssetManagement.Web.Controllers
 {
     [PermissionAuthorize("Settings.Manage")]
-    public class SettingsController : BaseController
+    public partial class SettingsController : BaseController
     {
         private const string AttachmentRootPathKey = "Attachment.RootPath";
         private const string WarrantyThresholdKey = "Notification.WarrantyThresholdDays";
@@ -25,6 +25,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Index()
         {
             var model = BuildViewModel();
+            ViewBag.SmtpRouteSummary = BuildSmtpRouteSummary(ResolveCurrentOrganizationId());
             PopulateApprovalMatrixOptions();
             return View(model);
         }

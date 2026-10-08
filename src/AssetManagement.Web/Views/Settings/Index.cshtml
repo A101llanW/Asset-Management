@@ -130,6 +130,17 @@
         </div>
     </div>
 
+    <div class="card card-kpi mb-3" id="settings-email-card">
+        <div class="card-header">Email (SMTP)</div>
+        <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+                <div>Outgoing email for this company: <strong>@(ViewBag.SmtpRouteSummary ?? "Platform default")</strong></div>
+                <div class="small text-muted">Use your own mail server for sign-in codes, invitations, password resets and alerts, or keep the platform default.</div>
+            </div>
+            <a class="btn btn-outline-primary btn-sm" href="@Url.Action("Email", "Settings")">Email settings</a>
+        </div>
+    </div>
+
     <div class="card card-kpi mb-3">
         <div class="card-header">Approval Matrix</div>
         <div class="card-body">

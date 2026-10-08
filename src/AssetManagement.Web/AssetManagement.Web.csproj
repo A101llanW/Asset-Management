@@ -191,6 +191,7 @@
     <Compile Include="Controllers\ReturnsController.cs" />
     <Compile Include="Controllers\RolesController.cs" />
     <Compile Include="Controllers\SettingsController.cs" />
+    <Compile Include="Controllers\SettingsController.Email.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />
     <Compile Include="Controllers\UserInvitationsController.cs" />
@@ -217,6 +218,7 @@
     <Compile Include="Filters\ModuleAccessAttribute.cs" />
     <Compile Include="Filters\RequireMfaEnforcementFilterAttribute.cs" />
     <Compile Include="Helpers\EncryptionHelper.cs" />
+    <Compile Include="Helpers\EncryptionHelperSecretProtector.cs" />
     <Compile Include="Helpers\ExternalUrlHelper.cs" />
     <Compile Include="Helpers\UserAgentFingerprint.cs" />
     <Compile Include="Helpers\OrganizationLogoHelper.cs" />
@@ -268,6 +270,7 @@
     <Compile Include="ViewModels\UserInvitationViewModels.cs" />
     <Compile Include="ViewModels\PlatformUserCreateViewModel.cs" />
     <Compile Include="ViewModels\PlatformEmailSettingsViewModel.cs" />
+    <Compile Include="ViewModels\CompanySmtpSettingsViewModel.cs" />
     <Compile Include="ViewModels\AssetLabelPrintVm.cs" />
     <Compile Include="ViewModels\AssetScanViewModels.cs" />
     <Content Include="Web.config" />
@@ -457,6 +460,7 @@
     <Content Include="Views\Roles\Create.cshtml" />
     <Content Include="Views\Roles\_RoleTemplateSaveModal.cshtml" />
     <Content Include="Views\Settings\Index.cshtml" />
+    <Content Include="Views\Settings\Email.cshtml" />
     <Content Include="Views\Settings\LabelDesigner.cshtml" />
     <Content Include="Views\Shared\_AssetSubTypePickerModal.cshtml" />
     <Content Include="Views\Shared\_CaptchaPartial.cshtml" />

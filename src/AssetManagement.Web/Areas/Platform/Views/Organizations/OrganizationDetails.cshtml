@@ -231,6 +231,16 @@
                                     }
                                 </td>
                             </tr>
+                            <tr>
+                                <th scope="row">Outgoing Email</th>
+                                <td id="org-email-route">
+                                    <span class="badge @(Model.UsesOwnSmtp ? "bg-success" : "bg-secondary")">@(Model.EmailRouteLabel ?? "Platform default")</span>
+                                    @if (!string.IsNullOrWhiteSpace(Model.EmailRouteDetail))
+                                    {
+                                        <div class="small text-muted">@Model.EmailRouteDetail</div>
+                                    }
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
 

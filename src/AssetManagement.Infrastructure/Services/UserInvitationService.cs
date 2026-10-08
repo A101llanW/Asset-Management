@@ -64,7 +64,7 @@ namespace AssetManagement.Infrastructure.Services
 
             var invitationId = _invitations.Create(invitation);
             var inviteLink = BuildInviteLink(token, request.OrganizationSlug);
-            var emailSent = TrySendInvitationEmail(request.Email.Trim(), inviteLink, request.OrganizationName);
+            var emailSent = TrySendInvitationEmail(request.Email.Trim(), inviteLink, request.OrganizationName, request.OrganizationId);
 
             if (!emailSent && DeploymentSecuritySettings.RequiresSmtpForAuthEmails)
             {
@@ -276,9 +276,11 @@ namespace AssetManagement.Infrastructure.Services
             }
         }
 
-        private bool TrySendInvitationEmail(string email, string inviteLink, string organizationName)
+        private bool TrySendInvitationEmail(string email, string inviteLink, string organizationName, int organizationId)
         {
-            if (_emailService == null || !_emailService.IsConfigured)
+            // Invitations belong to the inviting organization: its SMTP when on and complete, else the platform default.
+            var mailer = _emailService == null ? null : _emailService.ForOrganization(organizationId);
+            if (mailer == null || !mailer.IsConfigured)
             {
                 if (DeploymentSecuritySettings.MfaAllowAnyCode)
                 {
@@ -290,7 +292,7 @@ namespace AssetManagement.Infrastructure.Services
 
             try
             {
-                _emailService.SendUserInvitationEmail(email, inviteLink, organizationName);
+                mailer.SendUserInvitationEmail(email, inviteLink, organizationName);
                 if (DeploymentSecuritySettings.MfaAllowAnyCode)
                 {
                     SecurityDiagnostics.LogInvitationLink(email, inviteLink);

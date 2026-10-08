@@ -127,6 +127,7 @@ namespace AssetManagement.Infrastructure.Services
             Delete("DepartmentApprovalStage"),
             Delete("Department"),
             Delete("SystemSetting"),
+            Delete("OrganizationSmtpSettings"),
             new PurgeStep(StepKind.DeleteOrganizationRow, "Organization", null)
         };
 

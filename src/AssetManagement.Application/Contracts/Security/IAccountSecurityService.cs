@@ -62,6 +62,9 @@ namespace AssetManagement.Application.Contracts.Security
 
         bool SendVerificationCodeToAddress(string email, out string code);
 
+        /// <summary>Same, sent through the SMTP of <paramref name="userId"/>'s organization (platform default when null).</summary>
+        bool SendVerificationCodeToAddress(string email, string userId, out string code);
+
         void RotateUserAccessToken(string userId);
 
         /// <summary>

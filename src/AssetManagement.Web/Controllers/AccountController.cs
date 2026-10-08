@@ -376,7 +376,7 @@ namespace AssetManagement.Web.Controllers
 
             var normalizedNewEmail = model.NewEmail == null ? null : model.NewEmail.Trim().ToLowerInvariant();
             string verificationCode;
-            if (!_accountSecurityService.SendVerificationCodeToAddress(normalizedNewEmail, out verificationCode))
+            if (!_accountSecurityService.SendVerificationCodeToAddress(normalizedNewEmail, userId, out verificationCode))
             {
                 ModelState.AddModelError("", "Could not send a verification code to the new email address. Check SMTP settings or try again later.");
                 return View(model);
@@ -503,7 +503,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             string verificationCode;
-            if (!_accountSecurityService.SendVerificationCodeToAddress(pending.NewEmail, out verificationCode))
+            if (!_accountSecurityService.SendVerificationCodeToAddress(pending.NewEmail, pending.UserId, out verificationCode))
             {
                 TempData["Error"] = "Could not resend the verification code. Try again later.";
                 return RedirectToAction("ConfirmChangeEmail");
