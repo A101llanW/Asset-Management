@@ -275,6 +275,78 @@ OPTION (LOOP JOIN, MAXDOP 1)";
             }
         }
 
+        public IList<ReportAssetRefDto> GetAssetRefs(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool includeClassDepartmentAssets,
+            IEnumerable<int> assetIds)
+        {
+            var result = new List<ReportAssetRefDto>();
+            var ids = (assetIds ?? Enumerable.Empty<int>()).Where(x => x > 0).Distinct().ToList();
+            if (ids.Count == 0)
+            {
+                return result;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                for (var offset = 0; offset < ids.Count; offset += AssetRefChunkSize)
+                {
+                    var chunk = ids.Skip(offset).Take(AssetRefChunkSize).ToList();
+                    using (var command = connection.CreateCommand())
+                    {
+                        var names = new List<string>();
+                        for (var i = 0; i < chunk.Count; i++)
+                        {
+                            names.Add("@AssetId" + i);
+                            SqlQueryHelper.AddParameter(command, "@AssetId" + i, chunk[i]);
+                        }
+
+                        command.CommandText = @"
+SELECT a.[Id], a.[AssetTag], a.[AssetName], a.[DepartmentId],
+       CASE WHEN " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @" THEN 1 ELSE 0 END AS InScope
+FROM [Asset] a
+WHERE a.[OrganizationId] = @OrganizationId
+  AND a.[Id] IN (" + string.Join(", ", names) + @")
+OPTION (MAXDOP 1)";
+                        SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                        SqlQueryHelper.AddDepartmentScopeParameters(
+                            command,
+                            bypassDepartmentScope,
+                            denyDepartmentScope,
+                            departmentId,
+                            includeClassDepartmentAssets && !bypassDepartmentScope);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                result.Add(new ReportAssetRefDto
+                                {
+                                    Id = Convert.ToInt32(reader["Id"]),
+                                    AssetTag = SqlQueryHelper.GetString(reader, "AssetTag"),
+                                    AssetName = SqlQueryHelper.GetString(reader, "AssetName"),
+                                    DepartmentId = reader["DepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["DepartmentId"]),
+                                    InScope = Convert.ToInt32(reader["InScope"]) == 1
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        public IDictionary<string, string> GetUserLabels(int organizationId, IEnumerable<string> keys)
+        {
+            return UserLabelLookup.Resolve(_connectionFactory, organizationId, keys);
+        }
+
+        private const int AssetRefChunkSize = 500;
+
         private static DashboardKpisDto CreateEmptyKpis()
         {
             return new DashboardKpisDto
@@ -728,6 +800,104 @@ WHERE [Id] = @Id
             public decimal PreviousAccumulated { get; set; }
 
             public DateTime? PreviousUpdatedAt { get; set; }
+        }
+    }
+
+    /// <summary>
+    /// One batched, org-scoped Users lookup turning raw user ids / usernames / emails into display
+    /// labels ("First Last (email)", else email, else username). Shared by Pending Approvals and the
+    /// report previews (Requested By, Custodian).
+    /// </summary>
+    public static class UserLabelLookup
+    {
+        private const int KeysPerCommand = 300;
+
+        public static IDictionary<string, string> Resolve(ISqlConnectionFactory connectionFactory, int organizationId, IEnumerable<string> keys)
+        {
+            var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var distinct = (keys ?? Enumerable.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (distinct.Count == 0)
+            {
+                return labels;
+            }
+
+            using (var connection = connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                for (var offset = 0; offset < distinct.Count; offset += KeysPerCommand)
+                {
+                    var chunk = distinct.Skip(offset).Take(KeysPerCommand).ToList();
+                    using (var command = connection.CreateCommand())
+                    {
+                        var parameterNames = new List<string>();
+                        for (var i = 0; i < chunk.Count; i++)
+                        {
+                            var name = "@UserKey" + i;
+                            parameterNames.Add(name);
+                            SqlQueryHelper.AddParameter(command, name, chunk[i]);
+                        }
+
+                        var list = string.Join(", ", parameterNames);
+                        command.CommandText = @"
+SELECT u.[Id], u.[UserName], u.[Email], u.[FirstName], u.[LastName]
+FROM [Users] u
+WHERE u.[OrganizationId] = @OrganizationId
+  AND (u.[Id] IN (" + list + @") OR u.[UserName] IN (" + list + @") OR u.[Email] IN (" + list + @"))
+OPTION (MAXDOP 1)";
+                        SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                var label = BuildLabel(
+                                    SqlQueryHelper.GetString(reader, "FirstName"),
+                                    SqlQueryHelper.GetString(reader, "LastName"),
+                                    SqlQueryHelper.GetString(reader, "Email"),
+                                    SqlQueryHelper.GetString(reader, "UserName"));
+                                if (string.IsNullOrWhiteSpace(label))
+                                {
+                                    continue;
+                                }
+
+                                foreach (var key in new[]
+                                {
+                                    SqlQueryHelper.GetString(reader, "Id"),
+                                    SqlQueryHelper.GetString(reader, "UserName"),
+                                    SqlQueryHelper.GetString(reader, "Email")
+                                })
+                                {
+                                    if (!string.IsNullOrWhiteSpace(key) && !labels.ContainsKey(key.Trim()))
+                                    {
+                                        labels[key.Trim()] = label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return labels;
+        }
+
+        public static string BuildLabel(string firstName, string lastName, string email, string userName)
+        {
+            var name = ((firstName ?? string.Empty).Trim() + " " + (lastName ?? string.Empty).Trim()).Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return string.IsNullOrWhiteSpace(email) ? name : name + " (" + email.Trim() + ")";
+            }
+
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                return email.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(userName) ? null : userName.Trim();
         }
     }
 }

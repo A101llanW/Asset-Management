@@ -152,6 +152,9 @@ namespace AssetManagement.Application.Services
                 csvRows.Add(new[] { exportResult.WarningMessage });
             }
 
+            // Preview/PDF show the custodian's name; the CSV keeps the raw user id.
+            ApplyUserLabels(displayRows, 5);
+
             return new ReportBuildContext
             {
                 Title = "Asset Register",
@@ -350,8 +353,21 @@ namespace AssetManagement.Application.Services
         private ReportBuildContext BuildPendingApprovalsContext(ReportExportRequestVm request, ReportPeriodHelper.DateRange period)
         {
             var now = DateTime.UtcNow;
-            var visibleAssetIds = new HashSet<int>(_departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query()).Select(x => x.Id));
-            var assets = _unitOfWork.Repository<Asset>().GetAll().ToDictionary(x => x.Id, x => x);
+            var pendingTransfers = _unitOfWork.Repository<AssetTransfer>()
+                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
+                .OrderByDescending(x => x.TransferDate)
+                .ToList();
+            var pendingDisposals = _unitOfWork.Repository<DisposalRecord>()
+                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
+                .OrderByDescending(x => x.DisposalRequestDate)
+                .ToList();
+            // Only the assets these requests point at (was: every org asset loaded twice, SELECT *).
+            HashSet<int> visibleAssetIds;
+            IDictionary<int, Asset> assets;
+            LoadPendingApprovalAssets(
+                pendingTransfers.Select(x => x.AssetId).Concat(pendingDisposals.Select(x => x.AssetId)),
+                out visibleAssetIds,
+                out assets);
             var csvRows = new List<string[]>
             {
                 new[]
@@ -379,9 +395,7 @@ namespace AssetManagement.Application.Services
                 displayRows.Add(row);
             };
 
-            foreach (var transfer in _unitOfWork.Repository<AssetTransfer>()
-                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
-                .OrderByDescending(x => x.TransferDate))
+            foreach (var transfer in pendingTransfers)
             {
                 if (!visibleAssetIds.Contains(transfer.AssetId))
                 {
@@ -406,9 +420,7 @@ namespace AssetManagement.Application.Services
                 addRow(row, Math.Max(0, (int)(now - transfer.TransferDate).TotalDays));
             }
 
-            foreach (var disposal in _unitOfWork.Repository<DisposalRecord>()
-                .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
-                .OrderByDescending(x => x.DisposalRequestDate))
+            foreach (var disposal in pendingDisposals)
             {
                 if (!visibleAssetIds.Contains(disposal.AssetId))
                 {
@@ -521,6 +533,9 @@ namespace AssetManagement.Application.Services
                 addRow(row, ageDays);
             }
 
+            // Preview/PDF show "Requested By" names; the CSV keeps the raw value.
+            ApplyUserLabels(displayRows, 4);
+
             return new ReportBuildContext
             {
                 Title = "Pending Approvals Aging",
@@ -541,6 +556,79 @@ namespace AssetManagement.Application.Services
                     new ReportStatCard { Label = "Critical (14+ d)", Value = criticalCount.ToString() }
                 }
             };
+        }
+
+        private void LoadPendingApprovalAssets(IEnumerable<int> assetIds, out HashSet<int> visibleAssetIds, out IDictionary<int, Asset> assets)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                visibleAssetIds = new HashSet<int>(_departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query()).Select(x => x.Id));
+                assets = _unitOfWork.Repository<Asset>().GetAll().ToDictionary(x => x.Id, x => x);
+                return;
+            }
+
+            var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope;
+            int? departmentId = null;
+            var denyDepartmentScope = false;
+            if (!bypassDepartmentScope)
+            {
+                departmentId = _departmentScope.ScopedDepartmentId;
+                denyDepartmentScope = !departmentId.HasValue;
+            }
+
+            var refs = _dashboardQueryService.GetAssetRefs(
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                !bypassDepartmentScope && _departmentScope.IncludesClassDepartmentAssets,
+                assetIds) ?? new List<ReportAssetRefDto>();
+            visibleAssetIds = new HashSet<int>(refs.Where(x => x.InScope).Select(x => x.Id));
+            assets = refs.ToDictionary(
+                x => x.Id,
+                x => new Asset { Id = x.Id, AssetTag = x.AssetTag, AssetName = x.AssetName, DepartmentId = x.DepartmentId });
+        }
+
+        /// <summary>
+        /// Display-only: replaces raw user ids in one column with "First Last (email)" labels from one
+        /// batched, org-scoped lookup. Rows are copied, so the CSV rows (same arrays) keep the raw value.
+        /// </summary>
+        private void ApplyUserLabels(IList<IList<string>> displayRows, int column)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue || displayRows == null || displayRows.Count == 0)
+            {
+                return;
+            }
+
+            var keys = displayRows
+                .Where(r => r != null && r.Count > column && !string.IsNullOrWhiteSpace(r[column]))
+                .Select(r => r[column])
+                .ToList();
+            if (keys.Count == 0)
+            {
+                return;
+            }
+
+            var labels = _dashboardQueryService.GetUserLabels(organizationId.Value, keys);
+            if (labels == null || labels.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < displayRows.Count; i++)
+            {
+                var row = displayRows[i];
+                string label;
+                if (row != null && row.Count > column && !string.IsNullOrWhiteSpace(row[column])
+                    && labels.TryGetValue(row[column].Trim(), out label))
+                {
+                    var copy = row.ToArray();
+                    copy[column] = label;
+                    displayRows[i] = copy;
+                }
+            }
         }
 
         private ReportBuildContext BuildGeneralLedgerContext(ReportExportRequestVm request, ReportPeriodHelper.DateRange period)

@@ -57,6 +57,9 @@ namespace AssetManagement.Web.ViewModels
 
         public string RequestedById { get; set; }
 
+        /// <summary>"First Last (email)" / email for RequestedById; null when unknown.</summary>
+        public string RequestedByName { get; set; }
+
         public string RequestedDateText { get; set; }
 
         public DateTime RequestedDateUtc { get; set; }

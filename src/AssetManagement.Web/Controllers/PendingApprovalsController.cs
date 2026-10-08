@@ -84,6 +84,7 @@ namespace AssetManagement.Web.Controllers
                 AssetTag = item.AssetTag,
                 AssetName = item.AssetName,
                 RequestedById = item.RequestedById,
+                RequestedByName = item.RequestedByName,
                 RequestedDateText = item.RequestedDateUtc.ToString("yyyy-MM-dd HH:mm"),
                 RequestedDateUtc = item.RequestedDateUtc,
                 StageNumber = item.StageNumber,

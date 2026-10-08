@@ -725,6 +725,22 @@ namespace AssetManagement.Tests.Helpers
         {
             return 0;
         }
+
+        public System.Collections.Generic.IList<ReportAssetRefDto> GetAssetRefs(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool includeClassDepartmentAssets,
+            System.Collections.Generic.IEnumerable<int> assetIds)
+        {
+            return new System.Collections.Generic.List<ReportAssetRefDto>();
+        }
+
+        public System.Collections.Generic.IDictionary<string, string> GetUserLabels(int organizationId, System.Collections.Generic.IEnumerable<string> keys)
+        {
+            return new System.Collections.Generic.Dictionary<string, string>();
+        }
     }
 
     internal class FakeNotificationQueryService : INotificationQueryService

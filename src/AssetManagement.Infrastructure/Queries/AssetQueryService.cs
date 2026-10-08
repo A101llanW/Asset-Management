@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
+using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
@@ -852,9 +853,24 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
             // whole wide result (plus hash joins for the lookups) asked for a ~18 MB memory grant and
             // queued on RESOURCE_SEMAPHORE. Rows stream with LOOP JOIN lookups (no grant) and are ordered
             // here with the same keys and SQL_Latin1_General_CP1_CI_AS-equivalent string rules.
-            var sql = ExportSelectColumns + @",
+            // 2026-10-08 (2): the WHERE clause only uses a.* columns, so the category/department LEFT JOINs
+            // are dropped (they cost ~2 lookups per row); names come from one small IN lookup each, which
+            // is what the LEFT JOIN returned (NULL when missing). IX_Asset_Org_Active_Dept_Export (092)
+            // covers this select, so only the org's index pages are read instead of the whole table.
+            var sql = @"
+SELECT
+    a.[AssetTag],
+    a.[AssetName],
+    a.[CurrentStatus],
+    a.[CategoryId] AS ExportCategoryId,
+    a.[DepartmentId] AS ExportDepartmentId,
+    a.[CurrentCustodianId],
+    a.[AcquisitionCost],
+    a.[PurchaseDate],
+    a.[SerialNumber],
     a.[Id] AS ExportRowId,
-    a.[CreatedAt] AS ExportCreatedAt" + FromClause + whereClause + " OPTION (LOOP JOIN, MAXDOP 1)";
+    a.[CreatedAt] AS ExportCreatedAt
+FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
 
             var rows = new List<ExportSortRow>();
             using (var connection = _connectionFactory.CreateConnection())
@@ -872,12 +888,32 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
                         {
                             rows.Add(new ExportSortRow
                             {
-                                Row = MapExportRow(reader),
+                                Row = new AssetExportRowVm
+                                {
+                                    AssetTag = SqlQueryHelper.GetString(reader, "AssetTag"),
+                                    AssetName = SqlQueryHelper.GetString(reader, "AssetName"),
+                                    CurrentStatus = (AssetStatus)SqlQueryHelper.GetInt32(reader, "CurrentStatus"),
+                                    CurrentCustodianId = SqlQueryHelper.GetString(reader, "CurrentCustodianId"),
+                                    AcquisitionCost = SqlQueryHelper.GetDecimalNullable(reader, "AcquisitionCost"),
+                                    PurchaseDate = SqlQueryHelper.GetDateTimeNullable(reader, "PurchaseDate"),
+                                    SerialNumber = SqlQueryHelper.GetString(reader, "SerialNumber")
+                                },
                                 Id = Convert.ToInt32(reader["ExportRowId"]),
-                                CreatedAt = SqlQueryHelper.GetDateTimeNullable(reader, "ExportCreatedAt")
+                                CreatedAt = SqlQueryHelper.GetDateTimeNullable(reader, "ExportCreatedAt"),
+                                CategoryId = reader["ExportCategoryId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ExportCategoryId"]),
+                                DepartmentId = reader["ExportDepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ExportDepartmentId"])
                             });
                         }
                     }
+                }
+
+                var categoryNames = LoadNamesById(connection, "AssetCategory", rows.Where(x => x.CategoryId.HasValue).Select(x => x.CategoryId.Value));
+                var departmentNames = LoadNamesById(connection, "Department", rows.Where(x => x.DepartmentId.HasValue).Select(x => x.DepartmentId.Value));
+                foreach (var row in rows)
+                {
+                    string name;
+                    row.Row.CategoryName = row.CategoryId.HasValue && categoryNames.TryGetValue(row.CategoryId.Value, out name) ? name : null;
+                    row.Row.DepartmentName = row.DepartmentId.HasValue && departmentNames.TryGetValue(row.DepartmentId.Value, out name) ? name : null;
                 }
             }
 
@@ -926,6 +962,10 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
             public int Id { get; set; }
 
             public DateTime? CreatedAt { get; set; }
+
+            public int? CategoryId { get; set; }
+
+            public int? DepartmentId { get; set; }
 
             public static Comparison<ExportSortRow> CreateComparison(string sort, string direction)
             {
@@ -983,6 +1023,38 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
 
                 return SqlCompare.Compare(x.TrimEnd(' '), y.TrimEnd(' '), SqlCompareOptions);
             }
+        }
+
+        /// <summary>Id -> Name for a lookup table (AssetCategory/Department), same rows a LEFT JOIN on Id would hit.</summary>
+        private static Dictionary<int, string> LoadNamesById(IDbConnection connection, string table, IEnumerable<int> ids)
+        {
+            var names = new Dictionary<int, string>();
+            var distinct = ids.Distinct().ToList();
+            const int chunkSize = 500;
+            for (var offset = 0; offset < distinct.Count; offset += chunkSize)
+            {
+                var chunk = distinct.Skip(offset).Take(chunkSize).ToList();
+                using (var command = connection.CreateCommand())
+                {
+                    var parameterNames = new List<string>();
+                    for (var i = 0; i < chunk.Count; i++)
+                    {
+                        parameterNames.Add("@LookupId" + i);
+                        SqlQueryHelper.AddParameter(command, "@LookupId" + i, chunk[i]);
+                    }
+
+                    command.CommandText = "SELECT [Id], [Name] FROM [" + table + "] WHERE [Id] IN (" + string.Join(", ", parameterNames) + ") OPTION (MAXDOP 1)";
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            names[Convert.ToInt32(reader["Id"])] = SqlQueryHelper.GetString(reader, "Name");
+                        }
+                    }
+                }
+            }
+
+            return names;
         }
 
         private static int ResolveExportMaxRows()
