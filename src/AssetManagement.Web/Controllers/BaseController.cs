@@ -89,6 +89,30 @@ namespace AssetManagement.Web.Controllers
 
         protected IPermissionService BuildPermissionService() => DependencyResolver.Current.GetService<IPermissionService>();
 
+        /// <summary>
+        /// Security: AssetFilterVm.OrganizationWide is a server-only switch that makes the asset queries skip the
+        /// department scope (used by pickers such as PR/Suppliers and by My Assets for the custodian filter). It is
+        /// a public settable property, so the default model binder accepted ?OrganizationWide=true on Assets/Index,
+        /// exports and the grouped endpoints and returned every asset in the organization to a scoped user.
+        /// Reset it on every bound action argument; actions that need it still set it in code after binding.
+        /// </summary>
+        protected override void OnActionExecuting(ActionExecutingContext filterContext)
+        {
+            if (filterContext != null && filterContext.ActionParameters != null)
+            {
+                foreach (var value in filterContext.ActionParameters.Values)
+                {
+                    var assetFilter = value as AssetFilterVm;
+                    if (assetFilter != null)
+                    {
+                        assetFilter.OrganizationWide = false;
+                    }
+                }
+            }
+
+            base.OnActionExecuting(filterContext);
+        }
+
         protected IDepartmentService BuildDepartmentService() => DependencyResolver.Current.GetService<IDepartmentService>();
 
         protected ISupplierService BuildSupplierService() => DependencyResolver.Current.GetService<ISupplierService>();
