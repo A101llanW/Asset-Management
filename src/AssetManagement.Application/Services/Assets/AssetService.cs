@@ -539,7 +539,8 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Target " + label + " was not found or is inactive.");
             }
 
-            if (asset.OrganizationId.HasValue && targetDepartment.OrganizationId != asset.OrganizationId)
+            if (asset.OrganizationId.HasValue && targetDepartment.OrganizationId.HasValue
+                && targetDepartment.OrganizationId != asset.OrganizationId)
             {
                 NewReferenceGuard().Report(asset.OrganizationId.Value, "Assets.Relocate", nameof(Asset), asset.Id.ToString(), "DepartmentId", targetDepartmentId.ToString(), true);
                 throw new BusinessException("Target " + label + " was not found or is inactive.");

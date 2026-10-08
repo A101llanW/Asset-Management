@@ -94,7 +94,8 @@ namespace AssetManagement.Application.Services
                         }
 
                         if (targetDepartment == null
-                            || (asset.OrganizationId.HasValue && targetDepartment.OrganizationId != asset.OrganizationId))
+                            || (asset.OrganizationId.HasValue && targetDepartment.OrganizationId.HasValue
+                                && targetDepartment.OrganizationId != asset.OrganizationId))
                         {
                             // Same-org guard: never point an asset at another organisation's department.
                             if (asset.OrganizationId.HasValue)

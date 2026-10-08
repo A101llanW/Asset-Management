@@ -18,6 +18,9 @@ namespace AssetManagement.Application.Services
     /// removed and a warning returned). Every foreign id found is written to the audit log
     /// (<see cref="OrgReferenceGuard.AuditAction"/>) and to the app trace log. Lookups are memoised per instance:
     /// construct one per request/operation.
+    /// "Another company" means the referenced row has an OrganizationId that differs from the writing row's.
+    /// Rows with OrganizationId NULL (platform-level roles/users) are not another company; this matches the app's
+    /// role rule (Roles.OrganizationId IS NULL OR = Users.OrganizationId) and the integrity check script.
     /// </summary>
     public sealed class OrgReferenceValidator
     {
@@ -81,9 +84,9 @@ namespace AssetManagement.Application.Services
                 if (_unitOfWork != null)
                 {
                     var orgId = (int?)organizationId;
-                    foreach (var role in _unitOfWork.Repository<Role>().Find(r => r.OrganizationId == orgId))
+                    foreach (var role in _unitOfWork.Repository<Role>().Find(r => r.OrganizationId == orgId || r.OrganizationId == null))
                     {
-                        if (role != null && role.Id > 0 && role.OrganizationId == organizationId)
+                        if (role != null && role.Id > 0 && (!role.OrganizationId.HasValue || role.OrganizationId == organizationId))
                         {
                             all.Add(role.Id);
                         }
@@ -136,31 +139,31 @@ namespace AssetManagement.Application.Services
         public bool DepartmentInOrganization(int organizationId, int departmentId)
         {
             var orgId = (int?)organizationId;
-            return departmentId > 0 && _unitOfWork.Repository<Department>().Count(x => x.Id == departmentId && x.OrganizationId == orgId) > 0;
+            return departmentId > 0 && _unitOfWork.Repository<Department>().Count(x => x.Id == departmentId && (x.OrganizationId == orgId || x.OrganizationId == null)) > 0;
         }
 
         public bool CategoryInOrganization(int organizationId, int categoryId)
         {
             var orgId = (int?)organizationId;
-            return categoryId > 0 && _unitOfWork.Repository<AssetCategory>().Count(x => x.Id == categoryId && x.OrganizationId == orgId) > 0;
+            return categoryId > 0 && _unitOfWork.Repository<AssetCategory>().Count(x => x.Id == categoryId && (x.OrganizationId == orgId || x.OrganizationId == null)) > 0;
         }
 
         public bool AssetTypeInOrganization(int organizationId, int assetTypeId)
         {
             var orgId = (int?)organizationId;
-            return assetTypeId > 0 && _unitOfWork.Repository<AssetType>().Count(x => x.Id == assetTypeId && x.OrganizationId == orgId) > 0;
+            return assetTypeId > 0 && _unitOfWork.Repository<AssetType>().Count(x => x.Id == assetTypeId && (x.OrganizationId == orgId || x.OrganizationId == null)) > 0;
         }
 
         public bool AssetSubTypeInOrganization(int organizationId, int assetSubTypeId)
         {
             var orgId = (int?)organizationId;
-            return assetSubTypeId > 0 && _unitOfWork.Repository<AssetSubType>().Count(x => x.Id == assetSubTypeId && x.OrganizationId == orgId) > 0;
+            return assetSubTypeId > 0 && _unitOfWork.Repository<AssetSubType>().Count(x => x.Id == assetSubTypeId && (x.OrganizationId == orgId || x.OrganizationId == null)) > 0;
         }
 
         public bool SupplierInOrganization(int organizationId, int supplierId)
         {
             var orgId = (int?)organizationId;
-            return supplierId > 0 && _unitOfWork.Repository<Supplier>().Count(x => x.Id == supplierId && x.OrganizationId == orgId) > 0;
+            return supplierId > 0 && _unitOfWork.Repository<Supplier>().Count(x => x.Id == supplierId && (x.OrganizationId == orgId || x.OrganizationId == null)) > 0;
         }
 
         // ---------------------------------------------------------------- interactive (reject)
