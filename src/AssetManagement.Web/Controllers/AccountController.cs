@@ -118,18 +118,7 @@ namespace AssetManagement.Web.Controllers
 
             if (_accountSecurityService.IsAccountLocked(model.Email, organizationId))
             {
-                var lockoutEnd = _accountSecurityService.GetLockoutEndTimeUtc(model.Email, organizationId);
-                var minutesRemaining = lockoutEnd.HasValue
-                    ? (int)System.Math.Ceiling((lockoutEnd.Value - System.DateTime.UtcNow).TotalMinutes)
-                    : 30;
-                if (minutesRemaining < 1)
-                {
-                    minutesRemaining = 1;
-                }
-
-                _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Account locked");
-                ModelState.AddModelError("", AuthenticationErrorMessages.LoginAccountLocked(minutesRemaining));
-                return View(model);
+                return LoginLockedResult(model, clientIp, organizationId);
             }
 
             var resolvedEmail = DemoLoginEmailHelper.ResolveLoginEmail(model.Email, tenantSlug);
@@ -141,14 +130,29 @@ namespace AssetManagement.Web.Controllers
             }
 
             var primaryUser = candidates.Count == 1 ? candidates[0] : null;
+
+            // Root portal (no tenant slug) that resolved to exactly one tenant account: count attempts
+            // and lockout in that account's organisation bucket, the same bucket its own portal uses.
+            // Before, root-portal failures went to the NULL (platform) bucket, so the same email got a
+            // separate allowance per portal and shared a bucket with any same-email platform admin.
+            var attemptOrganizationId = organizationId;
+            if (!attemptOrganizationId.HasValue && primaryUser != null && primaryUser.OrganizationId.HasValue)
+            {
+                attemptOrganizationId = primaryUser.OrganizationId;
+                if (_accountSecurityService.IsAccountLocked(model.Email, attemptOrganizationId))
+                {
+                    return LoginLockedResult(model, clientIp, attemptOrganizationId);
+                }
+            }
+
             string userId;
             if (primaryUser != null)
             {
                 var verifyResult = PasswordHasher.VerifyHashedPassword(primaryUser.PasswordHash, model.Password);
                 if (verifyResult == PasswordVerificationResult.Failed)
                 {
-                    _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Invalid credentials");
-                    var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, organizationId);
+                    _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, attemptOrganizationId, "Invalid credentials");
+                    var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, attemptOrganizationId);
                     ModelState.AddModelError("", AuthenticationErrorMessages.LoginFailure(model.Email, tenantSlug, remaining));
                     return View(model);
                 }
@@ -167,10 +171,26 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
-            _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, true, organizationId, null);
-            _accountSecurityService.ClearFailedLoginAttempts(model.Email, organizationId);
+            _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, true, attemptOrganizationId, null);
+            _accountSecurityService.ClearFailedLoginAttempts(model.Email, attemptOrganizationId);
 
             return CompleteLoginAfterCredentials(model, ParseReturnPathOrNull(returnUrl), userId, tenantSlug);
+        }
+
+        private ActionResult LoginLockedResult(LoginViewModel model, string clientIp, int? organizationId)
+        {
+            var lockoutEnd = _accountSecurityService.GetLockoutEndTimeUtc(model.Email, organizationId);
+            var minutesRemaining = lockoutEnd.HasValue
+                ? (int)System.Math.Ceiling((lockoutEnd.Value - System.DateTime.UtcNow).TotalMinutes)
+                : 30;
+            if (minutesRemaining < 1)
+            {
+                minutesRemaining = 1;
+            }
+
+            _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Account locked");
+            ModelState.AddModelError("", AuthenticationErrorMessages.LoginAccountLocked(minutesRemaining));
+            return View(model);
         }
 
         [Authorize]
