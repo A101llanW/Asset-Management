@@ -444,10 +444,47 @@
         return previewModal;
     }
 
+    // On-screen preview shows at most this many body rows per table; laying out thousands of rows
+    // (e.g. 2,343 in depreciation) froze the modal for ~10 s. PDF/CSV still use the full report.
+    var PREVIEW_ROW_LIMIT = 200;
+    var previewFullHtml = '';
+
+    function capPreviewHtml(html) {
+        var result = { html: html || '', shown: 0, total: 0 };
+        if (!html || typeof document.createElement('template').content === 'undefined') {
+            return result;
+        }
+        var template = document.createElement('template');
+        template.innerHTML = html;
+        var capped = false;
+        Array.prototype.forEach.call(template.content.querySelectorAll('table'), function (table) {
+            var rows = [];
+            Array.prototype.forEach.call(table.tBodies, function (body) {
+                Array.prototype.push.apply(rows, body.rows);
+            });
+            result.total += rows.length;
+            result.shown += Math.min(rows.length, PREVIEW_ROW_LIMIT);
+            for (var i = PREVIEW_ROW_LIMIT; i < rows.length; i++) {
+                rows[i].parentNode.removeChild(rows[i]);
+                capped = true;
+            }
+        });
+        if (capped) {
+            result.html = template.innerHTML;
+        }
+        return result;
+    }
+
     function showPreview(html, title, rowCount) {
+        previewFullHtml = html || '';
+        var capped = capPreviewHtml(previewFullHtml);
+        var meta = (rowCount || 0) + ' data rows';
+        if (capped.total > capped.shown) {
+            meta = 'Showing ' + capped.shown + ' of ' + capped.total + ' rows. Download PDF or CSV for all rows.';
+        }
         document.getElementById('amReportPreviewTitle').textContent = title || 'Report preview';
-        document.getElementById('amReportPreviewMeta').textContent = (rowCount || 0) + ' data rows';
-        document.getElementById('amReportPreviewContent').innerHTML = html;
+        document.getElementById('amReportPreviewMeta').textContent = meta;
+        document.getElementById('amReportPreviewContent').innerHTML = capped.html;
 
         var modal = getPreviewModal();
         if (modal) {
@@ -625,7 +662,8 @@
         }
 
         busy = true;
-        var html = content.innerHTML;
+        // Full report, not the row-capped on-screen copy.
+        var html = previewFullHtml || content.innerHTML;
         var reportKey = currentReportKey;
         var fileName = (reportKey || 'report') + '_' + new Date().getTime() + '.pdf';
         // Close the preview first, then show loading: never transition two modals at once.
