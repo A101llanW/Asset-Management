@@ -1,0 +1,7 @@
+tenant_role_mismatches platform_role_rows_left_alone duplicate_triples
+---------------------- ----------------------------- -----------------
+0 9 0
+
+Id RoleId RoleName PermissionId rp_org role_org
+-- ------ -------- ------------ ------ --------
+

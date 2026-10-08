@@ -44,57 +44,33 @@ BEGIN
     DECLARE @facilitiesRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [OrganizationId] = @orgId AND [Name] = N'Facilities Manager' ORDER BY [Id]);
     DECLARE @procurementManagerRoleId INT = (SELECT TOP 1 [Id] FROM [Roles] WHERE [OrganizationId] = @orgId AND [Name] = N'Procurement Manager' ORDER BY [Id]);
 
-    IF @facilitiesRoleId IS NOT NULL AND @permCreatePurchases IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @facilitiesRoleId AND [PermissionId] = @permCreatePurchases)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@facilitiesRoleId, @permCreatePurchases);
-
-    IF @facilitiesRoleId IS NOT NULL AND @permCreateAnyDept IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @facilitiesRoleId AND [PermissionId] = @permCreateAnyDept)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@facilitiesRoleId, @permCreateAnyDept);
-
-    IF @facilitiesRoleId IS NOT NULL AND @permViewPurchases IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @facilitiesRoleId AND [PermissionId] = @permViewPurchases)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@facilitiesRoleId, @permViewPurchases);
-
-    IF @facilitiesRoleId IS NOT NULL AND @permViewAssets IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @facilitiesRoleId AND [PermissionId] = @permViewAssets)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@facilitiesRoleId, @permViewAssets);
-
-    IF @facilitiesRoleId IS NOT NULL AND @permAssignAssets IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @facilitiesRoleId AND [PermissionId] = @permAssignAssets)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@facilitiesRoleId, @permAssignAssets);
-
-    IF @facilitiesRoleId IS NOT NULL AND @permTransferAssets IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @facilitiesRoleId AND [PermissionId] = @permTransferAssets)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@facilitiesRoleId, @permTransferAssets);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permViewPurchases IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permViewPurchases)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permViewPurchases);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permApprovePurchases IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permApprovePurchases)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permApprovePurchases);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permEditPurchases IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permEditPurchases)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permEditPurchases);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permReceiveAssets IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permReceiveAssets)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permReceiveAssets);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permViewSuppliers IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permViewSuppliers)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permViewSuppliers);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permCreateSuppliers IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permCreateSuppliers)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permCreateSuppliers);
-
-    IF @procurementManagerRoleId IS NOT NULL AND @permEditSuppliers IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM [RolePermission] WHERE [RoleId] = @procurementManagerRoleId AND [PermissionId] = @permEditSuppliers)
-        INSERT INTO [RolePermission] ([RoleId], [PermissionId]) VALUES (@procurementManagerRoleId, @permEditSuppliers);
+    -- RolePermission.OrganizationId comes from the role (JOIN [Roles]) so these grants can
+    -- never be stamped with another org (see artifacts/roleperm-org-fix-2026-10-08).
+    -- Idempotent: skipped when (RoleId, PermissionId) already exists; the unique index is on
+    -- (RoleId, PermissionId) and a role has exactly one org, so this covers
+    -- (OrganizationId, RoleId, PermissionId) too. NULL role/permission ids drop out of the join.
+    INSERT INTO [RolePermission] ([RoleId], [PermissionId], [OrganizationId])
+    SELECT r.[Id], g.[PermissionId], r.[OrganizationId]
+    FROM (VALUES
+        (@facilitiesRoleId, @permCreatePurchases),
+        (@facilitiesRoleId, @permCreateAnyDept),
+        (@facilitiesRoleId, @permViewPurchases),
+        (@facilitiesRoleId, @permViewAssets),
+        (@facilitiesRoleId, @permAssignAssets),
+        (@facilitiesRoleId, @permTransferAssets),
+        (@procurementManagerRoleId, @permViewPurchases),
+        (@procurementManagerRoleId, @permApprovePurchases),
+        (@procurementManagerRoleId, @permEditPurchases),
+        (@procurementManagerRoleId, @permReceiveAssets),
+        (@procurementManagerRoleId, @permViewSuppliers),
+        (@procurementManagerRoleId, @permCreateSuppliers),
+        (@procurementManagerRoleId, @permEditSuppliers)
+    ) AS g([RoleId], [PermissionId])
+    INNER JOIN [Roles] r ON r.[Id] = g.[RoleId]
+    WHERE g.[PermissionId] IS NOT NULL
+      AND r.[OrganizationId] = @orgId
+      AND NOT EXISTS (SELECT 1 FROM [RolePermission] rp
+                      WHERE rp.[RoleId] = r.[Id] AND rp.[PermissionId] = g.[PermissionId]);
 
     IF @procurementManagerRoleId IS NOT NULL
     BEGIN

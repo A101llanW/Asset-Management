@@ -1,0 +1,32 @@
+phase rp_org role_org rows
+----- ------ -------- ----
+before 1 NULL 9
+before 1 2 13
+before 1 9 9
+before 1 10 9
+
+check target_org rows would_duplicate
+----- ---------- ---- ---------------
+candidates 2 13 0
+candidates 9 9 0
+candidates 10 9 0
+
+candidates skipped_duplicates updated
+---------- ------------------ -------
+31 0 31
+
+phase rp_org role_org rows
+----- ------ -------- ----
+after 1 NULL 9
+
+phase role_org rp_org_now rows
+----- -------- ---------- ----
+after 2 2 13
+after 9 9 9
+after 10 10 9
+
+mismatch_left_in_31 duplicate_triples tenant_role_mismatches
+------------------- ----------------- ----------------------
+0 0 0
+
+COMMITTED: 31 row(s) re-tagged.
