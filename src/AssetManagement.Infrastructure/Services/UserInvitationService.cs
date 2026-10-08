@@ -18,6 +18,7 @@ namespace AssetManagement.Infrastructure.Services
         private static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
 
         private readonly UserInvitationRepository _invitations;
+        private readonly RoleDepartmentScopeRepository _roleDepartments;
         private readonly UserAccountRepository _users;
         private readonly IUserAccountService _userAccountService;
         private readonly IEmailService _emailService;
@@ -32,6 +33,7 @@ namespace AssetManagement.Infrastructure.Services
             IAuditWriter auditWriter = null)
         {
             _invitations = new UserInvitationRepository(connectionFactory);
+            _roleDepartments = new RoleDepartmentScopeRepository(connectionFactory);
             _users = new UserAccountRepository(connectionFactory);
             _userAccountService = userAccountService;
             _emailService = emailService;
@@ -151,6 +153,23 @@ namespace AssetManagement.Infrastructure.Services
                 roleId = null;
             }
 
+            // Always the department stored with the invitation (nothing posted by the invitee is used). If it was
+            // deleted, deactivated or is not this organization's, register with no department and audit the fallback.
+            var departmentId = invitation.DepartmentId;
+            if (departmentId.HasValue && !_roleDepartments.IsActiveTenantDepartment(departmentId.Value, invitation.OrganizationId))
+            {
+                try
+                {
+                    _auditWriter?.Write("Users.InviteDepartmentFallback", nameof(UserInvitation), invitation.Id.ToString(), "DepartmentId=" + departmentId.Value, "DepartmentId=none");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Invite department fallback audit failed: " + ex.Message);
+                }
+
+                departmentId = null;
+            }
+
             var createRequest = new UserAccountCreateRequest
             {
                 Email = request.Email,
@@ -158,7 +177,7 @@ namespace AssetManagement.Infrastructure.Services
                 LastName = request.LastName,
                 Phone = request.Phone,
                 RoleId = roleId,
-                DepartmentId = invitation.DepartmentId,
+                DepartmentId = departmentId,
                 OrganizationId = invitation.OrganizationId
             };
 
@@ -301,6 +320,19 @@ namespace AssetManagement.Infrastructure.Services
             else if (request.OrganizationId > 0 && !_invitations.IsActiveTenantRole(request.RoleId.Value, request.OrganizationId))
             {
                 yield return "The selected role is not an active role of this organization.";
+            }
+
+            // The invitee's department is locked in too: an active department of this organization, and the role
+            // must apply in it (organization-wide roles apply everywhere; a department role only in its department).
+            if (request.DepartmentId.HasValue && request.OrganizationId > 0
+                && !_roleDepartments.IsActiveTenantDepartment(request.DepartmentId.Value, request.OrganizationId))
+            {
+                yield return "The selected department is not an active department of this organization.";
+            }
+            else if (request.RoleId.HasValue && request.RoleId.Value > 0
+                && !_roleDepartments.RoleAppliesInDepartment(request.RoleId.Value, request.DepartmentId))
+            {
+                yield return "The selected role does not apply in the selected department.";
             }
         }
 

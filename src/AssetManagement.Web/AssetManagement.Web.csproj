@@ -357,6 +357,7 @@
     <Content Include="Scripts\app\asset-scan.js" />
     <Content Include="Scripts\app\asset-subtype-details.js" />
     <Content Include="Scripts\app\batch-assign.js" />
+    <Content Include="Scripts\app\invite-create.js" />
     <Content Include="Scripts\app\departments-tree.js" />
     <Content Include="Scripts\app\label-designer.js" />
     <Content Include="Scripts\app\receive-catalog-match.js" />

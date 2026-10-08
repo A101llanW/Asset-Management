@@ -32,6 +32,10 @@ namespace AssetManagement.Application.ViewModels
 
         public bool IsSystemRole { get; set; }
 
+        /// <summary>Roles.DepartmentId (096): null = all departments / organization-wide.</summary>
+        [Display(Name = "Department")]
+        public int? DepartmentId { get; set; }
+
         public List<int> SelectedPermissionIds { get; set; } = new List<int>();
 
         public IEnumerable<PermissionGroupVm> PermissionGroups { get; set; } = new List<PermissionGroupVm>();

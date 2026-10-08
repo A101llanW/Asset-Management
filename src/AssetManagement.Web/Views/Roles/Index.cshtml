@@ -59,7 +59,7 @@ else
 {
     <div class="card card-kpi"><div class="card-body p-0">
     <table class="table mb-0">
-        <thead class="table-light"><tr><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>Workflow</th><th>Description</th><th>@Html.SortLink("System", "system", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
+        <thead class="table-light"><tr><th>@Html.SortLink("Name", "name", currentSort, currentDirection)</th><th>Workflow</th><th>Description</th><th>Department</th><th>@Html.SortLink("System", "system", currentSort, currentDirection)</th><th>@Html.SortLink("Status", "status", currentSort, currentDirection)</th><th></th></tr></thead>
         <tbody>
         @foreach (var item in Model.Items)
         {
@@ -68,6 +68,24 @@ else
                 <td>@item.Name</td>
                 <td class="small text-muted" style="max-width:220px;white-space:normal">@(workflowNote ?? "")</td>
                 <td>@item.Description</td>
+                <td>
+                    @{
+                        string roleDepartmentName = null;
+                        var roleDepartmentNames = ViewBag.RoleDepartmentNames as IDictionary<int, string>;
+                        if (roleDepartmentNames != null)
+                        {
+                            roleDepartmentNames.TryGetValue(item.Id, out roleDepartmentName);
+                        }
+                    }
+                    @if (string.IsNullOrEmpty(roleDepartmentName))
+                    {
+                        <span class="badge bg-light text-dark border">All departments</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-info text-dark">@roleDepartmentName</span>
+                    }
+                </td>
                 <td>@(item.IsSystemRole ? "Yes" : "No")</td>
                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                 <td class="text-end">

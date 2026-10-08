@@ -39,6 +39,11 @@ namespace AssetManagement.Web.Controllers
             }, "Value", "Text", isActive.HasValue ? isActive.Value.ToString().ToLowerInvariant() : string.Empty);
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
+            var listOrganizationId = ResolveCurrentOrganizationId();
+            ViewBag.RoleDepartmentAvailable = RoleDepartments.IsAvailable();
+            ViewBag.RoleDepartmentNames = listOrganizationId.HasValue
+                ? RoleDepartments.GetRoleDepartmentNames(listOrganizationId.Value)
+                : new Dictionary<int, string>();
             return View(ToListPage(pageResult));
         }
 
@@ -82,6 +87,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Create(string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            SetRoleDepartmentViewBag(null);
             return View(BuildCreateEditVm(null));
         }
 
@@ -92,12 +98,15 @@ namespace AssetManagement.Web.Controllers
         {
             model.SelectedPermissionIds = model.SelectedPermissionIds ?? new System.Collections.Generic.List<int>();
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            SetRoleDepartmentViewBag(model.DepartmentId);
+            ValidateRoleDepartment(model, false);
             if (!ModelState.IsValid)
             {
                 return View(BuildCreateEditVm(model));
             }
 
             var roleId = _roleService.Create(model);
+            SaveRoleDepartment(roleId, model.DepartmentId, false);
             TempData["Message"] = "Role created successfully.";
             TempData["Guidance"] = "Review the assigned permissions, then assign this role to users or save it as a reusable template.";
             TempData["OfferRoleTemplateSave"] = true;
@@ -176,6 +185,8 @@ namespace AssetManagement.Web.Controllers
 
             var selected = UnitOfWork.Repository<RolePermission>().Find(x => x.RoleId == id).Select(x => x.PermissionId).ToList();
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id });
+            var roleDepartmentId = RoleDepartments.GetRoleDepartmentId(role.Id);
+            SetRoleDepartmentViewBag(roleDepartmentId);
             return View(new RoleCreateEditVm
             {
                 Id = role.Id,
@@ -183,6 +194,7 @@ namespace AssetManagement.Web.Controllers
                 Description = role.Description,
                 IsActive = role.IsActive,
                 IsSystemRole = role.IsSystemRole,
+                DepartmentId = roleDepartmentId,
                 SelectedPermissionIds = selected,
                 PermissionGroups = _modulePermissionService != null
                     ? _modulePermissionService.GetModuleGroupedPermissions()
@@ -197,6 +209,9 @@ namespace AssetManagement.Web.Controllers
         {
             model.SelectedPermissionIds = model.SelectedPermissionIds ?? new System.Collections.Generic.List<int>();
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+            SetRoleDepartmentViewBag(model.DepartmentId);
+            var existingRole = _roleService.GetById(model.Id);
+            ValidateRoleDepartment(model, existingRole != null && existingRole.IsSystemRole);
             if (!ModelState.IsValid)
             {
                 model.PermissionGroups = GetPermissionGroups();
@@ -211,8 +226,88 @@ namespace AssetManagement.Web.Controllers
             }
 
             _roleService.Update(model);
+            SaveRoleDepartment(model.Id, model.DepartmentId, true);
             TempData["Message"] = "Role updated successfully.";
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+        }
+
+        private AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository _roleDepartments;
+
+        /// <summary>Roles.DepartmentId (migration 096): null = all departments / organization-wide.</summary>
+        private AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository RoleDepartments
+        {
+            get
+            {
+                if (_roleDepartments == null)
+                {
+                    _roleDepartments = new AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository(
+                        DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>());
+                }
+
+                return _roleDepartments;
+            }
+        }
+
+        private void SetRoleDepartmentViewBag(int? selectedDepartmentId)
+        {
+            ViewBag.RoleDepartmentAvailable = RoleDepartments.IsAvailable();
+            ViewBag.RoleDepartments = GetActiveDepartments()
+                .OrderBy(d => d.Name)
+                .ThenBy(d => d.ParentDepartmentName)
+                .Select(d => new SelectListItem
+                {
+                    Value = d.Id.ToString(),
+                    Text = string.IsNullOrWhiteSpace(d.ParentDepartmentName) ? d.Name : d.Name + " (" + d.ParentDepartmentName + ")",
+                    Selected = selectedDepartmentId.HasValue && d.Id == selectedDepartmentId.Value
+                })
+                .ToList();
+        }
+
+        /// <summary>A role department must be an active department of this organization; system roles stay organization-wide.</summary>
+        private void ValidateRoleDepartment(RoleCreateEditVm model, bool isSystemRole)
+        {
+            if (model == null || !model.DepartmentId.HasValue)
+            {
+                return;
+            }
+
+            var organizationId = ResolveCurrentOrganizationId();
+            if (isSystemRole)
+            {
+                ModelState.AddModelError("DepartmentId", "System roles apply to all departments.");
+            }
+            else if (!RoleDepartments.IsAvailable())
+            {
+                ModelState.AddModelError("DepartmentId", "Role departments are not available until database migration 096 is applied.");
+            }
+            else if (!organizationId.HasValue || !RoleDepartments.IsActiveTenantDepartment(model.DepartmentId.Value, organizationId.Value))
+            {
+                ModelState.AddModelError("DepartmentId", "Choose an active department of this organization, or All departments.");
+            }
+        }
+
+        private void SaveRoleDepartment(int roleId, int? departmentId, bool isEdit)
+        {
+            var organizationId = ResolveCurrentOrganizationId();
+            if (!organizationId.HasValue || !RoleDepartments.IsAvailable())
+            {
+                return;
+            }
+
+            var before = RoleDepartments.GetRoleDepartmentId(roleId);
+            if (before == departmentId)
+            {
+                return;
+            }
+
+            RoleDepartments.SetRoleDepartmentId(roleId, organizationId.Value, departmentId);
+            var audit = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.IAuditWriter>();
+            if (audit != null)
+            {
+                audit.Write("Roles.DepartmentScope", nameof(Role), roleId.ToString(),
+                    isEdit ? (before.HasValue ? "DepartmentId=" + before.Value : "DepartmentId=all") : null,
+                    departmentId.HasValue ? "DepartmentId=" + departmentId.Value : "DepartmentId=all");
+            }
         }
 
         // Role Active flag: users may not deactivate the role they are signed in with.

@@ -2,8 +2,10 @@
 @{
     ViewBag.Title = "Invite User";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
-    var roles = ViewBag.Roles as SelectList;
-    var departments = ViewBag.Departments as SelectList;
+    var roles = ViewBag.Roles as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
+    var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
+    var departmentRequired = ViewBag.DepartmentRequired is bool && (bool)ViewBag.DepartmentRequired;
+    var hasInvitableDepartments = ViewBag.HasInvitableDepartments is bool && (bool)ViewBag.HasInvitableDepartments;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -28,15 +30,17 @@
             @Html.TextBoxFor(m => m.Email, new { @class = "form-control", autocomplete = "email", placeholder = "name@example.com" })
             @Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger small" })
         </div>
-        <div class="col-md-3">
-            <label class="form-label">Role</label>
-            @Html.DropDownListFor(m => m.RoleId, roles, "Select role", new { @class = "form-select", required = "required" })
-                <div class="form-text">Required. The invitee gets exactly this role when they register; they cannot change it. Only this organization's active roles that you may grant are listed.</div>
-                @Html.ValidationMessageFor(m => m.RoleId, "", new { @class = "text-danger small" })
-        </div>
         <div class="col-md-4">
-            <label class="form-label">Department (optional)</label>
-            @Html.DropDownListFor(m => m.DepartmentId, departments, "No department", new { @class = "form-select" })
+            <label class="form-label" for="DepartmentId">Department@(departmentRequired ? "" : " (optional)")</label>
+            @Html.DropDownListFor(m => m.DepartmentId, departments, departmentRequired ? "Select department (Company Admin only without one)" : "No department", new { @class = "form-select" })
+            <div class="form-text">Pick the department first; the Role list then shows only roles that apply there. The invitee joins exactly this department when they register.@(hasInvitableDepartments ? "" : " No departments are available to you.")</div>
+            @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger small" })
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="RoleId">Role</label>
+            @Html.DropDownListFor(m => m.RoleId, roles, "Select role", new { @class = "form-select", required = "required", data_roles_url = Url.Action("RolesForDepartment") })
+            <div class="form-text"><span id="am-invite-role-status" aria-live="polite"></span> Required. The invitee gets exactly this role when they register; they cannot change it. Only active roles you may grant that apply in the chosen department are listed.</div>
+            @Html.ValidationMessageFor(m => m.RoleId, "", new { @class = "text-danger small" })
         </div>
     </div>
     <p class="text-muted small mt-3 mb-0">The invitee will set their name and password when they open the link. The link expires after 7 days.</p>
@@ -46,4 +50,8 @@
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/invite-create.js")"></script>
 }
