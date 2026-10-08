@@ -203,6 +203,9 @@ namespace AssetManagement.Application.ViewModels
 
     public class AssetDetailsVm
     {
+        /// <summary>True when the user sees this asset only because they are its current custodian (not for Edit).</summary>
+        public bool ViewedAsCustodianOnly { get; set; }
+
         public int Id { get; set; }
 
         public string AssetTag { get; set; }

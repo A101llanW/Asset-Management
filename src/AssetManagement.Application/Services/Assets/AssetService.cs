@@ -228,13 +228,20 @@ namespace AssetManagement.Application.Services
             }
 
             var enforceDepartmentScope = true;
+            var viewedAsCustodianOnly = false;
             try
             {
                 _departmentScope.EnsureCanAccessAsset(asset);
             }
             catch (BusinessException)
             {
-                if (!CanViewAssetForPendingTransferApproval(asset))
+                if (IsCurrentUserCustodian(asset))
+                {
+                    // The current custodian always sees the asset they hold, whatever its department
+                    // (e.g. assigned with "Keep in <class>"; QA2 R-myassets-finance). Read-only: Edit stays scoped.
+                    viewedAsCustodianOnly = true;
+                }
+                else if (!CanViewAssetForPendingTransferApproval(asset))
                 {
                     return null;
                 }
@@ -314,6 +321,7 @@ namespace AssetManagement.Application.Services
             return new AssetDetailsVm
             {
                 Id = asset.Id,
+                ViewedAsCustodianOnly = viewedAsCustodianOnly,
                 AssetTag = asset.AssetTag,
                 AssetName = asset.AssetName,
                 StatusGuidance = BuildStatusGuidance(asset.CurrentStatus),
@@ -1880,6 +1888,16 @@ namespace AssetManagement.Application.Services
             asset.UpdatedAt = DateTime.UtcNow;
             ApplyCalculatedDepreciation(asset);
             _unitOfWork.Repository<Asset>().Update(asset);
+        }
+
+        private bool IsCurrentUserCustodian(Asset asset)
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return asset != null
+                && asset.IsActive
+                && !string.IsNullOrWhiteSpace(userId)
+                && !string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
+                && string.Equals(asset.CurrentCustodianId, userId, StringComparison.OrdinalIgnoreCase);
         }
 
         private bool CanViewAssetForPendingTransferApproval(Asset asset)

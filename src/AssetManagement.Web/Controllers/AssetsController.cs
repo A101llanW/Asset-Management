@@ -498,6 +498,10 @@ namespace AssetManagement.Web.Controllers
             }
 
             filter.CustodianUserId = User.GetUserId();
+            // Everything the user holds in this organization, whatever the asset's department (QA2
+            // R-myassets-finance): the custodian filter limits rows to the user's own assets, so the
+            // department scope is not applied here (org scope still is).
+            filter.OrganizationWide = !string.IsNullOrWhiteSpace(filter.CustodianUserId);
             var pageModel = _assetService.GetAssetListPage(filter, sort, direction, page, pageSize);
             EnrichAssetListCustodianNames(pageModel.Items);
             ViewBag.ShowCustodianSelfService = true;
@@ -1209,7 +1213,7 @@ namespace AssetManagement.Web.Controllers
             var departmentScope = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.IDepartmentScopeService>();
             if (departmentScope == null)
             {
-                return _assetService.GetById(entity.Id) != null;
+                return CanOpenDetailsForEdit(entity.Id);
             }
 
             try
@@ -1219,8 +1223,15 @@ namespace AssetManagement.Web.Controllers
             }
             catch (BusinessException)
             {
-                return _assetService.GetById(entity.Id) != null;
+                return CanOpenDetailsForEdit(entity.Id);
             }
+        }
+
+        // Custodian-only visibility (Details/My Assets) does not extend to Edit.
+        private bool CanOpenDetailsForEdit(int assetId)
+        {
+            var details = _assetService.GetById(assetId);
+            return details != null && !details.ViewedAsCustodianOnly;
         }
 
         private string ResolveAssetSubTypeName(int subTypeId)
