@@ -203,9 +203,30 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
+            if (!model.IsActive && IsCurrentUsersRole(model.Id))
+            {
+                ModelState.AddModelError("", "You cannot deactivate your own role.");
+                model.PermissionGroups = GetPermissionGroups();
+                return View(model);
+            }
+
             _roleService.Update(model);
             TempData["Message"] = "Role updated successfully.";
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+        }
+
+        // Role Active flag: users may not deactivate the role they are signed in with.
+        private bool IsCurrentUsersRole(int roleId)
+        {
+            var connectionFactory = DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>();
+            if (connectionFactory == null)
+            {
+                return false;
+            }
+
+            var currentUser = new AssetManagement.Infrastructure.Identity.UserAccountRepository(connectionFactory)
+                .FindById(AssetManagement.Web.Security.CurrentUserExtensions.GetUserId(User));
+            return currentUser != null && currentUser.RoleId.HasValue && currentUser.RoleId.Value == roleId;
         }
 
         private RoleCreateEditVm BuildCreateEditVm(RoleCreateEditVm model)

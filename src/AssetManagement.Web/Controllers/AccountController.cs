@@ -67,6 +67,11 @@ namespace AssetManagement.Web.Controllers
 
             ViewBag.ReturnUrl = ParseReturnPathOrNull(returnUrl);
             ConfigureLoginViewBag();
+            if (RoleAccessGuard.IsAccessDeniedReason(Request))
+            {
+                ModelState.AddModelError("", RoleAccessGuard.GenericMessage);
+            }
+
             return View();
         }
 
@@ -168,6 +173,15 @@ namespace AssetManagement.Web.Controllers
                 _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Invalid credentials");
                 var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, organizationId);
                 ModelState.AddModelError("", AuthenticationErrorMessages.LoginFailure(model.Email, tenantSlug, remaining));
+                return View(model);
+            }
+
+            // Role Active flag: refuse before MFA (no code is sent) with a generic message that reveals neither the
+            // role nor the reason; the reason goes to SecurityEvents. Not counted as a failed password attempt.
+            if (RoleAccessGuard.IsBlocked(userId))
+            {
+                RoleAccessGuard.RecordDenied(RoleAccessGuard.LoginDeniedEventType, model.Email, clientIp, attemptOrganizationId);
+                ModelState.AddModelError("", RoleAccessGuard.GenericMessage);
                 return View(model);
             }
 
@@ -567,6 +581,11 @@ namespace AssetManagement.Web.Controllers
             Session.Remove("PendingEmailVerificationReturnUrl");
             var tenantSlug = TenantUrlHelper.GetTenantToken(RouteData);
             var user = FindUserById(userId);
+            if (user != null && RoleAccessGuard.IsBlocked(userId))
+            {
+                return DenyInactiveRoleLogin(user, tenantSlug);
+            }
+
             if (user != null && user.RequirePasswordChange)
             {
                 CurrentUserExtensions.SetAuthCookie(Response, user, rememberMe, Request.UserAgent, true);
@@ -807,6 +826,12 @@ namespace AssetManagement.Web.Controllers
             if (user == null)
             {
                 return RedirectToLogin(TenantUrlHelper.GetTenantToken(RouteData));
+            }
+
+            if (RoleAccessGuard.IsBlocked(userId))
+            {
+                Session.Remove("PendingMfaUserId");
+                return DenyInactiveRoleLogin(user, TenantUrlHelper.GetTenantToken(RouteData));
             }
 
             ViewBag.TenantToken = TenantUrlHelper.GetTenantToken(RouteData);
@@ -1361,6 +1386,12 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToLogin(tenantSlug);
             }
 
+            // Every login path (password, MFA setup/verify, email verification, legal consent) ends here.
+            if (RoleAccessGuard.IsBlocked(userId))
+            {
+                return DenyInactiveRoleLogin(user, tenantSlug);
+            }
+
             EnsureLoginAccessToken(user);
 
             if (_accountSecurityService != null && _accountSecurityService.UserNeedsEmailVerification(userId))
@@ -1389,6 +1420,18 @@ namespace AssetManagement.Web.Controllers
             Session.Remove("PendingMfaRememberMe");
             Session.Remove("PendingMfaReturnUrl");
             return RedirectToLocal(returnUrl, userId, tenantSlug);
+        }
+
+        private ActionResult DenyInactiveRoleLogin(ApplicationUser user, string tenantSlug)
+        {
+            RoleAccessGuard.RecordDenied(RoleAccessGuard.LoginDeniedEventType, user != null ? user.Email : null, GetClientIpAddress(), user != null ? user.OrganizationId : null);
+            Session.Remove("PendingMfaEmail");
+            Session.Remove("PendingMfaRememberMe");
+            Session.Remove("PendingMfaReturnUrl");
+            Session.Remove("ForcedMfaSetupUserId");
+            Session.Remove("PendingEmailVerificationUserId");
+            LegalConsentSession.Clear(Session);
+            return Redirect(RoleAccessGuard.BuildAccessDeniedLoginUrl(tenantSlug));
         }
 
         private void StorePendingLegalLogin(LoginViewModel model, string returnUrl, string userId)

@@ -193,6 +193,13 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Role not found.");
             }
 
+            // Role Active flag: deactivating a role blocks sign-in for its users. System roles (Platform Admin,
+            // Company Admin) and platform roles cannot be deactivated, so no organization or platform loses its admins.
+            if (role.IsActive && !model.IsActive && (role.IsSystemRole || !role.OrganizationId.HasValue))
+            {
+                throw new BusinessException("System roles cannot be deactivated.");
+            }
+
             if (role.IsSystemRole && !role.IsActive && model.IsActive)
             {
                 throw new BusinessException("System roles cannot be re-activated this way.");

@@ -418,6 +418,37 @@ WHERE u.[Id]=@Id";
         /// Returns role name and IsSystemRole for authorization checks that must not
         /// grant on display-name alone.
         /// </summary>
+        /// <summary>
+        /// Role Active flag: true when a tenant user's role (Roles.IsActive) is inactive. Platform users and
+        /// platform roles (OrganizationId NULL, e.g. Platform Admin) are never reported as inactive.
+        /// </summary>
+        public bool IsTenantUserRoleInactive(string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM [Users] u
+    INNER JOIN [Roles] r ON r.[Id] = u.[RoleId]
+    WHERE u.[Id] = @Id
+      AND u.[OrganizationId] IS NOT NULL
+      AND r.[OrganizationId] IS NOT NULL
+      AND r.[IsActive] = 0) THEN 1 ELSE 0 END";
+                    AddParameter(command, "@Id", userId);
+                    return Convert.ToInt32(command.ExecuteScalar()) == 1;
+                }
+            }
+        }
+
         public bool TryGetRoleInfoByUserId(string userId, out string roleName, out bool isSystemRole)
         {
             roleName = null;

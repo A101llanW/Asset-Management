@@ -92,6 +92,7 @@
             <div class="form-check">
                 @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
                 @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+                <div class="form-text">Users in an inactive role cannot sign in.</div>
             </div>
         </div>
     </div>

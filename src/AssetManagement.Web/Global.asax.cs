@@ -165,6 +165,17 @@ namespace AssetManagement.Web
                 }
             }
 
+            // Role Active flag: a tenant user whose role was deactivated is signed out on this request and sent to
+            // the login page with the generic "Access denied." message (platform roles/users are never blocked).
+            if (!string.IsNullOrWhiteSpace(userId) && RoleAccessGuard.IsBlocked(userId))
+            {
+                RoleAccessGuard.RecordDenied(RoleAccessGuard.SessionEndedEventType, ticket.Name, Request.UserHostAddress, organizationId);
+                AuthSessionHelper.SignOut(new HttpContextWrapper(Context));
+                Response.Redirect(RoleAccessGuard.BuildAccessDeniedLoginUrl(organizationId), false);
+                Context.ApplicationInstance.CompleteRequest();
+                return;
+            }
+
             if (requirePasswordChange && !IsPasswordChangeExemptPath(Request.Path))
             {
                 RedirectToRequiredPasswordChange(organizationId);

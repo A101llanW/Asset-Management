@@ -27,6 +27,7 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(500)]
         public string Description { get; set; }
 
+        [Display(Name = "Active")]
         public bool IsActive { get; set; } = true;
 
         public bool IsSystemRole { get; set; }

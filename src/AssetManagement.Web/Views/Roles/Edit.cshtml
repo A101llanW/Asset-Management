@@ -34,8 +34,19 @@
         </div>
         <div class="col-md-2 d-flex align-items-end">
             <div class="form-check">
-                @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
-                @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+                @if (Model.IsSystemRole)
+                {
+                    @Html.HiddenFor(m => m.IsActive)
+                    <input type="checkbox" class="form-check-input" id="IsActiveDisplay" checked="@Model.IsActive" disabled="disabled" />
+                    <label class="form-check-label" for="IsActiveDisplay">Active</label>
+                    <div class="form-text">System roles cannot be deactivated.</div>
+                }
+                else
+                {
+                    @Html.CheckBoxFor(m => m.IsActive, new { @class = "form-check-input" })
+                    @Html.LabelFor(m => m.IsActive, new { @class = "form-check-label" })
+                    <div class="form-text">Users in an inactive role cannot sign in.</div>
+                }
             </div>
         </div>
     </div>

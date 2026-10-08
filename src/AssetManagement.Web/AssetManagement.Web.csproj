@@ -152,6 +152,7 @@
     <Compile Include="App_Start\RouteConfig.cs" />
     <Compile Include="Security\MachineKeyDeploymentValidator.cs" />
     <Compile Include="Security\CurrentUserExtensions.cs" />
+    <Compile Include="Security\RoleAccessGuard.cs" />
     <Compile Include="Security\AuthTicketHelper.cs" />
     <Compile Include="Security\AuthFlowRateLimiter.cs" />
     <Compile Include="Security\AuthSessionHelper.cs" />
