@@ -210,6 +210,8 @@
     <Compile Include="Filters\TenantFilterAttribute.cs" />
     <Compile Include="Filters\TenantLoginRedirect.cs" />
     <Compile Include="Filters\PermissionAuthorizeAttribute.cs" />
+    <Compile Include="Filters\ForbiddenResults.cs" />
+    <Compile Include="Filters\AllowCustodianSelfServiceAttribute.cs" />
     <Compile Include="Filters\AnyPermissionAuthorizeAttribute.cs" />
     <Compile Include="Filters\BusinessExceptionFilter.cs" />
     <Compile Include="Filters\AuditLogAttribute.cs" />

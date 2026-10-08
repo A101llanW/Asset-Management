@@ -113,6 +113,24 @@ namespace AssetManagement.Web.Controllers
             base.OnActionExecuting(filterContext);
         }
 
+        /// <summary>
+        /// Actions that return a bare 403 (HttpStatusCodeResult) get the in-app Forbidden page with the layout and
+        /// HTTP 403 instead of the IIS detailed error page; AJAX/JSON callers keep a plain 403 (ForbiddenResults).
+        /// </summary>
+        protected override void OnActionExecuted(ActionExecutedContext filterContext)
+        {
+            if (filterContext != null && (filterContext.Exception == null || filterContext.ExceptionHandled))
+            {
+                var status = filterContext.Result as HttpStatusCodeResult;
+                if (status != null && status.StatusCode == 403)
+                {
+                    filterContext.Result = ForbiddenResults.Create(filterContext, status.StatusDescription);
+                }
+            }
+
+            base.OnActionExecuted(filterContext);
+        }
+
         protected IDepartmentService BuildDepartmentService() => DependencyResolver.Current.GetService<IDepartmentService>();
 
         protected ISupplierService BuildSupplierService() => DependencyResolver.Current.GetService<ISupplierService>();

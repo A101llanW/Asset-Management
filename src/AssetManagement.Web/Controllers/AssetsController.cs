@@ -489,7 +489,9 @@ namespace AssetManagement.Web.Controllers
             });
         }
 
-        [PermissionAuthorize("Assets.View")]
+        // Any signed-in user may list the assets in their own custody, even without Assets.View (e.g. Staff
+        // with no role permissions): rows are limited to CustodianUserId = current user in this organization.
+        [AllowCustodianSelfService]
         public ActionResult MyAssets(AssetFilterVm filter, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
         {
             if (filter == null)
@@ -562,7 +564,9 @@ namespace AssetManagement.Web.Controllers
                 : fallback;
         }
 
-        [PermissionAuthorize("Assets.View")]
+        // Users with Assets.View (+ Assets module access) see department-scoped assets as before; any other
+        // signed-in user may open only the assets they currently hold (org-scoped); everything else is 403.
+        [AllowCustodianSelfService]
         public ActionResult Details(string id, string returnUrl = null)
         {
             // "Back to Assets" returns to the list the user came from (view, filters, page); only a safe local path
@@ -572,6 +576,11 @@ namespace AssetManagement.Web.Controllers
             if (!TryResolveAssetId(id, out assetId))
             {
                 return NotFoundPage("Asset not found.");
+            }
+
+            if (!CanViewAssetsWithPermission() && !IsCurrentUserCustodianOf(assetId))
+            {
+                return ForbiddenResults.Create(ControllerContext, "You can only view assets that are assigned to you.");
             }
 
             var model = _assetService.GetById(assetId);
@@ -1228,6 +1237,46 @@ namespace AssetManagement.Web.Controllers
             {
                 return CanOpenDetailsForEdit(entity.Id);
             }
+        }
+
+        // What the controller-level attributes require for general asset viewing: Assets.View and Assets module access.
+        private bool CanViewAssetsWithPermission()
+        {
+            if (!HasPermission("Assets.View"))
+            {
+                return false;
+            }
+
+            var moduleService = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Security.IModulePermissionService>();
+            var authorizationService = BuildAuthorizationService();
+            return moduleService != null
+                && authorizationService != null
+                && moduleService.UserHasModuleAccess(User.GetUserId(), ModulePermissionCatalog.Assets, authorizationService);
+        }
+
+        // Custodian self-service: the asset is in the current organization (tenant-filtered repository plus an
+        // explicit org check), active, and currently held by the signed-in user.
+        private bool IsCurrentUserCustodianOf(int assetId)
+        {
+            var userId = User.GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            var asset = UnitOfWork.Repository<Asset>().GetById(assetId);
+            if (asset == null || !asset.IsActive || string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+            {
+                return false;
+            }
+
+            var organizationId = ResolveCurrentOrganizationId();
+            if (organizationId.HasValue && asset.OrganizationId != organizationId.Value)
+            {
+                return false;
+            }
+
+            return string.Equals(asset.CurrentCustodianId, userId, StringComparison.OrdinalIgnoreCase);
         }
 
         // Custodian-only visibility (Details/My Assets) does not extend to Edit.

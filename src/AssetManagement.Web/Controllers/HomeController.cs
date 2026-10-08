@@ -13,6 +13,8 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Forbidden()
         {
             Response.StatusCode = 403;
+            // Keep the app page: without this IIS httpErrors may replace the 403 body with its own error page.
+            Response.TrySkipIisCustomErrors = true;
             ViewBag.HideNavbar = true;
             return View();
         }

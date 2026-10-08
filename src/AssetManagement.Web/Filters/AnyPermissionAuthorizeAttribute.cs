@@ -45,6 +45,18 @@ namespace AssetManagement.Web.Filters
       return _permissionCodes.Any(code => authorizationService.HasPermission(userId, code));
     }
 
+    public override void OnAuthorization(AuthorizationContext filterContext)
+    {
+      // Custodian self-service actions (My Assets, Details of an asset the user holds): signed-in users pass
+      // here and the action limits data to their own custody.
+      if (AllowCustodianSelfServiceAttribute.AppliesToAuthenticated(filterContext))
+      {
+        return;
+      }
+
+      base.OnAuthorization(filterContext);
+    }
+
     protected override void HandleUnauthorizedRequest(AuthorizationContext filterContext)
     {
       if (!filterContext.HttpContext.User.Identity.IsAuthenticated)
@@ -58,7 +70,7 @@ namespace AssetManagement.Web.Filters
         return;
       }
 
-      filterContext.Result = new HttpStatusCodeResult(403, "You do not have permission to access this action.");
+      filterContext.Result = ForbiddenResults.Create(filterContext);
     }
 
     private static bool TryRedirectPlatformAdminFromTenantPortal(AuthorizationContext filterContext)

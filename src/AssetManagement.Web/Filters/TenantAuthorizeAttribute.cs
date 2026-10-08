@@ -15,7 +15,7 @@ namespace AssetManagement.Web.Filters
                 return;
             }
 
-            filterContext.Result = new HttpStatusCodeResult(403, "You do not have permission to access this action.");
+            filterContext.Result = ForbiddenResults.Create(filterContext);
         }
     }
 }

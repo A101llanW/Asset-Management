@@ -2,7 +2,8 @@
     ViewBag.Title = "Forbidden";
     ViewBag.HideNavbar = true;
     Layout = "~/Views/Shared/_Layout.cshtml";
-    var message = TempData["ErrorMessage"] as string
+    var message = ViewData["ForbiddenMessage"] as string
+        ?? TempData["ErrorMessage"] as string
         ?? TempData["Error"] as string
         ?? "You do not have permission to access this resource.";
 }
