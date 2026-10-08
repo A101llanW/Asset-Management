@@ -180,6 +180,15 @@ namespace AssetManagement.Application.Services
 
             _unitOfWork.Repository<Role>().Add(role);
             _unitOfWork.SaveChanges();
+
+            // The unit of work forces IsActive = true on every insert; honour "Active" unchecked on Create.
+            if (!model.IsActive)
+            {
+                role.IsActive = false;
+                _unitOfWork.Repository<Role>().Update(role);
+                _unitOfWork.SaveChanges();
+            }
+
             SetPermissions(role.Id, model.SelectedPermissionIds);
             _auditWriter.Write("Roles.Create", nameof(Role), role.Id.ToString(), null, role.Name);
             return role.Id;
