@@ -9,6 +9,302 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-08 23:41 - ROOT local IIS publish of main `d51fbbf` (all unpublished Oct 8 work + 3 merges)
+
+- **Date/time EAT:** 2026-10-08 23:41:24 EAT (UAC accepted by Allan 23:40:54). Local only: not pushed, no PR, not live nanosoft.africa.
+- **What and why:** Allan GO (relayed by PM 23:36): publish everything built since the keyrot publish (IIS was `682ce85`). HEAD `d51fbbf` contains every commit in the entries below dated 16:20-23:38, i.e. 49 non-merge commits not in `682ce85` (`git log --no-merges 682ce85..d51fbbf`).
+- **Commit hash:** `d51fbbf` (final HEAD of local main at publish).
+- **Files changed:** see the per-change entries below (code, views, CSS, JS, csproj, SQL scripts).
+- **DB migration/script:** **None run tonight.** Pending, NOT applied on `.\SQLEXPRESS` (app tolerates absence and shows "not available yet"): `004_Migrations/093_AssetMovement.sql` (+ optional `ops/093b_Backfill_AssetMovement_FromCustody.sql`), `004_Migrations/094_OrganizationSmtpSettings.sql`. Not run because 093 also grants a new permission to roles in every org and both turn on new features; needs Allan's explicit go. `ops/IntegrityCheck_CrossOrgReferences.sql` is read-only; `proposals/PROPOSAL_UsersRoleId_SameOrg_FK_DO_NOT_RUN.sql` must not be run. Already-applied DB changes today are listed in their own entries (19:49, 20:53, 21:07, 21:09).
+- **Config/Web.config keys:** None changed. Root `Web.config` (keyrot v2 `SystemEncryptionKey`) preserved: SHA256 `BF64D20EF695EED2753522021CEC33EE5A71AB43622499C82A4355E3703444EB` before and after. `smtp.secrets.config` unchanged (`2F729C3F...23EF`). Live IIS Web.config has no `DatabaseConsoleAllowedIps` key, so the console uses the code default (loopback only).
+- **IIS/server steps (local):**
+  1. `artifacts\oct8-merge-build.ps1`: Release Rebuild (0 errors, 184 warnings) + WebPublish to `artifacts\web-publish-oct8-merge-20261008_234024`; Web.config renamed out of the package.
+  2. `artifacts\oct8-merge-launch-elevated.ps1` -> `oct8-merge-iis-publish.ps1` (one UAC): checks live Web.dll = `CFF546F9...` and Web.config hash; full backup to **`C:\inetpub\_backups\AssetManagement_root_pre_oct8_merge_20261008_234109`** (1,585 files, excludes old `_bak`); stop pool `AssetManagement`; copy 279 files (skip Web.config / secrets / view web.configs, which were identical); hash-check 279/279, 0 mismatches; start pool.
+  3. Log: `artifacts\oct8-merge-iis-publish.log`.
+- **DLLs (IIS bin):** `AssetManagement.Web.dll` SHA256 **`1E7B6B8D3A36DDE5C9A15DC6EEC34CDCD7460FD93D2D17792FEEF777AC73F353`** (built 23:40:31 EAT; was `CFF546F9...CCE03`). Application `E474D87C92617F8E7A755864FA2C526D244284296FC941538874E2B37A4F61C3`, Infrastructure `8E97867661EDAE82B06A27C04E595176779394404471259E99571A3F951B4A25`, Domain `98886E473C9604644047ADF7999022025305AE1CABD2B79C586D15A01EF23497`.
+- **Live-deploy steps (later, when approved):** (1) back up live DB; (2) run 093 then 094 (both idempotent, additive) if the features are wanted, optionally 093b; (3) the 19:49 / 21:07 / 21:09 data fixes are local-DB specific: re-run their dry-run/check scripts against live first, do not blindly apply; (4) publish web from `d51fbbf` or later, preserving live Web.config (live needs its own v2 key, see 20:02 entry); (5) recycle pool.
+- **Verify (local, 23:41-23:50):** `/Account/Login` and `/A46138179/Account/Login` 200, no YSOD. As Test-WF Company Admin: `/a46138179/Departments/Index` 200, `badge-kind` x63, `am-dept-indent-0/1/2` rows 12/36/15, computed padding-left 4px/36px/68px, kind-count strip "5 Admin 12 Sub 27 Room 5 Grade 14 Class"; `?view=list` shows Parent column. SuperAdmin: `/Platform/Usage` 200; `/Sys/Database` 200 from loopback; via LAN IP `192.168.30.122` -> 302 to `/Home/Forbidden` (403, "IP allowlist"), spoofed `X-Forwarded-For: 127.0.0.1` also 403. Read-only `03_check_roleperm.sql`: 0 mismatches / 9 platform rows / 0 duplicates.
+- **Rollback:** elevated PowerShell: `Stop-WebAppPool AssetManagement`; `robocopy C:\inetpub\_backups\AssetManagement_root_pre_oct8_merge_20261008_234109 C:\inetpub\AssetManagement /E /XF Web.config smtp.secrets.config /XD _bak`; `Start-WebAppPool AssetManagement`; confirm Web.dll = `CFF546F9CDCF5D0DB859294B5398306E626407201A135CE40315DEB2999CCE03`. No DB rollback needed (no scripts run).
+
+---
+## 2026-10-08 23:38 - site.css: repair mojibake em dash in a comment (`d51fbbf`)
+
+- **Date/time EAT:** 2026-10-08 23:38 (commit), published 23:41.
+- **What and why:** Merge check found `U+00E2 U+20AC U+201D` (mojibake em dash) in the `RESPONSIVE SHELL` CSS comment, introduced by `57edbc3` on Oct 7. Replaced with a real em dash; file stays UTF-8 without BOM (the BOM was already dropped by `ui-qa2-1008`). Comment only, no rendering change.
+- **Commit hash:** `d51fbbf`
+- **Files changed:** `src/AssetManagement.Web/Content/css/site.css` (1 line).
+- **DB migration/script:** None. **Config:** None.
+- **IIS/server steps (local):** included in the 23:41 publish.
+- **Live-deploy steps:** ships with the web publish.
+- **Verify:** no `U+00E2 U+20AC` sequence in site.css; `.am-dept-indent-*` and `.badge-kind` rules unchanged.
+- **Rollback:** `git revert d51fbbf` (harmless either way).
+
+---
+## 2026-10-08 23:38 - csproj: include `asset-label-zebra-loader.js` (`ffd5773`)
+
+- **Date/time EAT:** 2026-10-08 23:38 (commit), published 23:41.
+- **What and why:** `ui-qa2-1008` (`3237867`) added `Scripts/app/asset-label-zebra-loader.js` and referenced it from Assets/Details, Assets/PrintLabel and AssetScan/Lookup, but did not add it to `AssetManagement.Web.csproj`, so WebPublish would leave it out (same class of bug as the Oct 6 missing-view 500s). A scan of all tracked Web `.cs/.cshtml/.js/.css` files against the csproj found this as the only missing item.
+- **Commit hash:** `ffd5773`
+- **Files changed:** `src/AssetManagement.Web/AssetManagement.Web.csproj` (+1 `Content Include`).
+- **DB migration/script:** None. **Config:** None.
+- **IIS/server steps (local):** included in the 23:41 publish (file present in package and IIS, hash-matched).
+- **Live-deploy steps:** ships with the web publish.
+- **Verify:** `C:\inetpub\AssetManagement\Scripts\app\asset-label-zebra-loader.js` exists; Print/Tag pages load the loader without 404.
+- **Rollback:** `git revert ffd5773` (would break Zebra lazy-load on publish).
+
+---
+## 2026-10-08 23:37-23:38 - Local main merges: roleperm-org-fix, qa2-fixes, ui-qa2-1008
+
+- **Date/time EAT:** 2026-10-08 23:37-23:38 (local merges, `--no-ff`, no rebase/force), published 23:41.
+- **What and why:** PM/Allan asked for these three branches on main before the publish.
+  - `225afe6` Merge `roleperm-org-fix` (`1a60ac2`, incl. `19c0edb`): no conflicts.
+  - `e2a7441` Merge `qa2-fixes` (`c1f51bb`): no conflicts.
+  - `83071ba` Merge `ui-qa2-1008` (`3237867`): **1 conflict**, `src/AssetManagement.Application/Services/Assets/AssetService.cs` (custody timeline). Resolved keeping both intents: qa2 ordering (`CustodyTimelineOrdering.EffectiveActionDate` desc, then CreatedAt desc, then Id desc, in memory) **and** ui-qa2 user-name lookup (`BuildUserDisplayLookup` over From/To/ApprovedBy ids passed to `BuildTransferEntityLabel`).
+  - Overlaps auto-merged and reviewed: `BaseController.cs` (qa2 `OnActionExecuting` OrganizationWide reset + `CanViewAssetInScope` + R-DEADMOVE class list; ui-qa2 `NotFoundPage`), `DepartmentsController.cs`, `AssetsController.cs`, `AssetViewModels.cs`.
+- **Commit hash:** `225afe6`, `e2a7441`, `83071ba`.
+- **Files changed:** union of the branch commits listed in the 21:44-21:55 entries and the 20:57/21:10 roleperm commits.
+- **Kept intact (checked after merge):** Oct 7 kind badges (`DepartmentKindHtmlHelpers`, `.badge-kind`) and name indent `.am-dept-indent-N { padding-left: calc(0.25rem + N*2rem) }` (0/36/68px; 1.25rem step on narrow screens) in `site.css`, `Views/Departments/Index.cshtml`, `_DepartmentChildList.cshtml`. ui-qa2 adds a child count to depth-0 names and a Parent column in list view.
+- **DB migration/script:** none added by qa2-fixes or ui-qa2-1008. roleperm-org-fix edits seed migrations `002_Phase3.sql` / `060_SchoolRolesAndPermissions.sql` (fresh installs only) and carries the 21:09 retag scripts (already applied, see 21:09 entry).
+- **Config:** None.
+- **IIS/server steps (local):** Release build + 23:41 publish.
+- **Live-deploy steps:** ships with the web publish from `d51fbbf`.
+- **Verify:** `git log --merges -3`; Release build 0 errors; Departments Index smoke (see 23:41 entry).
+- **Rollback:** `git revert -m 1 83071ba` / `e2a7441` / `225afe6` (newest first) and republish; or restore the 23:41 IIS backup.
+
+---
+## 2026-10-08 21:44-21:55 - qa2-fixes branch (Asset Dev QA2/QA3), merged in `e2a7441`
+
+- **Date/time EAT:** commits 21:44-21:55; merged 23:37; published 23:41.
+- **What and why:** fixes for Asset Dev QA2/QA3 findings: custody timeline, search, scope 404s, custodian My Assets, dept room codes, OrganizationWide query-string ignore, dead Move.
+
+| Commit | EAT | What | Why | Files |
+|---|---|---|---|---|
+| `bdb5908` | 21:44 | fix(custody): timeline sorts same-day assignments by real time (QA2 item 1) | See commit message. | `Application/Helpers/CustodyTimelineOrdering.cs`, `Application/Services/Assets/AssetService.cs`, `Application/Services/Assignments/AssignmentService.cs`, `Application/Services/Returns/ReturnService.cs`, `Tests/Assets/CustodyTimelineOrderingTests.cs` |
+| `8d9276f` | 21:48 | fix(time): label Assignments history dates as EAT (QA2 item 2) | See commit message. | `Web/Views/Assignments/Index.cshtml`, `Web/Views/Assignments/List.cshtml` |
+| `e30bf2b` | 21:48 | fix(assets): search matches the current custodian's name and email (QA2 item 5) | See commit message. | `Infrastructure/Queries/AssetQueryService.cs` |
+| `cab4fb3` | 21:48 | fix(security): Transfers/Create GET returns 404 for assets outside the user's scope (QA2 item 6) | See commit message. | `Web/Controllers/BaseController.cs`, `Web/Controllers/TransfersController.cs` |
+| `32f0003` | 21:48 | fix(security): Assignments/Create GET and asset assignment history are scope-checked (QA2 item 7) | See commit message. | `Web/Controllers/AssignmentsController.cs` |
+| `6f9927d` | 21:48 | fix(assets): custodians see the assets they hold in My Assets and Details (QA2 item 8) | See commit message. | `Application/Services/Assets/AssetService.cs`, `Application/ViewModels/Assets/AssetViewModels.cs`, `Web/Controllers/AssetsController.cs` |
+| `e0e06c8` | 21:50 | fix(security): Departments Details/Edit/KindChangeImpact enforce department scope (QA3-1) | See commit message. | `Application/Services/DepartmentService.cs`, `Web/Controllers/DepartmentsController.cs` |
+| `59e3014` | 21:53 | fix(departments): room codes fit 20 chars and stay unique; unchanged long code no longer blocks Edit (QA3-2 a,c) | See commit message. | `Application/Helpers/SchoolDepartmentCodeHelper.cs`, `Application/Services/DepartmentService.cs`, `Web/Controllers/DepartmentsController.cs`, `Tests/Departments/DepartmentServiceCreateFlowTests.cs` |
+| `952f644` | 21:54 | fix(assets): scoped Transfer users get class targets so the unit Move works (QA3 R-DEADMOVE, dev half) | See commit message. | `Web/Controllers/BaseController.cs` |
+| `c1f51bb` | 21:54 | fix(security): ignore OrganizationWide from the query string on asset filters (found during QA2 item 5/8) | See commit message. | `Web/Controllers/BaseController.cs` |
+
+- **DB migration/script:** None. **Config:** None.
+- **IIS/server steps (local):** via merge + 23:41 publish.
+- **Live-deploy steps:** ships with web publish.
+- **Verify:** AM QA headed retest (custody, search, My Assets, Move, scope 404s) after 23:41.
+- **Rollback:** `git revert -m 1 e2a7441` and republish.
+
+---
+## 2026-10-08 21:49 - ui-qa2-1008 branch (Asset UI Fixes pack), merged in `83071ba`
+
+- **Date/time EAT:** commits 21:49; merged 23:38; published 23:41.
+- **What and why:** Asset UI Fixes pack (see `ASSETUIFIXES.md`): Zebra lazy-load, disposal flash, Move buttons, dept kind counts + Parent column, friendly 404, serial search, custody names.
+
+| Commit | EAT | What | Why | Files |
+|---|---|---|---|---|
+| `ea68e0a` | 21:49 | fix(assets): map custody timeline user ids to display names | See commit message. | `Application/Services/Assets/AssetService.cs`, `Application/ViewModels/Assets/AssetViewModels.cs`, `Web/Views/Assets/Details.cshtml` |
+| `ac660db` | 21:49 | fix(assets): stop client table filter hiding server serial search results | See commit message. | `Web/Views/Assets/Index.cshtml` |
+| `61086b1` | 21:49 | fix(web): friendly 404 page for out-of-scope assets (skip IIS errors) | See commit message. | `Web/Controllers/AssetsController.cs`, `Web/Controllers/BaseController.cs`, `Web/Views/Shared/NotFound.cshtml` |
+| `d8a0c22` | 21:49 | feat(departments): Index kind counts, core child counts, and Parent column | See commit message. | `Web/Controllers/DepartmentsController.cs`, `Web/Views/Departments/Index.cshtml` |
+| `80c8e76` | 21:49 | fix(assets): show Move group buttons on Grouped summary rows | See commit message. | `Web/Content/css/site.css` |
+| `c16445c` | 21:49 | fix(departments): show model-state and field errors on Edit | See commit message. | `Web/Views/Departments/Edit.cshtml` |
+| `eed9028` | 21:49 | fix(assets): hide class Move when relocate modal is not rendered | See commit message. | `Web/Scripts/app/assets-grouped.js`, `Web/Views/Assets/Index.cshtml` |
+| `54d9d57` | 21:49 | fix(assets): show Not set for book value when acquisition cost is unset | See commit message. | `Web/Views/Assets/Details.cshtml` |
+| `3af1e45` | 21:49 | fix(assets): disposal flash distinguishes immediate dispose vs pending approval | See commit message. | `Web/Controllers/AssetsController.cs` |
+| `30be522` | 21:49 | fix(web): GroupedDepartmentDropDown honours explicit id attributes | See commit message. | `Web/Helpers/DepartmentSelectHtmlHelpers.cs` |
+| `3237867` | 21:49 | fix(labels): lazy-load Zebra helper on Print/Tag; no BrowserPrint until click | See commit message. | `Web/Scripts/app/asset-label-zebra-loader.js`, `Web/Scripts/app/asset-scan-batch-print.js`, `Web/Views/AssetScan/Lookup.cshtml`, `Web/Views/Assets/Details.cshtml`, `Web/Views/Assets/PrintLabel.cshtml` |
+
+- **DB migration/script:** None. **Config:** None.
+- **IIS/server steps (local):** via merge + csproj fix `ffd5773` + 23:41 publish.
+- **Live-deploy steps:** ships with web publish (needs `ffd5773`).
+- **Verify:** Departments Index kind-count strip + Parent column (verified 23:4x); AM QA retest for Zebra/disposal/404/serial.
+- **Rollback:** `git revert -m 1 83071ba` and republish.
+
+---
+## 2026-10-08 21:09 - DB: RolePermission OrganizationId retag (31 rows) - ALREADY APPLIED
+
+- **Date/time EAT:** backup 20:56; retag committed **2026-10-08 21:09:32 EAT** on `.\SQLEXPRESS` / `AssetManagementModuleDb`.
+- **What and why:** 31 RolePermission rows were stamped org 1 (Nanosoft) by the 005/006 catch-all but belong to roles of org 2 (13 rows, from 060), org 9 (9) and org 10 (9) (from 002_Phase3). Retagged to the role's org. Platform Admin rows (role 1, NULL org, 9 rows) intentionally left alone.
+- **Commit hash:** `19c0edb` (seed fix + scripts), `1a60ac2` (live output); on main via `225afe6`.
+- **Files changed:** `database/scripts/004_Migrations/002_Phase3.sql`, `060_SchoolRolesAndPermissions.sql`, `artifacts/roleperm-org-fix-2026-10-08/*`.
+- **DB migration/script:** `artifacts/roleperm-org-fix-2026-10-08/01_backup.sql` (creates `dbo.Bak_RolePermOrg_20261008`, 31 rows; CSV copy), `02_retag.sql -v COMMIT=0` then `COMMIT=1`, `03_check_roleperm.sql` (read-only). Full COPY_ONLY backup: `C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\Backup\RolePerm_preretag_20261008.bak`.
+- **Config:** None.
+- **Deploy order:** backup -> dry run -> commit -> check. Code (seed fix) is only relevant to fresh installs.
+- **Live-deploy steps:** run `03_check_roleperm.sql` on live first; only if live shows mis-tagged rows, run 01 -> 02 dry run -> 02 commit with live-specific counts (the script asserts 31; adjust/verify before use).
+- **Verify:** re-checked 2026-10-08 23:4x EAT: `tenant_role_mismatches=0`, `platform_role_rows_left_alone=9`, `duplicate_triples=0`, no mismatch rows. Not re-run.
+- **Rollback:** `99_rollback.sql -v COMMIT=0` then `-v COMMIT=1` (restores OrganizationId by Id from the backup table).
+
+---
+## 2026-10-08 21:07 - DB: Roles.Description mojibake repair (10 rows) - ALREADY APPLIED
+
+- **Date/time EAT:** **2026-10-08 21:07:22 EAT** (PM log: ~21:05). Post-verify 21:07:48.
+- **What and why:** Staff role description stored `U+00E2 U+20AC U+201D` instead of an em dash in 10 orgs (1, 9, 10, 11, 13, 18, 21, 23, 24, 25). Root cause: the PowerShell seed runner read BOM-less SQL as Windows-1252 (source fixed in `ea2a2f6`). Data replaced with ASCII " - " text.
+- **Commit hash:** source fix `ea2a2f6` (merged `499123a`); data repair has no code commit.
+- **Files changed:** `tools/database/_Common.ps1`, `tools/database/Initialize-Database.ps1`, `database/scripts/002_Seed/001_ReferenceData.sql`, `004_Migrations/040_RequisitionWorkflowDefaults.sql`; scripts in `artifacts/mojibake-fix-2026-10-08/`.
+- **DB migration/script:** `02_REPAIR_Roles_Description_DO_NOT_RUN_UNTIL_APPROVED.sql` (run once on approval; backs up to `dbo.Bak_Roles_Mojibake_20261008`, BackedUp=10 Updated=10, committed). Before-CSV: `Roles_mojibake_before_20261008.csv`.
+- **Config:** None.
+- **Deploy order:** dry run `01_DRYRUN_SELECT_ONLY.sql` -> repair -> `06` verify -> Roles page check.
+- **Live-deploy steps:** run `01_DRYRUN_SELECT_ONLY.sql` on live; repair only rows it reports.
+- **Verify:** `06_POST_REPAIR_verify.txt` (all 10 rows hex `...2D00...`); Test-WF Roles page shows no mojibake (`07_*`).
+- **Rollback:** `03_ROLLBACK_Roles_Description_from_backup_PREPARED.sql` (restores from `dbo.Bak_Roles_Mojibake_20261008`).
+
+---
+## 2026-10-08 20:53 - Data (UI): NIS Information Technology moved under Support as Sub-department - ALREADY APPLIED
+
+- **Date/time EAT:** **2026-10-08 20:53:34 EAT** (UpdatedAt 17:53:34 UTC).
+- **What and why:** Allan asked for NIS (Org 21) Department 1494 "Information Technology" (code IT) to become a Sub-department under **Support (1495)**. Done in the UI (Departments/Edit), no SQL writes.
+- **Commit hash:** None (data only, through the app).
+- **Files changed:** None. Evidence: `artifacts/nis-it-to-sub-2026-10-08/` (RESULT.md, before/after text, screenshots).
+- **DB change:** `Department` 1494: DepartmentKind 0 -> 3, ParentDepartmentId NULL -> 1495. 5 child rooms, 158 assets and users unchanged. Org 21 Administrative count 4 -> 3.
+- **Config:** None.
+- **Live-deploy steps:** if live NIS needs the same structure, repeat in the live UI (Departments/Edit 1494-equivalent), not by SQL.
+- **Verify:** `/nis/Departments/Index` shows IT under Support with its 5 rooms.
+- **Rollback:** Departments/Edit 1494: Kind = Department (Administrative), no parent.
+
+---
+## 2026-10-08 20:40-21:39 - main: SMTP per company, same-org guard, hide Excel import, mojibake seed, login chrome, template stage roles, Usage page, xorg scan, parent picker
+
+- **Date/time EAT:** commits 20:40-21:39 on local main (HEAD was `1b253af`, built but unpublished); published 23:41.
+- **What and why:** per commit below.
+
+| Commit | EAT | What | Why | Files |
+|---|---|---|---|---|
+| `dccd22d` | 20:40 | feat(email): per-company SMTP settings with platform-default fallback | Companies need their own outgoing mail identity; fall back to platform SMTP when unset. | `database/scripts/004_Migrations/094_OrganizationSmtpSettings.sql`, `Application/Contracts/IEmailService.cs`, `Application/Contracts/IOrganizationSmtpSettingsStore.cs`, `Application/Contracts/ISecretProtector.cs`, `Application/Contracts/ISmtpSettingsResolver.cs`, `Application/Contracts/Security/IAccountSecurityService.cs`, `Application/Email/OrganizationSmtpSettingsRecord.cs`, `Application/Email/SmtpSettings.cs`, `Application/Email/SmtpSettingsAudit.cs`, `Application/Email/SmtpSettingsResolution.cs`, `Infrastructure/Persistence/OrganizationSmtpSettingsRepository.cs`, `Infrastructure/Services/AccountSecurityService.cs` +21 more (`git show --stat dccd22d`) |
+| `8454e10` | 20:49 | feat(security): server-side same-org guard for org-scoped ids on write paths | Block cross-org ids posted to write paths (security audit finding). | `Application/Helpers/OrgReferenceGuard.cs`, `Application/Services/Approvals/AssetApprovalSettingsHelper.cs`, `Application/Services/Assets/AssetBulkService.cs`, `Application/Services/Assets/AssetImportService.cs`, `Application/Services/Assets/AssetService.cs`, `Application/Services/Common/OrgReferenceValidator.cs`, `Application/Services/DepartmentService.cs`, `Application/Services/Purchases/PurchaseRequestService.cs`, `Application/Services/Transfers/TransferService.cs`, `Application/ViewModels/Assets/AssetViewModels.cs`, `Web/Controllers/SettingsController.cs` |
+| `3c3996c` | 20:50 | ui(assets): hide Excel import chrome behind FeatureFlags | Excel import UI hidden until the import is signed off (FeatureFlags). | `Web/AssetManagement.Web.csproj`, `Web/Controllers/AssetsController.cs`, `Web/Helpers/FeatureFlags.cs`, `Web/Views/Assets/Index.cshtml`, `Web/Views/Shared/_RequisitionWorkflowGuide.cshtml`, `Tests/Security/FeatureFlagsTests.cs` |
+| `ea2a2f6` | 20:51 | fix(db): stop double-encoding seed text (Staff role mojibake, L8) | Staff role description was double-encoded (mojibake L8) by the PowerShell seed runner. | `database/scripts/002_Seed/001_ReferenceData.sql`, `database/scripts/004_Migrations/040_RequisitionWorkflowDefaults.sql`, `tools/database/Initialize-Database.ps1`, `tools/database/_Common.ps1` |
+| `21fb89c` | 20:51 | ui(auth): remove demo-mode indicators from login chrome | Demo-mode chrome should not show on the real login page. | `Web/Views/Account/Login.cshtml`, `Web/Views/Account/OrganizationNotFound.cshtml` |
+| `3053be8` | 20:51 | test(purge): prove OrganizationSmtpSettings delete is OBJECT_ID-guarded | Proves purge does not fail when 094 table is absent. | `Tests/Organizations/OrganizationPurgeTests.cs` |
+| `ffabff3` | 20:53 | feat(orgs): map approval stage roles on template copy instead of skipping/raw ids | Template copy skipped/raw-copied approval stage role ids across orgs (xorg finding). | `Application/Helpers/OrgReferenceGuard.cs`, `Application/Services/Organizations/OrganizationService.cs` |
+| `3770b28` | 20:59 | ops(db): read-only cross-org reference integrity check | Read-only scan to find cross-org references (no writes). | `database/scripts/ops/IntegrityCheck_CrossOrgReferences.sql` |
+| `7fda297` | 20:59 | docs(db): PROPOSAL (not applied) same-org FK for Users.RoleId | Proposal only; NOT applied (DO_NOT_RUN script). | `database/scripts/proposals/PROPOSAL_UsersRoleId_SameOrg_FK_DO_NOT_RUN.sql` |
+| `514a246` | 20:59 | docs(design): ApprovalStage child table to replace approval CSV id columns | Design note only. | `docs/design/approval-stage-child-table.md` |
+| `c7e0cd7` | 21:01 | feat(platform): add Usage page for per-company metrics | Platform admin needs per-company usage metrics. | `Application/AssetManagement.Application.csproj`, `Application/Contracts/Platform/IPlatformUsageService.cs`, `Application/Contracts/Queries/IPlatformUsageQueryRepository.cs`, `Application/Helpers/PlatformUsageMetrics.cs`, `Application/Services/Platform/PlatformUsageService.cs`, `Application/ViewModels/Platform/PlatformUsagePageVm.cs`, `Infrastructure/Queries/PlatformUsageQueryRepository.cs`, `Web/App_Start/AutofacConfig.cs`, `Web/Areas/Platform/Controllers/UsageController.cs`, `Web/Areas/Platform/Views/Shared/_PlatformNav.cshtml`, `Web/Areas/Platform/Views/Usage/Index.cshtml`, `Web/AssetManagement.Web.csproj` +1 more (`git show --stat c7e0cd7`) |
+| `ef0aae3` | 21:06 | fix(email): audit a password clear as Settings.Smtp.ClearPassword | Audit trail for clearing a stored SMTP password. | `Application/Email/SmtpSettingsAudit.cs`, `Tests/Email/SmtpSettingsResolutionTests.cs` |
+| `fc75d47` | 21:08 | fix(departments): exclude self/descendants from Edit parent picker | Parent picker allowed choosing self/descendant (cycle). | `Application/Helpers/DepartmentHierarchyRules.cs`, `Application/Helpers/DepartmentKindChangeGuard.cs`, `Application/Helpers/DepartmentRoomParentCandidates.cs`, `Application/Helpers/DepartmentSubtreeHelper.cs`, `Web/Controllers/DepartmentsController.cs`, `Web/Views/Departments/Edit.cshtml`, `Tests/Departments/DepartmentSubtreeHelperTests.cs` |
+| `1de3e44` | 21:12 | fix(email): SMTP save messages without an apostrophe | Message text fix. | `Web/Controllers/SettingsController.Email.cs`, `Web/ViewModels/CompanySmtpSettingsViewModel.cs` |
+| `68abc29` | 21:14 | fix(security): same-org guard treats platform-level (NULL org) rows as not cross-org | Guard false-positive on platform-level rows with NULL org. | `Application/Services/Assets/AssetBulkService.cs`, `Application/Services/Assets/AssetService.cs`, `Application/Services/Common/OrgReferenceValidator.cs` |
+| `60ce38b` | 21:14 | test(security): cross-org guard, validator, template copy mapping, RoleId literal scan | Regression tests for the guard / mapping / RoleId literals. | `Tests/Organizations/OrganizationTemplateCopyMappingTests.cs`, `Tests/Requisitions/PurchaseRequestDepartmentFlowTests.cs`, `Tests/Security/CrossOrgReferenceGuardTests.cs`, `Tests/Security/NoHardCodedRoleIdTests.cs`, `Tests/Security/OrgReferenceValidatorTests.cs`, `Tests/ServiceRuleTests.cs` |
+| `7b0e1c0` | 21:34 | fix(assets): FeatureFlags.AssetExcelImportUiEnabled is static readonly, not const | Build/analyzer fix for the flag. | `Web/Helpers/FeatureFlags.cs` |
+| `1b253af` | 21:39 | fix(platform): Usage storage query brackets the reserved RowCount alias | Usage storage query failed on reserved alias RowCount. | `Infrastructure/Queries/PlatformUsageQueryRepository.cs` |
+
+- **DB migration/script:** `094_OrganizationSmtpSettings.sql` (from `dccd22d`) **pending, not applied**; app falls back to platform SMTP. `IntegrityCheck_CrossOrgReferences.sql` read-only (run 20:59, `artifacts/xorg-scan-2026-10-08`). PROPOSAL script must not run. Seed fixes in 001/040 (`ea2a2f6`) and 002/060 (`19c0edb`) affect fresh installs only.
+- **Config:** None. `FeatureFlags.AssetExcelImportUiEnabled` is a code flag (false).
+- **IIS/server steps (local):** 23:41 publish.
+- **Live-deploy steps:** web publish; run 094 on live when per-company SMTP is wanted.
+- **Verify:** `/Platform/Usage` 200 (SuperAdmin, 23:4x); login page has no demo chrome; Settings > Email says "not available yet (094 pending)" until 094 runs.
+- **Rollback:** revert the commits (or the 23:41 IIS backup); 094 rollback in its header (DROP TABLE) if it was applied.
+
+---
+## 2026-10-08 20:02 - Keyrot publish: SystemEncryptionKey v2 (`682ce85`)
+
+- **Date/time EAT:** **2026-10-08 20:02:52 EAT** publish; prove 20:07-20:09.
+- **What and why:** Rotate `SystemEncryptionKey` off the public default to a random key with encrypt-then-MAC v2 format; old default kept as `SystemEncryptionKeyPrevious` for decrypting old values.
+- **Commit hash:** `682ce85` = `72b5548` (integration-1008) + cherry-pick of `0404919`. (`0404919` itself reached main later.)
+- **Files changed:** 7 files (see `git show --stat 682ce85`).
+- **DB migration/script:** None (throwaway org 25 "ZZ KeyRotation Test 1008" created by the prove).
+- **Config/Web.config keys:** IIS `Web.config` only: `SystemEncryptionKey` = new random (48 CSPRNG bytes base64, never logged; lives only in `C:\inetpub\AssetManagement\Web.config`); added `SystemEncryptionKeyPrevious` = old public default. Web.config SHA256 `3B664DD5...39F7` -> `BF64D20EF695EED2753522021CEC33EE5A71AB43622499C82A4355E3703444EB`. `smtp.secrets.config` unchanged.
+- **IIS/server steps (local):** package `artifacts\web-publish-grok-keyrot-20261008_195526`; elevated `artifacts\grok-keyrot-iis-publish.ps1`; backup `C:\inetpub\AssetManagement\_bak\grok_keyrot_20261008_200239\` (incl. Web.config); 273 files hash-checked; Web.dll `4808C995...C32C` -> `CFF546F9CDCF5D0DB859294B5398306E626407201A135CE40315DEB2999CCE03`.
+- **Live-deploy steps:** generate a NEW key for live (never reuse the local one); set live `SystemEncryptionKeyPrevious` to live's current key; publish code first or together.
+- **Verify:** `artifacts/key-rotation-2026-10-08/REPORT.md` (logins all PASS; v2 credential package encrypt/decrypt proven).
+- **Rollback:** restore Web.config and files from `_bak\grok_keyrot_20261008_200239`, recycle pool.
+
+---
+## 2026-10-08 19:49 - DB: Test-WF cross-org stage-role remap (2,644 assets) - ALREADY APPLIED
+
+- **Date/time EAT:** approved by Allan 19:46; committed **2026-10-08 19:49:07 EAT** (16:49:07 UTC).
+- **What and why:** 2,644 org-13 (Test-WF) assets copied from org 11 "Template 3" carried Template 3 stage role ids (Transfer 45 Department Head, Disposal 41 Company Admin). Remapped to Test-WF's own roles 63 / 59.
+- **Commit hash:** None for the data; root cause fixed in code by `ffabff3` (template copy maps stage roles).
+- **Files changed:** scripts in `artifacts/xorg-role-remap-2026-10-08/` (00_counts, 01_backup, 01b_backup_export_csv, 02_remap, 03_postcheck, 99_rollback).
+- **DB migration/script:** backup table `dbo.Bak_XorgRoleRemap_20261008` (2,644 rows, PK AssetId) + CSV; `02_remap.sql -v COMMIT=0` then `COMMIT=1`. UpdatedAt untouched.
+- **Config:** None.
+- **Deploy order:** counts -> backup -> dry run -> commit -> counts -> postcheck.
+- **Live-deploy steps:** run `00_counts.sql` / the xorg scan on live first; remap only if live has the same cross-org ids.
+- **Verify:** `counts_after.txt` (only org 13 lines differ), `postcheck_output.txt`.
+- **Rollback:** `99_rollback.sql -v COMMIT=0` then `-v COMMIT=1`.
+
+---
+## 2026-10-08 16:20-16:54 - main commits not in the keyrot build (first published 23:41)
+
+- **Date/time EAT:** commits 16:20-16:54; NOT in `682ce85` (keyrot was built from `72b5548`); first reached IIS in the 23:41 publish.
+- **What and why:** per commit below.
+
+| Commit | EAT | What | Why | Files |
+|---|---|---|---|---|
+| `0404919` | 16:20 | fix(security): rotate SystemEncryptionKey to v2 encrypt-then-MAC | Original key-rotation commit (cherry-picked into 682ce85 for the 20:02 publish). | `Web/Areas/Platform/Controllers/OrganizationsController.cs`, `Web/AssetManagement.Web.csproj`, `Web/Controllers/AccountController.cs`, `Web/Helpers/EncryptionHelper.cs`, `Web/Properties/AssemblyInfo.cs`, `Web/Views/Account/CredentialPackageUnavailable.cshtml`, `Tests/Security/EncryptionHelperTests.cs` |
+| `6713440` | 16:28 | fix(assets): Edit posts SerialNumber once | Edit posted SerialNumber twice. | `Web/Views/Assets/Edit.cshtml` |
+| `73dd98a` | 16:40 | feat(assets): AssetMovement table, recorder, Movements page and Details tab | Allan wants a movement history of department/custodian changes. Needs migration 093 (NOT yet applied; app tolerates absence). | `database/scripts/004_Migrations/093_AssetMovement.sql`, `database/scripts/ops/093b_Backfill_AssetMovement_FromCustody.sql`, `Application/Contracts/IAssetMovementService.cs`, `Application/Contracts/Queries/IAssetMovementQueryRepository.cs`, `Application/Helpers/AssetMovementRecorder.cs`, `Application/Security/ModulePermissionCatalog.cs`, `Application/Services/AssetMovementService.cs`, `Application/Services/Assets/AssetBulkService.cs`, `Application/Services/Assets/AssetImportService.cs`, `Application/Services/Assets/AssetService.cs`, `Application/Services/Assignments/AssignmentService.cs`, `Application/Services/MaintenanceService.cs` +19 more (`git show --stat 73dd98a`) |
+| `627fdb0` | 16:40 | test(purge): include AssetMovement FKs in the checked-in purge snapshot | Purge snapshot must know AssetMovement FKs. | `Tests/Organizations/PurgeForeignKeySnapshot.cs` |
+| `b5cb68e` | 16:54 | fix(time): treat date-only inputs as Kenya calendar days (Part C3) | Date-only inputs shifted a day (UTC vs Kenya). | `Application/Helpers/KenyaTimeHelper.cs`, `Application/Services/Assignments/AssignmentService.cs`, `Application/Services/IncidentService.cs`, `Application/Services/Returns/ReturnService.cs`, `Web/Controllers/AssetsController.cs`, `Web/Controllers/ClaimsController.cs`, `Web/Views/Assignments/Index.cshtml`, `Web/Views/Assignments/List.cshtml`, `Web/Views/Incidents/Details.cshtml`, `Web/Views/Incidents/Index.cshtml`, `Web/Views/Shared/_AssetIncidentsTab.cshtml` |
+| `a8a45a6` | 16:54 | fix(time): show stored UTC timestamps in Kenya time with an EAT label (Part C1) | Timestamps displayed in UTC; now EAT with label. | `Application/Services/Approvals/ApprovalWorkflowHelper.cs`, `Application/Services/Assets/AssetService.cs`, `Application/Services/ReportDocumentService.cs`, `Application/Services/ReportService.cs`, `Web/Controllers/PendingApprovalsController.cs`, `Web/Controllers/ReportsController.cs`, `Web/Views/AssetRequests/Details.cshtml`, `Web/Views/AssetRequests/Index.cshtml`, `Web/Views/Assets/Details.cshtml`, `Web/Views/Claims/Details.cshtml`, `Web/Views/Notifications/Index.cshtml`, `Web/Views/PendingApprovals/Index.cshtml` |
+
+- **DB migration/script:** `093_AssetMovement.sql` (+ `ops/093b_Backfill_AssetMovement_FromCustody.sql`) from `73dd98a` **pending, not applied**: Movements page / Details tab show "not available yet", writes are skipped. 093 adds table + indexes + permission `Assets.Movements.View` granted to Company Admin and roles with Assign/Transfer/AuditLogs.View (all orgs).
+- **Config:** None.
+- **Live-deploy steps:** web publish; then 093 (and optionally 093b) on approval.
+- **Verify:** Assets/Details movement tab shows the "not available yet" notice until 093 runs.
+- **Rollback:** revert commits / 23:41 IIS backup; 093 rollback in its header.
+
+---
+## 2026-10-08 09:46-16:28 - Daytime work already live before 20:02 (summary backfill)
+
+- **Date/time EAT:** commits 09:46-16:28; published to local IIS during the day by the assetdev / grok publishes (packages `artifacts\web-publish-assetdev-20261008_*` and `artifacts\web-publish-grok-*-20261008_*`, backups under `C:\inetpub\AssetManagement\_bak\`). All are ancestors of `682ce85`, so they are live as of the 20:02 publish.
+- **What and why:** perf, scan, Zebra, reports, requisition, departments and QA fixes (see each commit message and the QA artifacts for that hour). Summary backfill, not per-change detail.
+- **Commits (48):**
+  - `e254956` 09:46 feat(departments): kind-change child guard, org structure breakdown, inherit source choice
+  - `319aad6` 10:13 perf(dashboard): grant-free tenant Dashboard KPIs; stop full-org asset loads per hit
+  - `0f15527` 10:15 fix(reports): Preview modal stuck under backdrop; loading-modal race
+  - `35f9fd2` 10:30 perf(approvals): drop SQL ORDER BY from pending-approval sources (no memory grant)
+  - `4cd0978` 10:59 feat(requisitions): per-stage approver person, "Purchase order raised by", flow redirect fix
+  - `53c32b8` 11:13 fix(purchases): PO raiser has no Company Admin exemption
+  - `bd56936` 11:20 perf(audit): grant-free, indexed AuditLog history; Assets/Details survives history failure
+  - `ecd632d` 11:31 feat(assets): sub-type Details page (paged assets) + per-asset price; blank stays 'Not set', never copied from sub-type
+  - `1e853e6` 11:42 fix(requisitions): keep posted flow choice on invalid re-render; show PO create errors
+  - `9313ce0` 11:45 perf(reports,dashboard): depreciation refresh off the request path; grant-free custody count and Asset Register export; Requested By names
+  - `8dee4cb` 11:51 feat(assets): "Group by room" view on Assets Index (lazy rooms > categories > assets)
+  - `2432e1a` 12:22 perf(reports): covering-index Asset Register export, targeted Pending Approvals preview lookup; user names in previews and Pending Approvals
+  - `7431bf2` 12:51 fix(requisitions): PR Details shows the approval path the request actually resolves to
+  - `864285f` 12:51 fix(purchases): a typed PO unit cost is never overwritten by a catalog price
+  - `a1c5abe` 12:51 fix(departments): Sub with child rooms and no parent shows its own parent message
+  - `a35e9bf` 12:51 feat(departments): live requisition flow summary on Edit
+  - `48d1912` 13:00 fix(assets): View/Status filter selects show their full text
+  - `e7948fb` 13:00 fix(assets): 'Back to Assets' returns to the list the user came from
+  - `b37077b` 13:12 fix(assets): 'Back to Assets' only returns within this tenant's Assets pages
+  - `570ae98` 13:44 perf(layout): self-host Inter/Outfit fonts; no render-blocking fonts.googleapis.com
+  - `6bd73ca` 13:48 fix(labels): connect to Zebra Browser Print only when the user prints
+  - `6f936bf` 14:01 fix(departments): stage-count trims the LAST stage; grey stage summary follows removals
+  - `f51231a` 14:01 fix(ui): select chevron no longer covers the last letter; Assets filter row gets the full width
+  - `cab3da6` 14:06 perf(assets): Edit/Create stop reading every asset row of the org
+  - `d7c5af8` 14:06 perf(auth): memoise user and role permission codes per request
+  - `b32fb67` 14:06 perf(settings): memoise platform settings per service instance (30 s TTL)
+  - `84c7cc1` 14:12 fix(scan): asset-scan.js quote mismatch broke AssetScan/Lookup search and camera
+  - `3cbde6c` 14:18 perf(reports): preview shows at most 200 rows per table; PDF/CSV keep all rows
+  - `17c1642` 14:18 perf(layout): no three.js or 403 pollers on ordinary signed-in pages
+  - `c05da54` 14:18 fix(print): PrintLabel hides the printer status line until BrowserPrint answers
+  - `6fb8c58` 14:34 perf(startup): compile the login-to-dashboard and asset-form views in the background after app start
+  - `37ace9e` 14:34 perf(subtypes): sub-type list filters by type, active and search in SQL
+  - `b514eae` 14:40 fix(permissions): Permissions/Index 500 - redundant @ before if inside the foreach
+  - `8a0a138` 14:40 perf(mfa): send the MFA code email off the request path
+  - `1f850e6` 14:40 fix(scan): specific camera errors; version the scan scripts
+  - `b216686` 14:43 Revert "perf(startup): compile the login-to-dashboard and asset-form views in the background after app start"
+  - `25c518e` 14:45 fix(subtypes): sub-type search 500 - keep the search filter in memory
+  - `449692e` 14:54 fix(auth): root-portal login counts lockout in the matched tenant's bucket
+  - `04e82d0` 15:00 fix(soft-delete): filter IsActive consistently on asset/policy lookups
+  - `365ca8b` 15:05 fix(scan): camera errors no longer masked by html5-qrcode stop()
+  - `3d1e248` 15:05 fix(mfa): VerifyMfa shows only the limit message when no code was sent
+  - `4f4f14c` 15:21 fix(purge): one shared purge plan; add the tables that blocked the purge
+  - `79e02db` 15:21 test(purge,mfa): plan drift and FK coverage tests; rate limiter tests
+  - `1bafac2` 15:31 perf(reports): pending-approvals aging CSV reads only the assets it names
+  - `c8d5123` 15:53 feat(assets): Move to room / Move group to room; grouped bulk department targets; Edit department guard
+  - `8570ba4` 16:11 fix(impersonation): store and compare impersonation times in UTC
+  - `9261b4b` 16:11 fix(assets): saving an asset no longer corrupts unset dates, condition on receipt or stage roles
+  - `72b5548` 16:28 fix(assets): Edit posts SerialNumber once
+- **DB migration/script:** applied today per `SchemaMigrationHistory`: 085 (06:45), 088 (08:00), 089 (08:19), 091 (08:33), 090 (08:44), 092 (09:24), 081 + 083 (14:49). Also the Test-WF 11-account password reset at 09:33:45 EAT (`artifacts/qa-testwf-reset-all-2026-10-08`, Allan-approved).
+- **Config:** None known.
+- **Verify / Rollback:** per the QA artifacts of each publish; IIS backups under `C:\inetpub\AssetManagement\_bak\`.
+
+---
 ## 2026-10-07 - Departments tree: clearer name-column tab-stop indent (~2rem/level)
 
 - **Date/time EAT:** 2026-10-07 ~12:30 EAT (local SoT commit + ROOT local IIS publish). Not pushed; no PR; no live publish; no DB changes.
