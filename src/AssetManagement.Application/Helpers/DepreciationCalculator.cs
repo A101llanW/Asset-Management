@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Domain.Entities;
@@ -8,6 +9,12 @@ namespace AssetManagement.Application.Helpers
 {
     public static class DepreciationCalculator
     {
+        /// <summary>How long a dashboard-triggered org refresh is reused within the same month.</summary>
+        public static readonly TimeSpan DashboardRefreshInterval = TimeSpan.FromMinutes(10);
+
+        private static readonly ConcurrentDictionary<int, RefreshStamp> LastDashboardRefresh =
+            new ConcurrentDictionary<int, RefreshStamp>();
+
         public sealed class Position
         {
             public decimal AccumulatedDepreciation { get; set; }
@@ -85,12 +92,45 @@ namespace AssetManagement.Application.Helpers
             asset.AccumulatedDepreciation = position.AccumulatedDepreciation;
         }
 
+        /// <summary>
+        /// Runs <see cref="RefreshOrganization"/> unless this org was already refreshed by this
+        /// method within <paramref name="maxAge"/> for the same as-of month. Positions are
+        /// month-granular and asset create/edit recompute their own row, so a short reuse window
+        /// only delays picking up type/category default changes. Any direct RefreshOrganization
+        /// call (e.g. a report run for another period) clears the stamp.
+        /// </summary>
+        public static bool RefreshOrganizationIfStale(IUnitOfWork unitOfWork, int organizationId, DateTime asOfUtc, TimeSpan maxAge)
+        {
+            if (unitOfWork == null)
+            {
+                return false;
+            }
+
+            var monthKey = asOfUtc.Year * 12 + asOfUtc.Month;
+            var nowUtc = DateTime.UtcNow;
+            RefreshStamp stamp;
+            if (LastDashboardRefresh.TryGetValue(organizationId, out stamp)
+                && stamp.MonthKey == monthKey
+                && nowUtc - stamp.RefreshedAtUtc < maxAge
+                && nowUtc >= stamp.RefreshedAtUtc)
+            {
+                return false;
+            }
+
+            RefreshOrganization(unitOfWork, organizationId, asOfUtc);
+            LastDashboardRefresh[organizationId] = new RefreshStamp(monthKey, nowUtc);
+            return true;
+        }
+
         public static void RefreshOrganization(IUnitOfWork unitOfWork, int organizationId, DateTime asOfUtc)
         {
             if (unitOfWork == null)
             {
                 return;
             }
+
+            RefreshStamp removed;
+            LastDashboardRefresh.TryRemove(organizationId, out removed);
 
             var assets = unitOfWork.Repository<Asset>()
                 .Find(x => x.IsActive && x.OrganizationId == organizationId)
@@ -212,6 +252,19 @@ namespace AssetManagement.Application.Helpers
                 CurrentBookValue = bookValue,
                 ElapsedMonths = elapsedMonths
             };
+        }
+
+        private sealed class RefreshStamp
+        {
+            public RefreshStamp(int monthKey, DateTime refreshedAtUtc)
+            {
+                MonthKey = monthKey;
+                RefreshedAtUtc = refreshedAtUtc;
+            }
+
+            public int MonthKey { get; private set; }
+
+            public DateTime RefreshedAtUtc { get; private set; }
         }
     }
 }

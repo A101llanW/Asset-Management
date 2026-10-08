@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
@@ -9,6 +10,14 @@ using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Infrastructure.Queries
 {
+    /// <summary>
+    /// Tenant Dashboard KPIs. Every statement here is shaped to need NO query memory grant
+    /// (no hash join/aggregate, no sort): SQL Express on small hosts can shrink query memory
+    /// to a few MB, and grant-hungry statements then wait on RESOURCE_SEMAPHORE until the
+    /// 30s command timeout fires. Aggregates read the narrow covering index
+    /// IX_Asset_Org_Active_Dept_DashboardKpi (migration 086); small lookups use LOOP JOIN;
+    /// final grouping/ordering of tiny result sets happens in memory.
+    /// </summary>
     public class DashboardQueryService : IDashboardQueryService
     {
         private static readonly string StatusCountsSql = @"
@@ -22,6 +31,7 @@ SELECT
     ISNULL(SUM(a.[AcquisitionCost]), 0) AS TotalAcquisitionValue,
     ISNULL(SUM(a.[CurrentBookValue]), 0) AS TotalCurrentBookValue,
     ISNULL(SUM(a.[AccumulatedDepreciation]), 0) AS TotalAccumulatedDepreciation,
+    ISNULL(SUM(a.[AcquisitionCost] + a.[TaxAmount]), 0) AS TotalAcquisitionAndTax,
     ISNULL(AVG(
         CASE
             WHEN a.[DepreciationRatePercent] IS NOT NULL AND a.[DepreciationRatePercent] > 0 THEN a.[DepreciationRatePercent]
@@ -37,47 +47,82 @@ LEFT JOIN [AssetType] at ON at.[Id] = a.[AssetTypeId]
 LEFT JOIN [AssetCategory] ac ON ac.[Id] = a.[CategoryId]
 WHERE a.[OrganizationId] = @OrganizationId
   AND a.[IsActive] = 1
-  AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a");
-
-        private static readonly string TopDepartmentsSql = @"
-SELECT TOP 5
-    d.[Name] AS DepartmentName,
-    ISNULL(SUM(a.[CurrentBookValue]), 0) AS BookValue,
-    COUNT(*) AS AssetCount
-FROM [Asset] a
-INNER JOIN [Department] d ON d.[Id] = a.[DepartmentId]
-WHERE a.[OrganizationId] = @OrganizationId
-  AND a.[IsActive] = 1
   AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @"
-GROUP BY d.[Name]
-ORDER BY SUM(a.[AcquisitionCost]) DESC, d.[Name] ASC";
+OPTION (LOOP JOIN)";
 
-        private static readonly string AssignmentsPerMonthSql = @"
+        // Per-department aggregates (stream aggregate in index order), names joined after.
+        // Grouping by name + TOP 5 ordering is done in memory on these few rows.
+        private static readonly string DepartmentValuesSql = @"
 SELECT
-    YEAR(aa.[AssignedDate]) AS [Year],
-    MONTH(aa.[AssignedDate]) AS [Month],
-    COUNT(*) AS [Count]
+    d.[Name] AS DepartmentName,
+    g.[BookValue],
+    g.[AcquisitionValue],
+    g.[AssetCount]
+FROM (
+    SELECT
+        a.[DepartmentId],
+        SUM(a.[CurrentBookValue]) AS BookValue,
+        SUM(a.[AcquisitionCost]) AS AcquisitionValue,
+        COUNT(*) AS AssetCount
+    FROM [Asset] a
+    WHERE a.[OrganizationId] = @OrganizationId
+      AND a.[IsActive] = 1
+      AND a.[DepartmentId] IS NOT NULL
+      AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @"
+    GROUP BY a.[DepartmentId]
+) g
+INNER JOIN [Department] d ON d.[Id] = g.[DepartmentId]
+OPTION (LOOP JOIN, ORDER GROUP)";
+
+        // Raw assignment dates for the trend window; bucketed by month in memory.
+        private static readonly string AssignmentDatesSql = @"
+SELECT aa.[AssignedDate]
 FROM [AssetAssignment] aa
 INNER JOIN [Asset] a ON a.[Id] = aa.[AssetId]
 WHERE a.[OrganizationId] = @OrganizationId
   AND a.[IsActive] = 1
   AND aa.[AssignedDate] >= @FromDate
   AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @"
-GROUP BY YEAR(aa.[AssignedDate]), MONTH(aa.[AssignedDate])
-ORDER BY YEAR(aa.[AssignedDate]), MONTH(aa.[AssignedDate])";
+OPTION (LOOP JOIN)";
 
-        private static readonly string TotalTcoSql = @"
-SELECT ISNULL(SUM(a.[AcquisitionCost] + a.[TaxAmount] + ISNULL(m.[MaintenanceCost], 0)), 0)
-FROM [Asset] a
-LEFT JOIN (
-    SELECT [AssetId], SUM([Cost]) AS MaintenanceCost
-    FROM [AssetMaintenanceRecord]
-    WHERE [IsActive] = 1
-    GROUP BY [AssetId]
-) m ON m.[AssetId] = a.[Id]
-WHERE a.[OrganizationId] = @OrganizationId
+        // TCO = SUM(AcquisitionCost + TaxAmount) (from StatusCountsSql) + active maintenance cost
+        // of the same scoped assets. Both cost columns are NOT NULL, so this equals the old
+        // per-asset LEFT JOIN formulation without its hash aggregate.
+        private static readonly string MaintenanceCostSql = @"
+SELECT ISNULL(SUM(m.[Cost]), 0)
+FROM [AssetMaintenanceRecord] m
+INNER JOIN [Asset] a ON a.[Id] = m.[AssetId]
+WHERE m.[IsActive] = 1
+  AND a.[OrganizationId] = @OrganizationId
   AND a.[IsActive] = 1
-  AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a");
+  AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @"
+OPTION (LOOP JOIN)";
+
+        // Replaces MetricsService.CountExpiringWarranties/CountExpiringInsurance on the dashboard,
+        // which materialised every org asset (SELECT *) to count in memory.
+        private static readonly string ExpiryCountsSql = @"
+SELECT
+    (SELECT COUNT(*)
+     FROM [Asset] a
+     WHERE a.[OrganizationId] = @OrganizationId
+       AND a.[IsActive] = 1
+       AND a.[WarrantyEndDate] IS NOT NULL
+       AND a.[WarrantyEndDate] <= @WarrantyThreshold
+       AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @") AS ExpiringWarrantyCount,
+    (SELECT COUNT(*)
+     FROM [InsurancePolicy] p
+     WHERE p.[OrganizationId] = @OrganizationId
+       AND p.[PolicyEndDate] <= @InsuranceThreshold
+       AND EXISTS (
+           SELECT 1
+           FROM [Asset] a
+           WHERE a.[Id] = p.[AssetId]
+             AND a.[OrganizationId] = @OrganizationId
+             AND a.[IsActive] = 1
+             AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @")) AS ExpiringInsuranceCount
+OPTION (LOOP JOIN)";
+
+        private const int TopDepartmentCount = 5;
 
         private readonly ISqlConnectionFactory _connectionFactory;
 
@@ -99,7 +144,7 @@ WHERE a.[OrganizationId] = @OrganizationId
                 var statusCounts = ReadStatusCounts(connection, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
                 var topDepartments = ReadTopDepartments(connection, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
                 var assignmentsPerMonth = ReadAssignmentsPerMonth(connection, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
-                var totalTco = ReadTotalTco(connection, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
+                var maintenanceCost = ReadMaintenanceCost(connection, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
 
                 return new DashboardKpisDto
                 {
@@ -113,10 +158,57 @@ WHERE a.[OrganizationId] = @OrganizationId
                     TotalCurrentBookValue = statusCounts.TotalCurrentBookValue,
                     TotalAccumulatedDepreciation = statusCounts.TotalAccumulatedDepreciation,
                     AverageAnnualDepreciationRatePercent = statusCounts.AverageAnnualDepreciationRatePercent,
-                    TotalCostOfOwnership = totalTco,
+                    TotalCostOfOwnership = statusCounts.TotalAcquisitionAndTax + maintenanceCost,
                     TopDepartmentValues = topDepartments,
                     AssignmentsPerMonth = assignmentsPerMonth
                 };
+            }
+        }
+
+        public DashboardExpiryCountsDto GetExpiryCounts(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool includeClassDepartmentAssets,
+            DateTime warrantyThresholdUtc,
+            DateTime insuranceThresholdUtc)
+        {
+            if (denyDepartmentScope)
+            {
+                return new DashboardExpiryCountsDto();
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = ExpiryCountsSql;
+                    SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                    SqlQueryHelper.AddDepartmentScopeParameters(
+                        command,
+                        bypassDepartmentScope,
+                        denyDepartmentScope,
+                        departmentId,
+                        includeClassDepartmentAssets && !bypassDepartmentScope);
+                    SqlQueryHelper.AddParameter(command, "@WarrantyThreshold", warrantyThresholdUtc);
+                    SqlQueryHelper.AddParameter(command, "@InsuranceThreshold", insuranceThresholdUtc);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (!reader.Read())
+                        {
+                            return new DashboardExpiryCountsDto();
+                        }
+
+                        return new DashboardExpiryCountsDto
+                        {
+                            ExpiringWarrantyCount = ReadInt32(reader, "ExpiringWarrantyCount"),
+                            ExpiringInsuranceCount = ReadInt32(reader, "ExpiringInsuranceCount")
+                        };
+                    }
+                }
             }
         }
 
@@ -177,6 +269,7 @@ WHERE a.[OrganizationId] = @OrganizationId
                         TotalAcquisitionValue = ReadDecimal(reader, "TotalAcquisitionValue"),
                         TotalCurrentBookValue = ReadDecimal(reader, "TotalCurrentBookValue"),
                         TotalAccumulatedDepreciation = ReadDecimal(reader, "TotalAccumulatedDepreciation"),
+                        TotalAcquisitionAndTax = ReadDecimal(reader, "TotalAcquisitionAndTax"),
                         AverageAnnualDepreciationRatePercent = ReadDecimal(reader, "AverageAnnualDepreciationRatePercent")
                     };
                 }
@@ -190,27 +283,55 @@ WHERE a.[OrganizationId] = @OrganizationId
             bool bypassDepartmentScope,
             bool denyDepartmentScope)
         {
-            var items = new List<DepartmentValueVm>();
+            var rows = new List<DepartmentValueRow>();
             using (var command = connection.CreateCommand())
             {
-                command.CommandText = TopDepartmentsSql;
+                command.CommandText = DepartmentValuesSql;
                 AddScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
 
                 using (var reader = command.ExecuteReader())
                 {
                     while (reader.Read())
                     {
-                        items.Add(new DepartmentValueVm
+                        rows.Add(new DepartmentValueRow
                         {
                             DepartmentName = SqlQueryHelper.GetString(reader, "DepartmentName"),
-                            BookValue = Convert.ToDecimal(reader["BookValue"]),
-                            AssetCount = Convert.ToInt32(reader["AssetCount"])
+                            BookValue = ReadDecimal(reader, "BookValue"),
+                            AcquisitionValue = ReadDecimal(reader, "AcquisitionValue"),
+                            AssetCount = ReadInt32(reader, "AssetCount")
                         });
                     }
                 }
             }
 
-            return items;
+            return SelectTopDepartments(rows, TopDepartmentCount);
+        }
+
+        /// <summary>
+        /// Mirrors the former SQL: GROUP BY department name (SQL default collation is
+        /// case-insensitive and ignores trailing spaces), ORDER BY SUM(AcquisitionCost) DESC, name ASC, TOP n.
+        /// </summary>
+        internal static IList<DepartmentValueVm> SelectTopDepartments(IEnumerable<DepartmentValueRow> rows, int take)
+        {
+            return (rows ?? Enumerable.Empty<DepartmentValueRow>())
+                .GroupBy(x => (x.DepartmentName ?? string.Empty).TrimEnd(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => new
+                {
+                    Name = g.First().DepartmentName,
+                    AcquisitionValue = g.Sum(x => x.AcquisitionValue),
+                    BookValue = g.Sum(x => x.BookValue),
+                    AssetCount = g.Sum(x => x.AssetCount)
+                })
+                .OrderByDescending(x => x.AcquisitionValue)
+                .ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Take(take)
+                .Select(x => new DepartmentValueVm
+                {
+                    DepartmentName = x.Name,
+                    BookValue = x.BookValue,
+                    AssetCount = x.AssetCount
+                })
+                .ToList();
         }
 
         private static IList<DashboardTrendPointVm> ReadAssignmentsPerMonth(
@@ -220,10 +341,10 @@ WHERE a.[OrganizationId] = @OrganizationId
             bool bypassDepartmentScope,
             bool denyDepartmentScope)
         {
-            var points = new List<DashboardTrendPointVm>();
+            var dates = new List<DateTime>();
             using (var command = connection.CreateCommand())
             {
-                command.CommandText = AssignmentsPerMonthSql;
+                command.CommandText = AssignmentDatesSql;
                 AddScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
                 SqlQueryHelper.AddParameter(command, "@FromDate", DateTime.UtcNow.AddMonths(-11));
 
@@ -231,21 +352,32 @@ WHERE a.[OrganizationId] = @OrganizationId
                 {
                     while (reader.Read())
                     {
-                        var year = Convert.ToInt32(reader["Year"]);
-                        var month = Convert.ToInt32(reader["Month"]);
-                        points.Add(new DashboardTrendPointVm
+                        var value = reader[0];
+                        if (value != null && value != DBNull.Value)
                         {
-                            Label = year.ToString("0000") + "-" + month.ToString("00"),
-                            Count = Convert.ToInt32(reader["Count"])
-                        });
+                            dates.Add(Convert.ToDateTime(value));
+                        }
                     }
                 }
             }
 
-            return points;
+            return BucketByMonth(dates);
         }
 
-        private static decimal ReadTotalTco(
+        internal static IList<DashboardTrendPointVm> BucketByMonth(IEnumerable<DateTime> dates)
+        {
+            return (dates ?? Enumerable.Empty<DateTime>())
+                .GroupBy(x => x.Year * 100 + x.Month)
+                .OrderBy(g => g.Key)
+                .Select(g => new DashboardTrendPointVm
+                {
+                    Label = (g.Key / 100).ToString("0000") + "-" + (g.Key % 100).ToString("00"),
+                    Count = g.Count()
+                })
+                .ToList();
+        }
+
+        private static decimal ReadMaintenanceCost(
             IDbConnection connection,
             int organizationId,
             int? departmentId,
@@ -254,7 +386,7 @@ WHERE a.[OrganizationId] = @OrganizationId
         {
             using (var command = connection.CreateCommand())
             {
-                command.CommandText = TotalTcoSql;
+                command.CommandText = MaintenanceCostSql;
                 AddScopeParameters(command, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope);
                 var result = command.ExecuteScalar();
                 return result == null || result == DBNull.Value ? 0m : Convert.ToDecimal(result);
@@ -284,6 +416,17 @@ WHERE a.[OrganizationId] = @OrganizationId
             return value == null || value == DBNull.Value ? 0m : Convert.ToDecimal(value);
         }
 
+        internal sealed class DepartmentValueRow
+        {
+            public string DepartmentName { get; set; }
+
+            public decimal BookValue { get; set; }
+
+            public decimal AcquisitionValue { get; set; }
+
+            public int AssetCount { get; set; }
+        }
+
         private sealed class StatusCounts
         {
             public int TotalAssets { get; set; }
@@ -303,6 +446,8 @@ WHERE a.[OrganizationId] = @OrganizationId
             public decimal TotalCurrentBookValue { get; set; }
 
             public decimal TotalAccumulatedDepreciation { get; set; }
+
+            public decimal TotalAcquisitionAndTax { get; set; }
 
             public decimal AverageAnnualDepreciationRatePercent { get; set; }
         }

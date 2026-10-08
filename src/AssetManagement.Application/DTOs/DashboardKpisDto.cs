@@ -33,4 +33,11 @@ namespace AssetManagement.Application.DTOs
 
         public IList<DashboardTrendPointVm> AssignmentsPerMonth { get; set; }
     }
+
+    public class DashboardExpiryCountsDto
+    {
+        public int ExpiringWarrantyCount { get; set; }
+
+        public int ExpiringInsuranceCount { get; set; }
+    }
 }

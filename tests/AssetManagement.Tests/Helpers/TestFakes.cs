@@ -699,6 +699,18 @@ namespace AssetManagement.Tests.Helpers
         {
             return new DashboardKpisDto();
         }
+
+        public DashboardExpiryCountsDto GetExpiryCounts(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool includeClassDepartmentAssets,
+            System.DateTime warrantyThresholdUtc,
+            System.DateTime insuranceThresholdUtc)
+        {
+            return new DashboardExpiryCountsDto();
+        }
     }
 
     internal class FakeNotificationQueryService : INotificationQueryService

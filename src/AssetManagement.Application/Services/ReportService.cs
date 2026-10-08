@@ -4,6 +4,7 @@ using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
+using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
@@ -44,7 +45,13 @@ namespace AssetManagement.Application.Services
                 throw new InvalidOperationException("Organization context is required for dashboard queries.");
             }
 
-            DepreciationCalculator.RefreshOrganization(_unitOfWork, organizationId.Value, DateTime.UtcNow);
+            // Depreciation is month-granular; refreshing every asset row on every dashboard hit
+            // read the whole org (SELECT *) each time. Throttled per org (see DepreciationCalculator).
+            DepreciationCalculator.RefreshOrganizationIfStale(
+                _unitOfWork,
+                organizationId.Value,
+                DateTime.UtcNow,
+                DepreciationCalculator.DashboardRefreshInterval);
 
             var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope;
             int? departmentId = null;
@@ -62,6 +69,15 @@ namespace AssetManagement.Application.Services
                 denyDepartmentScope);
             var warrantyThresholdDays = _metricsService.GetWarrantyThresholdDays();
             var insuranceThresholdDays = _metricsService.GetInsuranceThresholdDays();
+            var nowUtc = DateTime.UtcNow;
+            var expiryCounts = _dashboardQueryService.GetExpiryCounts(
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                !bypassDepartmentScope && _departmentScope.IncludesClassDepartmentAssets,
+                nowUtc.AddDays(warrantyThresholdDays),
+                nowUtc.AddDays(insuranceThresholdDays)) ?? new DashboardExpiryCountsDto();
             var activeCount = kpis.TotalAssets;
             var lostDamageCount = kpis.LostDamagedStolenAssets;
             var depreciationToDatePercent = kpis.TotalAcquisitionValue <= 0m
@@ -81,8 +97,8 @@ namespace AssetManagement.Application.Services
                 TotalAccumulatedDepreciation = kpis.TotalAccumulatedDepreciation,
                 AverageAnnualDepreciationRatePercent = Math.Round(kpis.AverageAnnualDepreciationRatePercent, 1),
                 DepreciationToDatePercent = depreciationToDatePercent,
-                ExpiringWarrantyCount = _metricsService.CountExpiringWarranties(warrantyThresholdDays),
-                ExpiringInsuranceCount = _metricsService.CountExpiringInsurance(insuranceThresholdDays),
+                ExpiringWarrantyCount = expiryCounts.ExpiringWarrantyCount,
+                ExpiringInsuranceCount = expiryCounts.ExpiringInsuranceCount,
                 AssignmentsPerMonth = kpis.AssignmentsPerMonth,
                 ApprovalBacklogCount = _metricsService.CountPendingApprovals(PendingApprovalCountMode.UserInboxTotal),
                 TopDepartmentValues = kpis.TopDepartmentValues,
