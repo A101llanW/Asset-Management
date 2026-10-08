@@ -2,6 +2,9 @@
     'use strict';
 
     var comparisonRows = [];
+    // A unit cost the user typed is never overwritten by a catalog/historical price (late AJAX, supplier change).
+    // Only an explicit "Select" on a comparison row replaces it. A re-rendered form (validation error) keeps its value.
+    var unitCostEdited = false;
 
     function formatMoney(value, currency) {
         var amount = parseFloat(value);
@@ -24,14 +27,17 @@
         }
     }
 
-    function applySupplierOffer(supplierId, unitPrice, currency) {
+    function applySupplierOffer(supplierId, unitPrice, currency, explicitChoice) {
         if (supplierId) {
             $('#SupplierId').val(String(supplierId));
         }
-        if (unitPrice !== undefined && unitPrice !== null && unitPrice !== '') {
+        if (unitPrice !== undefined && unitPrice !== null && unitPrice !== '' && (explicitChoice || !unitCostEdited)) {
             var unit = parsePositiveNumber(unitPrice);
             if (unit !== null) {
                 $('#UnitCost').val(unit.toFixed(2));
+                if (explicitChoice) {
+                    unitCostEdited = false;
+                }
             }
         }
         if (currency) {
@@ -157,7 +163,8 @@
         applySupplierOffer(
             $(this).data('supplierId') || $(this).attr('data-supplier-id'),
             $(this).data('unitPrice') || $(this).attr('data-unit-price'),
-            $(this).data('currency') || $(this).attr('data-currency'));
+            $(this).data('currency') || $(this).attr('data-currency'),
+            true);
     });
 
     $('#SupplierId').on('change', function () {
@@ -169,12 +176,17 @@
         }
     });
 
+    $('#UnitCost').on('input change', function () {
+        unitCostEdited = $.trim($(this).val()) !== '';
+    });
     $('#Quantity, #UnitCost').on('input change', recalcTotalCost);
 
     $('#refresh-comparison').on('click', loadComparison);
     $('#manual-item-description').on('change blur', loadComparison);
 
     $(function () {
+        var initialUnit = parsePositiveNumber($('#UnitCost').val());
+        unitCostEdited = initialUnit !== null && initialUnit > 0;
         applyRequisitionQuantity();
         recalcTotalCost();
         loadComparison();

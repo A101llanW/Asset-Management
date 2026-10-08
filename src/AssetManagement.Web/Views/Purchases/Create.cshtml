@@ -82,5 +82,5 @@
 }
 
 @section scripts {
-    <script src="@Url.Content("~/Scripts/app/purchase-create.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/purchase-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-create.js")).Ticks"></script>
 }
