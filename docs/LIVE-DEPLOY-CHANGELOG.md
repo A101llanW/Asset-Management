@@ -9,6 +9,51 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-09 00:21 - /Sys/Database (DataConsole) audits every page view and refused attempt (`2525ac9`) - BUILT, NOT YET PUBLISHED
+
+- **Date/time EAT:** 2026-10-09 00:19:57 (commit). In package `web-publish-oct8-merge-20261009_001958` (rel1009). Not published (needs one UAC prompt).
+- **What and why:** Allan (C): earlier check found only `DB_CONSOLE_EXECUTE` was audited. Now every allowed page view writes `DB_CONSOLE_VIEW` and every refusal writes `DB_CONSOLE_DENIED` (reasons `unauthenticated`, `not_platform_admin`, `ip_not_allowlisted`), logged before the redirect to Login/Forbidden. NewValues: `allowed|refused reason=... user=<email|anonymous> ip=<direct connection address, as the allowlist uses> method=... path=...`; AuditLog.Timestamp (UTC). The gate now also runs in `Controller.OnAuthorization` (before `[Authorize]` and anti-forgery) so anonymous refusals are logged. Signed-in users go through `IAuditWriter` (same mechanism as DB_CONSOLE_EXECUTE); anonymous or no-org cases insert the AuditLog row directly with OrganizationId NULL. Logging failures are traced, never thrown.
+- **Commit hash:** `2525ac9`
+- **Files changed:** `src/AssetManagement.Web/Controllers/DatabaseConsoleController.cs`.
+- **DB migration/script:** None (inserts into existing AuditLog only). **Config/Web.config keys:** None.
+- **IIS/server steps (local):** ships with `artifacts\rel1009-launch-elevated.ps1` (not yet run).
+- **Live-deploy steps:** ships with the web publish.
+- **Verify (IIS Express :8092, SQLEXPRESS, 00:20-00:22 EAT; no SQL run in the console):** anonymous `/Sys/Database` and `/Sys/DataConsole` -> Login, rows 51142/51143 `DB_CONSOLE_DENIED reason=unauthenticated user=anonymous ip=::1`; Test-WF Company Admin `/Sys/Database` -> 403 in-app Forbidden, row 51149 `reason=not_platform_admin user=wambua9912@gmail.com` (org 13); SuperAdmin `/Sys/Database` and `/Sys/DataConsole` 200, rows 51152/51153 `DB_CONSOLE_VIEW allowed user=superadmin@asset.local ip=::1`; with the temp copy's allowlist set to `10.255.255.1` (temp IIS Express copy only, restored after), SuperAdmin -> 403, row 51157 `reason=ip_not_allowlisted`. Output: `artifacts\roleactive-2026-10-09\10_*.txt`, `11_*.txt`.
+- **Rollback:** `git revert 2525ac9`; after publish restore the `pre_rel1009` IIS backup.
+
+---
+## 2026-10-09 00:16 - Role Active flag: users in an inactive role cannot sign in and are signed out (`b59ae9a`, `06762d5`) - BUILT, NOT YET PUBLISHED
+
+- **Date/time EAT:** 2026-10-09 00:09:58 / 00:16:08 (commits). In package rel1009. Not published.
+- **What and why:** Allan: a role can be marked inactive; nobody in it may use the app. `Roles.IsActive` (with Create/Edit checkbox, list badge and filter) already existed but was not enforced.
+  - Login (password) refuses right after the password check, **before MFA** (no code sent), with the generic `Access denied.` (no role or reason shown); not counted as a failed password attempt. VerifyMfa GET, VerifyEmail POST and `IssueAuthCookieAndRedirect` (end of every login path incl. MFA setup/verify, email verification, legal consent) re-check. No SSO/demo path issues cookies separately.
+  - Signed-in sessions: `Global.asax` PostAuthenticateRequest signs the user out on the next request and redirects to the tenant login with `?reason=access_denied` (generic message). No cache: one primary-key join per authenticated request, so a deactivation applies immediately.
+  - Never applies to platform users or platform roles (Platform Admin, OrganizationId NULL). System roles (Platform Admin, Company Admin) cannot be deactivated (RoleService), and a user cannot deactivate their own role (RolesController). Edit shows a disabled checkbox for system roles.
+  - Denials are written to `SecurityEvents` (`AUTH_DENIED_ROLE_INACTIVE`, `AUTH_SESSION_ENDED_ROLE_INACTIVE`), not shown in the UI.
+  - `06762d5`: Create with Active unchecked was saved Active because the unit of work forces IsActive = true on insert; RoleService.Create now updates it after insert.
+- **Commit hash:** `b59ae9a`, `06762d5`
+- **Files changed:** `src/AssetManagement.Web/Security/RoleAccessGuard.cs` (new, in csproj), `Global.asax.cs`, `Controllers/AccountController.cs`, `Controllers/RolesController.cs`, `Views/Roles/Create.cshtml`, `Views/Roles/Edit.cshtml`, `AssetManagement.Web.csproj`; `src/AssetManagement.Infrastructure/Identity/UserAccountRepository.cs`; `src/AssetManagement.Application/Services/Security/RoleService.cs`, `ViewModels/Security/SecurityViewModels.cs` (label "Active").
+- **DB migration/script:** **None; no 095 written.** `Roles.IsActive BIT NOT NULL CONSTRAINT DF_Roles_IsActive DEFAULT(1)` has existed since `001_Schema/002_Domain.sql` (seed scripts already set it); all 93 local roles are Active. Nothing to back up for a migration. A COPY_ONLY + CHECKSUM backup was taken before the test toggles: `C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\Backup\AssetMgmt_pre_roleactive_test_<ts>.bak` (exact path in `artifacts\roleactive-2026-10-09\backup-path.txt`; VERIFYONLY valid).
+- **Config/Web.config keys:** None.
+- **IIS/server steps (local):** ships with `artifacts\rel1009-launch-elevated.ps1` (not yet run).
+- **Live-deploy steps:** web publish only; check on live that no role is unexpectedly `IsActive = 0` before publishing (`SELECT Id, Name, OrganizationId FROM Roles WHERE IsActive = 0`), since those users will be locked out at once.
+- **Verify (IIS Express :8092 on the rel1009 code, SQLEXPRESS, 00:11-00:18 EAT, Test-WF only):** Roles list shows Active/Inactive badges; Company Admin (system) Edit shows a disabled checkbox; disposable role `ZZ RoleActive Test 1009` created with Active unchecked -> Inactive badge, edited to Active -> Active badge. Staff role (64) toggled inactive via Edit: signed-in Staff session's next request -> `/a46138179/Account/Login?reason=access_denied` with "Access denied."; fresh Staff login -> stays on Login with only "Access denied." and no MFA step; Company Admin `wambua9912` unaffected (login with MFA OK). Staff re-activated -> Staff login OK. SecurityEvents rows 12-14. **Cleanup:** Staff back to Active with original UpdatedAt (2026-10-08 05:46:25.273) and 0 permissions; disposable roles 165/166 deleted; 93 roles, 0 inactive. Left in place: SecurityEvents rows 12-14 and the AuditLog rows for the test actions (Roles.Create/Edit, Permissions.Assign).
+- **Rollback:** `git revert 06762d5 b59ae9a`; after publish restore the `pre_rel1009` IIS backup. No DB rollback (no schema change).
+
+---
+## 2026-10-09 00:03 - Revert the custodian self-service bypass from `472b707` (`9670153`) - BUILT, NOT YET PUBLISHED
+
+- **Date/time EAT:** 2026-10-09 00:03:45 (commit). In package rel1009. Not published.
+- **What and why:** Allan: Staff has 0 permissions by design (teachers/staff are not supposed to log in), so nobody gets access without role permissions. Removed `AllowCustodianSelfServiceAttribute`, its OnAuthorization exemptions in PermissionAuthorize / AnyPermissionAuthorize / ModuleAccess, and the custodian-only Details path; MyAssets and Details are back to `[PermissionAuthorize("Assets.View")]` (`AssetsController.cs` identical to before 472b707). **Kept:** ForbiddenResults (in-app Forbidden page, status 403, TrySkipIisCustomErrors), BaseController.OnActionExecuted, HomeController/Forbidden.cshtml, and ModuleAccess authenticated denial -> friendly 403 (anonymous still goes to login).
+- **Commit hash:** `9670153`
+- **Files changed:** `src/AssetManagement.Web/Filters/AllowCustodianSelfServiceAttribute.cs` (deleted), `Filters/PermissionAuthorizeAttribute.cs`, `Filters/AnyPermissionAuthorizeAttribute.cs`, `Filters/ModuleAccessAttribute.cs`, `Controllers/AssetsController.cs`, `AssetManagement.Web.csproj`.
+- **DB migration/script:** None. **Config:** None.
+- **IIS/server steps (local):** ships with `artifacts\rel1009-launch-elevated.ps1` (not yet run).
+- **Live-deploy steps:** ships with the web publish.
+- **Verify (IIS Express :8092, rel1009 package):** Staff `/Assets/MyAssets`, `/Assets/Details/32197`, `/Assets/Details/32193` -> 403 in-app Forbidden page with app chrome (title "Forbidden - Asset Management Module"), not the IIS 403.0 page.
+- **Rollback:** `git revert 9670153` (restores the bypass; not wanted).
+
+---
 ## 2026-10-08 23:59 - DB: migrations 093 AssetMovement (+ 093b backfill) and 094 OrganizationSmtpSettings on local `.\SQLEXPRESS`
 
 - **Date/time EAT:** 2026-10-08 23:58:52 (backup) to 23:59:24 EAT (093 recorded 23:59:09, 094 recorded 23:59:23). Local `.\SQLEXPRESS` / `AssetManagementModuleDb` only (the DB behind localhost:8080). Not live.
@@ -29,8 +74,9 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - **Rollback:** preferred: restore the `.bak` above (stop the `AssetManagement` pool first). Script-level rollback (from the script headers): `DROP TABLE dbo.OrganizationSmtpSettings`; `DELETE rp FROM RolePermission rp JOIN Permission p ON p.Id = rp.PermissionId WHERE p.Code = N'Assets.Movements.View'`; `DELETE FROM Permission WHERE Code = N'Assets.Movements.View'`; `DROP TABLE dbo.AssetMovement`; `DELETE FROM dbo.SchemaMigrationHistory WHERE ScriptName IN (N'093_AssetMovement.sql', N'094_OrganizationSmtpSettings.sql')`.
 
 ---
-## 2026-10-08 23:55 - Staff 403 fix: custodians open My Assets and their own asset Details; denials show the in-app Forbidden page (`472b707`) - BUILT, NOT YET PUBLISHED
+## 2026-10-08 23:55 - Staff 403 fix: custodians open My Assets and their own asset Details; denials show the in-app Forbidden page (`472b707`) - SUPERSEDED, NEVER PUBLISHED
 
+- **SUPERSEDED (2026-10-09 00:03):** Allan changed the plan: Staff is meant to have 0 permissions (teachers/staff do not log in), so the custodian self-service bypass was reverted in `9670153` and this package was never published. The friendly in-app 403 part ships with the rel1009 publish (see the 00:21 entries above). `staff403-*.ps1` publish scripts renamed `*.SUPERSEDED`.
 - **Date/time EAT:** 2026-10-08 23:55:20 (commit). Package built 23:55:31. **Not published to IIS yet** (the publish needs one UAC prompt; waiting for the PM to warn Allan).
 - **What and why:** AM QA FAIL on `d51fbbf` (Test-WF A461): a Staff user (role without permissions) got 403 on `/Assets/MyAssets` and on Details of their own assigned asset, rendered as the bare "IIS 10.0 Detailed Error - 403.0" page. Root cause: AssetsController has class-level `[PermissionAuthorize("Assets.View")]` + `[ModuleAccess(Assets)]` (and MyAssets/Details had method-level Assets.View), so authorization failed before the action's custodian scoping ran. Denials returned a bodiless `HttpStatusCodeResult(403)` without `TrySkipIisCustomErrors`, so IIS replaced it. ModuleAccess denials returned 401 and bounced to login. Fix is generic (any org), no DB or permission change:
   - New `[AllowCustodianSelfService]` marker. PermissionAuthorize, AnyPermissionAuthorize and ModuleAccess let **signed-in** users through on marked actions only. Anonymous users still get 401 -> login.
