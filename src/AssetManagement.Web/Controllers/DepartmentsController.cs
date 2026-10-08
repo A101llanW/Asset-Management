@@ -23,6 +23,52 @@ namespace AssetManagement.Web.Controllers
             _departmentService = BuildDepartmentService();
         }
 
+        /// <summary>
+        /// Same visibility as Index (DepartmentScopeService.ApplyDepartmentScope): Company Admin bypasses; other
+        /// users only reach their own unit (plus active classes when they hold Assets.Transfer). GetById is
+        /// org-scoped but not department-scoped, so every by-id action must check this. Denials are audited
+        /// and answered with 404 so the unit's existence is not disclosed. Fails closed.
+        /// </summary>
+        private bool CanAccessDepartmentInScope(int id, string action)
+        {
+            var entity = UnitOfWork.Repository<Department>().GetById(id);
+            if (entity == null)
+            {
+                return false;
+            }
+
+            var departmentScope = DependencyResolver.Current
+                .GetService<IDepartmentScopeService>();
+            if (departmentScope == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                departmentScope.EnsureCanAccessDepartment(entity);
+                return true;
+            }
+            catch (BusinessException ex)
+            {
+                try
+                {
+                    AuditWriter?.Write(
+                        "Departments.ScopeDenied",
+                        nameof(Department),
+                        id.ToString(),
+                        null,
+                        "{\"Action\":\"" + action + "\",\"Reason\":\"" + (ex.Message ?? string.Empty).Replace("\"", "'") + "\"}");
+                }
+                catch (Exception)
+                {
+                    // Auditing must never turn a denial into an allow or a 500.
+                }
+
+                return false;
+            }
+        }
+
         public ActionResult Index(string search = null, string status = "active", string view = "tree")
         {
             var items = FilterBySearch(_departmentService.GetAll(), search, (x, term) =>
@@ -120,7 +166,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Details(int id, string returnUrl = null)
         {
             var model = _departmentService.GetById(id);
-            if (model == null)
+            if (model == null || !CanAccessDepartmentInScope(id, "Details"))
             {
                 return HttpNotFound();
             }
@@ -227,7 +273,7 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Edit(int id, string returnUrl = null)
         {
             var model = _departmentService.GetById(id);
-            if (model == null)
+            if (model == null || !CanAccessDepartmentInScope(id, "Edit"))
             {
                 return HttpNotFound();
             }
@@ -243,12 +289,13 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Departments.Edit")]
         public ActionResult Edit(DepartmentVm model, string returnUrl = null)
         {
-            if (model == null)
+            if (model == null || !CanAccessDepartmentInScope(model.Id, "Edit (POST)"))
             {
                 return HttpNotFound();
             }
 
             ViewBag.ReturnUrl = BuildUnitReturnUrl(model.Id, returnUrl);
+            IgnoreCodeErrorsWhenCodeUnchanged(model);
             var flowConfigurable = DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind);
             if (flowConfigurable)
             {
@@ -287,6 +334,30 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
+        /// QA3-2(c): some generated room codes are 21 characters (older BuildRoomCode). The Code field's
+        /// [StringLength(20)] then blocks every save of that unit even when the user did not touch the code.
+        /// An unchanged code was already accepted when it was stored, so drop its validation errors.
+        /// </summary>
+        private void IgnoreCodeErrorsWhenCodeUnchanged(DepartmentVm model)
+        {
+            ModelState codeState;
+            if (model == null
+                || string.IsNullOrWhiteSpace(model.Code)
+                || !ModelState.TryGetValue(nameof(DepartmentVm.Code), out codeState)
+                || codeState.Errors.Count == 0)
+            {
+                return;
+            }
+
+            var stored = UnitOfWork.Repository<Department>().GetById(model.Id);
+            if (stored != null
+                && string.Equals((stored.Code ?? string.Empty).Trim(), model.Code.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                codeState.Errors.Clear();
+            }
+        }
+
+        /// <summary>
         /// Edit helper (AJAX): active children that the proposed Kind/Parent would make invalid, with valid
         /// new-parent candidates built from live org-scoped data. Server re-validates on POST.
         /// </summary>
@@ -300,7 +371,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var current = _departmentService.GetById(id);
-            if (current == null)
+            if (current == null || !CanAccessDepartmentInScope(id, "KindChangeImpact"))
             {
                 return HttpNotFound();
             }

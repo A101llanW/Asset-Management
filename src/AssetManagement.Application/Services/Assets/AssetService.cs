@@ -228,13 +228,20 @@ namespace AssetManagement.Application.Services
             }
 
             var enforceDepartmentScope = true;
+            var viewedAsCustodianOnly = false;
             try
             {
                 _departmentScope.EnsureCanAccessAsset(asset);
             }
             catch (BusinessException)
             {
-                if (!CanViewAssetForPendingTransferApproval(asset))
+                if (IsCurrentUserCustodian(asset))
+                {
+                    // The current custodian always sees the asset they hold, whatever its department
+                    // (e.g. assigned with "Keep in <class>"; QA2 R-myassets-finance). Read-only: Edit stays scoped.
+                    viewedAsCustodianOnly = true;
+                }
+                else if (!CanViewAssetForPendingTransferApproval(asset))
                 {
                     return null;
                 }
@@ -257,11 +264,15 @@ namespace AssetManagement.Application.Services
             var roleLookup = _referenceDataCache.GetRoles(organizationId.Value)
                 .ToDictionary(x => x.Id, x => x.Name);
 
-            var timeline = _unitOfWork.Repository<AssetCustodyEvent>().Find(x => x.AssetId == id)
-                .OrderByDescending(x => x.ActionDate).ToList()
+            // Newest first by the effective action time (same-day date-only events use their recording time),
+            // then CreatedAt and Id so events with the same timestamp keep a stable, newest-first order.
+            var timeline = _unitOfWork.Repository<AssetCustodyEvent>().Find(x => x.AssetId == id).ToList()
+                .OrderByDescending(x => CustodyTimelineOrdering.EffectiveActionDate(x.ActionDate, x.CreatedAt))
+                .ThenByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.Id)
                 .Select(x => new AssetCustodyTimelineVm
                 {
-                    ActionDate = x.ActionDate,
+                    ActionDate = CustodyTimelineOrdering.EffectiveActionDate(x.ActionDate, x.CreatedAt),
                     ActionType = x.ActionType.ToString(),
                     FromEntity = BuildTransferEntityLabel(x.FromUserId, x.FromDepartmentId, departmentLookup),
                     ToEntity = BuildTransferEntityLabel(x.ToUserId, x.ToDepartmentId, departmentLookup),
@@ -310,6 +321,7 @@ namespace AssetManagement.Application.Services
             return new AssetDetailsVm
             {
                 Id = asset.Id,
+                ViewedAsCustodianOnly = viewedAsCustodianOnly,
                 AssetTag = asset.AssetTag,
                 AssetName = asset.AssetName,
                 StatusGuidance = BuildStatusGuidance(asset.CurrentStatus),
@@ -1876,6 +1888,16 @@ namespace AssetManagement.Application.Services
             asset.UpdatedAt = DateTime.UtcNow;
             ApplyCalculatedDepreciation(asset);
             _unitOfWork.Repository<Asset>().Update(asset);
+        }
+
+        private bool IsCurrentUserCustodian(Asset asset)
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return asset != null
+                && asset.IsActive
+                && !string.IsNullOrWhiteSpace(userId)
+                && !string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
+                && string.Equals(asset.CurrentCustodianId, userId, StringComparison.OrdinalIgnoreCase);
         }
 
         private bool CanViewAssetForPendingTransferApproval(Asset asset)

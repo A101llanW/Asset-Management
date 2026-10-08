@@ -209,6 +209,9 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            // Defence in depth for QA3-1: GetById is org-scoped only; a scoped user must not update another unit.
+            _departmentScope.EnsureCanAccessDepartment(entity);
+
             var allDepartments = repository.GetAll().ToList();
             DepartmentHierarchyRules.AssertValidHierarchy(
                 model.Id,
@@ -654,12 +657,22 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Rooms with a parent must be created under an administrative department or a sub-department.");
             }
 
-            var roomCode = SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, model.Name.Trim());
-            if (_unitOfWork.Repository<Department>().GetAll().Any(x =>
-                    x.IsActive && string.Equals(x.Code, roomCode, StringComparison.OrdinalIgnoreCase)))
+            // QA3-2: the generated code is capped at 20 (BuildRoomCode) and made unique within the organization.
+            // IX_Department_Org_Code_Unique covers inactive rows too, so check every code in the org, not just active.
+            var roomName = model.Name.Trim();
+            var orgDepartments = _unitOfWork.Repository<Department>().GetAll().ToList();
+            if (orgDepartments.Any(x =>
+                    x.IsActive
+                    && x.ParentDepartmentId == parent.Id
+                    && x.DepartmentKind == DepartmentKind.Room
+                    && string.Equals((x.Name ?? string.Empty).Trim(), roomName, StringComparison.OrdinalIgnoreCase)))
             {
-                throw new BusinessException("A room with code '" + roomCode + "' already exists.");
+                throw new BusinessException("A room named '" + roomName + "' already exists under " + parent.Name + ".");
             }
+
+            var roomCode = SchoolDepartmentCodeHelper.MakeUniqueCode(
+                SchoolDepartmentCodeHelper.BuildRoomCode(parent.Code, roomName),
+                code => orgDepartments.Any(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)));
 
             var entity = new Department
             {

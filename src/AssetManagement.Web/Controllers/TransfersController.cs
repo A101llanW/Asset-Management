@@ -48,8 +48,9 @@ namespace AssetManagement.Web.Controllers
             }
 
             var asset = UnitOfWork.Repository<Asset>().GetById(assetId.Value);
-            if (asset == null)
+            if (asset == null || !CanViewAssetInScope(asset))
             {
+                // Same rule as Assets/Details: an asset the user cannot see is "not found" (QA2 R-scope-leak-transfer).
                 return HttpNotFound();
             }
 

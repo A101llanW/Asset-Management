@@ -89,6 +89,30 @@ namespace AssetManagement.Web.Controllers
 
         protected IPermissionService BuildPermissionService() => DependencyResolver.Current.GetService<IPermissionService>();
 
+        /// <summary>
+        /// Security: AssetFilterVm.OrganizationWide is a server-only switch that makes the asset queries skip the
+        /// department scope (used by pickers such as PR/Suppliers and by My Assets for the custodian filter). It is
+        /// a public settable property, so the default model binder accepted ?OrganizationWide=true on Assets/Index,
+        /// exports and the grouped endpoints and returned every asset in the organization to a scoped user.
+        /// Reset it on every bound action argument; actions that need it still set it in code after binding.
+        /// </summary>
+        protected override void OnActionExecuting(ActionExecutingContext filterContext)
+        {
+            if (filterContext != null && filterContext.ActionParameters != null)
+            {
+                foreach (var value in filterContext.ActionParameters.Values)
+                {
+                    var assetFilter = value as AssetFilterVm;
+                    if (assetFilter != null)
+                    {
+                        assetFilter.OrganizationWide = false;
+                    }
+                }
+            }
+
+            base.OnActionExecuting(filterContext);
+        }
+
         protected IDepartmentService BuildDepartmentService() => DependencyResolver.Current.GetService<IDepartmentService>();
 
         protected ISupplierService BuildSupplierService() => DependencyResolver.Current.GetService<ISupplierService>();
@@ -264,6 +288,43 @@ namespace AssetManagement.Web.Controllers
             applyDepartment(lockedDepartmentId);
         }
 
+        /// <summary>
+        /// Same visibility rule as Assets/Details: the asset is in the current organization (tenant-filtered
+        /// repository) and passes DepartmentScopeService.EnsureCanAccessAsset (Company Admin bypasses; others
+        /// limited to their department scope). Fails closed. Use it on GET forms that render asset context
+        /// so an out-of-scope asset returns 404 instead of leaking its name, custodian and department.
+        /// </summary>
+        protected bool CanViewAssetInScope(Asset asset, bool allowCurrentCustodian = false)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            if (allowCurrentCustodian
+                && !string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
+                && string.Equals(asset.CurrentCustodianId, User.GetUserId(), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var departmentScope = DependencyResolver.Current.GetService<IDepartmentScopeService>();
+            if (departmentScope == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                departmentScope.EnsureCanAccessAsset(asset);
+                return true;
+            }
+            catch (AssetManagement.Application.DTOs.BusinessException)
+            {
+                return false;
+            }
+        }
+
         protected bool EnsureAssetInCurrentUserDepartment(Asset asset, out string errorMessage)
         {
             errorMessage = null;
@@ -340,6 +401,38 @@ namespace AssetManagement.Web.Controllers
         protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)
         {
             var items = new List<SelectListItem>();
+            var departmentScope = DependencyResolver.Current.GetService<IDepartmentScopeService>();
+            if (departmentScope != null
+                && !departmentScope.BypassesDepartmentScope
+                && departmentScope.IncludesClassDepartmentAssets)
+            {
+                // R-DEADMOVE: scoped Assets.Transfer holders may relocate class assets across the org, but their
+                // department scope hides the Grade parents, so GetTreeSections() yields no classes and the unit
+                // "Move" button opened an empty/unrendered modal. Build the same "Grade -> Class" list from the
+                // org-scoped repository (active classes under an active grade only, as the tree does).
+                var units = UnitOfWork.Repository<Department>().Query()
+                    .Where(x => x.IsActive
+                        && (x.DepartmentKind == DepartmentKind.Class || x.DepartmentKind == DepartmentKind.Grade))
+                    .ToList();
+                var grades = units.Where(x => x.DepartmentKind == DepartmentKind.Grade).ToDictionary(x => x.Id);
+                foreach (var child in units
+                    .Where(x => x.DepartmentKind == DepartmentKind.Class
+                        && x.ParentDepartmentId.HasValue
+                        && grades.ContainsKey(x.ParentDepartmentId.Value))
+                    .OrderBy(x => grades[x.ParentDepartmentId.Value].Code, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    items.Add(new SelectListItem
+                    {
+                        Value = child.Id.ToString(),
+                        Text = grades[child.ParentDepartmentId.Value].Name + " \u2192 " + child.Name,
+                        Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
+                    });
+                }
+
+                return new SelectList(items, "Value", "Text", selectedDepartmentId);
+            }
+
             foreach (var section in BuildDepartmentService().GetTreeSections())
             {
                 foreach (var parent in section.Items)

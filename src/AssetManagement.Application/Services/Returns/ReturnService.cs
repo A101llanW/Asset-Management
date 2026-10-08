@@ -99,7 +99,8 @@ namespace AssetManagement.Application.Services
             {
                 AssetId = model.AssetId,
                 ActionType = CustodyActionType.Returned,
-                ActionDate = returnRecord.ReturnDate,
+                // Timeline time is when the return was recorded; the picked day stays on ReturnDate.
+                ActionDate = DateTime.UtcNow,
                 FromUserId = returnedById,
                 FromDepartmentId = asset.DepartmentId,
                 ToDepartmentId = asset.DepartmentId,

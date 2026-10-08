@@ -145,6 +145,29 @@ namespace AssetManagement.Tests.Departments
         }
 
         [Test]
+        public void BuildRoomCode_CapsAtTwentyCharacters()
+        {
+            // QA3-2: these produced 21-character codes that DepartmentVm could not save.
+            Assert.AreEqual("ITQAPR14R-QAPR14REPR", SchoolDepartmentCodeHelper.BuildRoomCode("IT-QAPR14REPR", "QA-PR14-Reprove Room 561499"));
+            Assert.AreEqual("FACOFFICE-BOARDROOM1", SchoolDepartmentCodeHelper.BuildRoomCode("FAC-OFFICESERV", "Boardroom 1"));
+            Assert.LessOrEqual(SchoolDepartmentCodeHelper.BuildRoomCode("ABCDEFGHIJKLMNOP", "QRSTUVWXYZ0123").Length, 20);
+        }
+
+        [Test]
+        public void MakeUniqueCode_AddsSuffixWithinLimit()
+        {
+            var taken = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                "FACOFFICE-BOARDROOM1",
+                "FACOFFICE-BOARDROOM2"
+            };
+            Assert.AreEqual("FACOFFICE-BOARDROOM", SchoolDepartmentCodeHelper.MakeUniqueCode("FACOFFICE-BOARDROOM", taken.Contains));
+            var next = SchoolDepartmentCodeHelper.MakeUniqueCode("FACOFFICE-BOARDROOM1", taken.Contains);
+            Assert.AreEqual("FACOFFICE-BOARDROOM3", next);
+            Assert.LessOrEqual(next.Length, 20);
+        }
+
+        [Test]
         public void BuildRoomCode_CombinesParentAndRoomName()
         {
             Assert.AreEqual("ITCOMPLABS-LAB1", SchoolDepartmentCodeHelper.BuildRoomCode("IT-COMPLABSE", "Lab 1"));

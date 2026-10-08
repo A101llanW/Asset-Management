@@ -226,7 +226,8 @@ namespace AssetManagement.Application.Services
             {
                 AssetId = model.AssetId,
                 ActionType = CustodyActionType.Assigned,
-                ActionDate = assignment.AssignedDate,
+                // Timeline time is when the handover was recorded; the picked day stays on AssignedDate.
+                ActionDate = DateTime.UtcNow,
                 FromUserId = asset.CurrentCustodianId,
                 ToUserId = toUserId,
                 FromDepartmentId = asset.DepartmentId,
