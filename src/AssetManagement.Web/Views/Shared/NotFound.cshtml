@@ -1,4 +1,11 @@
 @{
     ViewBag.Title = "Not Found";
+    var message = ViewBag.NotFoundMessage as string ?? "The page or record you requested was not found.";
 }
-<h4>Page not found.</h4>
+<div class="card card-kpi border-0 shadow-sm">
+    <div class="card-body py-5 text-center">
+        <h4 class="mb-2">Not found</h4>
+        <p class="text-muted mb-4">@message</p>
+        <a class="btn btn-primary" href="@Url.Action("Index", "Dashboard")">Back to dashboard</a>
+    </div>
+</div>
