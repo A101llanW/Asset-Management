@@ -25,6 +25,8 @@ namespace AssetManagement.Tests.Requisitions
                 RequisitionFlowMode = RequisitionFlowMode.Custom,
                 CustomStageRoleIds = "4"
             });
+            // Same-org guard (xorg-guard): the snapshotted stage role must be a role of the company.
+            unitOfWork.Seed(new Role { Id = 4, Name = "Facilities Manager", IsActive = true });
             unitOfWork.Seed(new SystemSetting
             {
                 Id = 1,
