@@ -64,15 +64,6 @@
                 .ToList();
             classGradeParentSelectList = new SelectList(gradeItems, "Value", "Text", Model.ParentDepartmentId);
         }
-        // A class acts as a room and is immovable: an existing class keeps its stored grade parent.
-        var originalParentValue = ViewBag.OriginalParentDepartmentId as string;
-        if (ViewBag.OriginalDepartmentKind as string == ((int)DepartmentKind.Class).ToString()
-            && !string.IsNullOrWhiteSpace(originalParentValue)
-            && classGradeParentSelectList != null)
-        {
-            classGradeParentSelectList = new SelectList(classGradeParentSelectList.Where(x => x.Value == originalParentValue).ToList(), "Value", "Text", originalParentValue);
-        }
-
         if (kindSelectList == null)
         {
             var kindItems = DepartmentKindSelectListBuilder.BuildItems(Model.DepartmentKind)
@@ -90,6 +81,14 @@
     roomCandidates = roomCandidates ?? new List<DepartmentVm>();
     roomOtherGroups = roomOtherGroups ?? new List<RoomOtherParentGroupVm>();
     classGradeParentSelectList = classGradeParentSelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
+    // A class acts as a room and is immovable: an existing class keeps its stored grade parent.
+    var originalParentValue = ViewBag.OriginalParentDepartmentId as string;
+    if (ViewBag.OriginalDepartmentKind as string == ((int)DepartmentKind.Class).ToString()
+        && !string.IsNullOrWhiteSpace(originalParentValue)
+        && classGradeParentSelectList != null)
+    {
+        classGradeParentSelectList = new SelectList(classGradeParentSelectList.Where(x => x.Value == originalParentValue).ToList(), "Value", "Text", originalParentValue);
+    }
     var candidateIds = roomCandidates.Select(x => x.Id).ToList();
     string roomParentSelectValue = string.Empty;
     if (Model.ParentDepartmentId.HasValue && candidateIds.Contains(Model.ParentDepartmentId.Value))
