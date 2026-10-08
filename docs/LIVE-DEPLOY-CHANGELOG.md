@@ -9,7 +9,21 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
-## 2026-10-09 00:31 - Asset movement rules: classes are immovable; assets move room<->room, room<->sub-department, class->room only (`107fd27`, `a5292c1`) - BUILT, NOT YET PUBLISHED
+## 2026-10-09 00:32 - ROOT local IIS publish rel1009 (HEAD `7a7570c`): bypass revert + Role Active + DB console audit + asset movement rules
+
+- **Date/time EAT:** UAC accepted by Allan; elevated run started 2026-10-09 00:32:23; **PUBLISHED_AT 00:32:42 EAT**. Local only: not pushed, no PR, not live nanosoft.africa.
+- **What and why:** publishes `9670153`, `b59ae9a`, `06762d5`, `2525ac9`, `107fd27`, `a5292c1` (entries below) to `C:\inetpub\AssetManagement` (localhost:8080).
+- **Commit hash:** package built from `7a7570c` (`artifacts\web-publish-oct8-merge-20261009_003014`).
+- **Files changed:** 279 package files copied and hash-checked (0 mismatches); Web.config, `Views\web.config`, `Areas\Platform\Views\Web.config` and secrets skipped.
+- **DB migration/script:** None (no 095: `Roles.IsActive` already exists).
+- **Config/Web.config keys:** None. Web.config `BF64D20E...44EB` and secrets unchanged before/after.
+- **IIS/server steps (local):** `artifacts\rel1009-launch-elevated.ps1` -> `rel1009-iis-publish.ps1` (log `artifacts\rel1009-iis-publish.log`, exit 0). Backup `C:\inetpub\_backups\AssetManagement_root_pre_rel1009_20261009_003223` (1,185 files). Pool AssetManagement stopped/started. Web.dll `1E7B6B8D...F353` -> **`FF9B1237DC960070D88E29A201F70988C6A1A06199FE46ABACEDBE19C001D585`** (Application `FDAFE3E0...`, Infrastructure `D5609F6D...`, Domain `F36E97BA...`).
+- **Live-deploy steps:** see the live kit on the Desktop (`NanoAssetSuite_LiveKit_20261009_7a7570c`).
+- **Verify (localhost:8080, 00:33-00:34 EAT):** login pages 200 (incl. `?reason=access_denied`); Staff `/a46138179/Assets/MyAssets` and `Details/32197` -> 403 in-app Forbidden page with app chrome (no IIS page); Company Admin `Departments/Index` 200; SuperAdmin `/Sys/Database` 200, AuditLog 51253 `DB_CONSOLE_VIEW allowed user=superadmin@asset.local ip=::1`. Output `artifacts\rel1009-published\`.
+- **Rollback:** stop pool, robocopy `C:\inetpub\_backups\AssetManagement_root_pre_rel1009_20261009_003223` back over `C:\inetpub\AssetManagement`, start pool.
+
+---
+## 2026-10-09 00:31 - Asset movement rules: classes are immovable; assets move room<->room, room<->sub-department, class->room only (`107fd27`, `a5292c1`) - PUBLISHED to local IIS 2026-10-09 00:32:42 EAT (rel1009, Web.dll `FF9B1237...D585`)
 
 - **Date/time EAT:** 2026-10-09 00:26 / 00:31 (commits). Ships in the rel1009 package (rebuilt; see `artifacts\rel1009-pkg-path.txt`). Not published (needs one UAC prompt).
 - **What and why:** Allan (D), priority. A class acts as a room. It cannot be moved or re-parented; only the assets in it can be moved to a room (single or "Move group to room"). Allowed asset moves: room->room, room->sub-department, sub-department->room, class->room. Every other move is refused server-side with "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, or from a class to a room." and hidden in the UI.
@@ -25,7 +39,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - **Rollback:** `git revert a5292c1 107fd27`; after publish restore the `pre_rel1009` IIS backup.
 
 ---
-## 2026-10-09 00:21 - /Sys/Database (DataConsole) audits every page view and refused attempt (`2525ac9`) - BUILT, NOT YET PUBLISHED
+## 2026-10-09 00:21 - /Sys/Database (DataConsole) audits every page view and refused attempt (`2525ac9`) - PUBLISHED to local IIS 2026-10-09 00:32:42 EAT (rel1009, Web.dll `FF9B1237...D585`)
 
 - **Date/time EAT:** 2026-10-09 00:19:57 (commit). In package `web-publish-oct8-merge-20261009_001958` (rel1009). Not published (needs one UAC prompt).
 - **What and why:** Allan (C): earlier check found only `DB_CONSOLE_EXECUTE` was audited. Now every allowed page view writes `DB_CONSOLE_VIEW` and every refusal writes `DB_CONSOLE_DENIED` (reasons `unauthenticated`, `not_platform_admin`, `ip_not_allowlisted`), logged before the redirect to Login/Forbidden. NewValues: `allowed|refused reason=... user=<email|anonymous> ip=<direct connection address, as the allowlist uses> method=... path=...`; AuditLog.Timestamp (UTC). The gate now also runs in `Controller.OnAuthorization` (before `[Authorize]` and anti-forgery) so anonymous refusals are logged. Signed-in users go through `IAuditWriter` (same mechanism as DB_CONSOLE_EXECUTE); anonymous or no-org cases insert the AuditLog row directly with OrganizationId NULL. Logging failures are traced, never thrown.
@@ -38,7 +52,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - **Rollback:** `git revert 2525ac9`; after publish restore the `pre_rel1009` IIS backup.
 
 ---
-## 2026-10-09 00:16 - Role Active flag: users in an inactive role cannot sign in and are signed out (`b59ae9a`, `06762d5`) - BUILT, NOT YET PUBLISHED
+## 2026-10-09 00:16 - Role Active flag: users in an inactive role cannot sign in and are signed out (`b59ae9a`, `06762d5`) - PUBLISHED to local IIS 2026-10-09 00:32:42 EAT (rel1009, Web.dll `FF9B1237...D585`)
 
 - **Date/time EAT:** 2026-10-09 00:09:58 / 00:16:08 (commits). In package rel1009. Not published.
 - **What and why:** Allan: a role can be marked inactive; nobody in it may use the app. `Roles.IsActive` (with Create/Edit checkbox, list badge and filter) already existed but was not enforced.
@@ -57,7 +71,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - **Rollback:** `git revert 06762d5 b59ae9a`; after publish restore the `pre_rel1009` IIS backup. No DB rollback (no schema change).
 
 ---
-## 2026-10-09 00:03 - Revert the custodian self-service bypass from `472b707` (`9670153`) - BUILT, NOT YET PUBLISHED
+## 2026-10-09 00:03 - Revert the custodian self-service bypass from `472b707` (`9670153`) - PUBLISHED to local IIS 2026-10-09 00:32:42 EAT (rel1009, Web.dll `FF9B1237...D585`)
 
 - **Date/time EAT:** 2026-10-09 00:03:45 (commit). In package rel1009. Not published.
 - **What and why:** Allan: Staff has 0 permissions by design (teachers/staff are not supposed to log in), so nobody gets access without role permissions. Removed `AllowCustodianSelfServiceAttribute`, its OnAuthorization exemptions in PermissionAuthorize / AnyPermissionAuthorize / ModuleAccess, and the custodian-only Details path; MyAssets and Details are back to `[PermissionAuthorize("Assets.View")]` (`AssetsController.cs` identical to before 472b707). **Kept:** ForbiddenResults (in-app Forbidden page, status 403, TrySkipIisCustomErrors), BaseController.OnActionExecuted, HomeController/Forbidden.cshtml, and ModuleAccess authenticated denial -> friendly 403 (anonymous still goes to login).
