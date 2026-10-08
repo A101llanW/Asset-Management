@@ -125,6 +125,19 @@ namespace AssetManagement.Application.ViewModels
         public string Label { get; set; }
     }
 
+    /// <summary>
+    /// What a unit would resolve to if it inherits with a given "Inherit flow from" choice (Choice "" = nearest parent,
+    /// else the RequisitionInheritSource name used as the option value). Used by the live summary on Departments Edit.
+    /// </summary>
+    public class RequisitionInheritPreviewVm
+    {
+        public string Choice { get; set; }
+
+        public string FlowSummary { get; set; }
+
+        public string PurchaseOrderRaiserSummary { get; set; }
+    }
+
     public class DepartmentCreateVm
     {
         public string SetupMode { get; set; }

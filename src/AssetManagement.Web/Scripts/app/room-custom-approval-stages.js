@@ -118,6 +118,132 @@
         }
     }
 
+    // ---- Live "Requisition flow" / "Purchase order raised by" summary at the top of the panel (client-side only) ----
+    var liveInitial = null;
+
+    function textOf(select) {
+        if (!select || !select.value || select.selectedIndex < 0) {
+            return "";
+        }
+        return (select.options[select.selectedIndex].textContent || "").trim();
+    }
+
+    function parsePreviews(box) {
+        if (!box.__amPreviews) {
+            try {
+                box.__amPreviews = JSON.parse(box.getAttribute("data-inherit-previews") || "[]") || [];
+            } catch (e) {
+                box.__amPreviews = [];
+            }
+        }
+        return box.__amPreviews;
+    }
+
+    function customPurchaseOrderText() {
+        var role = document.getElementById("PurchaseOrderRaiserRoleId");
+        var person = document.getElementById("PurchaseOrderRaiserUserId");
+        var roleName = textOf(role);
+        if (!roleName) {
+            return "PO: any user with Purchases permission";
+        }
+        var personName = textOf(person);
+        return "PO: " + roleName + (personName ? " \u2014 " + personName : " (any user in role)");
+    }
+
+    function syncLiveSummary() {
+        var box = document.getElementById("requisition-flow-live-summary");
+        if (!box) {
+            return;
+        }
+        var flowEl = box.querySelector("[data-am-live-flow]");
+        var poEl = box.querySelector("[data-am-live-po]");
+        var unsavedEl = box.querySelector("[data-am-live-unsaved]");
+        var customRadio = document.getElementById("requisition-approval-custom");
+        var flow;
+        var po;
+
+        if (customRadio && customRadio.checked) {
+            var processEl = getProcessEl(getCustomStagesRoot());
+            var stages = window.AmPersonPicker && window.AmPersonPicker.stageSummaryText
+                ? window.AmPersonPicker.stageSummaryText(processEl)
+                : "";
+            flow = "Custom: " + (stages || "No approval stages configured.");
+            po = customPurchaseOrderText();
+        } else {
+            var inheritSelect = document.getElementById("requisition-inherit-source");
+            var stale = document.getElementById("requisition-inherit-source-stale");
+            var isStale = stale && !stale.classList.contains("d-none");
+            if (isStale) {
+                flow = "Inherit: recalculated from the new parent when you save.";
+                po = "PO: from the unit the flow is inherited from (recalculated when you save).";
+            } else {
+                var choice = inheritSelect && !inheritSelect.disabled ? (inheritSelect.value || "") : "";
+                var previews = parsePreviews(box);
+                var match = null;
+                for (var i = 0; i < previews.length; i++) {
+                    if ((previews[i].Choice || "") === choice) {
+                        match = previews[i];
+                        break;
+                    }
+                }
+                flow = match && match.FlowSummary ? match.FlowSummary : (flowEl ? flowEl.textContent : "");
+                po = match && match.PurchaseOrderRaiserSummary ? match.PurchaseOrderRaiserSummary : (poEl ? poEl.textContent : "");
+            }
+            var effectivePo = document.querySelector("#requisition-inherit-po-summary [data-am-effective-po]");
+            if (effectivePo && po) {
+                effectivePo.textContent = po.replace(/^PO:\s*/, "");
+            }
+        }
+
+        if (flowEl) {
+            flowEl.textContent = flow;
+        }
+        if (poEl) {
+            poEl.textContent = po;
+        }
+        var current = flow + "|" + po;
+        if (liveInitial === null) {
+            liveInitial = current;
+        }
+        if (unsavedEl) {
+            unsavedEl.classList.toggle("d-none", current === liveInitial);
+        }
+    }
+
+    function scheduleLiveSummary() {
+        window.setTimeout(syncLiveSummary, 0);
+    }
+
+    function wireLiveSummary() {
+        var box = document.getElementById("requisition-flow-live-summary");
+        if (!box || box.getAttribute("data-am-live-wired") === "true") {
+            return;
+        }
+        box.setAttribute("data-am-live-wired", "true");
+        var form = box.closest("form") || document;
+        // Any change in the form (mode, inherit source, stage roles/persons, stage count, PO raiser, kind/parent)
+        // and stage add/remove clicks; runs after the other handlers (person auto-select, stale flag).
+        form.addEventListener("change", function () { window.setTimeout(syncLiveSummary, 10); });
+        form.addEventListener("click", function (event) {
+            if (event.target && event.target.closest && event.target.closest(".am-approval-add-stage, .am-approval-remove-stage")) {
+                window.setTimeout(syncLiveSummary, 10);
+            }
+        });
+        // First render after the person pickers have filled (they initialise on DOMContentLoaded).
+        var first = function () {
+            if (window.AmPersonPicker && window.AmPersonPicker.refreshStageSummary) {
+                window.AmPersonPicker.refreshStageSummary(getProcessEl(getCustomStagesRoot()));
+            }
+            liveInitial = null;
+            syncLiveSummary();
+        };
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function () { window.setTimeout(first, 0); });
+        } else {
+            window.setTimeout(first, 0);
+        }
+    }
+
     function syncPanelVisibility() {
         var approvalPanel = document.getElementById("room-requisition-approval-panel");
         var requisitionTarget = document.getElementById("IsRequisitionTarget");
@@ -137,6 +263,7 @@
         syncApprovalMode();
         syncPanelVisibility();
         syncMatrixFromCountSelect();
+        wireLiveSummary();
 
         var orgRadio = document.getElementById("requisition-approval-org");
         var customRadio = document.getElementById("requisition-approval-custom");

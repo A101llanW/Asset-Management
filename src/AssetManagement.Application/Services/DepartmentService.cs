@@ -380,6 +380,70 @@ namespace AssetManagement.Application.Services
                 .ToList();
         }
 
+        /// <summary>
+        /// Effective flow and PO raiser this unit would get when set to Inherit, for each "Inherit flow from" choice
+        /// (nearest parent + each available ancestor). Resolved with the same resolver as approval, on an in-memory
+        /// copy of the unit (nothing is saved).
+        /// </summary>
+        public IList<RequisitionInheritPreviewVm> GetRequisitionInheritPreviews(int departmentId)
+        {
+            var result = new List<RequisitionInheritPreviewVm>();
+            var entity = _unitOfWork.Repository<Department>().GetById(departmentId);
+            if (entity == null || !DepartmentHierarchyRules.CanConfigureRequisitionFlow(entity.DepartmentKind))
+            {
+                return result;
+            }
+
+            var walkById = _unitOfWork.Repository<Department>().GetAll()
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+            Func<int, Department> getById = id =>
+            {
+                Department found;
+                return walkById.TryGetValue(id, out found) ? found : null;
+            };
+
+            var orgDefault = ApprovalWorkflowHelper.GetProcessConfiguration(_unitOfWork, ApprovalProcessCodes.Purchase);
+            var roleLookup = _unitOfWork.Repository<Role>().GetAll()
+                .Where(x => x != null && x.Id > 0)
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First().Name);
+            var personLabels = BuildPurchaseOrderRaiserPersonLabels(walkById.Values);
+
+            var choices = new List<RequisitionInheritSource?> { null };
+            choices.AddRange(DepartmentRequisitionFlowResolver.GetInheritOptions(entity, getById)
+                .Select(x => (RequisitionInheritSource?)x.Source));
+            foreach (var choice in choices.Distinct())
+            {
+                var probe = new Department();
+                foreach (var property in typeof(Department).GetProperties())
+                {
+                    if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
+                    {
+                        property.SetValue(probe, property.GetValue(entity, null), null);
+                    }
+                }
+
+                probe.RequisitionFlowMode = RequisitionFlowMode.InheritParent;
+                probe.UseCustomRequisitionApproval = false;
+                probe.RequisitionInheritFrom = choice;
+                var probeId = entity.Id;
+                Func<int, Department> probeGetById = id => id == probeId ? probe : getById(id);
+
+                var model = MapDepartment(probe);
+                ApplyEffectiveFlowFields(model, probe, probeGetById, orgDefault, roleLookup);
+                ApplyEffectivePurchaseOrderRaiser(model, probe, probeGetById, orgDefault, roleLookup, personLabels);
+                result.Add(new RequisitionInheritPreviewVm
+                {
+                    Choice = choice.HasValue ? choice.Value.ToString() : string.Empty,
+                    FlowSummary = model.EffectiveRequisitionFlowSummary,
+                    PurchaseOrderRaiserSummary = model.EffectivePurchaseOrderRaiserSummary
+                });
+            }
+
+            return result;
+        }
+
         private static void AssertInheritSourceAvailable(DepartmentVm model, IList<Department> allDepartments)
         {
             var choice = DepartmentRequisitionFlowResolver.NormalizeInheritChoice(model.RequisitionInheritFrom);

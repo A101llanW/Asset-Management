@@ -130,10 +130,79 @@
         }
     });
 
+    // ---- Live stage summary (the grey line under the process name), client-side only. ----
+    function selectedText(select) {
+        if (!select || !select.value || select.selectedIndex < 0) {
+            return "";
+        }
+        return (select.options[select.selectedIndex].textContent || "").trim();
+    }
+
+    // Same wording as the server summary: "Role -> Role — person", or the "no stages" text.
+    function stageSummaryText(processEl) {
+        if (!processEl) {
+            return "";
+        }
+        var requires = processEl.querySelector(".am-approval-requires-approval");
+        if (requires && !requires.checked) {
+            return "This process completes immediately without a separate approval step.";
+        }
+        var parts = [];
+        Array.prototype.forEach.call(processEl.querySelectorAll(".am-approval-stages-list .am-approval-stage"), function (row) {
+            var roleSelect = row.querySelector("select[name$='.RoleId']");
+            var roleName = selectedText(roleSelect);
+            if (!roleName) {
+                return;
+            }
+            var personName = selectedText(row.querySelector("select.am-person-select"));
+            parts.push(personName ? roleName + " \u2014 " + personName : roleName);
+        });
+        return parts.length ? parts.join(" -> ") : "No approval stages configured.";
+    }
+
+    function refreshStageSummary(processEl) {
+        if (!processEl) {
+            return;
+        }
+        var matrix = processEl.closest(".am-approval-matrix");
+        if (matrix && matrix.getAttribute("data-use-approver-user-picker") === "true") {
+            return; // the dropdown approver picker keeps its own labels
+        }
+        var summary = processEl.querySelector(".am-approval-stage-summary");
+        if (summary) {
+            summary.textContent = stageSummaryText(processEl);
+        }
+        if (typeof window.CustomEvent === "function") {
+            processEl.dispatchEvent(new CustomEvent("am:stage-summary-changed", { bubbles: true }));
+        }
+    }
+
+    function scheduleSummaryFor(target) {
+        var processEl = target && target.closest ? target.closest(".am-approval-process") : null;
+        if (processEl) {
+            window.setTimeout(function () { refreshStageSummary(processEl); }, 0);
+        }
+    }
+
+    document.addEventListener("change", function (event) {
+        scheduleSummaryFor(event.target);
+    });
+    document.addEventListener("click", function (event) {
+        var button = event.target && event.target.closest
+            ? event.target.closest(".am-approval-add-stage, .am-approval-remove-stage")
+            : null;
+        if (button) {
+            // the removed row is gone by the time the timer runs; keep a handle on its process first
+            scheduleSummaryFor(button);
+        }
+    });
+
     window.AmPersonPicker = {
         init: init,
         fill: fill,
-        anyLabel: ANY_LABEL
+        anyLabel: ANY_LABEL,
+        stageSummaryText: stageSummaryText,
+        refreshStageSummary: refreshStageSummary
     };
 
     if (document.readyState === "loading") {

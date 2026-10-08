@@ -26,5 +26,7 @@ namespace AssetManagement.Application.Contracts
 
         /// <summary>Inherit choices (Sub-department / Department) that exist in the unit's current ancestry.</summary>
         IList<RequisitionInheritOptionVm> GetRequisitionInheritOptions(int departmentId);
+
+        IList<RequisitionInheritPreviewVm> GetRequisitionInheritPreviews(int departmentId);
     }
 }

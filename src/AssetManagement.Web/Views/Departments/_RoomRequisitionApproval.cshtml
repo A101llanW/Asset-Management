@@ -33,10 +33,17 @@
     var poSelectedRole = Model.PurchaseOrderRaiserRoleId.HasValue ? Model.PurchaseOrderRaiserRoleId.Value.ToString() : string.Empty;
     var poSelectedUser = Model.PurchaseOrderRaiserUserId ?? string.Empty;
     var effectivePoSummary = ViewBag.EffectivePurchaseOrderRaiserSummary as string;
+    var effectiveFlowSummary = ViewBag.EffectiveRequisitionFlowSummary as string;
+    var inheritPreviewsJson = ViewBag.RequisitionInheritPreviewsJson as string ?? "[]";
 }
 <div class="card card-kpi mb-3" id="room-requisition-approval-panel" data-am-room-requisition-approval="true">
     <div class="card-header">Requisition approval</div>
     <div class="card-body">
+        <div class="alert alert-light border small mb-3" id="requisition-flow-live-summary" data-inherit-previews="@inheritPreviewsJson" aria-live="polite">
+            <div><strong>Requisition flow:</strong> <span data-am-live-flow>@(string.IsNullOrWhiteSpace(effectiveFlowSummary) ? "-" : effectiveFlowSummary)</span></div>
+            <div><strong>Purchase order raised by:</strong> <span data-am-live-po>@(string.IsNullOrWhiteSpace(effectivePoSummary) ? "-" : effectivePoSummary)</span></div>
+            <div class="text-muted d-none" data-am-live-unsaved>Changed, not saved yet. Saving applies it to requisitions submitted afterwards.</div>
+        </div>
         <p class="text-muted mb-3">Choose how requisitions for this department (Admin, Sub-unit, Room, or Class) move through approval. Applies when it is a requisition target. Org default = Inherit; Custom stages override. Changes apply to new requisitions submitted after you save.</p>
         <div class="form-check mb-2">
             <input class="form-check-input" type="radio" name="RequisitionApprovalMode" id="requisition-approval-org" value="org" @(!showCustomPanel ? "checked=\"checked\"" : null) />

@@ -635,6 +635,12 @@ namespace AssetManagement.Web.Controllers
                 ? _departmentService.GetRequisitionInheritOptions(model.Id)
                 : new List<RequisitionInheritOptionVm>();
             ViewBag.EffectivePurchaseOrderRaiserSummary = stored != null ? stored.EffectivePurchaseOrderRaiserSummary : null;
+            ViewBag.EffectiveRequisitionFlowSummary = stored != null ? stored.EffectiveRequisitionFlowSummary : null;
+            // Live summary on Edit: what each "Inherit flow from" choice resolves to (client switches between them).
+            ViewBag.RequisitionInheritPreviewsJson = Newtonsoft.Json.JsonConvert.SerializeObject(
+                model.Id > 0 && DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind)
+                    ? _departmentService.GetRequisitionInheritPreviews(model.Id)
+                    : new List<RequisitionInheritPreviewVm>());
             ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
             ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);
 
