@@ -24,8 +24,8 @@ namespace AssetManagement.Web.Controllers
         }
         public ActionResult Index(int? assetTypeId = null, string search = null, bool? activeOnly = true)
         {
-            // Query() (not GetAll()): type, active and search filters run as one SQL WHERE instead of
-            // loading every sub-type of the organisation. The exact match below still runs in memory.
+            // Query() (not GetAll()): type and active filters run as one SQL WHERE instead of loading every
+            // sub-type of the organisation. Search stays in memory (null-safe, case-insensitive).
             var query = UnitOfWork.Repository<AssetSubType>().Query();
             if (assetTypeId.HasValue && assetTypeId.Value > 0)
             {
@@ -39,12 +39,6 @@ namespace AssetManagement.Web.Controllers
             }
 
             var term = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-            // LIKE wildcards are not escaped by the repository, so such terms are matched in memory only.
-            if (term != null && term.IndexOfAny(new[] { '%', '_', '[' }) < 0)
-            {
-                query = query.Where(x => x.Name.Contains(term) || x.Brand.Contains(term) || x.Model.Contains(term) || x.Sku.Contains(term));
-            }
-
             var loaded = query.ToList().OrderBy(x => x.Name).ToList();
             if (term != null)
             {
