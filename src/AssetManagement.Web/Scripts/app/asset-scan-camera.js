@@ -171,6 +171,43 @@
         return text ? "Could not access the camera: " + text : "Could not access the camera.";
     }
 
+    // html5-qrcode throws synchronously from stop() ("Cannot stop, scanner is not running or
+    // paused.") and clear() when the scanner never started. Inside a .catch() handler that
+    // synchronous throw replaced the real start error (permission denied, no camera, in use).
+    // Only stop a scanner that is SCANNING (2) or PAUSED (3), and run both calls inside a
+    // promise so nothing escapes.
+    function isScannerRunning(activeScanner) {
+        if (!activeScanner || typeof activeScanner.getState !== "function") {
+            return true;
+        }
+
+        try {
+            var state = activeScanner.getState();
+            return state === 2 || state === 3;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function safeScannerCall(activeScanner, methodName) {
+        return Promise.resolve()
+            .then(function () {
+                if (activeScanner && typeof activeScanner[methodName] === "function") {
+                    return activeScanner[methodName]();
+                }
+            })
+            .catch(function () { });
+    }
+
+    function stopAndClearScanner(activeScanner) {
+        var stopped = isScannerRunning(activeScanner)
+            ? safeScannerCall(activeScanner, "stop")
+            : Promise.resolve();
+        return stopped.then(function () {
+            return safeScannerCall(activeScanner, "clear");
+        });
+    }
+
     function resetScannerInstance() {
         if (!scanner) {
             return Promise.resolve();
@@ -179,11 +216,7 @@
         var activeScanner = scanner;
         scanner = null;
 
-        return activeScanner.stop()
-            .catch(function () { })
-            .then(function () {
-                return activeScanner.clear().catch(function () { });
-            });
+        return stopAndClearScanner(activeScanner);
     }
 
     function startCamera() {
@@ -251,14 +284,9 @@
         scanner = null;
         isActive = false;
 
-        return activeScanner.stop()
+        // Stop/clear errors are ignored (stream already closed); see stopAndClearScanner.
+        return stopAndClearScanner(activeScanner)
             .then(function () {
-                return activeScanner.clear();
-            })
-            .catch(function () {
-                // Ignore stop errors when the stream is already closed.
-            })
-            .finally(function () {
                 showWrap(false);
                 setToggleLabel(false);
                 setCameraMessage("", false);
