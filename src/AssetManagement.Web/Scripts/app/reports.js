@@ -2,7 +2,6 @@
     'use strict';
 
     var currentReportKey = null;
-    var loadingModal = null;
     var previewModal = null;
 
     function getConfig() {
@@ -225,17 +224,196 @@
         return payload;
     }
 
-    function showLoading() {
-        if (window.bootstrap && window.bootstrap.Modal) {
-            loadingModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('amReportLoadingModal'));
-            loadingModal.show();
-        }
+    // ---- Loading modal lifecycle -------------------------------------------------------------
+    // Bootstrap 5.3 ignores hide() while a modal is still fading in (and show() while it fades
+    // out). A fast Preview response (< ~450ms) used to call hide() mid fade-in, leaving the
+    // loading modal and its backdrop on screen forever. We track the lifecycle, only act on
+    // shown/hidden events, and run follow-up work (open preview, alert, download) only after the
+    // loading modal and its backdrop are fully gone.
+    var loadingState = 'hidden'; // hidden | showing | shown | hiding
+    var loadingWanted = false;
+    var loadingPendingShow = false;
+    var loadingAfterHide = [];
+    var loadingWatchdog = null;
+    var previewAfterHide = [];
+    var busy = false;
+
+    function hasBootstrapModal() {
+        return !!(window.bootstrap && window.bootstrap.Modal);
     }
 
-    function hideLoading() {
-        if (loadingModal) {
-            loadingModal.hide();
+    function runQueue(queue) {
+        queue.forEach(function (fn) {
+            try {
+                fn();
+            } catch (e) {
+                if (window.console && window.console.error) {
+                    window.console.error(e);
+                }
+            }
+        });
+    }
+
+    // Remove leftovers (stray .modal-backdrop, body.modal-open, scroll lock) once no modal is open.
+    function cleanupModalArtifacts() {
+        if (document.querySelector('.modal.show')) {
+            return;
         }
+        document.querySelectorAll('.modal-backdrop').forEach(function (bd) {
+            if (bd.parentNode) {
+                bd.parentNode.removeChild(bd);
+            }
+        });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+
+    function getLoadingEl() {
+        return document.getElementById('amReportLoadingModal');
+    }
+
+    function flushLoadingQueue() {
+        if (loadingWatchdog) {
+            window.clearTimeout(loadingWatchdog);
+            loadingWatchdog = null;
+        }
+        var queue = loadingAfterHide;
+        loadingAfterHide = [];
+        runQueue(queue);
+    }
+
+    function getLoadingModal() {
+        var el = getLoadingEl();
+        if (!el || !hasBootstrapModal()) {
+            return null;
+        }
+        if (!el.getAttribute('data-am-bound')) {
+            el.setAttribute('data-am-bound', '1');
+            el.addEventListener('shown.bs.modal', function () {
+                loadingState = 'shown';
+                if (!loadingWanted) {
+                    requestLoadingHide();
+                }
+            });
+            el.addEventListener('hide.bs.modal', function () {
+                loadingState = 'hiding';
+            });
+            el.addEventListener('hidden.bs.modal', function () {
+                loadingState = 'hidden';
+                cleanupModalArtifacts();
+                if (loadingPendingShow) {
+                    loadingPendingShow = false;
+                    startLoadingShow();
+                    return;
+                }
+                loadingWanted = false;
+                flushLoadingQueue();
+            });
+        }
+        // Static backdrop: a click outside does not close it; Esc still can (keyboard default).
+        return window.bootstrap.Modal.getOrCreateInstance(el, { backdrop: 'static' });
+    }
+
+    function startLoadingShow() {
+        var modal = getLoadingModal();
+        if (!modal) {
+            loadingState = 'hidden';
+            return;
+        }
+        loadingState = 'showing';
+        modal.show();
+    }
+
+    function requestLoadingHide() {
+        var modal = getLoadingModal();
+        if (!modal) {
+            loadingState = 'hidden';
+            flushLoadingQueue();
+            return;
+        }
+        loadingState = 'hiding';
+        modal.hide();
+    }
+
+    // Last resort if Bootstrap never fires shown/hidden: tear the loading modal down by hand.
+    function forceHideLoading() {
+        var el = getLoadingEl();
+        if (el) {
+            var inst = hasBootstrapModal() ? window.bootstrap.Modal.getInstance(el) : null;
+            if (inst) {
+                try {
+                    inst.dispose();
+                } catch (e) {
+                    // ignore
+                }
+            }
+            el.classList.remove('show');
+            el.style.display = 'none';
+            el.setAttribute('aria-hidden', 'true');
+            el.removeAttribute('aria-modal');
+            el.removeAttribute('role');
+        }
+        loadingState = 'hidden';
+        loadingPendingShow = false;
+        cleanupModalArtifacts();
+        flushLoadingQueue();
+    }
+
+    function armLoadingWatchdog() {
+        if (loadingWatchdog) {
+            window.clearTimeout(loadingWatchdog);
+        }
+        loadingWatchdog = window.setTimeout(function () {
+            loadingWatchdog = null;
+            if (!loadingWanted && loadingState !== 'hidden') {
+                forceHideLoading();
+            }
+        }, 4000);
+    }
+
+    function showLoading() {
+        loadingWanted = true;
+        if (loadingState === 'hidden') {
+            startLoadingShow();
+        } else if (loadingState === 'hiding') {
+            loadingPendingShow = true;
+        }
+        // 'showing' / 'shown': already on screen or on its way.
+    }
+
+    // Hide the loading modal; afterHidden runs once it (and its backdrop) are fully gone.
+    function hideLoading(afterHidden) {
+        loadingWanted = false;
+        loadingPendingShow = false;
+        if (typeof afterHidden === 'function') {
+            loadingAfterHide.push(afterHidden);
+        }
+        if (loadingState === 'hidden') {
+            flushLoadingQueue();
+            return;
+        }
+        if (loadingState === 'shown') {
+            requestLoadingHide();
+        }
+        // 'showing': the shown handler hides it. 'hiding': the hidden handler flushes the queue.
+        armLoadingWatchdog();
+    }
+
+    function finishWith(fn) {
+        return function () {
+            busy = false;
+            if (typeof fn === 'function') {
+                fn();
+            }
+        };
+    }
+
+    function alertLater(message) {
+        // Alert after the modal is gone so a blocking dialog never freezes a half-faded backdrop.
+        return function () {
+            window.alert(message);
+        };
     }
 
     function renderPdfFromHtml(html, fileName) {
@@ -247,15 +425,60 @@
         return window.amDocumentPdf.renderPdfFromHtml(html, fileName);
     }
 
+    // ---- Preview modal -------------------------------------------------------------------------
+    function getPreviewModal() {
+        var el = document.getElementById('amReportPreviewModal');
+        if (!el || !hasBootstrapModal()) {
+            return null;
+        }
+        if (!el.getAttribute('data-am-bound')) {
+            el.setAttribute('data-am-bound', '1');
+            el.addEventListener('hidden.bs.modal', function () {
+                cleanupModalArtifacts();
+                var queue = previewAfterHide;
+                previewAfterHide = [];
+                runQueue(queue);
+            });
+        }
+        previewModal = window.bootstrap.Modal.getOrCreateInstance(el);
+        return previewModal;
+    }
+
     function showPreview(html, title, rowCount) {
         document.getElementById('amReportPreviewTitle').textContent = title || 'Report preview';
         document.getElementById('amReportPreviewMeta').textContent = (rowCount || 0) + ' data rows';
         document.getElementById('amReportPreviewContent').innerHTML = html;
 
-        if (window.bootstrap && window.bootstrap.Modal) {
-            previewModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('amReportPreviewModal'));
-            previewModal.show();
+        var modal = getPreviewModal();
+        if (modal) {
+            modal.show();
         }
+    }
+
+    // Close the preview modal (if open) and run next only after it has fully hidden.
+    function hidePreviewThen(next) {
+        var el = document.getElementById('amReportPreviewModal');
+        var modal = getPreviewModal();
+        if (!el || !modal || !el.classList.contains('show')) {
+            next();
+            return;
+        }
+        var done = false;
+        var once = function () {
+            if (!done) {
+                done = true;
+                next();
+            }
+        };
+        previewAfterHide.push(once);
+        modal.hide();
+        window.setTimeout(function () {
+            if (!done) {
+                previewAfterHide = previewAfterHide.filter(function (fn) { return fn !== once; });
+                cleanupModalArtifacts();
+                once();
+            }
+        }, 2000);
     }
 
     function postForm(url, payload) {
@@ -277,13 +500,17 @@
     }
 
     function previewReport(reportKey) {
-        currentReportKey = reportKey;
         var previewUrl = getConfig().previewUrl;
         if (!previewUrl) {
             window.alert('Report preview is not configured. Refresh the page and try again.');
             return;
         }
+        if (busy) {
+            return;
+        }
 
+        busy = true;
+        currentReportKey = reportKey;
         showLoading();
         postForm(previewUrl, collectPayload(reportKey))
             .then(function (response) {
@@ -293,16 +520,16 @@
                 return response.json();
             })
             .then(function (data) {
-                hideLoading();
-                if (data.success) {
-                    showPreview(data.html, data.title, data.rowCount);
-                } else {
-                    window.alert(data.message || 'Unable to build preview.');
-                }
+                hideLoading(finishWith(function () {
+                    if (data && data.success) {
+                        showPreview(data.html, data.title, data.rowCount);
+                    } else {
+                        window.alert((data && data.message) || 'Unable to build preview.');
+                    }
+                }));
             })
             .catch(function (err) {
-                hideLoading();
-                window.alert(err && err.message ? err.message : 'Error connecting to the server.');
+                hideLoading(finishWith(alertLater(err && err.message ? err.message : 'Error connecting to the server.')));
             });
     }
 
@@ -312,7 +539,11 @@
             window.alert('Report export is not configured. Refresh the page and try again.');
             return;
         }
+        if (busy) {
+            return;
+        }
 
+        busy = true;
         showLoading();
         postForm(exportUrl, collectPayload(reportKey))
             .then(function (response) {
@@ -327,29 +558,35 @@
                 });
             })
             .then(function (result) {
-                hideLoading();
-                var link = document.createElement('a');
-                link.href = URL.createObjectURL(result.blob);
-                link.download = result.fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                addRecentReport(result.fileName, reportKey);
+                hideLoading(finishWith(function () {
+                    var url = URL.createObjectURL(result.blob);
+                    var link = document.createElement('a');
+                    link.href = url;
+                    link.download = result.fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+                    addRecentReport(result.fileName, reportKey);
+                }));
             })
             .catch(function () {
-                hideLoading();
-                window.alert('Error downloading CSV.');
+                hideLoading(finishWith(alertLater('Error downloading CSV.')));
             });
     }
 
     function downloadPdf(reportKey) {
-        currentReportKey = reportKey;
         var previewUrl = getConfig().previewUrl;
         if (!previewUrl) {
             window.alert('Report preview is not configured. Refresh the page and try again.');
             return;
         }
+        if (busy) {
+            return;
+        }
 
+        busy = true;
+        currentReportKey = reportKey;
         showLoading();
         postForm(previewUrl, collectPayload(reportKey))
             .then(function (response) {
@@ -359,46 +596,51 @@
                 return response.json();
             })
             .then(function (data) {
-                if (!data.success) {
-                    hideLoading();
-                    window.alert(data.message || 'Unable to build report.');
+                if (!data || !data.success) {
+                    hideLoading(finishWith(alertLater((data && data.message) || 'Unable to build report.')));
                     return;
                 }
 
                 var fileName = (reportKey || 'report') + '_' + new Date().getTime() + '.pdf';
                 return renderPdfFromHtml(data.html, fileName)
                     .then(function () {
-                        hideLoading();
-                        addRecentReport(fileName, reportKey);
+                        hideLoading(finishWith(function () {
+                            addRecentReport(fileName, reportKey);
+                        }));
                     });
             })
             .catch(function () {
-                hideLoading();
-                window.alert('Error creating PDF.');
+                hideLoading(finishWith(alertLater('Error creating PDF.')));
             });
     }
+
     function downloadPdfFromPreview() {
         var content = document.getElementById('amReportPreviewContent');
-        if (!content) {
+        if (!content || !content.innerHTML) {
             window.alert('Open a report preview first.');
             return;
         }
-
-        showLoading();
-        if (previewModal) {
-            previewModal.hide();
+        if (busy) {
+            return;
         }
 
-        var fileName = (currentReportKey || 'report') + '_' + new Date().getTime() + '.pdf';
-        renderPdfFromHtml(content.innerHTML, fileName)
-            .then(function () {
-                hideLoading();
-                addRecentReport(fileName, currentReportKey);
-            })
-            .catch(function () {
-                hideLoading();
-                window.alert('Error creating PDF. Try preview again.');
-            });
+        busy = true;
+        var html = content.innerHTML;
+        var reportKey = currentReportKey;
+        var fileName = (reportKey || 'report') + '_' + new Date().getTime() + '.pdf';
+        // Close the preview first, then show loading: never transition two modals at once.
+        hidePreviewThen(function () {
+            showLoading();
+            renderPdfFromHtml(html, fileName)
+                .then(function () {
+                    hideLoading(finishWith(function () {
+                        addRecentReport(fileName, reportKey);
+                    }));
+                })
+                .catch(function () {
+                    hideLoading(finishWith(alertLater('Error creating PDF. Try preview again.')));
+                });
+        });
     }
 
     function addRecentReport(fileName, reportKey) {

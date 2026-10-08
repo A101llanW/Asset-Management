@@ -267,14 +267,16 @@
     background-color: rgba(26, 82, 120, 0.04);
 }
 
-.am-main-content .app-report-preview {
+.am-main-content .app-report-preview,
+#amReportPreviewModal .app-report-preview {
     max-width: 100%;
     min-height: 0;
     padding: 1.25rem;
     overflow-x: auto;
 }
 
-.am-main-content .app-report-preview .report-frame {
+.am-main-content .app-report-preview .report-frame,
+#amReportPreviewModal .app-report-preview .report-frame {
     width: 100%;
     max-width: 100%;
     margin-left: auto;
@@ -283,12 +285,14 @@
     overflow: visible;
 }
 
-.am-main-content .app-report-preview .report-table-wrap {
+.am-main-content .app-report-preview .report-table-wrap,
+#amReportPreviewModal .app-report-preview .report-table-wrap {
     max-width: calc(100% - 48px);
     box-sizing: border-box;
 }
 
-.am-main-content .app-report-preview .report-scroll-hint {
+.am-main-content .app-report-preview .report-scroll-hint,
+#amReportPreviewModal .app-report-preview .report-scroll-hint {
     display: block;
 }
 

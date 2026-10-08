@@ -5,8 +5,12 @@
  */
 
 /* ---- Page entrance (Fade Content / Animated Content) ---- */
+/* fill-mode backwards (not both): the start keyframe applies during any delay, but nothing
+   persists after the 0.55s run. A forwards fill keeps <main> as a stacking context and the
+   containing block for position:fixed children, which traps Bootstrap modals under the
+   body-level .modal-backdrop (Reports Preview bug, 2026-10-08). */
 .am-page-enter {
-    animation: amPageEnter 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: amPageEnter 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 @keyframes amPageEnter {

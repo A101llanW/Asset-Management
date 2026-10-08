@@ -522,13 +522,28 @@ h1, h2, h3, h4, h5, h6, .am-brand-title, .am-sidebar-brand {
     box-shadow: var(--am-shadow);
 }
 
-/* Keep Bootstrap modals above the body-appended backdrop when main uses transform animations. */
-body.modal-open .am-main-content.am-page-enter {
+/* Keep Bootstrap modals above the body-appended backdrop when main uses the page-enter animation.
+   An active transform/opacity animation makes <main> a stacking context and the containing block for
+   position:fixed, so a modal inside <main> paints under .modal-backdrop (z 1050). am-animations.css
+   uses fill-mode backwards so this only matters during the first 0.55s, but do not rely on
+   body.modal-open alone (another modal's hidden handler can remove it while a modal is still open).
+   Kept as separate rules so a browser without :has() still applies the first one. */
+body.modal-open .am-main-content {
+    animation: none !important;
     transform: none !important;
+    opacity: 1 !important;
 }
 
-body.modal-open .am-main-content {
+.am-main-content:has(.modal.show) {
+    animation: none !important;
     transform: none !important;
+    opacity: 1 !important;
+}
+
+.am-main-content:has(.modal[style*="display: block"]) {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
 }
 
 #targetAssetPickerModal.modal.show,
