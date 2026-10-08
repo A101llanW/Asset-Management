@@ -92,7 +92,7 @@ BEGIN
             VALUES (N'Department Head', N'Submits requisitions and in-store asset requests for their department.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Staff' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
-            VALUES (N'Staff', N'Assignee-only profile — register employees without assigning this login role.', 0, @seedOrgId, @now, 1);
+            VALUES (N'Staff', N'Assignee-only profile - register employees without assigning this login role.', 0, @seedOrgId, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Auditor' AND [OrganizationId] = @seedOrgId)
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[OrganizationId],[CreatedAt],[IsActive])
             VALUES (N'Auditor', N'Read-only access to reports and audit data.', 0, @seedOrgId, @now, 1);
@@ -116,7 +116,7 @@ BEGIN
             VALUES (N'Department Head', N'Submits requisitions and in-store asset requests for their department.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Staff')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
-            VALUES (N'Staff', N'Assignee-only profile — register employees without assigning this login role.', 0, @now, 1);
+            VALUES (N'Staff', N'Assignee-only profile - register employees without assigning this login role.', 0, @now, 1);
         IF NOT EXISTS (SELECT 1 FROM [Roles] WHERE [Name] = N'Auditor')
             INSERT INTO [Roles] ([Name],[Description],[IsSystemRole],[CreatedAt],[IsActive])
             VALUES (N'Auditor', N'Read-only access to reports and audit data.', 0, @now, 1);
