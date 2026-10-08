@@ -708,7 +708,23 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 AdminPassword = result.ProvisionalPassword
             };
 
-            var encrypted = EncryptionHelper.Encrypt(JsonConvert.SerializeObject(package));
+            string encrypted;
+            try
+            {
+                encrypted = EncryptionHelper.Encrypt(JsonConvert.SerializeObject(package));
+            }
+            catch (InvalidOperationException ex)
+            {
+                // SystemEncryptionKey missing or still the public default. The organization itself
+                // was created; surface a clear error instead of a YSOD and do not store plaintext.
+                System.Diagnostics.Trace.TraceError(
+                    "SaveOrganizationAdminCredentialPackage: credential package not created for organization {0}: {1}",
+                    result.Organization.Id,
+                    ex.Message);
+                TempData["Error"] = "The organization was created, but the administrator security file could not be generated because the system encryption key is not configured. Contact your system administrator.";
+                return;
+            }
+
             var token = Guid.NewGuid().ToString("N");
             var entity = new TemporaryCredential
             {

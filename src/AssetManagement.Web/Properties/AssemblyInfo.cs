@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("AssetManagement.Web")]
@@ -13,3 +14,4 @@ using System.Runtime.InteropServices;
 [assembly: Guid("5A026D8F-50B4-4E32-AE0B-8A4F966C8C66")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: InternalsVisibleTo("AssetManagement.Tests")]

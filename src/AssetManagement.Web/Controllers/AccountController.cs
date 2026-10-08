@@ -1767,14 +1767,23 @@ namespace AssetManagement.Web.Controllers
                 var decrypted = EncryptionHelper.Decrypt(credential.EncryptedData);
                 package = JsonConvert.DeserializeObject<AdminCredentialsViewModel>(decrypted);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return new HttpStatusCodeResult(500, "Unable to decrypt credential package.");
+                // Typically an old package encrypted with a key that is no longer configured,
+                // a tampered package, or a missing/default SystemEncryptionKey. Never a YSOD.
+                System.Diagnostics.Trace.TraceWarning(
+                    "DownloadAdminCredentials: credential package {0} could not be decrypted ({1}).",
+                    credential.Id,
+                    ex.GetType().Name + ": " + ex.Message);
+                return CredentialPackageUnavailable();
             }
 
             if (package == null || string.IsNullOrWhiteSpace(package.AdminPassword))
             {
-                return new HttpStatusCodeResult(500, "Invalid credential package.");
+                System.Diagnostics.Trace.TraceWarning(
+                    "DownloadAdminCredentials: credential package {0} decrypted to an invalid payload.",
+                    credential.Id);
+                return CredentialPackageUnavailable();
             }
 
             credential.IsUsed = true;
@@ -1785,6 +1794,12 @@ namespace AssetManagement.Web.Controllers
             var bytes = Encoding.UTF8.GetBytes(content);
             var fileName = SanitizeCredentialFileName(package.CompanyName) + "_Admin_Credentials.txt";
             return File(bytes, "text/plain", fileName);
+        }
+
+        private ActionResult CredentialPackageUnavailable()
+        {
+            ViewBag.Title = "Security file unavailable";
+            return View("CredentialPackageUnavailable");
         }
 
         private static string BuildAdminCredentialFileContent(AdminCredentialsViewModel package)

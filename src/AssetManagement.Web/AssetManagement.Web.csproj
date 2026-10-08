@@ -356,6 +356,7 @@
     <Content Include="Views\Account\AcceptInvite.cshtml" />
     <Content Include="Views\Account\ForgotPassword.cshtml" />
     <Content Include="Views\Account\Login.cshtml" />
+    <Content Include="Views\Account\CredentialPackageUnavailable.cshtml" />
     <Content Include="Views\Account\OrganizationNotFound.cshtml" />
     <Content Include="Views\Account\Register.cshtml" />
     <Content Include="Views\Account\ResetPassword.cshtml" />
