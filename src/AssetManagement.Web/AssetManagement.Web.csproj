@@ -285,6 +285,13 @@
     <Content Include="Content\css\site.css" />
     <Content Include="Content\css\am-animations.css" />
     <Content Include="Content\css\am-modules.css" />
+    <Content Include="Content\css\fonts.css" />
+    <Content Include="Content\fonts\inter-latin.woff2" />
+    <Content Include="Content\fonts\inter-latin-ext.woff2" />
+    <Content Include="Content\fonts\outfit-latin.woff2" />
+    <Content Include="Content\fonts\outfit-latin-ext.woff2" />
+    <Content Include="Content\fonts\OFL-Inter.txt" />
+    <Content Include="Content\fonts\OFL-Outfit.txt" />
     <Content Include="Scripts\bootstrap.bundle.min.js" />
     <Content Include="Scripts\jquery-3.7.1.min.js" />
     <Content Include="Scripts\app\help-bot.js" />

@@ -5,6 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewBag.Title - Platform Administration</title>
+    <link rel="preload" href="@Url.Content("~/Content/fonts/inter-latin.woff2")" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="@Url.Content("~/Content/css/fonts.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/fonts.css")).Ticks" />
     <link rel="stylesheet" href="@Url.Content("~/Content/bootstrap.min.css")" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
