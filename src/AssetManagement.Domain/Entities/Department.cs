@@ -28,6 +28,12 @@ namespace AssetManagement.Domain.Entities
 
         public string CustomStageUserIds { get; set; }
 
+        /// <summary>
+        /// Inherit-mode only (migration 085). Null = nearest ancestor (legacy behaviour);
+        /// SubDepartment / Department = inherit that specific ancestor's flow.
+        /// </summary>
+        public RequisitionInheritSource? RequisitionInheritFrom { get; set; }
+
         // PR14 / room-approval columns (IIS migration 065)
         public bool UseCustomRequisitionApproval { get; set; }
 

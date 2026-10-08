@@ -309,10 +309,6 @@
                             <p class="am-platform-mini-stat__label">Users</p>
                         </div>
                         <div class="am-platform-mini-stat">
-                            <p class="am-platform-mini-stat__value">@Model.DepartmentCount</p>
-                            <p class="am-platform-mini-stat__label">Departments</p>
-                        </div>
-                        <div class="am-platform-mini-stat">
                             <p class="am-platform-mini-stat__value">@Model.AssetCount</p>
                             <p class="am-platform-mini-stat__label">Assets</p>
                         </div>
@@ -321,6 +317,53 @@
                             <p class="am-platform-mini-stat__label">License</p>
                         </div>
                     </div>
+                    @{
+                        var deptCounts = Model.DepartmentCounts;
+                    }
+                    <h3 class="h6 mt-4 mb-2" id="org-structure-breakdown-title">Org structure (active)</h3>
+                    @if (deptCounts != null)
+                    {
+                        <div class="am-platform-mini-stat-grid" id="org-structure-breakdown" data-am-active-total="@deptCounts.ActiveTotal" data-am-inactive-total="@deptCounts.InactiveTotal">
+                            <div class="am-platform-mini-stat" data-am-kind="Departments">
+                                <p class="am-platform-mini-stat__value">@deptCounts.Departments</p>
+                                <p class="am-platform-mini-stat__label">Departments</p>
+                            </div>
+                            <div class="am-platform-mini-stat" data-am-kind="SubDepartments">
+                                <p class="am-platform-mini-stat__value">@deptCounts.SubDepartments</p>
+                                <p class="am-platform-mini-stat__label">Sub-departments</p>
+                            </div>
+                            <div class="am-platform-mini-stat" data-am-kind="Rooms">
+                                <p class="am-platform-mini-stat__value">@deptCounts.Rooms</p>
+                                <p class="am-platform-mini-stat__label">Rooms</p>
+                            </div>
+                            <div class="am-platform-mini-stat" data-am-kind="Grades">
+                                <p class="am-platform-mini-stat__value">@deptCounts.Grades</p>
+                                <p class="am-platform-mini-stat__label">Grades</p>
+                            </div>
+                            <div class="am-platform-mini-stat" data-am-kind="Classes">
+                                <p class="am-platform-mini-stat__value">@deptCounts.Classes</p>
+                                <p class="am-platform-mini-stat__label">Classes</p>
+                            </div>
+                            @if (deptCounts.NestedAdministrative > 0)
+                            {
+                                <div class="am-platform-mini-stat" data-am-kind="NestedAdministrative">
+                                    <p class="am-platform-mini-stat__value">@deptCounts.NestedAdministrative</p>
+                                    <p class="am-platform-mini-stat__label">Nested admin (legacy)</p>
+                                </div>
+                            }
+                        </div>
+                        <p class="text-muted small mt-2 mb-0" id="org-structure-breakdown-note">
+                            <span>@deptCounts.ActiveTotal active units in total.</span>
+                            @if (deptCounts.InactiveTotal > 0)
+                            {
+                                <span>@deptCounts.InactiveTotal inactive (soft-deleted) not counted.</span>
+                            }
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-0">@Model.DepartmentCount active units.</p>
+                    }
                 </div>
             </div>
         </div>

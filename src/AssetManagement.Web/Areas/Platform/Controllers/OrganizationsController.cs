@@ -29,6 +29,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
         private readonly IOrganizationLicenseService _licenseService;
         private readonly IUserAccountQueryRepository _userAccountQuery;
         private readonly IAuditLogService _auditLogService;
+        private readonly IDepartmentKindCountQuery _departmentKindCounts;
 
         public OrganizationsController()
         {
@@ -40,6 +41,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             _licenseService = DependencyResolver.Current.GetService<IOrganizationLicenseService>();
             _userAccountQuery = DependencyResolver.Current.GetService<IUserAccountQueryRepository>();
             _auditLogService = DependencyResolver.Current.GetService<IAuditLogService>();
+            _departmentKindCounts = DependencyResolver.Current.GetService<IDepartmentKindCountQuery>();
         }
 
         public ActionResult Index()
@@ -139,12 +141,18 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                         .Take(50)
                         .ToList()
                     : new List<AuditLogVm>();
+                var departmentCounts = _departmentKindCounts != null
+                    ? _departmentKindCounts.GetCounts(id)
+                    : null;
                 var model = new OrganizationDetailsViewModel
                 {
                     Organization = organization,
                     UserCount = CountUsersForOrganization(id),
                     AssetCount = _unitOfWork.Repository<Asset>().Query().Count(a => a.OrganizationId == id),
-                    DepartmentCount = _unitOfWork.Repository<Department>().Query().Count(d => d.OrganizationId == id),
+                    DepartmentCount = departmentCounts != null
+                        ? departmentCounts.ActiveTotal
+                        : _unitOfWork.Repository<Department>().Query().Count(d => d.OrganizationId == id && d.IsActive),
+                    DepartmentCounts = departmentCounts,
                     CompanyAdmins = companyAdmins,
                     Users = allUsers,
                     RecentAuditLogs = recentAuditLogs,
@@ -770,7 +778,10 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
 
         public int AssetCount { get; set; }
 
+        /// <summary>Active org units (all kinds). Breakdown in <see cref="DepartmentCounts"/>.</summary>
         public int DepartmentCount { get; set; }
+
+        public AssetManagement.Application.DTOs.DepartmentKindCountsDto DepartmentCounts { get; set; }
 
         public List<UserVm> CompanyAdmins { get; set; }
 

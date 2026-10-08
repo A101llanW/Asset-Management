@@ -225,6 +225,46 @@ namespace AssetManagement.Web.Controllers
             }
         }
 
+        /// <summary>
+        /// Edit helper (AJAX): active children that the proposed Kind/Parent would make invalid, with valid
+        /// new-parent candidates built from live org-scoped data. Server re-validates on POST.
+        /// </summary>
+        [HttpGet]
+        [PermissionAuthorize("Departments.Edit")]
+        public ActionResult KindChangeImpact(int id, int kind, int? parentId = null)
+        {
+            if (!Enum.IsDefined(typeof(DepartmentKind), kind))
+            {
+                return Json(new { ok = false, message = "Unknown department kind." }, JsonRequestBehavior.AllowGet);
+            }
+
+            var current = _departmentService.GetById(id);
+            if (current == null)
+            {
+                return HttpNotFound();
+            }
+
+            var impact = _departmentService.GetKindChangeImpact(
+                id,
+                (DepartmentKind)kind,
+                parentId.HasValue && parentId.Value > 0 ? parentId : null);
+            return Json(new
+            {
+                ok = true,
+                departmentId = impact.DepartmentId,
+                newKindLabel = impact.NewKindLabel,
+                items = impact.Items.Select(x => new
+                {
+                    childId = x.ChildId,
+                    childName = x.ChildName,
+                    childCode = x.ChildCode,
+                    childKindLabel = x.ChildKindLabel,
+                    reason = x.Reason,
+                    candidates = x.Candidates.Select(c => new { id = c.Id, label = c.Label }).ToList()
+                }).ToList()
+            }, JsonRequestBehavior.AllowGet);
+        }
+
         private sealed class DepartmentCreateContext
         {
             public string SetupMode { get; set; }
@@ -524,6 +564,15 @@ namespace AssetManagement.Web.Controllers
                 model,
                 model.ParentDepartmentId);
             ViewBag.DepartmentKindSelectList = BuildDepartmentKindSelectList(model.DepartmentKind);
+            var stored = model.Id > 0 ? _departmentService.GetById(model.Id) : null;
+            ViewBag.OriginalDepartmentKind = DepartmentKindSelectListBuilder.ToOptionValue(
+                stored != null ? stored.DepartmentKind : model.DepartmentKind);
+            ViewBag.OriginalParentDepartmentId = stored != null && stored.ParentDepartmentId.HasValue
+                ? stored.ParentDepartmentId.Value.ToString()
+                : string.Empty;
+            ViewBag.RequisitionInheritOptions = model.Id > 0
+                ? _departmentService.GetRequisitionInheritOptions(model.Id)
+                : new List<RequisitionInheritOptionVm>();
             ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
             ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);
 

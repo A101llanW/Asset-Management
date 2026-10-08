@@ -63,6 +63,7 @@ namespace AssetManagement.Application.Services
             if (model.RequisitionFlowMode == RequisitionFlowMode.AutoApprove)
             {
                 entity.RequisitionFlowMode = RequisitionFlowMode.AutoApprove;
+                entity.RequisitionInheritFrom = null;
                 entity.UseCustomRequisitionApproval = false;
                 entity.CustomStageRoleIds = null;
                 entity.CustomStageUserIds = null;
@@ -73,6 +74,10 @@ namespace AssetManagement.Application.Services
 
             entity.UseCustomRequisitionApproval = useCustom;
             entity.RequisitionFlowMode = useCustom ? RequisitionFlowMode.Custom : RequisitionFlowMode.InheritParent;
+            // Inherit source only applies to Inherit mode; null = nearest ancestor (legacy default).
+            entity.RequisitionInheritFrom = useCustom
+                ? null
+                : DepartmentRequisitionFlowResolver.NormalizeInheritChoice(model.RequisitionInheritFrom);
 
             if (!useCustom)
             {

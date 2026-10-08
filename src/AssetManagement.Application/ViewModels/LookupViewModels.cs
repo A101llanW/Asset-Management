@@ -29,6 +29,12 @@ namespace AssetManagement.Application.ViewModels
 
         public RequisitionFlowMode RequisitionFlowMode { get; set; }
 
+        /// <summary>Inherit mode only: null = nearest ancestor (default); SubDepartment / Department = that ancestor's flow.</summary>
+        public RequisitionInheritSource? RequisitionInheritFrom { get; set; }
+
+        /// <summary>Edit: new parents for active children that the Kind/Parent change would make invalid (same save).</summary>
+        public IList<DepartmentChildMoveVm> ChildMoves { get; set; } = new List<DepartmentChildMoveVm>();
+
         /// <summary>Custom on X / Inherited from Y / Organization Approval Matrix</summary>
         public string EffectiveRequisitionFlowSource { get; set; }
 
@@ -55,6 +61,58 @@ namespace AssetManagement.Application.ViewModels
         public IList<ApprovalProcessSettingsVm> RequisitionApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
 
         public IList<DepartmentVm> Children { get; set; } = new List<DepartmentVm>();
+    }
+
+    public class DepartmentChildMoveVm
+    {
+        public int ChildDepartmentId { get; set; }
+
+        /// <summary>Null = not chosen; 0 = no parent (independent); otherwise the new parent department id.</summary>
+        public int? NewParentDepartmentId { get; set; }
+    }
+
+    public class DepartmentParentOptionVm
+    {
+        /// <summary>0 = no parent (independent).</summary>
+        public int Id { get; set; }
+
+        public string Label { get; set; }
+    }
+
+    public class DepartmentKindChangeImpactItemVm
+    {
+        public int ChildId { get; set; }
+
+        public string ChildName { get; set; }
+
+        public string ChildCode { get; set; }
+
+        public string ChildKindLabel { get; set; }
+
+        public string Reason { get; set; }
+
+        public IList<DepartmentParentOptionVm> Candidates { get; set; } = new List<DepartmentParentOptionVm>();
+    }
+
+    public class DepartmentKindChangeImpactVm
+    {
+        public int DepartmentId { get; set; }
+
+        public string NewKindLabel { get; set; }
+
+        public IList<DepartmentKindChangeImpactItemVm> Items { get; set; } = new List<DepartmentKindChangeImpactItemVm>();
+    }
+
+    public class RequisitionInheritOptionVm
+    {
+        public RequisitionInheritSource Source { get; set; }
+
+        public int AncestorId { get; set; }
+
+        public string AncestorName { get; set; }
+
+        /// <summary>e.g. "Sub-department: Office Services" / "Department: Facilities".</summary>
+        public string Label { get; set; }
     }
 
     public class DepartmentCreateVm

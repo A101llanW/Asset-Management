@@ -195,19 +195,39 @@ namespace AssetManagement.Application.Services
 
         public void Update(DepartmentVm model)
         {
-            var entity = _unitOfWork.Repository<Department>().GetById(model.Id);
+            var repository = _unitOfWork.Repository<Department>();
+            var entity = repository.GetById(model.Id);
             if (entity == null)
             {
                 return;
             }
 
-            var allDepartments = _unitOfWork.Repository<Department>().GetAll().ToList();
+            var allDepartments = repository.GetAll().ToList();
             DepartmentHierarchyRules.AssertValidHierarchy(
                 model.Id,
                 model.DepartmentKind,
                 model.ParentDepartmentId,
                 allDepartments);
 
+            // Kind/Parent change on a unit with ACTIVE children: every child the change would make invalid
+            // must get a valid new parent in the same save (server re-validates the whole affected subtree).
+            var childMoves = DepartmentKindChangeGuard.NormalizeMoves(model.ChildMoves);
+            DepartmentKindChangeGuard.AssertChildrenRemainValid(
+                model.Id,
+                string.IsNullOrWhiteSpace(model.Name) ? entity.Name : model.Name,
+                model.DepartmentKind,
+                model.ParentDepartmentId,
+                childMoves,
+                allDepartments);
+
+            var flowConfigurable = DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind);
+            if (flowConfigurable)
+            {
+                AssertInheritSourceAvailable(model, allDepartments);
+            }
+
+            var oldKind = entity.DepartmentKind;
+            var oldParentId = entity.ParentDepartmentId;
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
@@ -235,16 +255,167 @@ namespace AssetManagement.Application.Services
                 entity.ClassTeacherUserId = null;
                 entity.RoomCustodianUserId = null;
             }
-            if (DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
+            if (flowConfigurable)
             {
                 DepartmentRequisitionApprovalSettingsHelper.ApplyToDepartment(entity, model);
             }
-            entity.UpdatedAt = DateTime.UtcNow;
+            else
+            {
+                entity.RequisitionInheritFrom = null;
+            }
+            var now = DateTime.UtcNow;
+            entity.UpdatedAt = now;
 
-            _unitOfWork.Repository<Department>().Update(entity);
-            _unitOfWork.SaveChanges();
+            var movedChildren = new List<KeyValuePair<Department, int?>>();
+            _unitOfWork.ExecuteInTransaction(() =>
+            {
+                repository.Update(entity);
+                foreach (var move in childMoves)
+                {
+                    var child = repository.GetById(move.Key);
+                    if (child == null)
+                    {
+                        throw new BusinessException("Child department #" + move.Key + " was not found.");
+                    }
+
+                    var previousParentId = child.ParentDepartmentId;
+                    child.ParentDepartmentId = move.Value;
+                    child.UpdatedAt = now;
+                    repository.Update(child);
+                    movedChildren.Add(new KeyValuePair<Department, int?>(child, previousParentId));
+                }
+
+                _unitOfWork.SaveChanges();
+            });
             InvalidateDepartmentCache();
-            WriteDepartmentAudit("Departments.Edit", entity.Id.ToString(), null, entity.Name);
+            WriteDepartmentAudit(
+                "Departments.Edit",
+                entity.Id.ToString(),
+                oldKind != entity.DepartmentKind || oldParentId != entity.ParentDepartmentId
+                    ? "Kind=" + oldKind + ";ParentId=" + (oldParentId.HasValue ? oldParentId.Value.ToString() : "-")
+                    : null,
+                entity.Name);
+            foreach (var moved in movedChildren)
+            {
+                WriteDepartmentAudit(
+                    "Departments.MoveChild",
+                    moved.Key.Id.ToString(),
+                    "ParentId=" + (moved.Value.HasValue ? moved.Value.Value.ToString() : "-"),
+                    moved.Key.Name + ";ParentId=" + (moved.Key.ParentDepartmentId.HasValue ? moved.Key.ParentDepartmentId.Value.ToString() : "-")
+                        + ";Reason=Kind change on " + entity.Name);
+            }
+        }
+
+        public DepartmentKindChangeImpactVm GetKindChangeImpact(int id, DepartmentKind newKind, int? newParentId)
+        {
+            var result = new DepartmentKindChangeImpactVm
+            {
+                DepartmentId = id,
+                NewKindLabel = DepartmentHierarchyRules.DisplayLabel(newKind)
+            };
+            var entity = _unitOfWork.Repository<Department>().GetById(id);
+            if (entity == null)
+            {
+                return result;
+            }
+
+            var allDepartments = _unitOfWork.Repository<Department>().GetAll().ToList();
+            foreach (var impact in DepartmentKindChangeGuard.Analyze(id, newKind, newParentId, allDepartments))
+            {
+                var item = new DepartmentKindChangeImpactItemVm
+                {
+                    ChildId = impact.Child.Id,
+                    ChildName = impact.Child.Name,
+                    ChildCode = impact.Child.Code,
+                    ChildKindLabel = DepartmentHierarchyRules.DisplayLabel(impact.Child.DepartmentKind),
+                    Reason = impact.Reason
+                };
+                if (impact.AllowNoParent)
+                {
+                    item.Candidates.Add(new DepartmentParentOptionVm { Id = 0, Label = "No parent (independent)" });
+                }
+
+                foreach (var candidate in impact.CandidateParents)
+                {
+                    item.Candidates.Add(new DepartmentParentOptionVm
+                    {
+                        Id = candidate.Id,
+                        Label = DepartmentHierarchyRules.DisplayLabel(candidate.DepartmentKind) + ": "
+                            + DepartmentLabelHelper.FormatCodeName(candidate.Code, candidate.Name)
+                    });
+                }
+
+                result.Items.Add(item);
+            }
+
+            return result;
+        }
+
+        public IList<RequisitionInheritOptionVm> GetRequisitionInheritOptions(int departmentId)
+        {
+            var entity = _unitOfWork.Repository<Department>().GetById(departmentId);
+            if (entity == null || !DepartmentHierarchyRules.CanConfigureRequisitionFlow(entity.DepartmentKind))
+            {
+                return new List<RequisitionInheritOptionVm>();
+            }
+
+            var byId = _unitOfWork.Repository<Department>().GetAll()
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+            Func<int, Department> getById = id =>
+            {
+                Department found;
+                return byId.TryGetValue(id, out found) ? found : null;
+            };
+
+            return DepartmentRequisitionFlowResolver.GetInheritOptions(entity, getById)
+                .Select(x => new RequisitionInheritOptionVm
+                {
+                    Source = x.Source,
+                    AncestorId = x.AncestorId,
+                    AncestorName = x.AncestorName,
+                    Label = (x.Source == RequisitionInheritSource.SubDepartment ? "Sub-department: " : "Department: ")
+                        + DepartmentLabelHelper.FormatCodeName(x.AncestorCode, x.AncestorName)
+                })
+                .ToList();
+        }
+
+        private static void AssertInheritSourceAvailable(DepartmentVm model, IList<Department> allDepartments)
+        {
+            var choice = DepartmentRequisitionFlowResolver.NormalizeInheritChoice(model.RequisitionInheritFrom);
+            if (!choice.HasValue
+                || model.UseCustomRequisitionApproval
+                || model.RequisitionFlowMode == RequisitionFlowMode.Custom
+                || model.RequisitionFlowMode == RequisitionFlowMode.AutoApprove)
+            {
+                return;
+            }
+
+            var probe = new Department
+            {
+                Id = model.Id,
+                ParentDepartmentId = model.ParentDepartmentId,
+                DepartmentKind = model.DepartmentKind
+            };
+            var byId = allDepartments.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+            Func<int, Department> getById = id =>
+            {
+                if (id == probe.Id)
+                {
+                    return probe;
+                }
+
+                Department found;
+                return byId.TryGetValue(id, out found) ? found : null;
+            };
+
+            if (DepartmentRequisitionFlowResolver.FindInheritAncestor(probe, choice.Value, getById) == null)
+            {
+                throw new BusinessException(
+                    "Inherit flow from '" + (choice.Value == RequisitionInheritSource.SubDepartment ? "Sub-department" : "Department")
+                    + "' is not available: this unit has no such ancestor under the selected parent. "
+                    + "Choose 'Nearest parent (default)', or save the new parent first and then pick the inherit source.");
+            }
         }
 
         private void WriteDepartmentAudit(string action, string entityId, string oldValues, string newValues)
@@ -610,6 +781,9 @@ namespace AssetManagement.Application.Services
                 DepartmentKind = entity.DepartmentKind,
                 IsRequisitionTarget = entity.IsRequisitionTarget,
                 RequisitionFlowMode = mode,
+                RequisitionInheritFrom = mode == RequisitionFlowMode.InheritParent
+                    ? DepartmentRequisitionFlowResolver.NormalizeInheritChoice(entity.RequisitionInheritFrom)
+                    : null,
                 IsActive = entity.IsActive,
                 UseCustomRequisitionApproval = entity.UseCustomRequisitionApproval
                     || mode == RequisitionFlowMode.Custom,
@@ -688,7 +862,8 @@ namespace AssetManagement.Application.Services
             }
             else
             {
-                model.EffectiveRequisitionFlowSummary = "Inherit: " + stageSummary;
+                // Show the effective source, e.g. "Inherit - from Sub: X | ..." / "Inherit - from Dept: Y | ...".
+                model.EffectiveRequisitionFlowSummary = detailed.InheritSourceDisplay + " | " + stageSummary;
             }
         }
     }

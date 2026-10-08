@@ -186,6 +186,31 @@
             new { @class = "form-select", id = "class-parent-select" })
         <div class="form-text">Classes must belong to a grade (grouping). Parent options are live grades from this organisation only.</div>
     </div>
+    <div class="card border-warning mb-3 d-none" id="kind-change-children-panel"
+         data-impact-url="@Url.Action("KindChangeImpact", new { id = Model.Id })"
+         data-original-kind="@(ViewBag.OriginalDepartmentKind as string)"
+         data-original-parent="@(ViewBag.OriginalParentDepartmentId as string)">
+        <div class="card-header">Child units need a new parent</div>
+        <div class="card-body">
+            <p class="mb-2" id="kind-change-children-intro">This change would leave the active child units below in an invalid place (for example a room under a room). Pick a valid new parent for each one. The child moves and this change are saved together; nothing is saved if you go Back.</p>
+            <div class="row g-2 align-items-end mb-2" id="kind-change-apply-all-row">
+                <div class="col-sm-8">
+                    <label class="form-label mb-0" for="kind-change-apply-all">Move all listed children to (optional)</label>
+                    <select class="form-select form-select-sm" id="kind-change-apply-all"></select>
+                </div>
+                <div class="col-sm-4">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="kind-change-apply-all-btn">Apply to all</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Child unit</th><th>Kind</th><th>Why it must move</th><th style="min-width:16rem;">New parent</th></tr></thead>
+                    <tbody id="kind-change-children-body"></tbody>
+                </table>
+            </div>
+            <div class="text-danger small mt-2 d-none" id="kind-change-children-error"></div>
+        </div>
+    </div>
     <div class="mb-3 js-edit-class-teacher" id="edit-class-teacher" style="@(isClass ? null : "display:none;")">
         <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
         @Html.DropDownListFor(
@@ -276,6 +301,175 @@
                 kindSelect.addEventListener('change', syncParentSections);
             }
             syncParentSections();
+
+            // --- Kind-change guard: prompt for new parents of children the change would make invalid ---
+            var childPanel = document.getElementById('kind-change-children-panel');
+            var childBody = document.getElementById('kind-change-children-body');
+            var childError = document.getElementById('kind-change-children-error');
+            var applyAllSelect = document.getElementById('kind-change-apply-all');
+            var applyAllBtn = document.getElementById('kind-change-apply-all-btn');
+            var applyAllRow = document.getElementById('kind-change-apply-all-row');
+            var impactSeq = 0;
+
+            function postedParentValue() {
+                var kind = kindSelect ? kindSelect.value : '';
+                if (kind === subKind && subParentSelect) { return subParentSelect.value || ''; }
+                if (kind === classKind && classParentSelect) { return classParentSelect.value || ''; }
+                return roomParentHidden ? (roomParentHidden.value || '') : '';
+            }
+
+            function hierarchyChanged() {
+                if (!childPanel || !kindSelect) { return false; }
+                return kindSelect.value !== (childPanel.getAttribute('data-original-kind') || '')
+                    || postedParentValue() !== (childPanel.getAttribute('data-original-parent') || '');
+            }
+
+            function clearChildPanel() {
+                if (!childPanel) { return; }
+                childBody.innerHTML = '';
+                childPanel.classList.add('d-none');
+            }
+
+            function addOption(select, value, label) {
+                var opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                select.appendChild(opt);
+                return opt;
+            }
+
+            function renderChildPanel(data) {
+                childBody.innerHTML = '';
+                var items = (data && data.items) || [];
+                if (!items.length) { clearChildPanel(); return; }
+                var common = null;
+                items.forEach(function (item, index) {
+                    var tr = document.createElement('tr');
+                    tr.setAttribute('data-am-kind-change-child', String(item.childId));
+                    var nameTd = document.createElement('td');
+                    nameTd.textContent = item.childName + (item.childCode ? ' (' + item.childCode + ')' : '');
+                    var hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'ChildMoves[' + index + '].ChildDepartmentId';
+                    hidden.value = String(item.childId);
+                    nameTd.appendChild(hidden);
+                    var kindTd = document.createElement('td');
+                    kindTd.textContent = item.childKindLabel || '';
+                    var reasonTd = document.createElement('td');
+                    reasonTd.className = 'small text-muted';
+                    reasonTd.textContent = item.reason || '';
+                    var selTd = document.createElement('td');
+                    var sel = document.createElement('select');
+                    sel.className = 'form-select form-select-sm js-kind-change-new-parent';
+                    sel.name = 'ChildMoves[' + index + '].NewParentDepartmentId';
+                    sel.required = true;
+                    var placeholder = addOption(sel, '', '-- Select new parent --');
+                    placeholder.disabled = false;
+                    var ids = [];
+                    (item.candidates || []).forEach(function (c) {
+                        addOption(sel, String(c.id), c.label);
+                        ids.push(String(c.id));
+                    });
+                    if (!ids.length) {
+                        sel.disabled = true;
+                        placeholder.textContent = '-- No valid parent in this organisation --';
+                    }
+                    selTd.appendChild(sel);
+                    tr.appendChild(nameTd);
+                    tr.appendChild(kindTd);
+                    tr.appendChild(reasonTd);
+                    tr.appendChild(selTd);
+                    childBody.appendChild(tr);
+                    common = common === null ? ids : common.filter(function (id) { return ids.indexOf(id) >= 0; });
+                });
+
+                applyAllSelect.innerHTML = '';
+                addOption(applyAllSelect, '', '-- Choose --');
+                var firstSel = childBody.querySelector('select.js-kind-change-new-parent');
+                (common || []).forEach(function (id) {
+                    var src = firstSel ? firstSel.querySelector('option[value="' + id + '"]') : null;
+                    addOption(applyAllSelect, id, src ? src.textContent : id);
+                });
+                applyAllRow.style.display = (items.length > 1 && common && common.length) ? '' : 'none';
+                childError.classList.add('d-none');
+                childPanel.classList.remove('d-none');
+            }
+
+            function refreshChildImpact() {
+                if (!childPanel) { return; }
+                if (!hierarchyChanged()) { clearChildPanel(); return; }
+                var seq = ++impactSeq;
+                var url = childPanel.getAttribute('data-impact-url')
+                    + (childPanel.getAttribute('data-impact-url').indexOf('?') >= 0 ? '&' : '?')
+                    + 'kind=' + encodeURIComponent(kindSelect.value)
+                    + '&parentId=' + encodeURIComponent(postedParentValue());
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState !== 4 || seq !== impactSeq) { return; }
+                    if (xhr.status === 200) {
+                        try { renderChildPanel(JSON.parse(xhr.responseText)); } catch (e) { clearChildPanel(); }
+                    }
+                };
+                xhr.send();
+            }
+
+            if (applyAllBtn) {
+                applyAllBtn.addEventListener('click', function () {
+                    var value = applyAllSelect.value;
+                    if (!value) { return; }
+                    Array.prototype.forEach.call(childBody.querySelectorAll('select.js-kind-change-new-parent'), function (sel) {
+                        if (sel.querySelector('option[value="' + value + '"]')) { sel.value = value; }
+                    });
+                });
+            }
+
+            if (kindSelect) { kindSelect.addEventListener('change', refreshChildImpact); }
+            ['room-parent-select', 'sub-parent-select', 'class-parent-select'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) { el.addEventListener('change', function () { setTimeout(refreshChildImpact, 0); }); }
+            });
+            var editForm = kindSelect ? kindSelect.form : null;
+            if (editForm) {
+                editForm.addEventListener('submit', function (ev) {
+                    if (!childPanel || childPanel.classList.contains('d-none')) { return; }
+                    var missing = Array.prototype.filter.call(
+                        childBody.querySelectorAll('select.js-kind-change-new-parent'),
+                        function (sel) { return !sel.value; });
+                    if (missing.length) {
+                        ev.preventDefault();
+                        childError.textContent = 'Choose a new parent for every listed child unit before saving.';
+                        childError.classList.remove('d-none');
+                        childPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+            }
+            refreshChildImpact();
+
+            // --- Inherit source picker: only valid for the saved parent; disable when Kind/Parent changes ---
+            var inheritGroup = document.getElementById('requisition-inherit-source-group');
+            var inheritSelect = document.getElementById('requisition-inherit-source');
+            var inheritStale = document.getElementById('requisition-inherit-source-stale');
+            function syncInheritSource() {
+                if (!inheritGroup || !inheritSelect) { return; }
+                var customRadio = document.getElementById('requisition-approval-custom');
+                var isCustom = customRadio && customRadio.checked;
+                var stale = hierarchyChanged();
+                inheritGroup.style.display = isCustom ? 'none' : '';
+                inheritSelect.disabled = isCustom || stale;
+                if (inheritStale) { inheritStale.classList.toggle('d-none', !stale || isCustom); }
+            }
+            Array.prototype.forEach.call(document.querySelectorAll('input[name="RequisitionApprovalMode"]'), function (r) {
+                r.addEventListener('change', syncInheritSource);
+            });
+            if (kindSelect) { kindSelect.addEventListener('change', syncInheritSource); }
+            ['room-parent-select', 'sub-parent-select', 'class-parent-select'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) { el.addEventListener('change', function () { setTimeout(syncInheritSource, 0); }); }
+            });
+            if (editForm) { editForm.addEventListener('submit', syncInheritSource); }
+            syncInheritSource();
 
             if (window.AmRoomCustomApprovalStages) {
                 window.AmRoomCustomApprovalStages.init();

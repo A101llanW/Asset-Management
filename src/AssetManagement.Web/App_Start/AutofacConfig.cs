@@ -46,6 +46,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<NotificationQueryService>().As<INotificationQueryService>().InstancePerHttpRequest();
             builder.RegisterType<NotificationScheduleQueryService>().As<INotificationScheduleQueryService>().InstancePerHttpRequest();
             builder.RegisterType<DashboardQueryService>().As<IDashboardQueryService>().InstancePerHttpRequest();
+            builder.RegisterType<DepartmentKindCountQuery>().As<IDepartmentKindCountQuery>().InstancePerHttpRequest();
             builder.RegisterType<SearchQueryService>().As<ISearchQueryService>().InstancePerHttpRequest();
             builder.RegisterType<PendingApprovalQueryRepository>().As<IPendingApprovalQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<ReferenceDataCache>().As<IReferenceDataCache>().InstancePerHttpRequest();
