@@ -40,6 +40,26 @@
     SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom }) : null,
     SecondaryActionLabel = canCreateDepartment ? "Create room" : null
 })
+@{
+    var kindCounts = ViewBag.KindCounts as IDictionary<DepartmentKind, int>
+        ?? new Dictionary<DepartmentKind, int>();
+    Func<DepartmentKind, int> kindCountOf = k => kindCounts.ContainsKey(k) ? kindCounts[k] : 0;
+    Func<DepartmentVm, int> childCountOf = d => d != null && d.Children != null ? d.Children.Count : 0;
+}
+@if (Model.Any())
+{
+    <div class="card card-kpi border-0 shadow-sm mb-3" data-am-kind-counts>
+        <div class="card-body py-2 px-3">
+            <div class="d-flex flex-wrap gap-3 small text-secondary">
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Administrative)</strong> Admin</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.SubDepartment)</strong> Sub</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Room)</strong> Room</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Grade)</strong> Grade</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Class)</strong> Class</span>
+            </div>
+        </div>
+    </div>
+}
 <form class="am-list-toolbar" method="get">
     <div class="row g-2 align-items-center">
         <div class="col-md-4">
@@ -118,7 +138,7 @@ else if (viewMode == "tree")
                                     <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">&#9656;</button>
                                 }
                             </td>
-                            <td class="am-dept-name am-dept-indent-0">@parent.Name</td>
+                            <td class="am-dept-name am-dept-indent-0">@parent.Name@(childCountOf(parent) > 0 ? (" (" + childCountOf(parent) + ")") : "")</td>
                             <td>@Html.DepartmentKindBadge(parent.DepartmentKind)</td>
                             @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(parent.DepartmentKind))
                             {
@@ -212,13 +232,14 @@ else
     <div class="card card-kpi">
         <div class="card-body p-0">
             <table class="table mb-0">
-                <thead class="table-light"><tr><th>Name</th><th>Kind</th><th>Mode</th><th>Requisitions by</th><th>Flow</th><th>Description</th><th>Status</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Name</th><th>Kind</th><th>Parent</th><th>Mode</th><th>Requisitions by</th><th>Flow</th><th>Description</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
                     <tr>
                         <td>@item.Name</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ParentDepartmentName) ? "—" : item.ParentDepartmentName)</td>
                         @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>

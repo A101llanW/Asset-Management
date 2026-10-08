@@ -48,6 +48,20 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Search = search;
             var itemsList = items.OrderBy(x => x.Name).ToList();
             EnrichDepartmentPicNames(itemsList);
+            // One grouped pass over the filtered list (no N+1): per-kind counts for the Index summary.
+            ViewBag.KindCounts = itemsList
+                .GroupBy(x => x.DepartmentKind)
+                .ToDictionary(g => g.Key, g => g.Count());
+            var nameById = itemsList.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
+            foreach (var item in itemsList)
+            {
+                if (string.IsNullOrWhiteSpace(item.ParentDepartmentName)
+                    && item.ParentDepartmentId.HasValue
+                    && nameById.ContainsKey(item.ParentDepartmentId.Value))
+                {
+                    item.ParentDepartmentName = nameById[item.ParentDepartmentId.Value];
+                }
+            }
             var visibleIds = new System.Collections.Generic.HashSet<int>(itemsList.Select(x => x.Id));
             ViewBag.TreeSections = _departmentService.GetTreeSections(itemsList)
                 .Select(section => new DepartmentTreeSectionVm
