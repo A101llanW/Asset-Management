@@ -103,7 +103,7 @@
                 '<td class="small text-muted"><span style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;">' +
                 escapeHtml(hit.MatchReason) + "</span></td>" +
                 '<td class="text-end pe-3">' + queueBtn +
-                '<a class="btn btn-sm btn-outline-primary" href="' + detailsUrl + '">Open</a></td>" +
+                '<a class="btn btn-sm btn-outline-primary" href="' + detailsUrl + '">Open</a></td>' +
                 "</tr>"
             );
         }).join("");
