@@ -698,7 +698,11 @@ namespace AssetManagement.Application.Services
                 : model.Currency.Trim().ToUpperInvariant();
             entity.SupplierId = NormalizeOptionalId(model.SupplierId);
             entity.DepartmentId = newDepartmentId;
-            entity.ConditionOnReceipt = model.ConditionOnReceipt;
+            // The Edit form has no Condition-on-receipt field, so a missing value must not clear it.
+            if (model.ConditionOnReceipt != null)
+            {
+                entity.ConditionOnReceipt = model.ConditionOnReceipt;
+            }
             entity.UsefulLifeMonths = UsefulLifeResolver.Resolve(_unitOfWork, model.AssetTypeId, model.CategoryId);
             entity.IsInsured = model.IsInsured;
             entity.InsuredValue = model.InsuredValue;
@@ -718,7 +722,25 @@ namespace AssetManagement.Application.Services
             DepreciationSettingsHelper.ApplyAssetOverrides(entity, model, model.CanManageDepreciationSettings);
             ApplyCalculatedDepreciation(entity);
 
+            var storedTransferRoleIds = entity.TransferApprovalStageRoleIds;
+            var storedTransferUserIds = entity.TransferApprovalStageUserIds;
+            var storedDisposalRoleIds = entity.DisposalApprovalStageRoleIds;
+            var storedDisposalUserIds = entity.DisposalApprovalStageUserIds;
             AssetApprovalSettingsHelper.ApplyToAsset(entity, model.ApprovalProcesses);
+            // When a process does not require approval its stage pickers are not in play (and may show no
+            // match for a stored role, posting ""): keep the stored stage roles/users instead of wiping them.
+            if (!entity.RequireTransferApproval)
+            {
+                entity.TransferApprovalStageRoleIds = storedTransferRoleIds;
+                entity.TransferApprovalStageUserIds = storedTransferUserIds;
+            }
+
+            if (!entity.RequireDisposalApproval)
+            {
+                entity.DisposalApprovalStageRoleIds = storedDisposalRoleIds;
+                entity.DisposalApprovalStageUserIds = storedDisposalUserIds;
+            }
+
             ApplySubType(entity, model);
 
             if (departmentChanged)

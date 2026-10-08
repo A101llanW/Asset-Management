@@ -391,11 +391,31 @@ WHERE pr.[Id] = @PurchaseRecordId";
             }
         }
 
+        /// <summary>
+        /// Columns that are NULL-able in the database but mapped to a non-nullable DateTime. A NULL is read
+        /// as DateTime.MinValue; writing that back used to be clamped to 1753-01-01, so any save of the row
+        /// (Edit, move, assign, ...) turned "not set" into 1753-01-01. MinValue is written back as NULL.
+        /// </summary>
+        private static readonly HashSet<string> NullableDateColumnsMappedAsDateTime = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Asset.PurchaseDate",
+            "Asset.DepreciationStartDate"
+        };
+
         private static void AddParameters(SqlCommand command, IEnumerable<PropertyInfo> properties, object entity)
         {
             foreach (var property in properties)
             {
-                AddParameter(command, property.Name, property.GetValue(entity, null));
+                var value = property.GetValue(entity, null);
+                if (value is DateTime
+                    && (DateTime)value == DateTime.MinValue
+                    && property.DeclaringType != null
+                    && NullableDateColumnsMappedAsDateTime.Contains(property.DeclaringType.Name + "." + property.Name))
+                {
+                    value = null;
+                }
+
+                AddParameter(command, property.Name, value);
             }
         }
 
