@@ -24,10 +24,13 @@ namespace AssetManagement.Web.Controllers
         }
         public ActionResult Index(int? assetTypeId = null, string search = null, bool? activeOnly = true)
         {
-            var query = UnitOfWork.Repository<AssetSubType>().GetAll().AsQueryable();
+            // Query() (not GetAll()): type, active and search filters run as one SQL WHERE instead of
+            // loading every sub-type of the organisation. The exact match below still runs in memory.
+            var query = UnitOfWork.Repository<AssetSubType>().Query();
             if (assetTypeId.HasValue && assetTypeId.Value > 0)
             {
-                query = query.Where(x => x.AssetTypeId == assetTypeId.Value);
+                var typeId = assetTypeId.Value;
+                query = query.Where(x => x.AssetTypeId == typeId);
             }
 
             if (activeOnly != false)
@@ -35,10 +38,16 @@ namespace AssetManagement.Web.Controllers
                 query = query.Where(x => x.IsActive);
             }
 
-            var loaded = query.OrderBy(x => x.Name).ToList();
-            if (!string.IsNullOrWhiteSpace(search))
+            var term = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            // LIKE wildcards are not escaped by the repository, so such terms are matched in memory only.
+            if (term != null && term.IndexOfAny(new[] { '%', '_', '[' }) < 0)
             {
-                var term = search.Trim();
+                query = query.Where(x => x.Name.Contains(term) || x.Brand.Contains(term) || x.Model.Contains(term) || x.Sku.Contains(term));
+            }
+
+            var loaded = query.ToList().OrderBy(x => x.Name).ToList();
+            if (term != null)
+            {
                 loaded = loaded.Where(x =>
                     (x.Name != null && x.Name.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     || (x.Brand != null && x.Brand.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)
@@ -46,7 +55,8 @@ namespace AssetManagement.Web.Controllers
                     || (x.Sku != null && x.Sku.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
             }
 
-            var types = UnitOfWork.Repository<AssetType>().GetAll().ToDictionary(x => x.Id, x => x);
+            var allTypes = UnitOfWork.Repository<AssetType>().GetAll();
+            var types = allTypes.ToDictionary(x => x.Id, x => x);
             var categories = UnitOfWork.Repository<AssetCategory>().GetAll().ToDictionary(x => x.Id, x => x.Name);
             var items = loaded.Select(x =>
             {
@@ -77,7 +87,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Search = search;
             ViewBag.ActiveOnly = activeOnly != false;
             ViewBag.AssetTypes = new SelectList(
-                UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
+                allTypes.Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
                 "Id", "Name", assetTypeId);
             return View(items);
         }
