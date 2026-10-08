@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Domain.Enums;
@@ -170,9 +171,7 @@ LEFT JOIN [Asset] ra ON ra.[Id] = r.[RequestedAssetId]
 WHERE r.[OrganizationId] = @OrganizationId
   AND r.[IsActive] = 1
   AND r.[Status] = @AssetRequestPendingStatus
-  AND " + AssetRequestDepartmentScopeSql + @"
-
-ORDER BY RequestedDateUtc DESC";
+  AND " + AssetRequestDepartmentScopeSql + @"";
 
         private readonly ISqlConnectionFactory _connectionFactory;
 
@@ -269,7 +268,9 @@ ORDER BY RequestedDateUtc DESC";
                 }
             }
 
-            return items;
+            // Sorted here rather than with ORDER BY in SQL: the UNION ALL sort needed a ~1 MB query
+            // memory grant on every Dashboard/PendingApprovals hit (RESOURCE_SEMAPHORE on SQL Express).
+            return items.OrderByDescending(x => x.RequestedDateUtc).ToList();
         }
 
         private static void AddScopeParameters(
