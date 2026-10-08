@@ -155,7 +155,7 @@ GROUP BY [OrganizationId];";
         {
             // Approximate share: sum of per-org row counts across the largest tenant-scoped tables.
             const string sql = @"
-SELECT OrganizationId, SUM(RowCnt) AS RowCount
+SELECT OrganizationId, SUM(RowCnt) AS [RowCount]
 FROM (
     SELECT [OrganizationId], COUNT_BIG(*) AS RowCnt FROM [Asset] WHERE [OrganizationId] IS NOT NULL GROUP BY [OrganizationId]
     UNION ALL
