@@ -45,18 +45,6 @@ namespace AssetManagement.Web.Filters
       return _permissionCodes.Any(code => authorizationService.HasPermission(userId, code));
     }
 
-    public override void OnAuthorization(AuthorizationContext filterContext)
-    {
-      // Custodian self-service actions (My Assets, Details of an asset the user holds): signed-in users pass
-      // here and the action limits data to their own custody.
-      if (AllowCustodianSelfServiceAttribute.AppliesToAuthenticated(filterContext))
-      {
-        return;
-      }
-
-      base.OnAuthorization(filterContext);
-    }
-
     protected override void HandleUnauthorizedRequest(AuthorizationContext filterContext)
     {
       if (!filterContext.HttpContext.User.Identity.IsAuthenticated)

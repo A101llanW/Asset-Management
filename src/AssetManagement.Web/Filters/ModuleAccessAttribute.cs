@@ -17,18 +17,6 @@ namespace AssetManagement.Web.Filters
             _moduleKey = moduleKey;
         }
 
-        public override void OnAuthorization(AuthorizationContext filterContext)
-        {
-            // Custodian self-service actions (My Assets, Details of an asset the user holds): signed-in users pass
-            // here and the action limits data to their own custody.
-            if (AllowCustodianSelfServiceAttribute.AppliesToAuthenticated(filterContext))
-            {
-                return;
-            }
-
-            base.OnAuthorization(filterContext);
-        }
-
         protected override void HandleUnauthorizedRequest(AuthorizationContext filterContext)
         {
             // Signed-in but no module access: in-app Forbidden page (403) instead of a 401 that bounces to login.
