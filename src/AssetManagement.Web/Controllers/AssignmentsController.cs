@@ -51,6 +51,12 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToAction("List");
             }
 
+            // Assignment history for one asset: same visibility as Details (the current custodian may see it too).
+            if (!CanViewAssetInScope(UnitOfWork.Repository<Asset>().GetById(assetId.Value), allowCurrentCustodian: true))
+            {
+                return HttpNotFound();
+            }
+
             ViewBag.AssetId = assetId.Value;
             var users = BuildUserService().GetAll()
                 .ToDictionary(x => x.Id, x => BuildUserLabel(x));
@@ -83,8 +89,9 @@ namespace AssetManagement.Web.Controllers
             }
 
             var asset = UnitOfWork.Repository<Asset>().GetById(assetId.Value);
-            if (asset == null)
+            if (asset == null || !CanViewAssetInScope(asset))
             {
+                // Same rule as Assets/Details: an asset the user cannot see is "not found" (QA2 R-scope-leak-assign).
                 return HttpNotFound();
             }
 
