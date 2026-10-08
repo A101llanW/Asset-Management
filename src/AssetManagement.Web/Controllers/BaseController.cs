@@ -377,6 +377,38 @@ namespace AssetManagement.Web.Controllers
         protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)
         {
             var items = new List<SelectListItem>();
+            var departmentScope = DependencyResolver.Current.GetService<IDepartmentScopeService>();
+            if (departmentScope != null
+                && !departmentScope.BypassesDepartmentScope
+                && departmentScope.IncludesClassDepartmentAssets)
+            {
+                // R-DEADMOVE: scoped Assets.Transfer holders may relocate class assets across the org, but their
+                // department scope hides the Grade parents, so GetTreeSections() yields no classes and the unit
+                // "Move" button opened an empty/unrendered modal. Build the same "Grade -> Class" list from the
+                // org-scoped repository (active classes under an active grade only, as the tree does).
+                var units = UnitOfWork.Repository<Department>().Query()
+                    .Where(x => x.IsActive
+                        && (x.DepartmentKind == DepartmentKind.Class || x.DepartmentKind == DepartmentKind.Grade))
+                    .ToList();
+                var grades = units.Where(x => x.DepartmentKind == DepartmentKind.Grade).ToDictionary(x => x.Id);
+                foreach (var child in units
+                    .Where(x => x.DepartmentKind == DepartmentKind.Class
+                        && x.ParentDepartmentId.HasValue
+                        && grades.ContainsKey(x.ParentDepartmentId.Value))
+                    .OrderBy(x => grades[x.ParentDepartmentId.Value].Code, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    items.Add(new SelectListItem
+                    {
+                        Value = child.Id.ToString(),
+                        Text = grades[child.ParentDepartmentId.Value].Name + " \u2192 " + child.Name,
+                        Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
+                    });
+                }
+
+                return new SelectList(items, "Value", "Text", selectedDepartmentId);
+            }
+
             foreach (var section in BuildDepartmentService().GetTreeSections())
             {
                 foreach (var parent in section.Items)
