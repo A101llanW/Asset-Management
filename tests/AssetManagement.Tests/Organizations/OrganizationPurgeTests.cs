@@ -59,6 +59,18 @@ namespace AssetManagement.Tests.Organizations
         }
 
         [Test]
+        public void OrganizationSmtpSettings_DeleteIsGuarded_ForDatabasesWithoutMigration094()
+        {
+            // Code can ship before 094 (or run on an older DB): the purge must skip the missing table, not fail.
+            var statements = OrganizationPurgeSql.GetOrderedStatements();
+            var idx = Array.FindIndex(statements, s => s.IndexOf("DELETE FROM [OrganizationSmtpSettings]", StringComparison.Ordinal) >= 0);
+            Assert.GreaterOrEqual(idx, 0, "OrganizationSmtpSettings must be purged (FK to Organization).");
+            Assert.AreEqual(1, statements.Count(s => s.IndexOf("[OrganizationSmtpSettings]", StringComparison.Ordinal) >= 0));
+            StringAssert.StartsWith("IF OBJECT_ID(N'[OrganizationSmtpSettings]', N'U') IS NOT NULL DELETE FROM [OrganizationSmtpSettings] WHERE [OrganizationId] = @OrgId", statements[idx]);
+            Assert.Less(idx, OrganizationPurgeSql.OrganizationDeleteIndex, "must run before the Organization row delete");
+        }
+
+        [Test]
         public void BuildSafeDelete_NullOrBlank_Throws()
         {
             Assert.Throws<ArgumentException>(() => OrganizationPurgeSql.BuildSafeDelete(null));
