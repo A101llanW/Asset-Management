@@ -55,7 +55,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead>
                     <tr class="bg-light" style="font-size:0.82rem;letter-spacing:0.04em;">
-                        <th class="ps-3">@Html.SortLink("Date", "date", currentSort, currentDirection)</th>
+                        <th class="ps-3">@Html.SortLink("Date (" + KenyaTimeHelper.DisplayAbbreviation + ")", "date", currentSort, currentDirection)</th>
                         <th>@Html.SortLink("Asset", "asset", currentSort, currentDirection)</th>
                         <th>@Html.SortLink("Assignee", "user", currentSort, currentDirection)</th>
                         <th>@Html.SortLink("Department", "department", currentSort, currentDirection)</th>
