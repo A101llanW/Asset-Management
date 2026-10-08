@@ -17,6 +17,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int? ToDepartmentId { get; set; }
 
+        /// <summary>Move or Keep for cross-department custodians; null = Keep.</summary>
+        public string DepartmentDisposition { get; set; }
+
         [StringLength(128)]
         public string HandedOverById { get; set; }
 
@@ -75,6 +78,9 @@ namespace AssetManagement.Application.ViewModels
         public string HandoverNotes { get; set; }
 
         public string ReturnUrl { get; set; }
+
+        /// <summary>Move or Keep when a custodian is in a different department than the asset (default Keep).</summary>
+        public string DepartmentDisposition { get; set; }
 
         public BatchAssignResultVm LastResult { get; set; }
     }

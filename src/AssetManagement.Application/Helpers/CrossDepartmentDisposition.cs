@@ -79,8 +79,15 @@ namespace AssetManagement.Application.Helpers
                     : selectedDepartmentId;
             }
 
-            // Move (or missing choice - caller should prompt before reaching here)
-            return selectedDepartmentId;
+            if (choice == Move)
+            {
+                return selectedDepartmentId;
+            }
+
+            // No explicit choice: keep the asset's current department (never change it silently).
+            return assetDepartmentId.HasValue && assetDepartmentId.Value > 0
+                ? assetDepartmentId
+                : selectedDepartmentId;
         }
     }
 }

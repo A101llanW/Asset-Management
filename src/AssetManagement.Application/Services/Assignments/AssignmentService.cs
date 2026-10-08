@@ -186,11 +186,7 @@ namespace AssetManagement.Application.Services
                 asset.DepartmentId,
                 model.ToDepartmentId,
                 toUserId);
-            if (isCrossDeptPerson && disposition == null)
-            {
-                throw new BusinessException(
-                    "This person belongs to a different department than the asset. Choose Move (update the asset department) or Keep (leave the asset in its current department).");
-            }
+            // Cross-department recipient with no explicit Move/Keep choice: keep the current department (see ResolveEffectiveDepartmentId).
 
             // Validate person against the selected/teacher department on the form.
             EnsureUserBelongsToDepartment(toUserId, model.ToDepartmentId);
@@ -201,6 +197,7 @@ namespace AssetManagement.Application.Services
                 model.ToDepartmentId,
                 toUserId,
                 disposition);
+            EnsureDepartmentMoveAllowed(asset.DepartmentId, effectiveDepartmentId);
 
             var assignment = new AssetAssignment
             {
@@ -309,11 +306,14 @@ namespace AssetManagement.Application.Services
                     }
 
                     assetTag = asset.AssetTag;
+                    var recipient = _userService.GetById(item.ToUserId);
                     var model = new AssetAssignmentVm
                     {
                         AssetId = item.AssetId,
                         ToUserId = item.ToUserId,
-                        ToDepartmentId = request.ToDepartmentId ?? asset.DepartmentId,
+                        // Recipient's own department, so a cross-department custodian follows the page's Move/Keep choice.
+                        ToDepartmentId = request.ToDepartmentId ?? (recipient != null ? recipient.DepartmentId : null) ?? asset.DepartmentId,
+                        DepartmentDisposition = request.DepartmentDisposition,
                         HandedOverById = request.HandedOverById,
                         AssignmentType = AssignmentType.Permanent.ToString(),
                         AssignedDate = DateTime.UtcNow,
@@ -421,6 +421,25 @@ namespace AssetManagement.Application.Services
         private static string NormalizeText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        /// <summary>Move/Keep "Move" (or a department-pool target) must still be an allowed move under AssetMoveRules.</summary>
+        private void EnsureDepartmentMoveAllowed(int? fromDepartmentId, int? toDepartmentId)
+        {
+            if (!fromDepartmentId.HasValue || fromDepartmentId.Value <= 0 || !toDepartmentId.HasValue || toDepartmentId.Value == fromDepartmentId.Value)
+            {
+                return;
+            }
+
+            var repo = _unitOfWork.Repository<Department>();
+            var from = repo.GetById(fromDepartmentId.Value);
+            var to = repo.GetById(toDepartmentId.Value);
+            if (to == null)
+            {
+                throw new BusinessException("Target department not found.");
+            }
+
+            AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, to.DepartmentKind);
         }
     }
 }

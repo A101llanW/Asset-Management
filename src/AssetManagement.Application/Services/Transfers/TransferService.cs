@@ -354,6 +354,7 @@ namespace AssetManagement.Application.Services
                 model.ToDepartmentId,
                 toUserId,
                 disposition);
+            EnsureDepartmentMoveAllowed(asset.DepartmentId, effectiveToDepartmentId);
 
             return new AssetTransfer
             {
@@ -417,6 +418,8 @@ namespace AssetManagement.Application.Services
 
             if (transfer.ToDepartmentId.HasValue)
             {
+                // The Move/Keep choice was captured at request time (ToDepartmentId); re-check the move rules at approval.
+                EnsureDepartmentMoveAllowed(asset.DepartmentId, transfer.ToDepartmentId);
                 asset.DepartmentId = transfer.ToDepartmentId.Value;
             }
 
@@ -504,11 +507,7 @@ namespace AssetManagement.Application.Services
                 asset.DepartmentId,
                 model.ToDepartmentId,
                 toUserId);
-            if (isCrossDeptPerson && disposition == null)
-            {
-                throw new BusinessException(
-                    "This person belongs to a different department than the asset. Choose Move (update the asset department) or Keep (leave the asset in its current department).");
-            }
+            // No explicit Move/Keep choice for a cross-department recipient: the transfer keeps the current department.
 
             // Keep vs Move is applied when creating/applying the transfer (effective department).
         }
@@ -593,6 +592,25 @@ namespace AssetManagement.Application.Services
         private static string NormalizeText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        /// <summary>Move/Keep "Move" (or a department-pool target) must still be an allowed move under AssetMoveRules.</summary>
+        private void EnsureDepartmentMoveAllowed(int? fromDepartmentId, int? toDepartmentId)
+        {
+            if (!fromDepartmentId.HasValue || fromDepartmentId.Value <= 0 || !toDepartmentId.HasValue || toDepartmentId.Value == fromDepartmentId.Value)
+            {
+                return;
+            }
+
+            var repo = _unitOfWork.Repository<Department>();
+            var from = repo.GetById(fromDepartmentId.Value);
+            var to = repo.GetById(toDepartmentId.Value);
+            if (to == null)
+            {
+                throw new BusinessException("Target department not found.");
+            }
+
+            AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, to.DepartmentKind);
         }
     }
 }

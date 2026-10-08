@@ -256,6 +256,7 @@ namespace AssetManagement.Web.Controllers
                 var request = new BatchAssignRequestVm
                 {
                     ToDepartmentId = model.ToDepartmentId,
+                    DepartmentDisposition = CrossDepartmentDisposition.Normalize(model.DepartmentDisposition) ?? CrossDepartmentDisposition.Keep,
                     HandedOverById = CurrentUserContext.UserId,
                     HandoverNotes = model.HandoverNotes,
                     Items = assignableRows
@@ -634,6 +635,13 @@ namespace AssetManagement.Web.Controllers
             var departments = GetActiveDepartments();
             ViewBag.RequireDepartmentDisposition = needsDisposition;
             ViewBag.DepartmentDispositionValue = disposition;
+            // Move must still be an allowed move (AssetMoveRules); otherwise the prompt disables Move with the rule message.
+            var fromKindVm = asset != null && asset.DepartmentId > 0 ? departments.FirstOrDefault(d => d.Id == asset.DepartmentId) : null;
+            var toKindVm = selectedDepartmentId.HasValue ? departments.FirstOrDefault(d => d.Id == selectedDepartmentId.Value) : null;
+            ViewBag.DepartmentMoveBlockedMessage = needsDisposition && toKindVm != null
+                && !AssetMoveRules.IsAllowed(fromKindVm == null ? (AssetManagement.Domain.Enums.DepartmentKind?)null : fromKindVm.DepartmentKind, toKindVm.DepartmentKind)
+                ? AssetMoveRules.RefusedMessage
+                : null;
             ViewBag.AssetDepartmentName = asset != null && asset.DepartmentId > 0
                 ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(asset.DepartmentId, departments) ?? "current department")
                 : "current department";

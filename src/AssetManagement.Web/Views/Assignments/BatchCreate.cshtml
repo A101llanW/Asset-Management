@@ -72,6 +72,18 @@
                     @Html.LabelFor(m => m.HandoverNotes, new { @class = "form-label" })
                     @Html.TextAreaFor(m => m.HandoverNotes, 2, 80, new { @class = "form-control", placeholder = "Optional notes applied to every assignment" })
                 </div>
+                <div class="col-12" id="am-batch-dept-disposition">
+                    <label class="form-label">If a custodian is in a different department than the asset</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="DepartmentDisposition" id="batchDispositionKeep" value="Keep" @(Model.DepartmentDisposition == "Move" ? "" : "checked") />
+                        <label class="form-check-label" for="batchDispositionKeep"><strong>Keep</strong> each asset in its current department (ownership changes only).</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="DepartmentDisposition" id="batchDispositionMove" value="Move" @(Model.DepartmentDisposition == "Move" ? "checked" : "") />
+                        <label class="form-check-label" for="batchDispositionMove"><strong>Move</strong> each asset to its new custodian's department.</label>
+                    </div>
+                    <div class="form-text">Moves follow the asset movement rules (room to room, between a room and a sub-department, or class to room); assets that cannot be moved are skipped with the reason.</div>
+                </div>
             </div>
         </div>
     </div>
