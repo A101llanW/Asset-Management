@@ -33,6 +33,7 @@ namespace AssetManagement.Web
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
+            AssetManagement.Web.App_Start.ViewWarmup.Start();
         }
 
         private static void ConfigureDevelopmentTraceListeners()
