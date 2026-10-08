@@ -209,6 +209,9 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            // Defence in depth for QA3-1: GetById is org-scoped only; a scoped user must not update another unit.
+            _departmentScope.EnsureCanAccessDepartment(entity);
+
             var allDepartments = repository.GetAll().ToList();
             DepartmentHierarchyRules.AssertValidHierarchy(
                 model.Id,
