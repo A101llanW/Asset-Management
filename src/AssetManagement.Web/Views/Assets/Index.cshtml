@@ -51,7 +51,9 @@
 
 <div class="card card-kpi border-0 shadow-sm mb-4 am-fade-content">
     <div class="card-body p-3">
-        <form class="am-list-toolbar mb-0" method="get" id="amAssetListFilterForm">
+        @* d-block: stack the filter row above the checkbox row. As a flex .am-list-toolbar the two rows sat side by side, so the
+           filter row only had half the card and its selects were squeezed at 1366px. *@
+        <form class="am-list-toolbar d-block mb-0" method="get" id="amAssetListFilterForm">
             <div class="row g-2 align-items-center">
                 @* Selects size to their longest option (col-lg-auto) so "Group by room" / "All statuses" are never clipped; search fills the rest. *@
                 <div class="col-12 col-lg" style="min-width: 12rem;">

@@ -2603,6 +2603,12 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The shorthand above also reset Bootstrap's select padding-right (room for the chevron), so the
+   arrow sat on the last letter. Multi/size selects keep Bootstrap's own (more specific) rule. */
+.form-select {
+    padding-right: 2.25rem;
+}
+
 .form-control:hover, .form-select:hover {
     border-color: hsla(205, 90%, 45%, 0.4);
 }
