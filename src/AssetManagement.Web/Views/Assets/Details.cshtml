@@ -1,4 +1,4 @@
-﻿@model AssetManagement.Application.ViewModels.AssetDetailsVm
+@model AssetManagement.Application.ViewModels.AssetDetailsVm
 @using AssetManagement.Application
 @using AssetManagement.Application.Services
 @using AssetManagement.Web.Helpers
@@ -313,7 +313,7 @@
                             <td>@eventItem.ConditionBefore</td>
                             <td>@eventItem.ConditionAfter</td>
                             <td>@eventItem.Reason</td>
-                            <td>@eventItem.ApprovedById</td>
+                            <td>@(string.IsNullOrWhiteSpace(eventItem.ApprovedBy) ? eventItem.ApprovedById : eventItem.ApprovedBy)</td>
                         </tr>
                     }
                     </tbody>
