@@ -176,6 +176,7 @@
             "-- Select administrative parent --",
             new { @class = "form-select", id = "sub-parent-select" })
         <div class="form-text">Sub-departments must belong to a top-level administrative department.</div>
+        <div class="text-danger small mt-1 d-none" id="sub-parent-error" role="alert"></div>
     </div>
     <div class="mb-3 js-edit-parent-class" id="edit-parent-class" style="@(isClass ? null : "display:none;")">
         <label class="form-label" for="class-parent-select">Parent grade</label>
@@ -449,17 +450,47 @@
                 if (el) { el.addEventListener('change', function () { setTimeout(refreshChildImpact, 0); }); }
             });
             var editForm = kindSelect ? kindSelect.form : null;
+            // The unit's own parent and its children are checked separately, so both messages show when both apply
+            // (e.g. a Sub-department with rooms whose own parent was cleared).
+            var subParentError = document.getElementById('sub-parent-error');
+            function ownParentMissing() {
+                return !!(kindSelect && kindSelect.value === subKind && subParentSelect && !subParentSelect.disabled && !subParentSelect.value);
+            }
+            if (subParentSelect && subParentError) {
+                subParentSelect.addEventListener('change', function () {
+                    if (!ownParentMissing()) { subParentError.classList.add('d-none'); }
+                });
+            }
+            if (kindSelect && subParentError) {
+                kindSelect.addEventListener('change', function () { subParentError.classList.add('d-none'); });
+            }
             if (editForm) {
                 editForm.addEventListener('submit', function (ev) {
-                    if (!childPanel || childPanel.classList.contains('d-none')) { return; }
-                    var missing = Array.prototype.filter.call(
-                        childBody.querySelectorAll('select.js-kind-change-new-parent'),
-                        function (sel) { return !sel.value; });
-                    if (missing.length) {
+                    var firstProblem = null;
+                    if (subParentError) {
+                        if (ownParentMissing()) {
+                            subParentError.textContent = 'Select a top-level administrative parent department.';
+                            subParentError.classList.remove('d-none');
+                            firstProblem = subParent;
+                        } else {
+                            subParentError.classList.add('d-none');
+                        }
+                    }
+                    if (childPanel && !childPanel.classList.contains('d-none')) {
+                        var missing = Array.prototype.filter.call(
+                            childBody.querySelectorAll('select.js-kind-change-new-parent'),
+                            function (sel) { return !sel.value; });
+                        if (missing.length) {
+                            childError.textContent = 'Choose a new parent for every listed child unit before saving.';
+                            childError.classList.remove('d-none');
+                            firstProblem = firstProblem || childPanel;
+                        } else {
+                            childError.classList.add('d-none');
+                        }
+                    }
+                    if (firstProblem) {
                         ev.preventDefault();
-                        childError.textContent = 'Choose a new parent for every listed child unit before saving.';
-                        childError.classList.remove('d-none');
-                        childPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstProblem.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                 });
             }
