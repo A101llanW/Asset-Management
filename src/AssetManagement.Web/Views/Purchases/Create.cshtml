@@ -53,6 +53,7 @@
 @using (Html.BeginForm())
 {
     @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true, "", new { @class = "text-danger", id = "purchase-create-errors" })
     @Html.HiddenFor(m => m.PurchaseRequestId)
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     <div class="row g-3">

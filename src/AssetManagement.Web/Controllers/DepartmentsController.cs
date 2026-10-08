@@ -728,7 +728,11 @@ namespace AssetManagement.Web.Controllers
             }
 
             var entity = UnitOfWork.Repository<Department>().GetById(model.Id);
-            if (entity != null)
+            // On a POST re-render (validation error) keep the posted Inherit/Custom choice; only GET loads the stored mode.
+            var isPostBack = HttpContext != null
+                && HttpContext.Request != null
+                && string.Equals(HttpContext.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase);
+            if (entity != null && !isPostBack)
             {
                 model.UseCustomRequisitionApproval = entity.UseCustomRequisitionApproval;
             }

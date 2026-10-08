@@ -139,7 +139,7 @@ namespace AssetManagement.Application.Services
             });
         }
 
-        /// <summary>"Procurement Officer" / "Procurement Officer (x@org)" style label.</summary>
+        /// <summary>"Procurement Officer" / "Procurement Officer — x@org (Name)" style label (same as stage display).</summary>
         public static string BuildLabel(ApprovalProcessConfiguration config, IDictionary<int, string> roleLookup, Func<string, string> personLabel)
         {
             if (!IsConfigured(config))
@@ -154,7 +154,7 @@ namespace AssetManagement.Application.Services
             }
 
             var person = personLabel == null ? null : personLabel(config.PurchaseOrderRaiserUserId);
-            return roleName + " (" + (string.IsNullOrWhiteSpace(person) ? config.PurchaseOrderRaiserUserId : person) + ")";
+            return roleName + " \u2014 " + (string.IsNullOrWhiteSpace(person) ? config.PurchaseOrderRaiserUserId : person);
         }
     }
 }
