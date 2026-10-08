@@ -61,7 +61,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     id = r.Id,
                     requestedBy = r.RequestedBy,
-                    requestDate = r.RequestDate.ToString("HH:mm dd MMM yyyy"),
+                    requestDate = AssetManagement.Application.Helpers.KenyaTimeHelper.FormatUtc(r.RequestDate, "HH:mm dd MMM yyyy") + " " + AssetManagement.Application.Helpers.KenyaTimeHelper.DisplayAbbreviation,
                     reason = r.Reason
                 })
                 .ToList();
@@ -126,12 +126,12 @@ namespace AssetManagement.Web.Controllers
             if (request.Status == ImpersonationRequestStatus.Pending)
             {
                 request.Status = approved ? ImpersonationRequestStatus.Approved : ImpersonationRequestStatus.Rejected;
-                request.DecisionDate = DateTime.Now;
+                request.DecisionDate = DateTime.UtcNow;
                 request.AdminNotes = notes;
                 if (approved)
                 {
                     var resolvedMinutes = ImpersonationDurationOptions.ResolveMinutes(durationMinutes);
-                    request.ExpiryDate = DateTime.Now.AddMinutes(resolvedMinutes);
+                    request.ExpiryDate = DateTime.UtcNow.AddMinutes(resolvedMinutes);
                 }
 
                 _unitOfWork.Repository<ImpersonationRequest>().Update(request);
@@ -191,13 +191,13 @@ namespace AssetManagement.Web.Controllers
             }
 
             var secondsLeft = activeImpersonation.ExpiryDate.HasValue
-                ? (int)(activeImpersonation.ExpiryDate.Value - DateTime.Now).TotalSeconds
+                ? (int)(activeImpersonation.ExpiryDate.Value - DateTime.UtcNow).TotalSeconds
                 : 3600;
 
             return Json(new
             {
                 isLocked = true,
-                expiry = activeImpersonation.ExpiryDate.HasValue ? activeImpersonation.ExpiryDate.Value.ToString("yyyy-MM-ddTHH:mm:ss") : null,
+                expiry = activeImpersonation.ExpiryDate.HasValue ? activeImpersonation.ExpiryDate.Value.ToString("yyyy-MM-ddTHH:mm:ss") + "Z" : null,
                 secondsLeft = Math.Max(0, secondsLeft),
                 unlockUrl = unlockUrl
             }, JsonRequestBehavior.AllowGet);

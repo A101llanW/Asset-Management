@@ -540,10 +540,10 @@
                                         var hideRow = i >= previewRowCount;
                                         var rowClass = hideRow ? "impersonation-history-extra d-none" : string.Empty;
                                         var sessionEnd = entry.ExpiryDate.HasValue
-                                            ? entry.ExpiryDate.Value.ToString("dd MMM yyyy HH:mm")
-                                            : (entry.DecisionDate.HasValue ? entry.DecisionDate.Value.ToString("dd MMM yyyy HH:mm") : DisplayText.Empty);
+                                            ? KenyaTimeHelper.FormatUtc(entry.ExpiryDate.Value, "dd MMM yyyy HH:mm") + " " + eatLabel
+                                            : (entry.DecisionDate.HasValue ? KenyaTimeHelper.FormatUtc(entry.DecisionDate.Value, "dd MMM yyyy HH:mm") + " " + eatLabel : DisplayText.Empty);
                                         <tr class="@rowClass">
-                                            <td><span class="text-muted">@entry.RequestDate.ToString("dd MMM yyyy HH:mm")</span></td>
+                                            <td><span class="text-muted">@KenyaTimeHelper.FormatUtc(entry.RequestDate, "dd MMM yyyy HH:mm") @eatLabel</span></td>
                                             <td><strong>@(string.IsNullOrWhiteSpace(entry.RequestedBy) ? "System" : entry.RequestedBy)</strong></td>
                                             <td>@(string.IsNullOrWhiteSpace(entry.RequestedFrom) ? DisplayText.Empty : entry.RequestedFrom)</td>
                                             <td><span class="badge @statusBadgeClass(entry.Status)">@entry.Status</span></td>

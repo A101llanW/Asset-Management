@@ -57,7 +57,7 @@ namespace AssetManagement.Web.Helpers
                 return true;
             }
 
-            if (request.ExpiryDate.HasValue && request.ExpiryDate.Value < DateTime.Now)
+            if (request.ExpiryDate.HasValue && request.ExpiryDate.Value < DateTime.UtcNow)
             {
                 return true;
             }
@@ -101,7 +101,7 @@ namespace AssetManagement.Web.Helpers
                 return;
             }
 
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             var staleRequests = unitOfWork.Repository<ImpersonationRequest>().Query()
                 .Where(r => r.OrganizationId == organizationId &&
                     r.ExpiryDate.HasValue &&
@@ -243,7 +243,7 @@ namespace AssetManagement.Web.Helpers
             }
 
             var secondsLeft = request.ExpiryDate.HasValue
-                ? (int)(request.ExpiryDate.Value - DateTime.Now).TotalSeconds
+                ? (int)(request.ExpiryDate.Value - DateTime.UtcNow).TotalSeconds
                 : 0;
             secondsLeft = Math.Max(0, secondsLeft);
 

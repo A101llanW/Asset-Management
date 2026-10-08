@@ -403,10 +403,10 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 OrganizationId = organizationId,
                 RequestedBy = GetActorName(),
                 RequestedFrom = targetAdmin,
-                RequestDate = DateTime.Now,
+                RequestDate = DateTime.UtcNow,
                 Status = ImpersonationRequestStatus.Pending,
                 Reason = reason,
-                ExpiryDate = DateTime.Now.AddHours(24),
+                ExpiryDate = DateTime.UtcNow.AddHours(24),
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -450,7 +450,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             if (request.Status == ImpersonationRequestStatus.Pending)
             {
                 request.Status = ImpersonationRequestStatus.Cancelled;
-                request.DecisionDate = DateTime.Now;
+                request.DecisionDate = DateTime.UtcNow;
                 _unitOfWork.Repository<ImpersonationRequest>().Update(request);
                 _unitOfWork.SaveChanges();
 
@@ -537,7 +537,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 return RedirectToAction("OrganizationDetails", new { id = request.OrganizationId });
             }
 
-            if (request.ExpiryDate.HasValue && request.ExpiryDate.Value < DateTime.Now)
+            if (request.ExpiryDate.HasValue && request.ExpiryDate.Value < DateTime.UtcNow)
             {
                 request.Status = ImpersonationRequestStatus.Expired;
                 _unitOfWork.Repository<ImpersonationRequest>().Update(request);
@@ -576,7 +576,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
 
         private OrganizationImpersonationState LoadImpersonationState(int organizationId, string actorName)
         {
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             var requests = _unitOfWork.Repository<ImpersonationRequest>().Query()
                 .Where(r => r.OrganizationId == organizationId && r.RequestedBy == actorName)
                 .ToList();
