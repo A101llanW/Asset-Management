@@ -1,5 +1,7 @@
 using System;
 using System.Configuration;
+using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Web.Mvc;
@@ -17,12 +19,17 @@ namespace AssetManagement.Web.Controllers
     /// Unauthenticated → Login (via [Authorize]). Tenant/company Admin → Forbidden.
     /// Only IOrganizationScopeService.IsActualPlatformAdmin() may use the console.
     /// Phase B (#3): IP allowlist via DatabaseConsoleAllowedIps + richer audit.
+    /// Audit (AuditLog): DB_CONSOLE_VIEW for every allowed page view, DB_CONSOLE_DENIED for every refused attempt
+    /// (unauthenticated, not Platform Admin, IP not allowlisted; written before the redirect), DB_CONSOLE_EXECUTE
+    /// for SQL execution. A logging failure never breaks the page.
     /// </summary>
     [Authorize]
     public class DatabaseConsoleController : Controller
     {
         private const int AuditSqlMaxLength = 8000;
         private const string AllowedIpsAppSettingKey = "DatabaseConsoleAllowedIps";
+        private const string AuditViewAction = "DB_CONSOLE_VIEW";
+        private const string AuditDeniedAction = "DB_CONSOLE_DENIED";
 
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
@@ -35,6 +42,25 @@ namespace AssetManagement.Web.Controllers
             _consoleService = DependencyResolver.Current.GetService<DatabaseConsoleService>();
         }
 
+        /// <summary>
+        /// Runs before [Authorize] and [ValidateAntiForgeryToken], so every refused attempt (including anonymous
+        /// ones) is audited before the redirect to Login/Forbidden.
+        /// </summary>
+        protected override void OnAuthorization(AuthorizationContext filterContext)
+        {
+            base.OnAuthorization(filterContext);
+            if (filterContext == null || filterContext.Result != null)
+            {
+                return;
+            }
+
+            var gate = GateConsoleAccess();
+            if (gate != null)
+            {
+                filterContext.Result = gate;
+            }
+        }
+
         public ActionResult Index()
         {
             var gate = GateConsoleAccess();
@@ -43,6 +69,7 @@ namespace AssetManagement.Web.Controllers
                 return gate;
             }
 
+            TryAuditConsole(AuditViewAction, "allowed");
             var model = new DatabaseConsoleViewModel();
             _consoleService.LoadSchema(model);
             return View(model);
@@ -74,18 +101,21 @@ namespace AssetManagement.Web.Controllers
         {
             if (User == null || User.Identity == null || !User.Identity.IsAuthenticated)
             {
+                TryAuditConsole(AuditDeniedAction, "refused reason=unauthenticated");
                 var returnUrl = Request != null ? Request.RawUrl : AssetManagement.Web.Helpers.AppPathHelper.ToAppAbsolute("~/Sys/Database");
                 return RedirectToAction("Login", "Account", new { returnUrl = returnUrl });
             }
 
             if (_organizationScope == null || !_organizationScope.IsActualPlatformAdmin())
             {
+                TryAuditConsole(AuditDeniedAction, "refused reason=not_platform_admin");
                 TempData["ErrorMessage"] = "The database console is restricted to Platform Admin (SuperAdmin).";
                 return RedirectToAction("Forbidden", "Home");
             }
 
             if (!IsClientIpAllowed())
             {
+                TryAuditConsole(AuditDeniedAction, "refused reason=ip_not_allowlisted");
                 TempData["ErrorMessage"] = "The database console is restricted by IP allowlist.";
                 return RedirectToAction("Forbidden", "Home");
             }
@@ -196,6 +226,83 @@ namespace AssetManagement.Web.Controllers
             {
                 // Audit must not block the console; platform admins may lack org context.
             }
+        }
+
+        /// <summary>
+        /// Console page view / refusal audit. Uses IAuditWriter (as DB_CONSOLE_EXECUTE) for signed-in users; when there
+        /// is no user or the writer cannot resolve an organization, inserts the AuditLog row directly with
+        /// OrganizationId NULL (platform-level event). Never throws.
+        /// </summary>
+        private void TryAuditConsole(string action, string outcome)
+        {
+            try
+            {
+                var authenticated = User != null && User.Identity != null && User.Identity.IsAuthenticated;
+                var userId = authenticated ? User.GetUserId() : null;
+                var userName = authenticated && !string.IsNullOrWhiteSpace(User.Identity.Name) ? User.Identity.Name : "anonymous";
+                var clientIp = ResolveClientIp() ?? "unknown";
+                var method = Request != null ? Request.HttpMethod : null;
+                var path = Request != null && Request.Url != null ? Request.Url.AbsolutePath : null;
+                var newValues = TruncateForAudit(
+                    outcome + " user=" + userName + " ip=" + clientIp + " method=" + method + " path=" + path,
+                    4000);
+
+                if (!string.IsNullOrWhiteSpace(userId) && _auditWriter != null)
+                {
+                    try
+                    {
+                        _auditWriter.Write(action, "ApplicationUser", userId, null, newValues);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.TraceWarning("DatabaseConsole audit via IAuditWriter failed, writing directly: " + ex.Message);
+                    }
+                }
+
+                InsertAuditRowDirect(action, userId, newValues, clientIp);
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceWarning("DatabaseConsole audit failed for " + action + ": " + ex.Message);
+            }
+        }
+
+        private static void InsertAuditRowDirect(string action, string userId, string newValues, string clientIp)
+        {
+            var connectionFactory = DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>();
+            if (connectionFactory == null)
+            {
+                return;
+            }
+
+            using (var connection = connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+INSERT INTO [AuditLog] ([ActorUserId],[Action],[EntityType],[EntityId],[OldValues],[NewValues],[Timestamp],[IPAddress],[CreatedAt],[IsActive],[OrganizationId])
+VALUES (@ActorUserId,@Action,@EntityType,@EntityId,NULL,@NewValues,@Now,@IPAddress,@Now,1,NULL)";
+                    var now = DateTime.UtcNow;
+                    AddAuditParameter(command, "@ActorUserId", string.IsNullOrWhiteSpace(userId) ? null : userId);
+                    AddAuditParameter(command, "@Action", action);
+                    AddAuditParameter(command, "@EntityType", string.IsNullOrWhiteSpace(userId) ? null : "ApplicationUser");
+                    AddAuditParameter(command, "@EntityId", string.IsNullOrWhiteSpace(userId) ? null : userId);
+                    AddAuditParameter(command, "@NewValues", newValues);
+                    AddAuditParameter(command, "@Now", now);
+                    AddAuditParameter(command, "@IPAddress", TruncateForAudit(clientIp, 100));
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private static void AddAuditParameter(IDbCommand command, string name, object value)
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = name;
+            parameter.Value = value ?? DBNull.Value;
+            command.Parameters.Add(parameter);
         }
 
         private static string TruncateForAudit(string sql)
