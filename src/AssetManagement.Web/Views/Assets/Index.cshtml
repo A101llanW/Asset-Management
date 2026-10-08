@@ -588,6 +588,7 @@ else
                 groupMembersUrl: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Action("GroupMembers", "Assets"))),
                 groupBy: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(groupBy)),
                 canBulkEdit: @(canBulkEdit ? "true" : "false"),
+                canMoveToClass: @(canRelocateAsset && classDepartments != null && classDepartments.Any() ? "true" : "false"),
                 canMoveToRoom: @(canRelocateToRoom ? "true" : "false"),
                 unassignedLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Unassigned)),
                 emptyLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Empty)),
