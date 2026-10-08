@@ -51,56 +51,9 @@ namespace AssetManagement.Infrastructure.Services
                             organizationName = Convert.ToString(result);
                         }
 
-                        // Child tables first (order matters for FKs without CASCADE).
-                        // IF OBJECT_ID guards tables that may be missing on older DBs.
-                        ExecuteDeletes(connection, transaction, organizationId, new[]
-                        {
-                            SafeDelete("ImpersonationRequest"),
-                            SafeDelete("LoginAttempts"),
-                            SafeDelete("SecurityEvents"),
-                            SafeDelete("Notification"),
-                            SafeDelete("OutboxMessage"),
-                            SafeDelete("AuditLog"),
-                            SafeDelete("WebhookDelivery"),
-                            SafeDelete("WebhookSubscription"),
-                            SafeDelete("OrganizationLicenseHistory"),
-                            SafeDelete("OrganizationLicense"),
-                            SafeDelete("RoleTemplate"),
-                            SafeDelete("AssetDocumentRequirement"),
-                            SafeDelete("AssetDocument"),
-                            SafeDelete("InsuranceClaim"),
-                            SafeDelete("InsurancePolicy"),
-                            SafeDelete("DepreciationRecord"),
-                            SafeDelete("DisposalApprovalAction"),
-                            SafeDelete("DisposalRecord"),
-                            SafeDelete("TransferApprovalAction"),
-                            SafeDelete("AssetTransfer"),
-                            SafeDelete("AssetReturn"),
-                            SafeDelete("AssetCustodyEvent"),
-                            SafeDelete("AssetMaintenanceRecord"),
-                            SafeDelete("AssetIncident"),
-                            SafeDelete("AssetAssignment"),
-                            SafeDelete("AssetReceiving"),
-                            SafeDelete("PurchaseRecord"),
-                            SafeDelete("PurchaseApprovalAction"),
-                            SafeDelete("PurchaseRequestLine"),
-                            SafeDelete("PurchaseRequest"),
-                            SafeDelete("AssetRequest"),
-                            "IF OBJECT_ID(N'[SupplierCatalogItem]', N'U') IS NOT NULL UPDATE [SupplierCatalogItem] SET [TaggedAssetId] = NULL WHERE [OrganizationId] = @OrgId",
-                            SafeDelete("SupplierCatalogItem"),
-                            SafeDelete("Asset"),
-                            SafeDelete("AssetSubType"),
-                            SafeDelete("AssetType"),
-                            SafeDelete("AssetCategory"),
-                            SafeDelete("Supplier"),
-                            "IF OBJECT_ID(N'[Users]', N'U') IS NOT NULL UPDATE [Users] SET [DepartmentId] = NULL, [RoleId] = NULL WHERE [OrganizationId] = @OrgId",
-                            SafeDelete("Users"),
-                            SafeDelete("RolePermission"),
-                            SafeDelete("Roles"),
-                            SafeDelete("Department"),
-                            SafeDelete("SystemSetting"),
-                            "DELETE FROM [Organization] WHERE [Id] = @OrgId"
-                        });
+                        // One shared, tested plan (OrganizationPurgeSql): children before parents,
+                        // FK cycles and department->user links nulled first, OBJECT_ID/COL_LENGTH guards.
+                        ExecuteDeletes(connection, transaction, organizationId, OrganizationPurgeSql.GetOrderedStatements());
 
                         transaction.Commit();
                         return new OrganizationDeleteResult
@@ -129,11 +82,6 @@ namespace AssetManagement.Infrastructure.Services
                     }
                 }
             }
-        }
-
-        private static string SafeDelete(string tableName)
-        {
-            return "IF OBJECT_ID(N'[" + tableName + "]', N'U') IS NOT NULL DELETE FROM [" + tableName + "] WHERE [OrganizationId] = @OrgId";
         }
 
         private static void ExecuteDeletes(
