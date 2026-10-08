@@ -93,6 +93,25 @@ namespace AssetManagement.Application.Services
                             throw new BusinessException("Target department is required.");
                         }
 
+                        if (targetDepartment == null
+                            || (asset.OrganizationId.HasValue && targetDepartment.OrganizationId != asset.OrganizationId))
+                        {
+                            // Same-org guard: never point an asset at another organisation's department.
+                            if (asset.OrganizationId.HasValue)
+                            {
+                                new OrgReferenceValidator(_unitOfWork, _auditWriter).Report(
+                                    asset.OrganizationId.Value,
+                                    "Assets.Bulk.Department",
+                                    nameof(Asset),
+                                    asset.Id.ToString(),
+                                    "DepartmentId",
+                                    request.TargetDepartmentId.Value.ToString(),
+                                    false);
+                            }
+
+                            throw new BusinessException("Target department does not belong to this company.");
+                        }
+
                         var fromDepartmentId = asset.DepartmentId.HasValue && asset.DepartmentId.Value > 0 ? asset.DepartmentId : null;
                         var toDepartmentId = request.TargetDepartmentId.Value;
                         var now = DateTime.UtcNow;

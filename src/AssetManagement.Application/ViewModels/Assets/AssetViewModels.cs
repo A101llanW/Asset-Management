@@ -188,6 +188,17 @@ namespace AssetManagement.Application.ViewModels
     {
         [Required]
         public int Id { get; set; }
+
+        /// <summary>
+        /// Filled by AssetService.Update (not posted): stored approval-stage ids from another organisation that
+        /// were dropped on this save. Controllers may show them as guidance after the redirect.
+        /// </summary>
+        public IList<string> ReferenceGuardNotices
+        {
+            get { return _referenceGuardNotices ?? (_referenceGuardNotices = new List<string>()); }
+        }
+
+        private IList<string> _referenceGuardNotices;
     }
 
     public class AssetDetailsVm

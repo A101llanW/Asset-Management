@@ -110,6 +110,14 @@ namespace AssetManagement.Application.Services
                 };
             }
 
+            // Snapshot guard: never copy another organisation's role/person ids onto the transfer request.
+            new OrgReferenceValidator(_unitOfWork, _auditWriter, null, _userService).EnsureConfigurationInOrganization(
+                asset.OrganizationId ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()),
+                approvalConfig,
+                "Transfers.Request",
+                nameof(Asset),
+                asset.Id.ToString());
+
             transfer.ApprovalStatus = ApprovalStatus.Pending;
             transfer.CurrentApprovalStage = 1;
             transfer.ApprovalStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(approvalConfig.StageRoleIds.Select(x => (int?)x));

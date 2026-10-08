@@ -66,7 +66,35 @@ namespace AssetManagement.Application.Services
             return lookup;
         }
 
-        public static void ApplyToAsset(Asset asset, IList<ApprovalProcessSettingsVm> processes)
+        /// <summary>
+        /// Writes the posted/default stages onto the asset CSV columns. Every role/person is checked against the
+        /// asset's organisation first: stages whose role belongs to another company are removed (with their
+        /// person) and foreign persons are cleared, so a raw foreign id can never be serialized onto an asset.
+        /// Interactive callers reject foreign ids before this point (OrgReferenceValidator); the return value
+        /// lists anything dropped here (normally empty) so bulk/import callers can warn and log.
+        /// </summary>
+        public static IDictionary<string, StageGuardResult> ApplyToAsset(
+            Asset asset,
+            IList<ApprovalProcessSettingsVm> processes,
+            Func<int, bool> roleInOrganization,
+            Func<string, bool> userInOrganization)
+        {
+            if (asset == null)
+            {
+                return new Dictionary<string, StageGuardResult>();
+            }
+
+            if (roleInOrganization == null)
+            {
+                throw new ArgumentNullException("roleInOrganization", "Approval stage roles must be validated against the asset's organisation before they are stored.");
+            }
+
+            var dropped = OrgReferenceGuard.DropForeignStages(processes, roleInOrganization, userInOrganization);
+            ApplyValidatedToAsset(asset, processes);
+            return dropped;
+        }
+
+        private static void ApplyValidatedToAsset(Asset asset, IList<ApprovalProcessSettingsVm> processes)
         {
             if (asset == null)
             {
@@ -121,6 +149,23 @@ namespace AssetManagement.Application.Services
                 string.Equals(processCode, ApprovalProcessCodes.Transfer, StringComparison.OrdinalIgnoreCase)
                     ? asset.TransferApprovalStageUserIds
                     : asset.DisposalApprovalStageUserIds);
+
+            // Stored ids that are not roles of this organisation (e.g. another company's role ids copied onto the
+            // asset) cannot be shown or re-posted by the form: hide them so the form falls back to this org's
+            // defaults, and AssetService.Update drops/logs them on save.
+            if (configuredStages.Count > 0 && roleLookup != null && roleLookup.Count > 0)
+            {
+                var shown = OrgReferenceGuard.GuardStageCsv(
+                    ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(configuredStages.Select(x => (int?)x)),
+                    ApprovalWorkflowSettingsHelper.SerializeStageUserIds(configuredUsers),
+                    roleLookup.ContainsKey,
+                    null);
+                if (shown.HasDrops)
+                {
+                    configuredStages = new List<int>(shown.RoleIds);
+                    configuredUsers = new List<string>(shown.UserIds);
+                }
+            }
 
             if (configuredStages.Count == 0)
             {

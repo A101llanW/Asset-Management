@@ -312,6 +312,15 @@ namespace AssetManagement.Application.Services
                 return entity.Id;
             }
 
+            // Snapshot guard: never copy another organisation's role/person ids onto the requisition.
+            NewReferenceGuard().EnsureConfigurationInOrganization(
+                _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId(),
+                approvalConfig,
+                "Purchases.Request",
+                nameof(PurchaseRequest),
+                null,
+                checkUsers: false); // persons are sanitized just below (foreign/inactive -> any user in role)
+
             entity.ApprovalStatus = ApprovalStatus.Pending;
             entity.CurrentApprovalStage = 1;
             entity.ApprovalStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(approvalConfig.StageRoleIds.Select(x => (int?)x));
@@ -585,6 +594,12 @@ namespace AssetManagement.Application.Services
 
             if (persistBackfill)
             {
+                NewReferenceGuard().EnsureConfigurationInOrganization(
+                    request.OrganizationId ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()),
+                    config,
+                    "Purchases.BackfillStages",
+                    nameof(PurchaseRequest),
+                    request.Id.ToString());
                 request.ApprovalStageRoleIds = ApprovalWorkflowSettingsHelper.SerializeStageRoleIds(
                     config.StageRoleIds.Select(x => (int?)x));
                 if (config.StageUserIds != null && config.StageUserIds.Count > 0)
@@ -624,6 +639,12 @@ namespace AssetManagement.Application.Services
 
             if (persistBackfill && config.StageUserIds != null && config.StageUserIds.Count > 0)
             {
+                NewReferenceGuard().EnsureConfigurationInOrganization(
+                    request.OrganizationId ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()),
+                    config,
+                    "Purchases.BackfillStages",
+                    nameof(PurchaseRequest),
+                    request.Id.ToString());
                 request.ApprovalStageUserIds = ApprovalWorkflowSettingsHelper.SerializeStageUserIds(config.StageUserIds);
                 request.UpdatedAt = DateTime.UtcNow;
                 _unitOfWork.Repository<PurchaseRequest>().Update(request);
@@ -631,6 +652,11 @@ namespace AssetManagement.Application.Services
             }
 
             return config.StageUserIds ?? new List<string>();
+        }
+
+        private OrgReferenceValidator NewReferenceGuard()
+        {
+            return new OrgReferenceValidator(_unitOfWork, _auditWriter, null, _userService);
         }
 
         private ApproverUserRecord FindApproverUser(string userId)

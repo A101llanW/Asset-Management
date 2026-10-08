@@ -145,6 +145,13 @@ namespace AssetManagement.Application.Services
 
         public int Create(DepartmentVm model)
         {
+            var createOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (createOrganizationId.HasValue && model != null)
+            {
+                NewReferenceGuard().EnsureDepartmentInOrganization(
+                    createOrganizationId.Value, model.ParentDepartmentId, "Parent unit", "Departments.Create", nameof(Department), null);
+            }
+
             var entity = BuildEntity(model);
             entity.CreatedAt = DateTime.UtcNow;
             _unitOfWork.Repository<Department>().Add(entity);
@@ -224,6 +231,13 @@ namespace AssetManagement.Application.Services
             if (flowConfigurable)
             {
                 AssertInheritSourceAvailable(model, allDepartments);
+            }
+
+            var departmentOrganizationId = entity.OrganizationId
+                ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId());
+            if (departmentOrganizationId.HasValue)
+            {
+                GuardDepartmentReferences(departmentOrganizationId.Value, model, flowConfigurable, entity.Id.ToString());
             }
 
             var oldKind = entity.DepartmentKind;
@@ -482,6 +496,50 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        private OrgReferenceValidator NewReferenceGuard()
+        {
+            return new OrgReferenceValidator(_unitOfWork, _auditWriter, _referenceDataCache);
+        }
+
+        /// <summary>
+        /// Same-org guard for every id a department save stores: parent unit, class teacher / room custodian,
+        /// Custom requisition stages (roles + persons) and the PO raiser role/person. The controller validates the
+        /// same things for the form; this is the server-side backstop for every caller.
+        /// </summary>
+        private void GuardDepartmentReferences(int organizationId, DepartmentVm model, bool flowConfigurable, string entityId)
+        {
+            if (model == null)
+            {
+                return;
+            }
+
+            var guard = NewReferenceGuard();
+            guard.EnsureDepartmentInOrganization(organizationId, model.ParentDepartmentId, "Parent unit", "Departments.Edit", nameof(Department), entityId);
+            if (model.DepartmentKind == DepartmentKind.Class)
+            {
+                guard.EnsureUserInOrganization(organizationId, model.ClassTeacherUserId, "Class teacher", "Departments.Edit", nameof(Department), entityId);
+            }
+            else if (model.DepartmentKind == DepartmentKind.Room)
+            {
+                guard.EnsureUserInOrganization(organizationId, model.RoomCustodianUserId, "Room custodian", "Departments.Edit", nameof(Department), entityId);
+            }
+
+            var custom = flowConfigurable
+                && model.RequisitionFlowMode != RequisitionFlowMode.AutoApprove
+                && (model.UseCustomRequisitionApproval || model.RequisitionFlowMode == RequisitionFlowMode.Custom);
+            if (!custom)
+            {
+                return;
+            }
+
+            guard.EnsureProcessesInOrganization(organizationId, model.RequisitionApprovalProcesses, "Departments.Edit", nameof(Department), entityId);
+            guard.EnsureRoleInOrganization(organizationId, model.PurchaseOrderRaiserRoleId, "Purchase order raised by", "Departments.Edit", nameof(Department), entityId);
+            if (model.PurchaseOrderRaiserRoleId.HasValue && model.PurchaseOrderRaiserRoleId.Value > 0)
+            {
+                guard.EnsureUserInOrganization(organizationId, model.PurchaseOrderRaiserUserId, "Purchase order raised by", "Departments.Edit", nameof(Department), entityId);
+            }
+        }
+
         private void WriteDepartmentAudit(string action, string entityId, string oldValues, string newValues)
         {
             _auditWriter?.Write(action, nameof(Department), entityId, oldValues, newValues);
@@ -551,6 +609,13 @@ namespace AssetManagement.Application.Services
             if (string.IsNullOrWhiteSpace(model.Name))
             {
                 throw new BusinessException("Name is required.");
+            }
+
+            var roomOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (roomOrganizationId.HasValue)
+            {
+                NewReferenceGuard().EnsureUserInOrganization(
+                    roomOrganizationId.Value, model.RoomCustodianUserId, "Room custodian", "Departments.CreateRoom", nameof(Department), null);
             }
 
             var now = DateTime.UtcNow;
