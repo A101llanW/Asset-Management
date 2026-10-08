@@ -230,6 +230,10 @@
         var pollInterval = config.pollIntervalMs || SUPPORT_FREEZE_POLL_INTERVAL_MS;
 
         function checkSystemFreeze() {
+            // Background tabs skip the poll; the next tick after the tab is shown catches up.
+            if (global.document.hidden && !wasFrozen) {
+                return;
+            }
             jQuery.getJSON(config.statusUrl, function (data) {
                 if (data.isLocked) {
                     wasFrozen = true;
@@ -273,6 +277,9 @@
         var modalElement = global.document.getElementById("elevationRequestModal");
 
         function checkElevationRequests() {
+            if (global.document.hidden) {
+                return;
+            }
             jQuery.getJSON(config.pendingUrl, function (data) {
                 if (!data || data.count <= 0) {
                     return;

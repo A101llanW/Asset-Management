@@ -3,6 +3,39 @@
 (function (global) {
     "use strict";
 
+    // Signed-in pages no longer ship three.min.js (670 KB) up front: it is only needed when the
+    // support-session overlay appears. The layout passes its URL in data-three-src and mount()
+    // loads it on first use.
+    var ownScript = global.document.currentScript;
+    var threeSrc = ownScript ? ownScript.getAttribute("data-three-src") : null;
+    var threeLoading = null;
+
+    function loadThree(onReady) {
+        if (global.THREE) {
+            onReady();
+            return;
+        }
+        if (!threeSrc) {
+            return;
+        }
+        if (!threeLoading) {
+            threeLoading = [];
+            var tag = global.document.createElement("script");
+            tag.src = threeSrc;
+            tag.async = true;
+            tag.onload = function () {
+                var queue = threeLoading;
+                threeLoading = null;
+                queue.forEach(function (fn) { fn(); });
+            };
+            tag.onerror = function () {
+                threeLoading = null;
+            };
+            global.document.head.appendChild(tag);
+        }
+        threeLoading.push(onReady);
+    }
+
     var DEFAULT_ASSET_ICONS = [
         "\uD83D\uDCBB", // laptop
         "\uD83D\uDDA5\uFE0F", // desktop
@@ -612,6 +645,20 @@
             canvas.amAntigravityDestroy();
         }
 
+        if (!global.THREE && threeSrc) {
+            canvas.amAntigravityDestroy = null;
+            canvas.amAntigravityInitialized = true;
+            canvas.amAntigravityPending = true;
+            loadThree(function () {
+                if (canvas.amAntigravityPending) {
+                    canvas.amAntigravityPending = false;
+                    canvas.amAntigravityDestroy = initAntigravity(canvas, options);
+                }
+            });
+            return null;
+        }
+
+        canvas.amAntigravityPending = false;
         canvas.amAntigravityDestroy = initAntigravity(canvas, options);
         canvas.amAntigravityInitialized = true;
         return canvas.amAntigravityDestroy;
@@ -622,6 +669,7 @@
             return;
         }
 
+        canvas.amAntigravityPending = false;
         if (canvas.amAntigravityDestroy) {
             canvas.amAntigravityDestroy();
             canvas.amAntigravityDestroy = null;

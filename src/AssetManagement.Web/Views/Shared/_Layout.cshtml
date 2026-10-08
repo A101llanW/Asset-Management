@@ -246,8 +246,13 @@
     <script src="@Url.Content("~/Scripts/app/password-toggle.js")"></script>
     @if (ViewBag.ShowLoginBackground == true || Request.IsAuthenticated)
     {
-        <script src="@Url.Content("~/Scripts/vendor/three.min.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/vendor/three.min.js")).Ticks"></script>
-        <script src="@Url.Content("~/Scripts/app/antigravity-three.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/antigravity-three.js")).Ticks"></script>
+        var threeSrc = Url.Content("~/Scripts/vendor/three.min.js") + "?v=" + System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/vendor/three.min.js")).Ticks;
+        // Login background renders at once, so it loads three.js eagerly; signed-in pages load it only if the support-session overlay opens.
+        if (ViewBag.ShowLoginBackground == true)
+        {
+            <script src="@threeSrc"></script>
+        }
+        <script src="@Url.Content("~/Scripts/app/antigravity-three.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/antigravity-three.js")).Ticks" data-three-src="@threeSrc"></script>
     }
     @if (ViewBag.ShowLoginBackground == true)
     {
@@ -281,7 +286,8 @@
         </script>
     }
 
-    @if (Request.IsAuthenticated)
+    @* Both pollers hit DashboardController, which requires Reports.View; other roles only ever got 403 every 3-5 s. *@
+    @if (Request.IsAuthenticated && Html.HasPermission("Reports.View"))
     {
         <script>
             $(function () {
@@ -298,6 +304,9 @@
                 }
             });
         </script>
+    }
+    @if (Request.IsAuthenticated)
+    {
         <script>
             (function () {
                 var body = document.body;
