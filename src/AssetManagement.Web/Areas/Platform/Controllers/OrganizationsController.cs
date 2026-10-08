@@ -136,7 +136,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                     .ThenBy(u => u.Email)
                     .ToList();
                 var recentAuditLogs = _auditLogService != null
-                    ? _auditLogService.GetLogs(new AuditLogFilterVm())
+                    ? _auditLogService.GetLogs(new AuditLogFilterVm { MaxRows = 50 })
                         .OrderByDescending(a => a.Timestamp)
                         .Take(50)
                         .ToList()

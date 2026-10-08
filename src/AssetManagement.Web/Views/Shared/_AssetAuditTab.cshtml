@@ -3,6 +3,7 @@
 @using AssetManagement.Web.Helpers
 @{
     var auditLogs = ViewBag.AssetAuditLogs as IEnumerable<AuditLogVm> ?? Enumerable.Empty<AuditLogVm>();
+    var auditUnavailable = ViewBag.AssetAuditLogsUnavailable as string;
     var assetId = ViewBag.AssetId as int?;
     var canViewAuditLogs = Html.HasPermission("AuditLogs.View");
     var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
@@ -12,7 +13,11 @@
         <h6 class="mb-3">Audit trail</h6>
         <p class="text-muted small">Key lifecycle events for this asset (assignments, transfers, incidents, claims, and other important changes).</p>
 
-        @if (auditLogs.Any())
+        @if (!string.IsNullOrEmpty(auditUnavailable))
+        {
+            <div class="alert alert-warning py-2 small mb-0" role="status">@auditUnavailable</div>
+        }
+        else if (auditLogs.Any())
         {
             <div class="table-responsive">
                 <table class="table table-sm table-striped mb-0">

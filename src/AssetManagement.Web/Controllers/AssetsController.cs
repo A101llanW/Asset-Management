@@ -379,11 +379,27 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DisposalApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Disposal);
             ViewBag.AssetLabelPrint = AssetLabelPrintHelper.CreateModel(Request, Url, model, GetExternalBaseUrl());
             ViewBag.AssetId = assetId;
-            ViewBag.AssetAuditLogs = BuildAuditLogService()
-                .GetLogs(new AuditLogFilterVm { RelatedAssetId = assetId, BusinessEventsOnly = true })
-                .OrderByDescending(x => x.Timestamp)
-                .Take(30)
-                .ToList();
+            try
+            {
+                ViewBag.AssetAuditLogs = BuildAuditLogService()
+                    .GetLogs(new AuditLogFilterVm { RelatedAssetId = assetId, BusinessEventsOnly = true })
+                    .OrderByDescending(x => x.Timestamp)
+                    .Take(30)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                // The audit tab is secondary: a slow or failed history query must never take
+                // the whole Details page down. Render without it and say so.
+                System.Diagnostics.Trace.TraceWarning(
+                    "Assets/Details {0}: audit history omitted ({1}: {2})",
+                    assetId,
+                    ex.GetType().Name,
+                    ex.Message);
+                ViewBag.AssetAuditLogs = new List<AuditLogVm>();
+                ViewBag.AssetAuditLogsUnavailable =
+                    "Audit history is temporarily unavailable. Reload the page in a moment to try again.";
+            }
             ViewBag.DisposalBlockedReason = BuildDisposalBlockedReason(model);
             EnrichAssetDetails(model);
             model.Documents = BuildAssetDocumentService().GetByAsset(assetId).ToList();

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
@@ -8,10 +9,26 @@ using AssetManagement.Infrastructure.Persistence;
 
 namespace AssetManagement.Infrastructure.Queries
 {
+    /// <summary>
+    /// Audit log reads. Both statements are shaped to run without a query memory grant
+    /// (no SQL sort/hash): ids are located first through seekable branches, full rows are
+    /// fetched by primary key with nested loops, and ordering is done in memory unless a
+    /// row cap is requested, in which case IX_AuditLog_Org_Timestamp_Id supplies the order.
+    /// </summary>
     public class AuditLogQueryRepository : IAuditLogQueryRepository
     {
-        private const string SelectSql = @"
-SELECT
+        /// <summary>Asset history must fail fast so Assets/Details can render without it.</summary>
+        private const int RelatedAssetCommandTimeoutSeconds = 15;
+
+        private const string FilterSql = @"
+  AND (@EntityType IS NULL OR al.[EntityType] = @EntityType)
+  AND (@Action IS NULL OR al.[Action] = @Action)
+  AND (@FromDate IS NULL OR al.[Timestamp] >= @FromDate)
+  AND (@ToDate IS NULL OR al.[Timestamp] < @ToDate)";
+
+        // Org-wide list (no related asset). {0} = optional TOP, {1} = optional ORDER BY.
+        private const string OrganizationLogsSql = @"
+SELECT {0}
     al.[Id],
     al.[ActorUserId],
     al.[Action],
@@ -20,120 +37,148 @@ SELECT
     al.[Timestamp],
     al.[IPAddress]
 FROM [AuditLog] al
-WHERE al.[OrganizationId] = @OrganizationId
-  AND (@EntityType IS NULL OR al.[EntityType] = @EntityType)
-  AND (@Action IS NULL OR al.[Action] = @Action)
-  AND (@FromDate IS NULL OR al.[Timestamp] >= @FromDate)
-  AND (@ToDate IS NULL OR al.[Timestamp] < @ToDate)
-  AND (
-        @RelatedAssetId IS NULL
-        OR (
-            (al.[EntityType] IN (N'Asset', N'Assets') AND (
-                al.[EntityId] = CAST(@RelatedAssetId AS nvarchar(50))
-                OR al.[EntityId] LIKE CAST(@RelatedAssetId AS nvarchar(50)) + N',%'
-                OR al.[EntityId] LIKE N'%,' + CAST(@RelatedAssetId AS nvarchar(50)) + N',%'
-                OR al.[EntityId] LIKE N'%,' + CAST(@RelatedAssetId AS nvarchar(50))))
-            OR al.[NewValues] = CAST(@RelatedAssetId AS nvarchar(50))
-            OR al.[NewValues] LIKE CAST(@RelatedAssetId AS nvarchar(50)) + N'|%'
-            OR al.[NewValues] LIKE N'%|' + CAST(@RelatedAssetId AS nvarchar(50))
-            OR (al.[EntityType] = N'AssetAssignment' AND EXISTS (
-                SELECT 1 FROM [AssetAssignment] aa
-                WHERE aa.[OrganizationId] = @OrganizationId
-                  AND CAST(aa.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND aa.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetTransfer' AND EXISTS (
-                SELECT 1 FROM [AssetTransfer] t
-                WHERE t.[OrganizationId] = @OrganizationId
-                  AND CAST(t.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND t.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetIncident' AND EXISTS (
-                SELECT 1 FROM [AssetIncident] i
-                WHERE i.[OrganizationId] = @OrganizationId
-                  AND CAST(i.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND i.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetMaintenanceRecord' AND EXISTS (
-                SELECT 1 FROM [AssetMaintenanceRecord] m
-                WHERE m.[OrganizationId] = @OrganizationId
-                  AND CAST(m.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND m.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetReturn' AND EXISTS (
-                SELECT 1 FROM [AssetReturn] r
-                WHERE r.[OrganizationId] = @OrganizationId
-                  AND CAST(r.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND r.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'InsuranceClaim' AND EXISTS (
-                SELECT 1 FROM [InsuranceClaim] c
-                WHERE c.[OrganizationId] = @OrganizationId
-                  AND CAST(c.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND c.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetDocument' AND EXISTS (
-                SELECT 1 FROM [AssetDocument] d
-                INNER JOIN [Asset] a ON a.[Id] = d.[AssetId]
-                WHERE a.[OrganizationId] = @OrganizationId
-                  AND CAST(d.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND d.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'DisposalRecord' AND EXISTS (
-                SELECT 1 FROM [DisposalRecord] dr
-                WHERE dr.[OrganizationId] = @OrganizationId
-                  AND CAST(dr.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND dr.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'InsurancePolicy' AND EXISTS (
-                SELECT 1 FROM [InsurancePolicy] ip
-                WHERE ip.[OrganizationId] = @OrganizationId
-                  AND CAST(ip.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND ip.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetRequest' AND EXISTS (
-                SELECT 1 FROM [AssetRequest] ar
-                WHERE ar.[OrganizationId] = @OrganizationId
-                  AND CAST(ar.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND (ar.[FulfilledAssetId] = @RelatedAssetId OR ar.[RequestedAssetId] = @RelatedAssetId)))
-            OR (al.[EntityType] = N'AssetReceiving' AND EXISTS (
-                SELECT 1 FROM [AssetReceiving] rcv
-                INNER JOIN [Asset] a ON a.[Id] = rcv.[AssetId]
-                WHERE a.[OrganizationId] = @OrganizationId
-                  AND CAST(rcv.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND rcv.[AssetId] = @RelatedAssetId))
-            OR (al.[EntityType] = N'AssetDocumentRequirement' AND EXISTS (
-                SELECT 1 FROM [AssetDocumentRequirement] req
-                INNER JOIN [Asset] a ON a.[Id] = req.[AssetId]
-                WHERE a.[OrganizationId] = @OrganizationId
-                  AND CAST(req.[Id] AS nvarchar(50)) = al.[EntityId]
-                  AND req.[AssetId] = @RelatedAssetId))
-        )
-      )
+WHERE al.[OrganizationId] = @OrganizationId" + FilterSql + @"
   AND (
         @BypassDepartmentScope = 1
         OR al.[ActorUserId] = @ActorUserId
+        OR @DenyDepartmentScope = 0
         OR (
-            @RelatedAssetId IS NOT NULL
+            al.[EntityType] = N'Asset'
             AND EXISTS (
                 SELECT 1
                 FROM [Asset] a
-                WHERE a.[OrganizationId] = @OrganizationId
+                WHERE a.[Id] = TRY_CAST(al.[EntityId] AS int)
+                  AND CAST(a.[Id] AS nvarchar(50)) = al.[EntityId]
+                  AND a.[OrganizationId] = @OrganizationId
                   AND a.[IsActive] = 1
-                  AND a.[Id] = @RelatedAssetId
-                  AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND a.[DepartmentId] = @DepartmentId))
-            )
-        )
-        OR (
-            @RelatedAssetId IS NULL
-            AND (
-                @DenyDepartmentScope = 0
-                OR (
-                    al.[EntityType] = N'Asset'
-                    AND EXISTS (
-                        SELECT 1
-                        FROM [Asset] a
-                        WHERE a.[OrganizationId] = @OrganizationId
-                          AND a.[IsActive] = 1
-                          AND CAST(a.[Id] AS nvarchar(50)) = al.[EntityId]
-                          AND a.[DepartmentId] = @DepartmentId
-                    )
-                )
+                  AND a.[DepartmentId] = @DepartmentId
             )
         )
       )
-ORDER BY al.[Timestamp] DESC, al.[Id] DESC";
+{1}
+OPTION (LOOP JOIN, MAXDOP 1)";
+
+        // Asset history: candidate ids from seekable branches (UNION ALL, duplicates removed in
+        // memory), then full rows by primary key. Same matching rules as the previous single query.
+        private const string RelatedAssetLogsSql = @"
+SELECT
+    al.[Id],
+    al.[ActorUserId],
+    al.[Action],
+    al.[EntityType],
+    al.[EntityId],
+    al.[Timestamp],
+    al.[IPAddress]
+FROM (
+    SELECT al0.[Id]
+    FROM [AuditLog] al0
+    WHERE al0.[OrganizationId] = @OrganizationId
+      AND al0.[EntityType] IN (N'Asset', N'Assets')
+      AND (
+            al0.[EntityId] = CAST(@RelatedAssetId AS nvarchar(50))
+            OR al0.[EntityId] LIKE CAST(@RelatedAssetId AS nvarchar(50)) + N',%'
+            OR al0.[EntityId] LIKE N'%,' + CAST(@RelatedAssetId AS nvarchar(50)) + N',%'
+            OR al0.[EntityId] LIKE N'%,' + CAST(@RelatedAssetId AS nvarchar(50)))
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AuditLog] al0
+    WHERE al0.[OrganizationId] = @OrganizationId
+      AND (
+            al0.[NewValues] = CAST(@RelatedAssetId AS nvarchar(50))
+            OR al0.[NewValues] LIKE CAST(@RelatedAssetId AS nvarchar(50)) + N'|%'
+            OR al0.[NewValues] LIKE N'%|' + CAST(@RelatedAssetId AS nvarchar(50)))
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetAssignment] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetAssignment' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetTransfer] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetTransfer' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetIncident] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetIncident' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetMaintenanceRecord] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetMaintenanceRecord' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetReturn] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetReturn' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [InsuranceClaim] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'InsuranceClaim' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetDocument] x
+    INNER JOIN [Asset] a ON a.[Id] = x.[AssetId] AND a.[OrganizationId] = @OrganizationId
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetDocument' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [DisposalRecord] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'DisposalRecord' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [InsurancePolicy] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'InsurancePolicy' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId AND x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetRequest] x
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetRequest' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[OrganizationId] = @OrganizationId
+      AND (x.[FulfilledAssetId] = @RelatedAssetId OR x.[RequestedAssetId] = @RelatedAssetId)
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetReceiving] x
+    INNER JOIN [Asset] a ON a.[Id] = x.[AssetId] AND a.[OrganizationId] = @OrganizationId
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetReceiving' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[AssetId] = @RelatedAssetId
+    UNION ALL
+    SELECT al0.[Id]
+    FROM [AssetDocumentRequirement] x
+    INNER JOIN [Asset] a ON a.[Id] = x.[AssetId] AND a.[OrganizationId] = @OrganizationId
+    INNER JOIN [AuditLog] al0 ON al0.[OrganizationId] = @OrganizationId
+        AND al0.[EntityType] = N'AssetDocumentRequirement' AND al0.[EntityId] = CAST(x.[Id] AS nvarchar(50))
+    WHERE x.[AssetId] = @RelatedAssetId
+) ids
+INNER JOIN [AuditLog] al ON al.[Id] = ids.[Id]
+WHERE al.[OrganizationId] = @OrganizationId" + FilterSql + @"
+  AND (
+        @BypassDepartmentScope = 1
+        OR al.[ActorUserId] = @ActorUserId
+        OR EXISTS (
+            SELECT 1
+            FROM [Asset] a
+            WHERE a.[Id] = @RelatedAssetId
+              AND a.[OrganizationId] = @OrganizationId
+              AND a.[IsActive] = 1
+              AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND a.[DepartmentId] = @DepartmentId))
+        )
+      )
+OPTION (LOOP JOIN, MAXDOP 1)";
 
         private readonly ISqlConnectionFactory _connectionFactory;
 
@@ -150,13 +195,37 @@ ORDER BY al.[Timestamp] DESC, al.[Id] DESC";
             bool denyDepartmentScope,
             string actorUserId)
         {
-            var items = new List<AuditLogVm>();
+            var relatedAssetId = filter == null ? null : filter.RelatedAssetId;
+            var maxRows = filter != null && filter.MaxRows.HasValue && filter.MaxRows.Value > 0
+                ? filter.MaxRows
+                : null;
+            var byId = new Dictionary<int, AuditLogVm>();
+            var ordered = new List<AuditLogVm>();
+
             using (var connection = _connectionFactory.CreateConnection())
             {
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = SelectSql;
+                    if (relatedAssetId.HasValue)
+                    {
+                        command.CommandText = RelatedAssetLogsSql;
+                        command.CommandTimeout = RelatedAssetCommandTimeoutSeconds;
+                    }
+                    else
+                    {
+                        // TOP n reads the newest rows straight off IX_AuditLog_Org_Timestamp_Id; an
+                        // uncapped list is ordered in memory so the plan needs no sort grant.
+                        command.CommandText = string.Format(
+                            OrganizationLogsSql,
+                            maxRows.HasValue ? "TOP (@MaxRows)" : string.Empty,
+                            maxRows.HasValue ? "ORDER BY al.[Timestamp] DESC, al.[Id] DESC" : string.Empty);
+                        if (maxRows.HasValue)
+                        {
+                            SqlQueryHelper.AddParameter(command, "@MaxRows", maxRows.Value);
+                        }
+                    }
+
                     SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
                     SqlQueryHelper.AddDepartmentScopeParameters(command, bypassDepartmentScope, denyDepartmentScope, departmentId);
                     SqlQueryHelper.AddParameter(command, "@ActorUserId",
@@ -167,22 +236,38 @@ ORDER BY al.[Timestamp] DESC, al.[Id] DESC";
                     {
                         while (reader.Read())
                         {
-                            items.Add(new AuditLogVm
+                            var id = Convert.ToInt32(reader["Id"]);
+                            if (byId.ContainsKey(id))
                             {
-                                Id = Convert.ToInt32(reader["Id"]),
+                                continue;
+                            }
+
+                            var item = new AuditLogVm
+                            {
+                                Id = id,
                                 ActorUserId = SqlQueryHelper.GetString(reader, "ActorUserId"),
                                 Action = SqlQueryHelper.GetString(reader, "Action"),
                                 EntityType = SqlQueryHelper.GetString(reader, "EntityType"),
                                 EntityId = SqlQueryHelper.GetString(reader, "EntityId"),
                                 Timestamp = Convert.ToDateTime(reader["Timestamp"]),
                                 IPAddress = SqlQueryHelper.GetString(reader, "IPAddress")
-                            });
+                            };
+                            byId.Add(id, item);
+                            ordered.Add(item);
                         }
                     }
                 }
             }
 
-            return items;
+            if (maxRows.HasValue && !relatedAssetId.HasValue)
+            {
+                return ordered;
+            }
+
+            return ordered
+                .OrderByDescending(x => x.Timestamp)
+                .ThenByDescending(x => x.Id)
+                .ToList();
         }
 
         private static void AddFilterParameters(IDbCommand command, AuditLogFilterVm filter)

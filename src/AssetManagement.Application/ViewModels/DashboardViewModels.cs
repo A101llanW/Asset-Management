@@ -85,6 +85,12 @@ namespace AssetManagement.Application.ViewModels
         public DateTime? FromDate { get; set; }
 
         public DateTime? ToDate { get; set; }
+
+        /// <summary>
+        /// Optional cap for newest-first org lists (e.g. platform org details "recent audit").
+        /// Ignored for related-asset history. Null returns every matching row.
+        /// </summary>
+        public int? MaxRows { get; set; }
     }
 
     public class AuditLogVm : AuditLogDisplayItem
