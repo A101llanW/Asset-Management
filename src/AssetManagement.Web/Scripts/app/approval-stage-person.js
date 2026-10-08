@@ -187,15 +187,19 @@
     document.addEventListener("change", function (event) {
         scheduleSummaryFor(event.target);
     });
+    // Capture phase on purpose: approval-process-matrix.js removes the row in its own (bubble) click handler
+    // on .am-approval-matrix, which runs before a bubble handler here. Once the row is detached, the Remove
+    // button has no .am-approval-process ancestor and the grey summary was never refreshed. Resolving the
+    // process while the button is still attached fixes the per-row Remove and the stage-count select
+    // (whose programmatic Remove clicks take the same path).
     document.addEventListener("click", function (event) {
         var button = event.target && event.target.closest
             ? event.target.closest(".am-approval-add-stage, .am-approval-remove-stage")
             : null;
         if (button) {
-            // the removed row is gone by the time the timer runs; keep a handle on its process first
             scheduleSummaryFor(button);
         }
-    });
+    }, true);
 
     window.AmPersonPicker = {
         init: init,

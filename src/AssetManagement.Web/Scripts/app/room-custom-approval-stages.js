@@ -52,17 +52,31 @@
         var desired = Math.max(1, Math.min(maxStages, targetCount));
         var addButton = processEl.querySelector(".am-approval-add-stage");
         var list = getStagesList(processEl);
+        var before = list ? list.children.length : 0;
 
         while (list && list.children.length < desired && addButton && !addButton.disabled) {
             addButton.click();
         }
 
+        // Trim from the END: lowering the count drops the last stage(s) and keeps the earlier stages'
+        // roles/persons. (It used to click the first enabled Remove button, which dropped Stage 1.)
         while (list && list.children.length > desired) {
-            var removeButton = list.querySelector(".am-approval-remove-stage:not([disabled])");
-            if (!removeButton) {
+            var lastStage = list.lastElementChild;
+            var removeButton = lastStage ? lastStage.querySelector(".am-approval-remove-stage") : null;
+            var countBefore = list.children.length;
+            if (!removeButton || removeButton.disabled) {
                 break;
             }
             removeButton.click();
+            if (list.children.length >= countBefore) {
+                break; // the matrix did not remove it; never loop forever
+            }
+        }
+
+        // The count select sits outside .am-approval-process, so recompute the grey stage summary here
+        // from the process itself once the rows have changed.
+        if (list && list.children.length !== before && window.AmPersonPicker && window.AmPersonPicker.refreshStageSummary) {
+            window.AmPersonPicker.refreshStageSummary(processEl);
         }
     }
 
@@ -94,6 +108,19 @@
 
         countSelect.setAttribute("data-am-room-stage-count-wired", "true");
         countSelect.addEventListener("change", syncMatrixFromCountSelect);
+
+        // A row's own Remove (or Add stage) changes the number of stages too: keep the count select in step
+        // (it kept showing the old number after a row was removed).
+        var root = getCustomStagesRoot();
+        if (root) {
+            root.addEventListener("click", function (event) {
+                if (event.target && event.target.closest && event.target.closest(".am-approval-add-stage, .am-approval-remove-stage")) {
+                    window.setTimeout(function () {
+                        syncStageCountSelect(getProcessEl(getCustomStagesRoot()), countSelect);
+                    }, 0);
+                }
+            });
+        }
     }
 
     function syncApprovalMode() {
@@ -120,6 +147,12 @@
 
     // ---- Live "Requisition flow" / "Purchase order raised by" summary at the top of the panel (client-side only) ----
     var liveInitial = null;
+    var inheritInitial = null;
+
+    function inheritSourceValue() {
+        var select = document.getElementById("requisition-inherit-source");
+        return select ? (select.value || "") : "";
+    }
 
     function textOf(select) {
         if (!select || !select.value || select.selectedIndex < 0) {
@@ -202,11 +235,14 @@
             poEl.textContent = po;
         }
         var current = flow + "|" + po;
+        var inheritNow = inheritSourceValue();
         if (liveInitial === null) {
             liveInitial = current;
+            inheritInitial = inheritNow;
         }
         if (unsavedEl) {
-            unsavedEl.classList.toggle("d-none", current === liveInitial);
+            // Also "changed" when the inherit source was switched but resolves to the same flow.
+            unsavedEl.classList.toggle("d-none", current === liveInitial && inheritNow === inheritInitial);
         }
     }
 
