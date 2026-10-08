@@ -713,6 +713,18 @@ namespace AssetManagement.Tests.Helpers
         {
             return new DashboardExpiryCountsDto();
         }
+
+        public int CountCustodyMovements(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool includeClassDepartmentAssets,
+            System.DateTime fromDate,
+            System.DateTime toDate)
+        {
+            return 0;
+        }
     }
 
     internal class FakeNotificationQueryService : INotificationQueryService

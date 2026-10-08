@@ -754,7 +754,15 @@ namespace AssetManagement.Application.Services
             var organizationId = _organizationScope.GetCurrentOrganizationId();
             if (organizationId.HasValue)
             {
-                DepreciationCalculator.RefreshOrganization(_unitOfWork, organizationId.Value, period.To);
+                // Report rows are computed below from scratch (Compute at period.From/To), so the stored
+                // positions only need the normal current-month refresh. Share the dashboard throttle
+                // (background) instead of a synchronous full-org rewrite as of period.To, which also
+                // reset the dashboard timer and parked past-period values in Asset.
+                DepreciationCalculator.RefreshOrganizationIfStale(
+                    _unitOfWork,
+                    organizationId.Value,
+                    DateTime.UtcNow,
+                    DepreciationCalculator.DashboardRefreshInterval);
             }
 
             var types = _unitOfWork.Repository<AssetType>().GetAll().ToDictionary(x => x.Id);

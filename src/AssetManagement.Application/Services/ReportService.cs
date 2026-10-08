@@ -128,13 +128,40 @@ namespace AssetManagement.Application.Services
             {
                 Dashboard = GetDashboard(),
                 AssetRegisterCount = _metricsService.CountAssets(null),
-                CustodyMovementCount = _metricsService.CountCustodyMovements(custodyFrom, now.Date),
+                CustodyMovementCount = CountCustodyMovementsForHub(custodyFrom, now.Date),
                 DepartmentCount = _metricsService.CountDepartments(true),
                 PendingApprovalCount = _metricsService.CountPendingApprovals(PendingApprovalCountMode.GlobalPending),
                 ReportDefinitions = BuildReportDefinitions(),
                 Departments = departments,
                 Categories = categories
             };
+        }
+
+        private int CountCustodyMovementsForHub(DateTime fromDate, DateTime toDate)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return _metricsService.CountCustodyMovements(fromDate, toDate);
+            }
+
+            var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope;
+            int? departmentId = null;
+            var denyDepartmentScope = false;
+            if (!bypassDepartmentScope)
+            {
+                departmentId = _departmentScope.ScopedDepartmentId;
+                denyDepartmentScope = !departmentId.HasValue;
+            }
+
+            return _dashboardQueryService.CountCustodyMovements(
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                !bypassDepartmentScope && _departmentScope.IncludesClassDepartmentAssets,
+                fromDate,
+                toDate);
         }
 
         private static IList<ReportDefinitionVm> BuildReportDefinitions()

@@ -28,6 +28,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string RequestedById { get; set; }
 
+        /// <summary>Name or email for RequestedById; views fall back to the raw id when null.</summary>
+        public string RequestedByName { get; set; }
+
         public DateTime RequestedDateUtc { get; set; }
 
         public int StageNumber { get; set; }

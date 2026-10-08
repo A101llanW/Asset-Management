@@ -26,6 +26,10 @@ namespace AssetManagement.Web.App_Start
             var builder = new ContainerBuilder();
             builder.RegisterControllers(Assembly.GetExecutingAssembly());
 
+            // Dashboard/Reports depreciation refresh runs off the request path (see DepreciationCalculator).
+            DepreciationCalculator.BackgroundOrganizationRefresh = (organizationId, asOfUtc) =>
+                DepreciationRefreshRunner.Run(new SqlConnectionFactory(), organizationId, asOfUtc);
+
             builder.RegisterType<SqlConnectionFactory>().As<ISqlConnectionFactory>().InstancePerHttpRequest();
             builder.RegisterType<UnitOfWork>().As<IUnitOfWork>().As<IUnitOfWorkEnlistment>().InstancePerHttpRequest();
             builder.RegisterType<AssetScanLookupRepository>().As<IAssetScanLookupRepository>().InstancePerHttpRequest();

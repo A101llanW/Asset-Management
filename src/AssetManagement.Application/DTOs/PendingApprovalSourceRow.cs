@@ -16,6 +16,9 @@ namespace AssetManagement.Application.DTOs
 
         public string RequestedById { get; set; }
 
+        /// <summary>Display label for RequestedById (name or email), resolved org-scoped; null if unknown.</summary>
+        public string RequestedByName { get; set; }
+
         public DateTime RequestedDateUtc { get; set; }
 
         public int CurrentApprovalStage { get; set; }

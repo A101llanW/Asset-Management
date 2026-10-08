@@ -122,6 +122,33 @@ SELECT
              AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @")) AS ExpiringInsuranceCount
 OPTION (LOOP JOIN)";
 
+        // Reports hub custody count. The old in-memory version loaded every org asset (SELECT *) and
+        // every AssetTransfer/AssetAssignment row of all orgs on each Reports/Index hit.
+        // Asset scope has no IsActive filter, matching ApplyAssetScope over Repository<Asset>.Query().
+        private static readonly string CustodyMovementsSql = @"
+SELECT
+    (SELECT COUNT(*)
+     FROM [AssetTransfer] t
+     WHERE t.[TransferDate] >= @FromDate
+       AND t.[TransferDate] < @ToDateExclusive
+       AND EXISTS (
+           SELECT 1
+           FROM [Asset] a
+           WHERE a.[Id] = t.[AssetId]
+             AND a.[OrganizationId] = @OrganizationId
+             AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @"))
+  + (SELECT COUNT(*)
+     FROM [AssetAssignment] aa
+     WHERE aa.[AssignedDate] >= @FromDate
+       AND aa.[AssignedDate] < @ToDateExclusive
+       AND EXISTS (
+           SELECT 1
+           FROM [Asset] a
+           WHERE a.[Id] = aa.[AssetId]
+             AND a.[OrganizationId] = @OrganizationId
+             AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @")) AS CustodyMovements
+OPTION (LOOP JOIN, MAXDOP 1)";
+
         private const int TopDepartmentCount = 5;
 
         private readonly ISqlConnectionFactory _connectionFactory;
@@ -208,6 +235,42 @@ OPTION (LOOP JOIN)";
                             ExpiringInsuranceCount = ReadInt32(reader, "ExpiringInsuranceCount")
                         };
                     }
+                }
+            }
+        }
+
+        public int CountCustodyMovements(
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            bool includeClassDepartmentAssets,
+            DateTime fromDate,
+            DateTime toDate)
+        {
+            if (denyDepartmentScope)
+            {
+                return 0;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = CustodyMovementsSql;
+                    SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                    SqlQueryHelper.AddDepartmentScopeParameters(
+                        command,
+                        bypassDepartmentScope,
+                        denyDepartmentScope,
+                        departmentId,
+                        includeClassDepartmentAssets && !bypassDepartmentScope);
+                    // Old rule compared x.Date >= from.Date && x.Date <= to.Date (whole days).
+                    SqlQueryHelper.AddParameter(command, "@FromDate", fromDate.Date);
+                    SqlQueryHelper.AddParameter(command, "@ToDateExclusive", toDate.Date.AddDays(1));
+                    var value = command.ExecuteScalar();
+                    return value == null || value == DBNull.Value ? 0 : Convert.ToInt32(value);
                 }
             }
         }
@@ -450,6 +513,221 @@ OPTION (LOOP JOIN)";
             public decimal TotalAcquisitionAndTax { get; set; }
 
             public decimal AverageAnnualDepreciationRatePercent { get; set; }
+        }
+    }
+
+    /// <summary>
+    /// Off-request twin of <see cref="AssetManagement.Application.Helpers.DepreciationCalculator.RefreshOrganization"/>
+    /// (installed as DepreciationCalculator.BackgroundOrganizationRefresh). Loads only the columns the
+    /// calculation reads, computes with the same DepreciationSettingsResolver.Resolve +
+    /// DepreciationCalculator.Compute, and writes back only rows whose position changed. Each UPDATE is
+    /// guarded on the values/UpdatedAt it read, so an asset edited meanwhile (which recalculates its own
+    /// row) is never overwritten with a stale result.
+    /// </summary>
+    public static class DepreciationRefreshRunner
+    {
+        private const int UpdateBatchSize = 200;
+
+        private const string AssetsSql = @"
+SELECT
+    a.[Id], a.[CurrentStatus], a.[AcquisitionCost], a.[SalvageValue], a.[DepreciationStartDate],
+    a.[DepreciationMethod], a.[DepreciationLifeMonths], a.[UsefulLifeMonths], a.[DepreciationRatePercent],
+    a.[AssetTypeId], a.[CategoryId], a.[CurrentBookValue], a.[AccumulatedDepreciation], a.[UpdatedAt]
+FROM [Asset] a
+WHERE a.[OrganizationId] = @OrganizationId
+  AND a.[IsActive] = 1
+OPTION (MAXDOP 1)";
+
+        private const string TypesSql = @"
+SELECT [Id], [DepreciationLifeMonths], [UsefulLifeMonths], [DepreciationRatePercent] FROM [AssetType]";
+
+        private const string CategoriesSql = @"
+SELECT [Id], [DefaultDepreciationLifeMonths], [DefaultUsefulLifeMonths], [DefaultDepreciationRatePercent] FROM [AssetCategory]";
+
+        private const string UpdateSql = @"
+UPDATE [Asset]
+SET [CurrentBookValue] = @CurrentBookValue,
+    [AccumulatedDepreciation] = @AccumulatedDepreciation,
+    [UpdatedAt] = @UpdatedAt
+WHERE [Id] = @Id
+  AND [OrganizationId] = @OrganizationId
+  AND [CurrentBookValue] = @PreviousBookValue
+  AND [AccumulatedDepreciation] = @PreviousAccumulated
+  AND (([UpdatedAt] IS NULL AND @PreviousUpdatedAt IS NULL) OR [UpdatedAt] = @PreviousUpdatedAt)";
+
+        /// <summary>Returns the number of asset rows updated.</summary>
+        public static int Run(ISqlConnectionFactory connectionFactory, int organizationId, DateTime asOfUtc)
+        {
+            var types = new Dictionary<int, AssetManagement.Domain.Entities.AssetType>();
+            var categories = new Dictionary<int, AssetManagement.Domain.Entities.AssetCategory>();
+            var assets = new List<AssetSnapshot>();
+            var started = DateTime.UtcNow;
+
+            using (var connection = connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = TypesSql;
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var id = Convert.ToInt32(reader["Id"]);
+                            types[id] = new AssetManagement.Domain.Entities.AssetType
+                            {
+                                Id = id,
+                                DepreciationLifeMonths = ReadNullableInt(reader, "DepreciationLifeMonths"),
+                                UsefulLifeMonths = ReadNullableInt(reader, "UsefulLifeMonths"),
+                                DepreciationRatePercent = SqlQueryHelper.GetDecimalNullable(reader, "DepreciationRatePercent")
+                            };
+                        }
+                    }
+                }
+
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = CategoriesSql;
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var id = Convert.ToInt32(reader["Id"]);
+                            categories[id] = new AssetManagement.Domain.Entities.AssetCategory
+                            {
+                                Id = id,
+                                DefaultDepreciationLifeMonths = ReadNullableInt(reader, "DefaultDepreciationLifeMonths"),
+                                DefaultUsefulLifeMonths = ReadNullableInt(reader, "DefaultUsefulLifeMonths"),
+                                DefaultDepreciationRatePercent = SqlQueryHelper.GetDecimalNullable(reader, "DefaultDepreciationRatePercent")
+                            };
+                        }
+                    }
+                }
+
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = AssetsSql;
+                    SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            assets.Add(new AssetSnapshot
+                            {
+                                Asset = new AssetManagement.Domain.Entities.Asset
+                                {
+                                    Id = Convert.ToInt32(reader["Id"]),
+                                    CurrentStatus = (AssetStatus)Convert.ToInt32(reader["CurrentStatus"]),
+                                    AcquisitionCost = SqlQueryHelper.GetDecimalNullable(reader, "AcquisitionCost"),
+                                    SalvageValue = SqlQueryHelper.GetDecimal(reader, "SalvageValue"),
+                                    DepreciationStartDate = Convert.ToDateTime(reader["DepreciationStartDate"]),
+                                    DepreciationMethod = (DepreciationMethod)Convert.ToInt32(reader["DepreciationMethod"]),
+                                    DepreciationLifeMonths = ReadNullableInt(reader, "DepreciationLifeMonths"),
+                                    UsefulLifeMonths = ReadNullableInt(reader, "UsefulLifeMonths"),
+                                    DepreciationRatePercent = SqlQueryHelper.GetDecimalNullable(reader, "DepreciationRatePercent"),
+                                    AssetTypeId = Convert.ToInt32(reader["AssetTypeId"]),
+                                    CategoryId = Convert.ToInt32(reader["CategoryId"]),
+                                    CurrentBookValue = SqlQueryHelper.GetDecimal(reader, "CurrentBookValue"),
+                                    AccumulatedDepreciation = SqlQueryHelper.GetDecimal(reader, "AccumulatedDepreciation")
+                                },
+                                PreviousUpdatedAt = SqlQueryHelper.GetDateTimeNullable(reader, "UpdatedAt")
+                            });
+                        }
+                    }
+                }
+
+                var changes = new List<AssetChange>();
+                foreach (var snapshot in assets)
+                {
+                    var asset = snapshot.Asset;
+                    AssetManagement.Domain.Entities.AssetType assetType;
+                    types.TryGetValue(asset.AssetTypeId, out assetType);
+                    AssetManagement.Domain.Entities.AssetCategory category;
+                    categories.TryGetValue(asset.CategoryId, out category);
+                    var settings = AssetManagement.Application.Helpers.DepreciationSettingsResolver.Resolve(asset, assetType, category);
+                    var position = AssetManagement.Application.Helpers.DepreciationCalculator.Compute(asset, settings, asOfUtc);
+                    if (position.CurrentBookValue == asset.CurrentBookValue
+                        && position.AccumulatedDepreciation == asset.AccumulatedDepreciation)
+                    {
+                        continue;
+                    }
+
+                    changes.Add(new AssetChange
+                    {
+                        Id = asset.Id,
+                        CurrentBookValue = position.CurrentBookValue,
+                        AccumulatedDepreciation = position.AccumulatedDepreciation,
+                        PreviousBookValue = asset.CurrentBookValue,
+                        PreviousAccumulated = asset.AccumulatedDepreciation,
+                        PreviousUpdatedAt = snapshot.PreviousUpdatedAt
+                    });
+                }
+
+                var updated = 0;
+                for (var offset = 0; offset < changes.Count; offset += UpdateBatchSize)
+                {
+                    using (var transaction = connection.BeginTransaction())
+                    {
+                        foreach (var change in changes.Skip(offset).Take(UpdateBatchSize))
+                        {
+                            using (var command = connection.CreateCommand())
+                            {
+                                command.Transaction = transaction;
+                                command.CommandText = UpdateSql;
+                                SqlQueryHelper.AddParameter(command, "@Id", change.Id);
+                                SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                                SqlQueryHelper.AddParameter(command, "@CurrentBookValue", change.CurrentBookValue);
+                                SqlQueryHelper.AddParameter(command, "@AccumulatedDepreciation", change.AccumulatedDepreciation);
+                                SqlQueryHelper.AddParameter(command, "@UpdatedAt", asOfUtc);
+                                SqlQueryHelper.AddParameter(command, "@PreviousBookValue", change.PreviousBookValue);
+                                SqlQueryHelper.AddParameter(command, "@PreviousAccumulated", change.PreviousAccumulated);
+                                SqlQueryHelper.AddParameter(command, "@PreviousUpdatedAt",
+                                    change.PreviousUpdatedAt.HasValue ? (object)change.PreviousUpdatedAt.Value : DBNull.Value);
+                                updated += command.ExecuteNonQuery();
+                            }
+                        }
+
+                        transaction.Commit();
+                    }
+                }
+
+                System.Diagnostics.Trace.TraceInformation(
+                    "Depreciation background refresh org {0}: {1} assets, {2} changed, {3} updated, {4} ms",
+                    organizationId,
+                    assets.Count,
+                    changes.Count,
+                    updated,
+                    (int)(DateTime.UtcNow - started).TotalMilliseconds);
+                return updated;
+            }
+        }
+
+        private static int? ReadNullableInt(IDataRecord reader, string column)
+        {
+            var value = reader[column];
+            return value == null || value == DBNull.Value ? (int?)null : Convert.ToInt32(value);
+        }
+
+        private sealed class AssetSnapshot
+        {
+            public AssetManagement.Domain.Entities.Asset Asset { get; set; }
+
+            public DateTime? PreviousUpdatedAt { get; set; }
+        }
+
+        private sealed class AssetChange
+        {
+            public int Id { get; set; }
+
+            public decimal CurrentBookValue { get; set; }
+
+            public decimal AccumulatedDepreciation { get; set; }
+
+            public decimal PreviousBookValue { get; set; }
+
+            public decimal PreviousAccumulated { get; set; }
+
+            public DateTime? PreviousUpdatedAt { get; set; }
         }
     }
 }

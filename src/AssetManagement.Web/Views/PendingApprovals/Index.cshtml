@@ -118,7 +118,7 @@
                                 <span class="am-tag-pill am-tag-pill--sm">@item.AssetTag</span>
                                 <div class="text-muted small mt-1">@item.AssetName</div>
                             </td>
-                            <td class="text-muted small">@item.RequestedById</td>
+                            <td class="text-muted small" title="@item.RequestedById">@(string.IsNullOrWhiteSpace(item.RequestedByName) ? item.RequestedById : item.RequestedByName)</td>
                             <td class="text-muted small">@item.RequestedDateText</td>
                             <td>
                                 <span class="badge @item.AgingBadgeClass rounded-pill">@item.AgeDays d</span>

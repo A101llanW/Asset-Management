@@ -848,11 +848,15 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
             var scope = TenantQueryScope.Resolve(_organizationScope, _departmentScope);
             var exportMax = maxRows ?? ResolveExportMaxRows();
             var whereClause = BuildWhereClause(filter);
-            var orderBy = BuildOrderBy(sort, direction);
-            var sql = ExportSelectColumns + FromClause + whereClause + " ORDER BY " + orderBy;
+            // Perf (Reports Asset Register preview timeout, 2026-10-08): no ORDER BY in SQL. Sorting the
+            // whole wide result (plus hash joins for the lookups) asked for a ~18 MB memory grant and
+            // queued on RESOURCE_SEMAPHORE. Rows stream with LOOP JOIN lookups (no grant) and are ordered
+            // here with the same keys and SQL_Latin1_General_CP1_CI_AS-equivalent string rules.
+            var sql = ExportSelectColumns + @",
+    a.[Id] AS ExportRowId,
+    a.[CreatedAt] AS ExportCreatedAt" + FromClause + whereClause + " OPTION (LOOP JOIN, MAXDOP 1)";
 
-            var rowCount = 0;
-            var truncated = false;
+            var rows = new List<ExportSortRow>();
             using (var connection = _connectionFactory.CreateConnection())
             {
                 connection.Open();
@@ -866,17 +870,30 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
                     {
                         while (reader.Read())
                         {
-                            if (rowCount >= exportMax)
+                            rows.Add(new ExportSortRow
                             {
-                                truncated = true;
-                                break;
-                            }
-
-                            writeRow(MapExportRow(reader));
-                            rowCount++;
+                                Row = MapExportRow(reader),
+                                Id = Convert.ToInt32(reader["ExportRowId"]),
+                                CreatedAt = SqlQueryHelper.GetDateTimeNullable(reader, "ExportCreatedAt")
+                            });
                         }
                     }
                 }
+            }
+
+            rows.Sort(ExportSortRow.CreateComparison(sort, direction));
+            var rowCount = 0;
+            var truncated = false;
+            foreach (var row in rows)
+            {
+                if (rowCount >= exportMax)
+                {
+                    truncated = true;
+                    break;
+                }
+
+                writeRow(row.Row);
+                rowCount++;
             }
 
             return new AssetExportResultVm
@@ -887,6 +904,85 @@ FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
                     ? "Export limited to " + exportMax + " rows. Refine filters to export additional records."
                     : null
             };
+        }
+
+        /// <summary>
+        /// In-memory twin of <see cref="BuildOrderBy"/> for exports. Strings compare like the
+        /// SQL_Latin1_General_CP1_CI_AS columns (Windows word sort, case/kana/width-insensitive,
+        /// accent-sensitive, trailing spaces ignored); NULL sorts lowest; Id breaks ties.
+        /// </summary>
+        private sealed class ExportSortRow
+        {
+            private static readonly System.Globalization.CompareInfo SqlCompare =
+                System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
+
+            private const System.Globalization.CompareOptions SqlCompareOptions =
+                System.Globalization.CompareOptions.IgnoreCase
+                | System.Globalization.CompareOptions.IgnoreKanaType
+                | System.Globalization.CompareOptions.IgnoreWidth;
+
+            public AssetExportRowVm Row { get; set; }
+
+            public int Id { get; set; }
+
+            public DateTime? CreatedAt { get; set; }
+
+            public static Comparison<ExportSortRow> CreateComparison(string sort, string direction)
+            {
+                var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+                Comparison<ExportSortRow> primary;
+                switch ((sort ?? string.Empty).Trim().ToLowerInvariant())
+                {
+                    case "name":
+                        primary = (x, y) => CompareText(x.Row.AssetName, y.Row.AssetName);
+                        break;
+                    case "category":
+                        primary = (x, y) => CompareText(x.Row.CategoryName, y.Row.CategoryName);
+                        break;
+                    case "department":
+                        primary = (x, y) => CompareText(x.Row.DepartmentName, y.Row.DepartmentName);
+                        break;
+                    case "status":
+                        primary = (x, y) => ((int)x.Row.CurrentStatus).CompareTo((int)y.Row.CurrentStatus);
+                        break;
+                    case "bookvalue":
+                    case "acquisition":
+                        primary = (x, y) => Nullable.Compare(x.Row.AcquisitionCost, y.Row.AcquisitionCost);
+                        break;
+                    case "created":
+                        primary = (x, y) => Nullable.Compare(x.CreatedAt, y.CreatedAt);
+                        break;
+                    default:
+                        primary = (x, y) => CompareText(x.Row.AssetTag, y.Row.AssetTag);
+                        break;
+                }
+
+                return (x, y) =>
+                {
+                    var result = primary(x, y);
+                    if (result == 0)
+                    {
+                        result = x.Id.CompareTo(y.Id);
+                    }
+
+                    return desc ? -result : result;
+                };
+            }
+
+            private static int CompareText(string x, string y)
+            {
+                if (x == null)
+                {
+                    return y == null ? 0 : -1;
+                }
+
+                if (y == null)
+                {
+                    return 1;
+                }
+
+                return SqlCompare.Compare(x.TrimEnd(' '), y.TrimEnd(' '), SqlCompareOptions);
+            }
         }
 
         private static int ResolveExportMaxRows()

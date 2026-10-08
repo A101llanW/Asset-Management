@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Threading;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -14,6 +15,18 @@ namespace AssetManagement.Application.Helpers
 
         private static readonly ConcurrentDictionary<int, RefreshStamp> LastDashboardRefresh =
             new ConcurrentDictionary<int, RefreshStamp>();
+
+        private static readonly ConcurrentDictionary<int, byte> RefreshInFlight =
+            new ConcurrentDictionary<int, byte>();
+
+        /// <summary>
+        /// Off-request org refresh (organizationId, asOfUtc), installed at app start by the web host.
+        /// When set, <see cref="RefreshOrganizationIfStale"/> queues the refresh on a pool thread and
+        /// returns immediately, so no Dashboard/Reports request pays for a full-org recompute. When
+        /// null (tests, tools) the refresh runs inline as before. Must compute exactly what
+        /// <see cref="RefreshOrganization"/> computes (same Compute/Resolve).
+        /// </summary>
+        public static Action<int, DateTime> BackgroundOrganizationRefresh { get; set; }
 
         public sealed class Position
         {
@@ -131,8 +144,42 @@ namespace AssetManagement.Application.Helpers
                 return false;
             }
 
-            RefreshOrganization(unitOfWork, organizationId, asOfUtc);
-            LastDashboardRefresh[organizationId] = new RefreshStamp(monthKey, nowUtc);
+            var background = BackgroundOrganizationRefresh;
+            if (background == null)
+            {
+                RefreshOrganization(unitOfWork, organizationId, asOfUtc);
+                LastDashboardRefresh[organizationId] = new RefreshStamp(monthKey, nowUtc);
+                return true;
+            }
+
+            // One background refresh per org at a time; callers serve the stored values meanwhile.
+            if (!RefreshInFlight.TryAdd(organizationId, 0))
+            {
+                return false;
+            }
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    background(organizationId, asOfUtc);
+                    LastDashboardRefresh[organizationId] = new RefreshStamp(monthKey, DateTime.UtcNow);
+                }
+                catch (Exception ex)
+                {
+                    // Retry on a later request (about a minute), never on every hit.
+                    System.Diagnostics.Trace.TraceWarning(
+                        "Depreciation background refresh failed for org {0}: {1}", organizationId, ex.Message);
+                    LastDashboardRefresh[organizationId] = new RefreshStamp(
+                        monthKey,
+                        DateTime.UtcNow - maxAge + TimeSpan.FromMinutes(1));
+                }
+                finally
+                {
+                    byte ignored;
+                    RefreshInFlight.TryRemove(organizationId, out ignored);
+                }
+            });
             return true;
         }
 

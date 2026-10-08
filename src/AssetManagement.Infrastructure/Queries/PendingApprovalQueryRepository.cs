@@ -175,6 +175,8 @@ WHERE r.[OrganizationId] = @OrganizationId
 
         private readonly ISqlConnectionFactory _connectionFactory;
 
+        private const int RequesterLookupMaxKeys = 200;
+
         public PendingApprovalQueryRepository(ISqlConnectionFactory connectionFactory)
         {
             _connectionFactory = connectionFactory;
@@ -268,9 +270,109 @@ WHERE r.[OrganizationId] = @OrganizationId
                 }
             }
 
+            ResolveRequesterLabels(organizationId, items);
+
             // Sorted here rather than with ORDER BY in SQL: the UNION ALL sort needed a ~1 MB query
             // memory grant on every Dashboard/PendingApprovals hit (RESOURCE_SEMAPHORE on SQL Express).
             return items.OrderByDescending(x => x.RequestedDateUtc).ToList();
+        }
+
+        /// <summary>
+        /// "Requested By" labels in one batched, org-scoped lookup. RequestedById holds a user id,
+        /// a username or an email depending on the source; all three are matched. Unknown or
+        /// other-org requesters keep the raw value (RequestedByName stays null).
+        /// </summary>
+        private void ResolveRequesterLabels(int organizationId, IList<PendingApprovalSourceRow> items)
+        {
+            var keys = items
+                .Where(x => !string.IsNullOrWhiteSpace(x.RequestedById))
+                .Select(x => x.RequestedById.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(RequesterLookupMaxKeys)
+                .ToList();
+            if (keys.Count == 0)
+            {
+                return;
+            }
+
+            var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    var parameterNames = new List<string>();
+                    for (var i = 0; i < keys.Count; i++)
+                    {
+                        var name = "@Requester" + i;
+                        parameterNames.Add(name);
+                        SqlQueryHelper.AddParameter(command, name, keys[i]);
+                    }
+
+                    var list = string.Join(", ", parameterNames);
+                    command.CommandText = @"
+SELECT u.[Id], u.[UserName], u.[Email], u.[FirstName], u.[LastName]
+FROM [Users] u
+WHERE u.[OrganizationId] = @OrganizationId
+  AND (u.[Id] IN (" + list + @") OR u.[UserName] IN (" + list + @") OR u.[Email] IN (" + list + @"))
+OPTION (MAXDOP 1)";
+                    SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var label = BuildRequesterLabel(
+                                SqlQueryHelper.GetString(reader, "FirstName"),
+                                SqlQueryHelper.GetString(reader, "LastName"),
+                                SqlQueryHelper.GetString(reader, "Email"),
+                                SqlQueryHelper.GetString(reader, "UserName"));
+                            if (string.IsNullOrWhiteSpace(label))
+                            {
+                                continue;
+                            }
+
+                            foreach (var key in new[]
+                            {
+                                SqlQueryHelper.GetString(reader, "Id"),
+                                SqlQueryHelper.GetString(reader, "UserName"),
+                                SqlQueryHelper.GetString(reader, "Email")
+                            })
+                            {
+                                if (!string.IsNullOrWhiteSpace(key) && !labels.ContainsKey(key.Trim()))
+                                {
+                                    labels[key.Trim()] = label;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var item in items)
+            {
+                string label;
+                if (!string.IsNullOrWhiteSpace(item.RequestedById) && labels.TryGetValue(item.RequestedById.Trim(), out label))
+                {
+                    item.RequestedByName = label;
+                }
+            }
+        }
+
+        private static string BuildRequesterLabel(string firstName, string lastName, string email, string userName)
+        {
+            var name = ((firstName ?? string.Empty).Trim() + " " + (lastName ?? string.Empty).Trim()).Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return string.IsNullOrWhiteSpace(email) ? name : name + " (" + email.Trim() + ")";
+            }
+
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                return email.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(userName) ? null : userName.Trim();
         }
 
         private static void AddScopeParameters(
