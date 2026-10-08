@@ -198,7 +198,7 @@
     <div class="tab-pane fade" id="financial">
         <div class="card card-kpi mb-3"><div class="card-body">
             <div class="row g-3">
-                <div class="col-md-3"><strong>Acquisition Cost:</strong><br />@Html.FormatCurrency(Model.AcquisitionCost)</div>
+                <div class="col-md-3"><strong>Acquisition Cost:</strong><br />@if (Model.AcquisitionCost.HasValue) { @Html.FormatCurrency(Model.AcquisitionCost.Value) } else { <span class="text-muted fst-italic">@AssetManagement.Application.Helpers.AssetPriceRules.NotSetLabel</span> }</div>
                 <div class="col-md-3">
                     <strong>Tax / VAT:</strong><br />
                     @if (Model.TaxAmount > 0)
@@ -210,7 +210,7 @@
                         <span class="text-muted">Not applicable</span>
                     }
                 </div>
-                <div class="col-md-3"><strong>Total (incl. tax):</strong><br />@Html.FormatCurrency(Model.AcquisitionCost + Model.TaxAmount)</div>
+                <div class="col-md-3"><strong>Total (incl. tax):</strong><br />@if (Model.AcquisitionCost.HasValue) { @Html.FormatCurrency(Model.AcquisitionCost.Value + Model.TaxAmount) } else { <span class="text-muted fst-italic">@AssetManagement.Application.Helpers.AssetPriceRules.NotSetLabel</span> }</div>
                 <div class="col-md-3"><strong>Purchase Date:</strong><br />@Model.PurchaseDate.ToString("yyyy-MM-dd")</div>
                 <div class="col-md-3"><strong>Expected Useful Life:</strong><br />@(Model.UsefulLifeMonths > 0 ? string.Format("{0} months", Model.UsefulLifeMonths) : "Not set")</div>
                 @if (Model.DepreciationSettings != null && Model.DepreciationSettings.EffectiveLifeMonths > 0)

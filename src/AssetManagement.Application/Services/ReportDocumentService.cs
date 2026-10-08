@@ -102,6 +102,7 @@ namespace AssetManagement.Application.Services
             };
             var displayRows = new List<IList<string>>();
             decimal totalValue = 0m;
+            var unpricedCount = 0;
             var statusCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             var exportResult = _assetQueryService.StreamExport(filter, sortBy, sortDirection, asset =>
@@ -113,7 +114,16 @@ namespace AssetManagement.Application.Services
                     return;
                 }
 
-                totalValue += asset.AcquisitionCost;
+                // Unpriced ("Not set") assets are excluded from the total and counted instead.
+                if (asset.AcquisitionCost.HasValue)
+                {
+                    totalValue += asset.AcquisitionCost.Value;
+                }
+                else
+                {
+                    unpricedCount++;
+                }
+
                 var statusKey = asset.CurrentStatus.ToString();
                 if (!statusCounts.ContainsKey(statusKey))
                 {
@@ -129,7 +139,7 @@ namespace AssetManagement.Application.Services
                     asset.CategoryName ?? string.Empty,
                     asset.DepartmentName ?? string.Empty,
                     asset.CurrentCustodianId ?? string.Empty,
-                    CurrencyFormatter.Format(asset.AcquisitionCost),
+                    AssetPriceRules.Format(asset.AcquisitionCost),
                     asset.PurchaseDate.HasValue ? asset.PurchaseDate.Value.ToString("yyyy-MM-dd") : string.Empty,
                     asset.SerialNumber ?? string.Empty
                 };
@@ -159,7 +169,8 @@ namespace AssetManagement.Application.Services
                 {
                     new ReportStatCard { Label = "Assets", Value = displayRows.Count.ToString() },
                     new ReportStatCard { Label = "Total Value", Value = CurrencyFormatter.Format(totalValue) },
-                    new ReportStatCard { Label = "Statuses", Value = statusCounts.Count.ToString() }
+                    new ReportStatCard { Label = "Statuses", Value = statusCounts.Count.ToString() },
+                    new ReportStatCard { Label = "Unpriced (excluded)", Value = unpricedCount.ToString() }
                 }
             };
         }
@@ -275,11 +286,12 @@ namespace AssetManagement.Application.Services
             var displayRows = new List<IList<string>>();
             var totalAssets = 0;
             decimal totalValue = 0m;
+            var unpricedCount = assets.Count(x => !x.AcquisitionCost.HasValue);
 
             foreach (var department in departments)
             {
                 var deptAssets = assets.Where(x => x.DepartmentId == department.Id).ToList();
-                var deptValue = deptAssets.Sum(x => x.AcquisitionCost);
+                var deptValue = AssetPriceRules.Summarize(deptAssets.Select(x => x.AcquisitionCost)).Total;
                 totalAssets += deptAssets.Count;
                 totalValue += deptValue;
                 var row = new[]
@@ -298,7 +310,7 @@ namespace AssetManagement.Application.Services
                 var unassigned = assets.Where(x => !departments.Any(d => d.Id == x.DepartmentId)).ToList();
                 if (unassigned.Any())
                 {
-                    var unassignedValue = unassigned.Sum(x => x.AcquisitionCost);
+                    var unassignedValue = AssetPriceRules.Summarize(unassigned.Select(x => x.AcquisitionCost)).Total;
                     totalAssets += unassigned.Count;
                     totalValue += unassignedValue;
                     var row = new[]
@@ -329,7 +341,8 @@ namespace AssetManagement.Application.Services
                 {
                     new ReportStatCard { Label = "Departments", Value = displayRows.Count.ToString() },
                     new ReportStatCard { Label = "Assets", Value = totalAssets.ToString() },
-                    new ReportStatCard { Label = "Portfolio Value", Value = CurrencyFormatter.Format(totalValue) }
+                    new ReportStatCard { Label = "Portfolio Value", Value = CurrencyFormatter.Format(totalValue) },
+                    new ReportStatCard { Label = "Unpriced (excluded)", Value = unpricedCount.ToString() }
                 }
             };
         }
@@ -539,6 +552,7 @@ namespace AssetManagement.Application.Services
             };
             var displayRows = new List<IList<string>>();
             decimal totalDebit = 0m;
+            var unpricedCount = 0;
 
             foreach (var asset in _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query())
                 .Where(x => x.IsActive)
@@ -549,7 +563,14 @@ namespace AssetManagement.Application.Services
                 var dept = asset.DepartmentId.HasValue && departments.ContainsKey(asset.DepartmentId.Value)
                     ? departments[asset.DepartmentId.Value]
                     : string.Empty;
-                totalDebit += asset.AcquisitionCost;
+                if (!asset.AcquisitionCost.HasValue)
+                {
+                    // Unpriced ("Not set"): nothing to capitalize; never post a sub-type/default price.
+                    unpricedCount++;
+                    continue;
+                }
+
+                totalDebit += asset.AcquisitionCost.Value;
                 var row = new[]
                 {
                     asset.PurchaseDate.ToString("yyyy-MM-dd"),
@@ -557,7 +578,7 @@ namespace AssetManagement.Application.Services
                     dept,
                     asset.AssetTag,
                     "Capitalize acquisition",
-                    CurrencyFormatter.Format(asset.AcquisitionCost),
+                    CurrencyFormatter.Format(asset.AcquisitionCost.Value),
                     "0.00"
                 };
                 csvRows.Add(row);
@@ -581,7 +602,8 @@ namespace AssetManagement.Application.Services
                 {
                     new ReportStatCard { Label = "Postings", Value = displayRows.Count.ToString() },
                     new ReportStatCard { Label = "Total Debit", Value = CurrencyFormatter.Format(totalDebit) },
-                    new ReportStatCard { Label = "Account", Value = "1500-ASSET" }
+                    new ReportStatCard { Label = "Account", Value = "1500-ASSET" },
+                    new ReportStatCard { Label = "Unpriced (skipped)", Value = unpricedCount.ToString() }
                 }
             };
         }
@@ -627,7 +649,7 @@ namespace AssetManagement.Application.Services
                     asset.WarrantyEndDate.Value.ToString("yyyy-MM-dd"),
                     daysRemaining.ToString(),
                     band,
-                    CurrencyFormatter.Format(asset.AcquisitionCost)
+                    AssetPriceRules.Format(asset.AcquisitionCost)
                 };
                 csvRows.Add(row);
                 displayRows.Add(row);
@@ -797,7 +819,13 @@ namespace AssetManagement.Application.Services
                     periodDepreciation = 0m;
                 }
 
-                var depreciable = asset.AcquisitionCost - asset.SalvageValue;
+                if (!asset.AcquisitionCost.HasValue)
+                {
+                    // Unpriced ("Not set"): nothing to depreciate.
+                    continue;
+                }
+
+                var depreciable = asset.AcquisitionCost.Value - asset.SalvageValue;
                 var fullyDepreciatedAtStart = depreciable > 0m && opening.AccumulatedDepreciation >= depreciable;
                 if (periodDepreciation <= 0m && fullyDepreciatedAtStart)
                 {
@@ -821,7 +849,7 @@ namespace AssetManagement.Application.Services
                     Category = categoryName,
                     Method = asset.DepreciationMethod.ToString(),
                     DepreciationStart = asset.DepreciationStartDate.ToString("yyyy-MM-dd"),
-                    AcquisitionCost = asset.AcquisitionCost,
+                    AcquisitionCost = asset.AcquisitionCost.Value,
                     OpeningBookValue = opening.CurrentBookValue,
                     PeriodDepreciation = periodDepreciation,
                     ClosingBookValue = closing.CurrentBookValue,

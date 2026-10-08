@@ -35,8 +35,9 @@ namespace AssetManagement.Application.Helpers
 
             if (string.Equals(model.TaxInputMode, PercentageMode, StringComparison.OrdinalIgnoreCase))
             {
+                // Percentage of an unpriced ("Not set") asset is 0; no fallback price is used.
                 model.TaxAmount = Math.Round(
-                    model.AcquisitionCost * model.TaxInputValue.Value / 100m,
+                    (model.AcquisitionCost ?? 0m) * model.TaxInputValue.Value / 100m,
                     2,
                     MidpointRounding.AwayFromZero);
                 return;

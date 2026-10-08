@@ -41,11 +41,25 @@ namespace AssetManagement.Application.Helpers
                 };
             }
 
+            // Unpriced asset ("Not set"): nothing to depreciate and no value to carry. Never fall back to
+            // the sub-type/type price or crash on a null cost.
+            if (!asset.AcquisitionCost.HasValue)
+            {
+                return new Position
+                {
+                    CurrentBookValue = 0m,
+                    AccumulatedDepreciation = 0m,
+                    ElapsedMonths = 0
+                };
+            }
+
+            var cost = asset.AcquisitionCost.Value;
+
             if (settings == null || settings.LifeMonths <= 0 || settings.AnnualRatePercent <= 0)
             {
                 return new Position
                 {
-                    CurrentBookValue = asset.AcquisitionCost,
+                    CurrentBookValue = cost,
                     AccumulatedDepreciation = 0m,
                     ElapsedMonths = 0
                 };
@@ -55,7 +69,7 @@ namespace AssetManagement.Application.Helpers
             {
                 return new Position
                 {
-                    CurrentBookValue = asset.AcquisitionCost,
+                    CurrentBookValue = cost,
                     AccumulatedDepreciation = 0m,
                     ElapsedMonths = 0
                 };
@@ -66,7 +80,7 @@ namespace AssetManagement.Application.Helpers
             {
                 return new Position
                 {
-                    CurrentBookValue = asset.AcquisitionCost,
+                    CurrentBookValue = cost,
                     AccumulatedDepreciation = 0m,
                     ElapsedMonths = 0
                 };
@@ -74,10 +88,10 @@ namespace AssetManagement.Application.Helpers
 
             if (asset.DepreciationMethod == DepreciationMethod.ReducingBalance)
             {
-                return ComputeReducingBalance(asset, settings, elapsedMonths);
+                return ComputeReducingBalance(asset, cost, settings, elapsedMonths);
             }
 
-            return ComputeStraightLine(asset, settings, elapsedMonths);
+            return ComputeStraightLine(asset, cost, settings, elapsedMonths);
         }
 
         public static void ApplyToAsset(Asset asset, DepreciationSettings settings, DateTime asOfUtc)
@@ -183,14 +197,14 @@ namespace AssetManagement.Application.Helpers
             return Math.Min(months, lifeMonths);
         }
 
-        private static Position ComputeStraightLine(Asset asset, DepreciationSettings settings, int elapsedMonths)
+        private static Position ComputeStraightLine(Asset asset, decimal cost, DepreciationSettings settings, int elapsedMonths)
         {
-            var depreciable = asset.AcquisitionCost - asset.SalvageValue;
+            var depreciable = cost - asset.SalvageValue;
             if (depreciable <= 0m)
             {
                 return new Position
                 {
-                    CurrentBookValue = asset.AcquisitionCost,
+                    CurrentBookValue = cost,
                     AccumulatedDepreciation = 0m,
                     ElapsedMonths = elapsedMonths
                 };
@@ -198,10 +212,10 @@ namespace AssetManagement.Application.Helpers
 
             var monthly = System.Math.Round(depreciable * settings.AnnualRatePercent / 1200m, 2);
             var accumulated = System.Math.Min(monthly * elapsedMonths, depreciable);
-            var bookValue = asset.AcquisitionCost - accumulated;
+            var bookValue = cost - accumulated;
             if (bookValue < asset.SalvageValue)
             {
-                accumulated = asset.AcquisitionCost - asset.SalvageValue;
+                accumulated = cost - asset.SalvageValue;
                 bookValue = asset.SalvageValue;
             }
 
@@ -213,14 +227,14 @@ namespace AssetManagement.Application.Helpers
             };
         }
 
-        private static Position ComputeReducingBalance(Asset asset, DepreciationSettings settings, int elapsedMonths)
+        private static Position ComputeReducingBalance(Asset asset, decimal cost, DepreciationSettings settings, int elapsedMonths)
         {
-            var bookValue = asset.AcquisitionCost;
+            var bookValue = cost;
             var accumulated = 0m;
             var workingAsset = new Asset
             {
                 DepreciationMethod = asset.DepreciationMethod,
-                AcquisitionCost = asset.AcquisitionCost,
+                AcquisitionCost = cost,
                 SalvageValue = asset.SalvageValue,
                 CurrentBookValue = bookValue
             };

@@ -98,7 +98,7 @@
 
                 <h6 class="mb-2">Total cost of ownership (TCO)</h6>
 
-                <p class="mb-1 small">Acquisition: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.AcquisitionCost)</strong> + Tax: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.TaxAmount)</strong> + Maintenance: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.MaintenanceTotal)</strong></p>
+                <p class="mb-1 small">Acquisition: <strong>@AssetManagement.Application.Helpers.AssetPriceRules.Format(Model.TotalCostOfOwnership.AcquisitionCost)</strong> + Tax: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.TaxAmount)</strong> + Maintenance: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.MaintenanceTotal)</strong></p>
 
                 <p class="mb-0">TCO: <strong>@Html.FormatCurrency(Model.TotalCostOfOwnership.TotalCostOfOwnership)</strong></p>
 

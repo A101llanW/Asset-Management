@@ -1,0 +1,175 @@
+@model AssetManagement.Application.ViewModels.AssetSubTypeDetailsVm
+@using System
+@using System.Globalization
+@using AssetManagement.Application
+@using AssetManagement.Application.Helpers
+@using AssetManagement.Domain.Enums
+@using AssetManagement.Web.Helpers
+@{
+    var subType = Model.SubType;
+    ViewBag.Title = "Asset Sub-Type Details";
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var summary = Model.PriceSummary;
+    var page = Model.Assets;
+    var startItem = page.TotalCount == 0 ? 0 : ((page.Page - 1) * page.PageSize) + 1;
+    var endItem = Math.Min(page.TotalCount, page.Page * page.PageSize);
+    var brandModel = DisplayText.FormatBrandModel(subType.Brand, subType.Model);
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = subType.Name,
+    Subtitle = "Sub-type setup and the individual assets recorded under it.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    PrimaryActionUrl = Url.Action("Edit", new { id = subType.Id, returnUrl = Request.RawUrl }),
+    PrimaryActionLabel = "Edit Sub-Type",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Asset Sub-Types", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = subType.Name }
+    }
+})
+<div class="row g-3" id="amSubTypeDetails" data-subtype-id="@subType.Id">
+    <div class="col-lg-4">
+        <div class="card card-kpi h-100">
+            <div class="card-header">Overview</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Asset type</dt>
+                    <dd class="col-sm-7"><a href="@Url.Action("Details", "AssetTypes", new { id = subType.AssetTypeId, returnUrl = Request.RawUrl })">@Model.AssetTypeName</a></dd>
+                    <dt class="col-sm-5">Category</dt>
+                    <dd class="col-sm-7">@Model.AssetCategoryName</dd>
+                    <dt class="col-sm-5">Brand / Model</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(brandModel) ? "Not set" : brandModel)</dd>
+                    <dt class="col-sm-5">SKU</dt>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(subType.Sku) ? "Not set" : subType.Sku)</dd>
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(subType.IsActive) badge-status">@(subType.IsActive ? "Active" : "Inactive")</span></dd>
+                    <dt class="col-sm-5">Sub-type price</dt>
+                    <dd class="col-sm-7">
+                        @(subType.DefaultAcquisitionCost.HasValue ? CurrencyFormatter.Format(subType.DefaultAcquisitionCost.Value) : "Not set")
+                        <div class="form-text mt-0">Reference only. Never copied into assets.</div>
+                    </dd>
+                    <dt class="col-sm-5">Active assets</dt>
+                    <dd class="col-sm-7" id="amSubTypeAssetCount">@summary.TotalCount.ToString("N0", CultureInfo.InvariantCulture)</dd>
+                    <dt class="col-sm-5">Priced</dt>
+                    <dd class="col-sm-7" id="amSubTypePricedCount">@summary.PricedCount.ToString("N0", CultureInfo.InvariantCulture)</dd>
+                    <dt class="col-sm-5">Unpriced</dt>
+                    <dd class="col-sm-7" id="amSubTypeUnpricedCount">@summary.UnpricedCount.ToString("N0", CultureInfo.InvariantCulture) <span class="text-muted small">(Not set)</span></dd>
+                    <dt class="col-sm-5">Total value</dt>
+                    <dd class="col-sm-7">
+                        <span id="amSubTypePricedTotal">@CurrencyFormatter.Format(summary.PricedTotal)</span>
+                        <div class="form-text mt-0" id="amSubTypeUnpricedNote">@AssetPriceRules.FormatUnpricedNote(summary.UnpricedCount)</div>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card card-kpi mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span>Assets in this sub-type</span>
+                <form method="get" class="d-flex gap-2" action="@Url.Action("Details", new { id = subType.Id })">
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <input type="text" class="form-control form-control-sm" name="search" value="@Model.Search" placeholder="Search tag, name or serial" aria-label="Search assets" />
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Search</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                @if (page.Items.Count == 0)
+                {
+                    <p class="text-muted mb-0 p-3">@(string.IsNullOrWhiteSpace(Model.Search) ? "No active assets are recorded under this sub-type yet." : "No assets match this search.")</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="amSubTypeAssetsTable">
+                            <thead>
+                                <tr class="bg-light text-secondary small">
+                                    <th class="ps-3">Tag / Code</th>
+                                    <th>Name</th>
+                                    <th>Department / Room</th>
+                                    <th>Custodian</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Price</th>
+                                    <th class="text-end pe-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var asset in page.Items)
+                                {
+                                    var statusLabel = asset.CurrentStatus.ToString().Replace("AwaitingApproval", "Pending Approval").Replace("InStore", "In Store").Replace("UnderMaintenance", "Under Maintenance");
+                                    <tr data-asset-id="@asset.Id">
+                                        <td class="ps-3 fw-medium">@asset.AssetTag</td>
+                                        <td>@asset.AssetName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(asset.DepartmentName) ? "Company custody" : asset.DepartmentName)</td>
+                                        <td>@DisplayText.FormatCustodian(asset.CurrentCustodianName, asset.CurrentStatus)</td>
+                                        <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(asset.CurrentStatus) badge-status">@statusLabel</span></td>
+                                        <td class="text-end text-nowrap am-asset-price @(asset.AcquisitionCost.HasValue ? "" : "text-muted fst-italic")"
+                                            data-price="@(asset.AcquisitionCost.HasValue ? asset.AcquisitionCost.Value.ToString("0.00", CultureInfo.InvariantCulture) : "")">@AssetPriceRules.Format(asset.AcquisitionCost)</td>
+                                        <td class="text-end pe-3 text-nowrap">
+                                            @if (Model.CanEditPrice && asset.CurrentStatus != AssetStatus.Disposed)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-primary am-edit-price-btn" data-asset-id="@asset.Id" data-asset-tag="@asset.AssetTag">Edit price</button>
+                                            }
+                                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Details", "Assets", new { id = asset.Id })">Details</a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+        @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = page.Page, TotalPages = Model.TotalPages, TotalCount = page.TotalCount, StartItem = startItem, EndItem = endItem })
+        <div class="card card-kpi mt-3">
+            <div class="card-header">Specifications</div>
+            <div class="card-body">
+                <p class="mb-0">@(string.IsNullOrWhiteSpace(subType.Specifications) ? "No specifications have been added yet." : subType.Specifications)</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.CanEditPrice)
+{
+    <form id="amSubTypePriceForm" class="d-none" action="@Url.Action("SetAssetPrice")" method="post">
+        @Html.AntiForgeryToken()
+    </form>
+}
+
+@section modals {
+@if (Model.CanEditPrice)
+{
+    <div class="modal fade" id="amAssetPriceModal" tabindex="-1" aria-labelledby="amAssetPriceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="amAssetPriceModalLabel">Asset price</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Set this asset's own price. Leave it blank for <strong>Not set</strong>. 0.00 is saved as zero.</p>
+                    <label class="form-label" for="amAssetPriceInput">Price for <span id="amAssetPriceTag"></span></label>
+                    <input type="text" class="form-control" id="amAssetPriceInput" inputmode="decimal" autocomplete="off" placeholder="Not set" />
+                    <div class="form-text">The sub-type price is never copied in.</div>
+                    <div class="text-danger small mt-2 d-none" id="amAssetPriceError" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger me-auto" id="amAssetPriceClearBtn">Clear (Not set)</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="amAssetPriceSaveBtn">Save price</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+}
+
+@section scripts {
+@if (Model.CanEditPrice)
+{
+    <script src="@Url.Content("~/Scripts/app/asset-subtype-details.js")"></script>
+}
+}

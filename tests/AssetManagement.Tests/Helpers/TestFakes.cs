@@ -687,6 +687,8 @@ namespace AssetManagement.Tests.Helpers
 
         public int Count(AssetFilterVm filter) => 0;
 
+        public AssetPriceSummaryVm GetPriceSummary(AssetFilterVm filter) => new AssetPriceSummaryVm();
+
         public AssetExportResultVm StreamExport(AssetFilterVm filter, string sort, string direction, Action<AssetExportRowVm> writeRow, int? maxRows = null)
         {
             return new AssetExportResultVm { RowCount = 0, Truncated = false };

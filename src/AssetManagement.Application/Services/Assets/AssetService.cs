@@ -91,6 +91,11 @@ namespace AssetManagement.Application.Services
             return _assetQueryService.GetListPage(filter, sort, direction, page, pageSize);
         }
 
+        public AssetPriceSummaryVm GetAssetPriceSummary(AssetFilterVm filter)
+        {
+            return _assetQueryService.GetPriceSummary(filter);
+        }
+
         public AssetGroupListPageVm GetAssetGroupListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize)
         {
             return _assetQueryService.GetGroupedListPage(filter, sort, direction, page, pageSize);
@@ -200,7 +205,8 @@ namespace AssetManagement.Application.Services
                 .Sum(x => x.Cost);
             var insuranceExposure = _unitOfWork.Repository<InsurancePolicy>().Find(x => x.AssetId == assetId)
                 .Sum(x => x.InsuredValue);
-            var total = asset.AcquisitionCost + asset.TaxAmount + maintenanceTotal;
+            // Unpriced ("Not set") assets contribute no acquisition cost; no sub-type fallback.
+            var total = (asset.AcquisitionCost ?? 0m) + asset.TaxAmount + maintenanceTotal;
 
             return new AssetTcoVm
             {
@@ -417,6 +423,7 @@ namespace AssetManagement.Application.Services
 
         public int Create(AssetCreateVm model)
         {
+            model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
             model.AssetTag = NormalizeAssetTag(ResolveAssetTagForCreate(model));
             ValidateUniqueness(model.AssetTag, model.SerialNumber, null);
             var entity = new Asset
@@ -441,7 +448,7 @@ namespace AssetManagement.Application.Services
                 SalvageValue = 0,
                 DepreciationMethod = DepreciationMethod.StraightLine,
                 DepreciationStartDate = model.PurchaseDate,
-                CurrentBookValue = model.AcquisitionCost,
+                CurrentBookValue = AssetPriceRules.OpeningBookValue(model.AcquisitionCost),
                 AccumulatedDepreciation = 0,
                 IsInsured = model.IsInsured,
                 InsuredValue = model.InsuredValue,
@@ -628,6 +635,8 @@ namespace AssetManagement.Application.Services
             }
 
             var oldSnapshot = entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus;
+            var oldPrice = entity.AcquisitionCost;
+            model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
             entity.AssetName = model.AssetName;
             entity.AssetTag = model.AssetTag;
             entity.CategoryId = model.CategoryId;
@@ -668,6 +677,72 @@ namespace AssetManagement.Application.Services
             _unitOfWork.Repository<Asset>().Update(entity);
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Assets.Edit", nameof(Asset), entity.Id.ToString(), oldSnapshot, entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus);
+            if (oldPrice != entity.AcquisitionCost)
+            {
+                _auditWriter.Write(
+                    "Assets.SetPrice",
+                    nameof(Asset),
+                    entity.Id.ToString(),
+                    "price=" + AssetPriceRules.Format(oldPrice),
+                    "price=" + AssetPriceRules.Format(entity.AcquisitionCost) + ";source=AssetEdit");
+            }
+        }
+
+        /// <summary>
+        /// Sets (or clears to "Not set") one asset's own price, e.g. from the sub-type details list.
+        /// Same rules as Asset Edit: Assets.Edit permission, department scope, not disposed, audited.
+        /// Never reads or copies the sub-type price.
+        /// </summary>
+        public void SetAcquisitionCost(int assetId, decimal? acquisitionCost, string actorUserId)
+        {
+            if (string.IsNullOrWhiteSpace(actorUserId))
+            {
+                throw new BusinessException("Current user is required to update the asset price.");
+            }
+
+            if (!_authorizationService.HasPermission(actorUserId, "Assets.Edit"))
+            {
+                throw new BusinessException("You do not have permission to update asset prices.");
+            }
+
+            var entity = _unitOfWork.Repository<Asset>().GetById(assetId);
+            SoftDeletePolicy.EnsureActive(entity, "Asset not found.");
+            _departmentScope.EnsureCanAccessAsset(entity);
+            if (entity.CurrentStatus == AssetStatus.Disposed)
+            {
+                throw new BusinessException("Disposed assets cannot be modified.");
+            }
+
+            var price = EnsureValidOwnPrice(acquisitionCost);
+            var oldPrice = entity.AcquisitionCost;
+            if (oldPrice == price)
+            {
+                return;
+            }
+
+            entity.AcquisitionCost = price;
+            entity.UpdatedAt = DateTime.UtcNow;
+            ApplyCalculatedDepreciation(entity);
+            _unitOfWork.Repository<Asset>().Update(entity);
+            _unitOfWork.SaveChanges();
+            _auditWriter.Write(
+                "Assets.SetPrice",
+                nameof(Asset),
+                entity.Id.ToString(),
+                "price=" + AssetPriceRules.Format(oldPrice),
+                "price=" + AssetPriceRules.Format(price) + ";source=SubTypeDetails");
+        }
+
+        private static decimal? EnsureValidOwnPrice(decimal? price)
+        {
+            var normalized = AssetPriceRules.Normalize(price);
+            var error = AssetPriceRules.Validate(normalized);
+            if (error != null)
+            {
+                throw new BusinessException(error);
+            }
+
+            return normalized;
         }
 
         public int CountAcquisitionCostApplyCandidates(int sourceAssetId, string scope, AssetFilterVm filter)
@@ -682,9 +757,9 @@ namespace AssetManagement.Application.Services
             AssetFilterVm filter,
             string actorUserId)
         {
-            if (acquisitionCost <= 0)
+            if (acquisitionCost < 0)
             {
-                throw new BusinessException("Acquisition cost must be greater than zero.");
+                throw new BusinessException("Acquisition cost cannot be negative.");
             }
 
             if (string.IsNullOrWhiteSpace(actorUserId))

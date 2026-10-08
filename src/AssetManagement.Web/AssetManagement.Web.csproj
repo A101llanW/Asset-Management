@@ -338,7 +338,7 @@
     <Content Include="Scripts\app\asset-price-apply.js" />
     <Content Include="Scripts\app\asset-scan-batch-print.js" />
     <Content Include="Scripts\app\asset-scan.js" />
-    <Content Include="Scripts\app\asset-subtype-default-cost.js" />
+    <Content Include="Scripts\app\asset-subtype-details.js" />
     <Content Include="Scripts\app\batch-assign.js" />
     <Content Include="Scripts\app\departments-tree.js" />
     <Content Include="Scripts\app\label-designer.js" />
@@ -361,6 +361,7 @@
     <Content Include="Views\AssetSubTypes\Index.cshtml" />
     <Content Include="Views\AssetSubTypes\CreateSelectType.cshtml" />
     <Content Include="Views\AssetSubTypes\Edit.cshtml" />
+    <Content Include="Views\AssetSubTypes\Details.cshtml" />
     <Content Include="Views\AssetTypes\Create.cshtml" />
     <Content Include="Views\AssetTypes\Details.cshtml" />
     <Content Include="Views\AssetTypes\Edit.cshtml" />

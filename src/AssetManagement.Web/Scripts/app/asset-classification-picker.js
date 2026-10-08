@@ -168,25 +168,9 @@
     }
 
     function applyDefaultAcquisitionCost(cost) {
-        var costInput = byId("AcquisitionCost");
-        if (!costInput || cost == null || cost === "") {
-            return;
-        }
-
-        var parsed = parseFloat(String(cost).replace(/,/g, ""));
-        if (isNaN(parsed) || parsed <= 0) {
-            return;
-        }
-
-        var current = parseFloat(String(costInput.value).replace(/,/g, "")) || 0;
-        if (current > 0.01) {
-            return;
-        }
-
-        costInput.value = parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (typeof costInput.dispatchEvent === "function") {
-            costInput.dispatchEvent(new Event("input", { bubbles: true }));
-        }
+        // Intentionally a no-op (Allan, 2026-10-08): "If an asset has no price of its own, leave it blank
+        // (Not set) and never copy the sub-type price." Picking a sub-type no longer fills Acquisition cost.
+        return;
     }
 
     function updateSummary(selection) {

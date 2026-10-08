@@ -88,7 +88,7 @@ namespace AssetManagement.Web.Controllers
                 brand = x.Brand,
                 model = x.Model,
                 acquisitionCost = x.AcquisitionCost,
-                acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
+                acquisitionCostDisplay = AssetPriceRules.Format(x.AcquisitionCost),
                 label = FormatTaggedAssetLabel(x),
                 itemName = FormatCatalogItemName(x),
                 itemDescription = FormatCatalogItemDescription(x)

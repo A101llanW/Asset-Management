@@ -33,9 +33,10 @@ namespace AssetManagement.Application.Services
             "Quantity"
         };
 
+        // AcquisitionCost is optional: a blank cell imports as "Not set" (never a sub-type or placeholder price).
         private static readonly HashSet<string> AlwaysRequiredColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "AssetName", "AssetCategory", "AssetType", "PurchaseDate", "AcquisitionCost"
+            "AssetName", "AssetCategory", "AssetType", "PurchaseDate"
         };
 
 
@@ -233,6 +234,11 @@ namespace AssetManagement.Application.Services
         private static string FormatTemplateDecimal(decimal value)
         {
             return value.ToString("0.00", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatTemplateDecimal(decimal? value)
+        {
+            return value.HasValue ? FormatTemplateDecimal(value.Value) : string.Empty;
         }
 
         private static string FormatTemplateHeader(string columnKey)
@@ -532,7 +538,7 @@ namespace AssetManagement.Application.Services
                 SalvageValue = model.SalvageValue,
                 DepreciationMethod = model.DepreciationMethod == 0 ? DepreciationMethod.StraightLine : model.DepreciationMethod,
                 DepreciationStartDate = model.DepreciationStartDate == default(DateTime) ? model.PurchaseDate : model.DepreciationStartDate,
-                CurrentBookValue = model.AcquisitionCost,
+                CurrentBookValue = AssetPriceRules.OpeningBookValue(model.AcquisitionCost),
                 AccumulatedDepreciation = 0,
                 IsInsured = model.IsInsured,
                 InsuredValue = model.InsuredValue,
@@ -728,7 +734,7 @@ namespace AssetManagement.Application.Services
             var brand = ResolveLegacyBrand(row);
             var modelName = ResolveLegacyModel(row);
             var purchaseDate = ResolveLegacyPurchaseDate(row);
-            var acquisitionCost = ResolveLegacyAcquisitionCost(row);
+            var acquisitionCost = ResolveImportAcquisitionCost(row);
 
             var category = ResolveCategory(row, lookups);
             var assetType = ResolveAssetType(row, lookups, category.Id);
@@ -1070,10 +1076,20 @@ namespace AssetManagement.Application.Services
             return parsed ?? new DateTime(2020, 1, 1);
         }
 
-        private static decimal ResolveLegacyAcquisitionCost(IDictionary<string, string> row)
+        /// <summary>
+        /// The row's own AcquisitionCost. Blank = "Not set" (null): no 0.01 placeholder and never the
+        /// sub-type/type default price. An explicit 0 is kept as 0.
+        /// </summary>
+        public static decimal? ResolveImportAcquisitionCost(IDictionary<string, string> row)
         {
-            var parsed = ParseOptionalDecimal(row, "AcquisitionCost");
-            return parsed.HasValue && parsed.Value > 0 ? parsed.Value : LegacyImportDefaults.AcquisitionCost;
+            var parsed = AssetPriceRules.Normalize(ParseOptionalDecimal(row, "AcquisitionCost"));
+            var error = AssetPriceRules.Validate(parsed);
+            if (error != null)
+            {
+                throw new BusinessException(error);
+            }
+
+            return parsed;
         }
 
         private Supplier ResolveSupplier(IDictionary<string, string> row, ImportLookups lookups)

@@ -193,7 +193,7 @@ BEGIN
         [CurrentStatus] INT NOT NULL,
         [Description] NVARCHAR(MAX) NULL,
         [PurchaseDate] DATETIME NOT NULL,
-        [AcquisitionCost] DECIMAL(18,2) NOT NULL,
+        [AcquisitionCost] DECIMAL(18,2) NULL,
         [TaxAmount] DECIMAL(18,2) NOT NULL,
         [Currency] NVARCHAR(10) NULL,
         [SupplierId] INT NULL,

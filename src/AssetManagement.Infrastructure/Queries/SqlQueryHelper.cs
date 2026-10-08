@@ -63,6 +63,17 @@ namespace AssetManagement.Infrastructure.Queries
             return Convert.ToDecimal(value);
         }
 
+        public static decimal? GetDecimalNullable(IDataRecord record, string columnName)
+        {
+            var value = record[columnName];
+            if (value == null || value == DBNull.Value)
+            {
+                return null;
+            }
+
+            return Convert.ToDecimal(value);
+        }
+
         public static int GetInt32(IDataRecord record, string columnName, int defaultValue = 0)
         {
             var value = record[columnName];

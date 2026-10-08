@@ -10,6 +10,8 @@ namespace AssetManagement.Application.Contracts
 
         AssetListPageVm GetAssetListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize);
 
+        AssetPriceSummaryVm GetAssetPriceSummary(AssetFilterVm filter);
+
         AssetGroupListPageVm GetAssetGroupListPage(AssetFilterVm filter, string sort, string direction, int page, int pageSize);
 
         AssetGroupMembersPageVm GetAssetGroupMembers(
@@ -36,6 +38,9 @@ namespace AssetManagement.Application.Contracts
         void Update(AssetEditVm model);
 
         int CountAcquisitionCostApplyCandidates(int sourceAssetId, string scope, AssetFilterVm filter);
+
+        /// <summary>Sets or clears (null = "Not set") one asset's own price. Permission-checked and audited.</summary>
+        void SetAcquisitionCost(int assetId, decimal? acquisitionCost, string actorUserId);
 
         AssetBulkActionResultVm ApplyAcquisitionCost(
             int sourceAssetId,

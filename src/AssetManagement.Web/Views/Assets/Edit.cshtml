@@ -4,7 +4,9 @@
 @{
     ViewBag.Title = "Edit Asset";
     var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
-    var acquisitionCostDisplay = Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"));
+    var acquisitionCostDisplay = Model.AcquisitionCost.HasValue
+        ? Model.AcquisitionCost.Value.ToString("N2", CultureInfo.GetCultureInfo("en-KE"))
+        : string.Empty;
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -68,8 +70,10 @@
                    name="AcquisitionCost"
                    value="@acquisitionCostDisplay"
                    data-monetary-input="true"
-                   inputmode="decimal" />
+                   inputmode="decimal"
+                   placeholder="Not set" />
             @Html.ValidationMessageFor(m => m.AcquisitionCost, "", new { @class = "text-danger small" })
+            <div class="form-text">Optional. Leave blank for "Not set"; 0.00 is allowed. The sub-type price is never copied in.</div>
         </div>
         @Html.Partial("_AssetTaxAmountFields", Model)
     </div>

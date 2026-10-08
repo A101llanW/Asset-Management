@@ -116,7 +116,8 @@
                                         <td>@subType.Model</td>
                                         <td>@subType.StockCount</td>
                                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(subType.IsActive) badge-status">@(subType.IsActive ? "Active" : "Inactive")</span></td>
-                                        <td class="text-end pe-3">
+                                        <td class="text-end pe-3 text-nowrap">
+                                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Details", "AssetSubTypes", new { id = subType.Id, returnUrl = Request.RawUrl })">Details</a>
                                             <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Edit", "AssetSubTypes", new { id = subType.Id, returnUrl = Request.RawUrl })">Edit</a>
                                         </td>
                                     </tr>

@@ -62,6 +62,30 @@ namespace AssetManagement.Application.ViewModels
         public bool IsActive { get; set; } = true;
     }
 
+    /// <summary>
+    /// Sub-type details: the sub-type's active assets listed one by one (server-paged), each with its own
+    /// price. A blank asset price shows "Not set" and is never filled from <see cref="AssetSubTypeVm.DefaultAcquisitionCost"/>.
+    /// </summary>
+    public class AssetSubTypeDetailsVm
+    {
+        public AssetSubTypeVm SubType { get; set; }
+
+        public string AssetTypeName { get; set; }
+
+        public string AssetCategoryName { get; set; }
+
+        public AssetListPageVm Assets { get; set; } = new AssetListPageVm();
+
+        /// <summary>Whole sub-type (ignores the search box): priced total and priced/unpriced counts.</summary>
+        public AssetPriceSummaryVm PriceSummary { get; set; } = new AssetPriceSummaryVm();
+
+        public string Search { get; set; }
+
+        public int TotalPages { get; set; }
+
+        public bool CanEditPrice { get; set; }
+    }
+
     public class AssetSubTypeIndexItemVm
     {
         public int Id { get; set; }
@@ -73,6 +97,7 @@ namespace AssetManagement.Application.ViewModels
         public string AssetTypeName { get; set; }
         public string AssetCategoryName { get; set; }
         public bool IsActive { get; set; }
+        public decimal? DefaultAcquisitionCost { get; set; }
     }
     public class AssetSubTypeCreateFromAssetVm
     {

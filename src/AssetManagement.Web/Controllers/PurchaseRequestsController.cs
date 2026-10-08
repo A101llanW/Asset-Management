@@ -355,7 +355,7 @@ namespace AssetManagement.Web.Controllers
                 status = FormatAssetStatusLabel(x.CurrentStatus),
                 statusBadge = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
                 acquisitionCost = x.AcquisitionCost,
-                acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
+                acquisitionCostDisplay = AssetPriceRules.Format(x.AcquisitionCost),
                 label = FormatTargetAssetLabel(x),
                 itemDescription = FormatTargetAssetItemDescription(x),
                 subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "" : x.AssetSubTypeName,

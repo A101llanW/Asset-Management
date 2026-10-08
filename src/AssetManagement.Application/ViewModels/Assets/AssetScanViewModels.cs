@@ -61,7 +61,8 @@ namespace AssetManagement.Application.ViewModels
     {
         public int AssetId { get; set; }
 
-        public decimal AcquisitionCost { get; set; }
+        /// <summary>Null = "Not set"; excluded from TotalCostOfOwnership.</summary>
+        public decimal? AcquisitionCost { get; set; }
 
         public decimal TaxAmount { get; set; }
 

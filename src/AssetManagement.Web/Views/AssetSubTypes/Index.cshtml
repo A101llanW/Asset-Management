@@ -84,7 +84,8 @@ else
                                     <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
                                 }
                             </td>
-                            <td class="text-end">
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-outline-secondary am-subtype-details-btn" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
                                 <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
                             </td>
                         </tr>

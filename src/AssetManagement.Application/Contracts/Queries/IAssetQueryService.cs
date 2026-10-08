@@ -23,6 +23,9 @@ namespace AssetManagement.Application.Contracts.Queries
 
         int Count(AssetFilterVm filter);
 
+        /// <summary>Priced total plus priced/unpriced counts for the filtered active assets (nulls never summed).</summary>
+        AssetPriceSummaryVm GetPriceSummary(AssetFilterVm filter);
+
         AssetExportResultVm StreamExport(AssetFilterVm filter, string sort, string direction, Action<AssetExportRowVm> writeRow, int? maxRows = null);
     }
 }

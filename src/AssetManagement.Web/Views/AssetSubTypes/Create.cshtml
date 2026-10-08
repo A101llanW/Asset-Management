@@ -65,7 +65,7 @@
             @Html.TextAreaFor(m => m.Specifications, new { @class = "form-control", rows = "3" })
         </div>
         <div class="col-md-4">
-            <label class="form-label" for="DefaultAcquisitionCost">Default acquisition cost (@organizationCurrency)</label>
+            <label class="form-label" for="DefaultAcquisitionCost">Sub-type price (@organizationCurrency)</label>
             <input type="text"
                    class="form-control"
                    id="DefaultAcquisitionCost"
@@ -75,7 +75,7 @@
                    inputmode="decimal"
                    placeholder="Optional" />
             @Html.ValidationMessageFor(m => m.DefaultAcquisitionCost, "", new { @class = "text-danger" })
-            <div class="form-text">Optional suggested price when creating assets for this sub-type.</div>
+            <div class="form-text">Optional reference price for this sub-type. It is never copied into assets; each asset keeps its own price or shows "Not set".</div>
         </div>
         <div class="col-md-12">
             <div class="form-check">

@@ -244,7 +244,8 @@ OPTION (LOOP JOIN, ORDER GROUP)";
                                 DepartmentId = departmentId,
                                 CurrentStatus = status,
                                 Count = Convert.ToInt32(reader["UnitCount"]),
-                                TotalAcquisitionCost = Convert.ToDecimal(reader["TotalAcquisitionCost"]),
+                                // SUM ignores unpriced (NULL) members; all-unpriced groups read as 0.
+                                TotalAcquisitionCost = SqlQueryHelper.GetDecimal(reader, "TotalAcquisitionCost"),
                                 CategoryName = SqlQueryHelper.GetString(reader, "CategoryName"),
                                 DepartmentName = SqlQueryHelper.GetString(reader, "DepartmentName"),
                                 AssetSubTypeName = AssetSubTypeNormalizer.NormalizeName(SqlQueryHelper.GetString(reader, "AssetSubTypeName"))
@@ -665,7 +666,7 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             var item = new AssetGroupListVm
             {
                 Count = Convert.ToInt32(reader["UnitCount"]),
-                TotalAcquisitionCost = Convert.ToDecimal(reader["TotalAcquisitionCost"])
+                TotalAcquisitionCost = SqlQueryHelper.GetDecimal(reader, "TotalAcquisitionCost")
             };
 
             if (dimension.IsStatus)
@@ -789,6 +790,48 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
             }
         }
 
+        /// <summary>
+        /// Priced/unpriced counts and the priced total for the filtered, tenant/department-scoped active
+        /// assets. One scalar aggregate (stream aggregate, no sort/hash memory grant). Unpriced (NULL)
+        /// costs are counted, never summed as 0 or as a sub-type price.
+        /// </summary>
+        public AssetPriceSummaryVm GetPriceSummary(AssetFilterVm filter)
+        {
+            var scope = ResolveScope(filter);
+            var sql = @"SELECT COUNT(*) AS TotalCount,
+    COUNT(a.[AcquisitionCost]) AS PricedCount,
+    ISNULL(SUM(a.[AcquisitionCost]), 0) AS PricedTotal
+FROM [Asset] a" + BuildWhereClause(filter) + " OPTION (LOOP JOIN)";
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    scope.AddScopeParameters(command);
+                    AddFilterParameters(command, filter);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (!reader.Read())
+                        {
+                            return new AssetPriceSummaryVm();
+                        }
+
+                        var total = SqlQueryHelper.GetInt32(reader, "TotalCount");
+                        var priced = SqlQueryHelper.GetInt32(reader, "PricedCount");
+                        return new AssetPriceSummaryVm
+                        {
+                            TotalCount = total,
+                            PricedCount = priced,
+                            UnpricedCount = Math.Max(0, total - priced),
+                            PricedTotal = SqlQueryHelper.GetDecimal(reader, "PricedTotal")
+                        };
+                    }
+                }
+            }
+        }
+
         public int Count(AssetFilterVm filter)
         {
             var scope = TenantQueryScope.Resolve(_organizationScope, _departmentScope);
@@ -868,7 +911,7 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                 CategoryName = SqlQueryHelper.GetString(record, "CategoryName"),
                 DepartmentName = SqlQueryHelper.GetString(record, "DepartmentName"),
                 CurrentCustodianId = SqlQueryHelper.GetString(record, "CurrentCustodianId"),
-                AcquisitionCost = SqlQueryHelper.GetDecimal(record, "AcquisitionCost"),
+                AcquisitionCost = SqlQueryHelper.GetDecimalNullable(record, "AcquisitionCost"),
                 PurchaseDate = SqlQueryHelper.GetDateTimeNullable(record, "PurchaseDate"),
                 SerialNumber = SqlQueryHelper.GetString(record, "SerialNumber")
             };
@@ -1038,7 +1081,7 @@ OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
                 AssetSubTypeName = AssetSubTypeNormalizer.NormalizeName(SqlQueryHelper.GetString(record, "AssetSubTypeName")),
                 CurrentCustodianId = SqlQueryHelper.GetString(record, "CurrentCustodianId"),
                 CurrentStatus = (AssetStatus)Convert.ToInt32(record["CurrentStatus"]),
-                AcquisitionCost = Convert.ToDecimal(record["AcquisitionCost"])
+                AcquisitionCost = SqlQueryHelper.GetDecimalNullable(record, "AcquisitionCost")
             };
         }
     }

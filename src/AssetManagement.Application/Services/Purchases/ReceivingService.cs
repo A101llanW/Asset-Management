@@ -221,7 +221,8 @@ namespace AssetManagement.Application.Services
                         SerialNumber = unit.SerialNumber,
                         Description = itemDescription,
                         PurchaseDate = model.ReceivedDate,
-                        AcquisitionCost = purchase.UnitCost > 0 ? purchase.UnitCost : 0.01m,
+                        // The PO unit cost is this asset's own price; no PO price = "Not set" (no 0.01 placeholder).
+                        AcquisitionCost = purchase.UnitCost > 0 ? purchase.UnitCost : (decimal?)null,
                         Currency = purchase.Currency,
                         SupplierId = purchase.SupplierId > 0 ? purchase.SupplierId : (int?)null,
                         DepartmentId = receiveDepartmentId,

@@ -30,6 +30,8 @@
 
   <ItemGroup>
 
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+
     <Reference Include="System.Web" />
 
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.2" />

@@ -68,7 +68,8 @@ namespace AssetManagement.Web.Controllers
                     AssetTypeId = x.AssetTypeId,
                     AssetTypeName = assetType != null ? assetType.Name : null,
                     AssetCategoryName = categoryName,
-                    IsActive = x.IsActive
+                    IsActive = x.IsActive,
+                    DefaultAcquisitionCost = x.DefaultAcquisitionCost
                 };
             }).ToList();
 
@@ -79,6 +80,96 @@ namespace AssetManagement.Web.Controllers
                 UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).OrderBy(x => x.Name).ToList(),
                 "Id", "Name", assetTypeId);
             return View(items);
+        }
+
+        private const int DetailsPageSize = 25;
+
+        /// <summary>
+        /// Sub-type details (Allan, 2026-10-08): the sub-type's active assets one by one, mirroring how Type
+        /// Details lists sub-types. Org/department scoped and server-paged (ids paged first, then rows).
+        /// Each asset shows its own price; a blank price is "Not set" (never the sub-type price).
+        /// </summary>
+        public ActionResult Details(int id, int page = 1, string search = null, string returnUrl = null)
+        {
+            var subType = _assetSubTypeService.GetById(id);
+            if (subType == null)
+            {
+                return HttpNotFound();
+            }
+
+            var assetType = UnitOfWork.Repository<AssetType>().GetById(subType.AssetTypeId);
+            PopulateAssetTypeContext(assetType);
+
+            var term = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            var listFilter = new AssetFilterVm { AssetSubTypeId = id, Search = term };
+            var assets = _assetService.GetAssetListPage(listFilter, "tag", "asc", page, DetailsPageSize);
+            EnrichAssetListCustodianNames(assets.Items);
+            var summary = _assetService.GetAssetPriceSummary(new AssetFilterVm { AssetSubTypeId = id });
+
+            var model = new AssetSubTypeDetailsVm
+            {
+                SubType = subType,
+                AssetTypeName = assetType == null ? subType.AssetTypeName : assetType.Name,
+                AssetCategoryName = ViewBag.AssetCategoryName as string ?? subType.AssetCategoryName,
+                Assets = assets,
+                PriceSummary = summary,
+                Search = term,
+                TotalPages = Math.Max(1, (int)Math.Ceiling((double)assets.TotalCount / Math.Max(1, assets.PageSize))),
+                CanEditPrice = true
+            };
+
+            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            return View(model);
+        }
+
+        /// <summary>
+        /// Sets or clears one asset's own price from the sub-type details list. Same permission as Asset Edit
+        /// (Assets.Edit), tenant + department scoped, audited as Assets.SetPrice. Blank = "Not set"; 0 is allowed.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public JsonResult SetAssetPrice(int assetId, int subTypeId, string price)
+        {
+            decimal? parsed;
+            if (!AssetPriceRules.TryParse(price, out parsed))
+            {
+                return Json(new { success = false, message = "Enter a number, or leave it blank for \"Not set\"." });
+            }
+
+            var error = AssetPriceRules.Validate(parsed);
+            if (error != null)
+            {
+                return Json(new { success = false, message = error });
+            }
+
+            var asset = UnitOfWork.Repository<Asset>().GetById(assetId);
+            if (asset == null || !asset.IsActive || asset.AssetSubTypeId != subTypeId)
+            {
+                return Json(new { success = false, message = "Asset not found for this sub-type." });
+            }
+
+            try
+            {
+                _assetService.SetAcquisitionCost(assetId, parsed, User.GetUserId());
+            }
+            catch (BusinessException ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+
+            var summary = _assetService.GetAssetPriceSummary(new AssetFilterVm { AssetSubTypeId = subTypeId });
+            return Json(new
+            {
+                success = true,
+                assetId = assetId,
+                price = parsed.HasValue ? parsed.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : string.Empty,
+                priceDisplay = AssetPriceRules.Format(parsed),
+                isSet = parsed.HasValue,
+                pricedCount = summary.PricedCount,
+                unpricedCount = summary.UnpricedCount,
+                pricedTotalDisplay = CurrencyFormatter.Format(summary.PricedTotal),
+                unpricedNote = AssetPriceRules.FormatUnpricedNote(summary.UnpricedCount)
+            });
         }
 
         public ActionResult Create(int? assetTypeId = null, string returnUrl = null)
@@ -179,13 +270,10 @@ namespace AssetManagement.Web.Controllers
             }
             try
             {
+                // The sub-type price is a reference value only: it is never copied into assets
+                // (Allan, 2026-10-08). The old "apply default price to all assets" step was removed.
                 _assetSubTypeService.Update(model);
-                var guidance = ApplySubTypeDefaultCostToAssets(model);
                 TempData["Message"] = "Asset sub-type updated.";
-                if (!string.IsNullOrWhiteSpace(guidance))
-                {
-                    TempData["Guidance"] = guidance;
-                }
 
                 return RedirectToReturnUrl(returnUrl, "Details", "AssetTypes", new { id = model.AssetTypeId });
             }
@@ -305,51 +393,6 @@ namespace AssetManagement.Web.Controllers
                 PreviousDefaultAcquisitionCost = subType.DefaultAcquisitionCost,
                 IsActive = subType.IsActive
             };
-        }
-
-        private string ApplySubTypeDefaultCostToAssets(AssetSubTypeEditVm model)
-        {
-            if (model == null || !model.DefaultAcquisitionCost.HasValue || model.DefaultAcquisitionCost.Value <= 0)
-            {
-                return null;
-            }
-
-            var scope = string.IsNullOrWhiteSpace(model.AcquisitionCostApplyScope)
-                ? AcquisitionCostApplyScopes.Individual
-                : model.AcquisitionCostApplyScope.Trim();
-
-            if (string.Equals(scope, AcquisitionCostApplyScopes.Individual, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            if (!string.Equals(scope, AcquisitionCostApplyScopes.SameSubType, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            var filter = new AssetFilterVm { AssetSubTypeId = model.Id };
-            var result = _assetService.ApplyAcquisitionCost(
-                0,
-                model.DefaultAcquisitionCost.Value,
-                AcquisitionCostApplyScopes.SameSubType,
-                filter,
-                User.GetUserId());
-
-            if (result.ProcessedCount <= 0)
-            {
-                return result.SkippedCount > 0
-                    ? "Default price saved. No asset prices were updated."
-                    : null;
-            }
-
-            var guidance = "Default price saved and applied to " + result.ProcessedCount + " asset(s).";
-            if (result.SkippedCount > 0)
-            {
-                guidance += " " + result.SkippedCount + " skipped.";
-            }
-
-            return guidance;
         }
     }
 }

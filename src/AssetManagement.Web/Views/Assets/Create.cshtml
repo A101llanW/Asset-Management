@@ -4,8 +4,8 @@
 @{
     ViewBag.Title = "Create Asset";
     var organizationCurrency = ViewBag.OrganizationCurrency as string ?? "KES";
-    var acquisitionCostDisplay = Model.AcquisitionCost >= 0.01m
-        ? Model.AcquisitionCost.ToString("N2", CultureInfo.GetCultureInfo("en-KE"))
+    var acquisitionCostDisplay = Model.AcquisitionCost.HasValue
+        ? Model.AcquisitionCost.Value.ToString("N2", CultureInfo.GetCultureInfo("en-KE"))
         : string.Empty;
 }
 
@@ -81,9 +81,9 @@
                            value="@acquisitionCostDisplay"
                            data-monetary-input="true"
                            inputmode="decimal"
-                           placeholder="Required unless sub-type has a default price"
-                           required="required" />
+                           placeholder="Not set" />
                     @Html.ValidationMessageFor(m => m.AcquisitionCost, "", new { @class = "text-danger small" })
+                    <div class="form-text">Optional. Leave blank for "Not set"; the sub-type price is never copied in.</div>
                 </div>
                 @Html.Partial("_AssetTaxAmountFields", Model)
             </div>

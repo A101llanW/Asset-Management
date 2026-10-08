@@ -72,7 +72,8 @@ namespace AssetManagement.Application.ViewModels
 
         public AssetStatus CurrentStatus { get; set; }
 
-        public decimal AcquisitionCost { get; set; }
+        /// <summary>The asset's own price; null = "Not set".</summary>
+        public decimal? AcquisitionCost { get; set; }
     }
 
     public class AssetCreateVm
@@ -112,9 +113,12 @@ namespace AssetManagement.Application.ViewModels
         [Required]
         public DateTime PurchaseDate { get; set; }
 
-        [Required]
-        [Range(0.01, 999999999)]
-        public decimal AcquisitionCost { get; set; }
+        /// <summary>
+        /// The asset's own price. Optional: blank = "Not set" (never copied from the sub-type price);
+        /// an explicit 0.00 is allowed and saved as 0.
+        /// </summary>
+        [Range(0, 999999999)]
+        public decimal? AcquisitionCost { get; set; }
 
         public decimal TaxAmount { get; set; }
 
@@ -164,7 +168,7 @@ namespace AssetManagement.Application.ViewModels
         public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
 
         /// <summary>Acquisition cost before edit; used to detect price changes.</summary>
-        public decimal PreviousAcquisitionCost { get; set; }
+        public decimal? PreviousAcquisitionCost { get; set; }
 
         /// <summary>individual, subtype, or filtered — see AcquisitionCostApplyScopes.</summary>
         public string AcquisitionCostApplyScope { get; set; }
@@ -218,7 +222,8 @@ namespace AssetManagement.Application.ViewModels
 
         public AssetStatus CurrentStatus { get; set; }
 
-        public decimal AcquisitionCost { get; set; }
+        /// <summary>The asset's own price; null = "Not set".</summary>
+        public decimal? AcquisitionCost { get; set; }
 
         public decimal TaxAmount { get; set; }
 

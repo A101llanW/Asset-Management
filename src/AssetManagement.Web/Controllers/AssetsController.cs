@@ -155,7 +155,7 @@ namespace AssetManagement.Web.Controllers
                 statusBadgeClass = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
                 custodianName = DisplayText.FormatCustodian(x.CurrentCustodianName, x.CurrentStatus),
                 acquisitionCost = x.AcquisitionCost,
-                acquisitionCostDisplay = CurrencyFormatter.Format(x.AcquisitionCost),
+                acquisitionCostDisplay = AssetPriceRules.Format(x.AcquisitionCost),
                 detailsUrl = Url.Action("Details", new { id = x.Id }),
                 canMove = canRelocateAsset
                     && string.IsNullOrWhiteSpace(x.CurrentCustodianId)
@@ -548,7 +548,6 @@ namespace AssetManagement.Web.Controllers
 
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
             ApplyAssetFormDefaults(viewModel);
-            ApplyAcquisitionCostFromSubTypeDefault(viewModel);
             ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
             PopulateDepreciationContext(viewModel);
@@ -700,7 +699,6 @@ namespace AssetManagement.Web.Controllers
             var assetEntity = UnitOfWork.Repository<Asset>().GetById(viewModel.Id);
             AssetTaxInputHelper.ApplyTaxInput(viewModel);
             ApplyAssetFormDefaults(viewModel);
-            ApplyAcquisitionCostFromSubTypeDefault(viewModel);
             ClearOptionalAssetFieldErrors(viewModel);
             PopulateLookups(viewModel);
             PopulateDepreciationContext(viewModel, assetEntity);
@@ -973,7 +971,7 @@ namespace AssetManagement.Web.Controllers
                 DepreciationMethod = model.DepreciationMethod,
                 AcquisitionCost = model.AcquisitionCost,
                 SalvageValue = model.SalvageValue,
-                CurrentBookValue = model.AcquisitionCost
+                CurrentBookValue = AssetPriceRules.OpeningBookValue(model.AcquisitionCost)
             };
 
             if (entity != null)
@@ -1012,33 +1010,8 @@ namespace AssetManagement.Web.Controllers
             }
         }
 
-        private void ApplyAcquisitionCostFromSubTypeDefault(AssetCreateVm model)
-        {
-            if (model == null || model.AcquisitionCost >= 0.01m)
-            {
-                return;
-            }
-
-            if (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0)
-            {
-                return;
-            }
-
-            var subType = UnitOfWork.Repository<AssetSubType>().GetById(model.AssetSubTypeId.Value);
-            if (subType == null
-                || !subType.DefaultAcquisitionCost.HasValue
-                || subType.DefaultAcquisitionCost.Value < 0.01m)
-            {
-                return;
-            }
-
-            model.AcquisitionCost = subType.DefaultAcquisitionCost.Value;
-            var costText = model.AcquisitionCost.ToString(CultureInfo.InvariantCulture);
-            ModelState.Remove("AcquisitionCost");
-            ModelState.SetModelValue(
-                "AcquisitionCost",
-                new ValueProviderResult(costText, costText, CultureInfo.InvariantCulture));
-        }
+        // Removed 2026-10-08 (Allan): ApplyAcquisitionCostFromSubTypeDefault used to copy the sub-type's
+        // default price into a blank Acquisition cost on Create/Edit. A blank price now stays "Not set".
 
         private void ClearOptionalAssetFieldErrors(AssetCreateVm model)
         {
@@ -1083,8 +1056,9 @@ namespace AssetManagement.Web.Controllers
 
         private string AppendAcquisitionCostApplyResult(int assetId, AssetCreateVm model)
         {
-            if (model == null)
+            if (model == null || !model.AcquisitionCost.HasValue)
             {
+                // Nothing to copy: a "Not set" price is never bulk-applied to other assets.
                 return null;
             }
 
@@ -1112,7 +1086,7 @@ namespace AssetManagement.Web.Controllers
 
             var result = _assetService.ApplyAcquisitionCost(
                 assetId,
-                model.AcquisitionCost,
+                model.AcquisitionCost.Value,
                 scope,
                 filter,
                 User.GetUserId());

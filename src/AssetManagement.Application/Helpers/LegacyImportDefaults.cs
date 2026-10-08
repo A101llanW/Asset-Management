@@ -6,7 +6,6 @@ namespace AssetManagement.Application.Helpers
     {
         public const string Brand = "Unknown";
         public const string Model = "Legacy Import";
-        public const decimal AcquisitionCost = 0.01m;
 
         public static string NormalizeForDisplay(string value, string placeholder)
         {

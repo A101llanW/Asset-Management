@@ -87,12 +87,18 @@ namespace AssetManagement.Application.Helpers
                 return 0m;
             }
 
+            if (!asset.AcquisitionCost.HasValue)
+            {
+                // Unpriced ("Not set"): skip, never depreciate a fallback price.
+                return 0m;
+            }
+
             if (asset.DepreciationMethod == Domain.Enums.DepreciationMethod.ReducingBalance)
             {
                 return System.Math.Round(asset.CurrentBookValue * settings.AnnualRatePercent / 1200m, 2);
             }
 
-            var depreciableAmount = asset.AcquisitionCost - asset.SalvageValue;
+            var depreciableAmount = asset.AcquisitionCost.Value - asset.SalvageValue;
             if (depreciableAmount <= 0)
             {
                 return 0m;

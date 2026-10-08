@@ -39,7 +39,8 @@ namespace AssetManagement.Domain.Entities
 
         public DateTime PurchaseDate { get; set; }
 
-        public decimal AcquisitionCost { get; set; }
+        /// <summary>The asset's own price. Null = "Not set" (never copied from the sub-type price).</summary>
+        public decimal? AcquisitionCost { get; set; }
 
         public decimal TaxAmount { get; set; }
 

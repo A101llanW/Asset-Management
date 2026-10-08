@@ -17,7 +17,7 @@ namespace AssetManagement.Application.ViewModels
 
         public string CurrentCustodianId { get; set; }
 
-        public decimal AcquisitionCost { get; set; }
+        public decimal? AcquisitionCost { get; set; }
 
         public DateTime? PurchaseDate { get; set; }
 
