@@ -3,6 +3,16 @@
     var storageKey = "am-assets-grouped-expanded";
     var memberPageSize = config.memberPageSize || 10;
 
+    // Details links carry this list URL (view, filters, page) as returnUrl so "Back to Assets" returns here;
+    // the server only accepts a local, tenant-aware path and falls back to Assets/Index.
+    function withListReturnUrl(url) {
+        if (!url) {
+            return url;
+        }
+        var back = window.location.pathname + window.location.search;
+        return url + (url.indexOf("?") >= 0 ? "&" : "?") + "returnUrl=" + encodeURIComponent(back);
+    }
+
     function readExpandedKeys() {
         try {
             var raw = sessionStorage.getItem(storageKey);
@@ -251,7 +261,7 @@
 
         var actionsCell = document.createElement("td");
         actionsCell.className = "text-end text-nowrap align-middle";
-        var actionsHtml = '<a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + item.detailsUrl + '">Details</a>';
+        var actionsHtml = '<a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + withListReturnUrl(item.detailsUrl) + '">Details</a>';
         if (item.canMove) {
             actionsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" data-am-relocate-open data-asset-id="' + item.id + '" data-asset-tag="' + item.assetTag + '">Move</button>';
         }

@@ -446,8 +446,11 @@ namespace AssetManagement.Web.Controllers
         }
 
         [PermissionAuthorize("Assets.View")]
-        public ActionResult Details(string id)
+        public ActionResult Details(string id, string returnUrl = null)
         {
+            // "Back to Assets" returns to the list the user came from (view, filters, page); only a safe local,
+            // tenant-aware path is accepted, otherwise Assets/Index.
+            ViewBag.AssetsBackUrl = ResolveReturnUrl(returnUrl, "Index");
             int assetId;
             if (!TryResolveAssetId(id, out assetId))
             {

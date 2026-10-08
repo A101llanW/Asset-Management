@@ -398,7 +398,7 @@ else
                             <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.CurrentStatus) badge-status px-2 py-1.5 rounded-pill text-capitalize">@item.CurrentStatus.ToString().Replace("AwaitingApproval", "Pending Approval").Replace("InStore", "In Store")</span></td>
                             <td class="fw-bold @(item.AcquisitionCost.HasValue ? "text-primary" : "text-muted fst-italic")">@AssetPriceRules.Format(item.AcquisitionCost)</td>
                             <td class="text-end pe-3">
-                                <a class="btn btn-sm btn-outline-primary py-1 px-3 me-1" href="@Url.Action("Details", new { id = item.Id })">Details</a>
+                                <a class="btn btn-sm btn-outline-primary py-1 px-3 me-1" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
                                 @if (canEditAsset)
                                 {
                                     <a class="btn btn-sm btn-outline-secondary py-1 px-3" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
@@ -428,7 +428,7 @@ else
     }
     @if (isRoomView && hasResults)
     {
-        <script src="@Url.Content("~/Scripts/app/assets-by-room.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/assets-by-room.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/assets-by-room.js")).Ticks"></script>
     }
     @if (isGrouped)
     {
@@ -464,6 +464,6 @@ else
                 }
             };
         </script>
-        <script src="@Url.Content("~/Scripts/app/assets-grouped.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/assets-grouped.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/assets-grouped.js")).Ticks"></script>
     }
 }

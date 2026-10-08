@@ -42,7 +42,7 @@
 {
     Title = Model.AssetName,
     Subtitle = "Asset tag: " + Model.AssetTag,
-    BackUrl = Url.Action("Index"),
+    BackUrl = ViewBag.AssetsBackUrl as string ?? Url.Action("Index"),
     BackLabel = "Back to Assets",
     PrimaryActionModalTarget = "assetQrLabelModal",
     PrimaryActionLabel = "Print label"

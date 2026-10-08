@@ -15,6 +15,16 @@
     var assetPageSize = parseInt(root.getAttribute("data-am-room-asset-page-size") || "25", 10) || 25;
     var storageKey = "am-assets-room-expanded:" + window.location.pathname + window.location.search;
 
+    // Details links carry this list URL (view, filters, page) as returnUrl so "Back to Assets" returns here;
+    // the server only accepts a local, tenant-aware path and falls back to Assets/Index.
+    function withListReturnUrl(url) {
+        if (!url) {
+            return url;
+        }
+        var back = window.location.pathname + window.location.search;
+        return url + (url.indexOf("?") >= 0 ? "&" : "?") + "returnUrl=" + encodeURIComponent(back);
+    }
+
     function escapeHtml(value) {
         if (value === null || value === undefined) {
             return "";
@@ -235,7 +245,7 @@
                 + '<td><span class="badge bg-' + escapeHtml(item.statusBadgeClass) + ' badge-status">' + escapeHtml(item.statusLabel) + "</span></td>"
                 + '<td class="text-end ' + (item.price === null || item.price === undefined ? "text-muted fst-italic" : "fw-medium text-primary") + '" data-am-asset-price>' + escapeHtml(item.priceDisplay) + "</td>"
                 + '<td class="text-end text-nowrap">'
-                + '<a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + escapeHtml(item.detailsUrl) + '">Details</a>';
+                + '<a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + escapeHtml(withListReturnUrl(item.detailsUrl)) + '">Details</a>';
             if (item.editUrl) {
                 html += '<a class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" href="' + escapeHtml(item.editUrl) + '">Edit</a>';
             }
