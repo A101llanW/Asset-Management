@@ -64,6 +64,14 @@
                 .ToList();
             classGradeParentSelectList = new SelectList(gradeItems, "Value", "Text", Model.ParentDepartmentId);
         }
+        // A class acts as a room and is immovable: an existing class keeps its stored grade parent.
+        var originalParentValue = ViewBag.OriginalParentDepartmentId as string;
+        if (ViewBag.OriginalDepartmentKind as string == ((int)DepartmentKind.Class).ToString()
+            && !string.IsNullOrWhiteSpace(originalParentValue)
+            && classGradeParentSelectList != null)
+        {
+            classGradeParentSelectList = new SelectList(classGradeParentSelectList.Where(x => x.Value == originalParentValue).ToList(), "Value", "Text", originalParentValue);
+        }
 
         if (kindSelectList == null)
         {
@@ -188,7 +196,7 @@
             classGradeParentSelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
             "-- Select grade parent --",
             new { @class = "form-select", id = "class-parent-select" })
-        <div class="form-text">Classes must belong to a grade (grouping). Parent options are live grades from this organisation only.</div>
+        <div class="form-text">Classes must belong to a grade (grouping). Parent options are live grades from this organisation only. An existing class cannot be moved; move its assets to a room instead.</div>
     </div>
     <div class="card border-warning mb-3 d-none" id="kind-change-children-panel"
          data-impact-url="@Url.Action("KindChangeImpact", new { id = Model.Id })"

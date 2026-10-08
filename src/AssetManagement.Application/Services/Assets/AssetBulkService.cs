@@ -115,6 +115,11 @@ namespace AssetManagement.Application.Services
 
                         var fromDepartmentId = asset.DepartmentId.HasValue && asset.DepartmentId.Value > 0 ? asset.DepartmentId : null;
                         var toDepartmentId = request.TargetDepartmentId.Value;
+                        if (fromDepartmentId.HasValue && fromDepartmentId.Value != toDepartmentId)
+                        {
+                            var fromDepartment = _unitOfWork.Repository<Department>().GetById(fromDepartmentId.Value);
+                            AssetMoveRules.Ensure(fromDepartment == null ? (DepartmentKind?)null : fromDepartment.DepartmentKind, targetDepartment.DepartmentKind);
+                        }
                         var now = DateTime.UtcNow;
                         asset.DepartmentId = toDepartmentId;
                         asset.UpdatedAt = now;

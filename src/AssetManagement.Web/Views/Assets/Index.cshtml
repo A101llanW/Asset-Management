@@ -14,6 +14,8 @@
     var classDepartments = ViewBag.ClassDepartments as System.Web.Mvc.SelectList;
     var roomDepartmentGroups = ViewBag.RoomDepartmentGroups as System.Collections.Generic.IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
     var canRelocateToRoom = canRelocateAsset && roomDepartmentGroups != null && roomDepartmentGroups.Any(g => g.Items != null && g.Items.Count > 0);
+    // Asset move rules: Move to room only for assets in a room, sub-department or class (or company custody).
+    var moveToRoomSourceIds = ViewBag.MoveToRoomSourceDepartmentIds as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
     var departments = ViewBag.Departments as System.Web.Mvc.SelectList;
     var statuses = ViewBag.Statuses as System.Web.Mvc.SelectList;
     var currentSort = ViewBag.Sort as string;
@@ -238,6 +240,7 @@ else if (isGrouped && groupedPage != null)
                                     }
                                 }
                                 @if (!isSimpleGroupBy && canRelocateToRoom
+                                    && (!group.DepartmentId.HasValue || moveToRoomSourceIds.Contains(group.DepartmentId.Value))
                                     && (group.CurrentStatus == AssetStatus.InStore
                                         || group.CurrentStatus == AssetStatus.Received
                                         || group.CurrentStatus == AssetStatus.Returned))
@@ -423,6 +426,7 @@ else
                                     <a class="btn btn-sm btn-outline-secondary py-1 px-3" href="@Url.Action("Edit", new { id = item.Id })">Edit</a>
                                 }
                                 @if (canRelocateToRoom
+                                    && (!item.DepartmentId.HasValue || moveToRoomSourceIds.Contains(item.DepartmentId.Value))
                                     && string.IsNullOrWhiteSpace(item.CurrentCustodianId)
                                     && (item.CurrentStatus == AssetStatus.InStore
                                         || item.CurrentStatus == AssetStatus.Received

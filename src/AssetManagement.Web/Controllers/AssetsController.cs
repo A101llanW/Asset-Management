@@ -59,9 +59,14 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
             ViewBag.CanRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
-            ViewBag.ClassDepartments = BuildClassDepartmentSelectList();
+            // Asset move rules: no moves into a class (a class acts as a room); bulk "Move to department" offers
+            // rooms and sub-departments only; Move to room is shown only for assets in a room, sub-department or class.
+            ViewBag.ClassDepartments = new SelectList(Enumerable.Empty<SelectListItem>());
             ViewBag.RoomDepartmentGroups = BuildMoveTargetDepartmentGroups(DepartmentKind.Room);
-            ViewBag.MoveDepartmentGroups = BuildMoveTargetDepartmentGroups();
+            ViewBag.MoveDepartmentGroups = BuildMoveTargetDepartmentGroups(DepartmentKind.Room)
+                .Concat(BuildMoveTargetDepartmentGroups(DepartmentKind.SubDepartment))
+                .ToList();
+            ViewBag.MoveToRoomSourceDepartmentIds = GetMoveToRoomSourceDepartmentIds();
             ViewBag.Filter = filter;
             SetListSortViewBag(sort, direction);
 
@@ -150,6 +155,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var canRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
+            var moveSourceIds = canRelocateAsset ? GetMoveToRoomSourceDepartmentIds() : new HashSet<int>();
             var pageModel = _assetService.GetAssetGroupMembers(
                 filter,
                 assetName,
@@ -181,6 +187,7 @@ namespace AssetManagement.Web.Controllers
                 acquisitionCostDisplay = AssetPriceRules.Format(x.AcquisitionCost),
                 detailsUrl = Url.Action("Details", new { id = x.Id }),
                 canMove = canRelocateAsset
+                    && (!x.DepartmentId.HasValue || moveSourceIds.Contains(x.DepartmentId.Value))
                     && string.IsNullOrWhiteSpace(x.CurrentCustodianId)
                     && (x.CurrentStatus == AssetStatus.InStore
                         || x.CurrentStatus == AssetStatus.Received
@@ -1228,6 +1235,14 @@ namespace AssetManagement.Web.Controllers
             {
                 return CanOpenDetailsForEdit(entity.Id);
             }
+        }
+
+        // Departments whose assets may be moved to a room (room, sub-department, class).
+        private HashSet<int> GetMoveToRoomSourceDepartmentIds()
+        {
+            return new HashSet<int>(UnitOfWork.Repository<Department>().GetAll()
+                .Where(x => x.IsActive && AssetMoveRules.CanMoveToRoomFrom(x.DepartmentKind))
+                .Select(x => x.Id));
         }
 
         // Custodian-only visibility (Details/My Assets) does not extend to Edit.

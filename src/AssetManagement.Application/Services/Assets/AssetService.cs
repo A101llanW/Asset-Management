@@ -582,6 +582,12 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Asset is already registered to the selected " + label + ".");
             }
 
+            if (fromDepartmentId.HasValue)
+            {
+                var fromDepartment = _unitOfWork.Repository<Department>().GetById(fromDepartmentId.Value);
+                AssetMoveRules.Ensure(fromDepartment == null ? (DepartmentKind?)null : fromDepartment.DepartmentKind, targetDepartment.DepartmentKind);
+            }
+
             var now = DateTime.UtcNow;
             var relocateEvent = new AssetCustodyEvent
             {
@@ -2030,6 +2036,20 @@ namespace AssetManagement.Application.Services
                 {
                     throw new BusinessException("The selected department is inactive or no longer exists. Choose an active department.");
                 }
+            }
+
+            // Asset move rules: room to room, room to sub-department, sub-department to room, class to room only.
+            var oldDepartmentId = NormalizeOptionalId(entity.DepartmentId);
+            if (oldDepartmentId.HasValue)
+            {
+                if (!newDepartmentId.HasValue)
+                {
+                    throw new BusinessException(AssetMoveRules.RefusedMessage);
+                }
+
+                var from = _unitOfWork.Repository<Department>().GetById(oldDepartmentId.Value);
+                var to = _unitOfWork.Repository<Department>().GetById(newDepartmentId.Value);
+                AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, to.DepartmentKind);
             }
         }
 

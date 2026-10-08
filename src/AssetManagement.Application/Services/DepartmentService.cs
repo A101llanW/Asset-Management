@@ -212,7 +212,27 @@ namespace AssetManagement.Application.Services
             // Defence in depth for QA3-1: GetById is org-scoped only; a scoped user must not update another unit.
             _departmentScope.EnsureCanAccessDepartment(entity);
 
+            // A class acts as a room and is immovable: it cannot be re-parented (only its assets move, to a room).
+            var requestedParentId = model.ParentDepartmentId.HasValue && model.ParentDepartmentId.Value > 0 ? model.ParentDepartmentId : null;
+            var currentParentId = entity.ParentDepartmentId.HasValue && entity.ParentDepartmentId.Value > 0 ? entity.ParentDepartmentId : null;
+            if (entity.DepartmentKind == DepartmentKind.Class && requestedParentId != currentParentId)
+            {
+                throw new BusinessException("A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
+            }
+
             var allDepartments = repository.GetAll().ToList();
+            if (model.ChildMoves != null)
+            {
+                foreach (var move in model.ChildMoves)
+                {
+                    var child = move == null ? null : allDepartments.FirstOrDefault(x => x.Id == move.ChildDepartmentId);
+                    if (child != null && child.DepartmentKind == DepartmentKind.Class && move.NewParentDepartmentId.HasValue)
+                    {
+                        throw new BusinessException("A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
+                    }
+                }
+            }
+
             DepartmentHierarchyRules.AssertValidHierarchy(
                 model.Id,
                 model.DepartmentKind,
