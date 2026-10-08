@@ -476,6 +476,19 @@
         }
 
         if (!window.AssetLabelZebra || typeof window.AssetLabelZebra.printZplDirectly !== "function") {
+            if (window.AssetLabelZebraEnsure && !printQueue._loading) {
+                printQueue._loading = true;
+                window.AssetLabelZebraEnsure()
+                    .then(function () {
+                        printQueue._loading = false;
+                        printQueue();
+                    })
+                    .catch(function (err) {
+                        printQueue._loading = false;
+                        window.alert((err && err.message) ? err.message : "Zebra print module is unavailable.");
+                    });
+                return;
+            }
             window.alert("Zebra print module is unavailable.");
             return;
         }
@@ -753,9 +766,8 @@
         renderQueue();
         syncActionButtons();
 
-        if (window.AssetLabelZebra && typeof window.AssetLabelZebra.initRoot === "function") {
-            window.AssetLabelZebra.initRoot(panel);
-        }
+        // Do not load Zebra helper or contact BrowserPrint on Lookup page load.
+        // Helper loads on first Print click (printQueue -> AssetLabelZebraEnsure).
     }
 
     function boot() {
