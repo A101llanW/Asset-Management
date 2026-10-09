@@ -49,6 +49,7 @@ namespace AssetManagement.Web.Controllers
             UpsertSetting(repository, settings, InsuranceThresholdKey, model.InsuranceThresholdDays.ToString(), "Days before insurance expiry to trigger alerts.");
             UpsertSetting(repository, settings, MaintenanceThresholdKey, model.MaintenanceThresholdDays.ToString(), "Days before maintenance due date to trigger alerts.");
             UpsertSetting(repository, settings, DefaultCurrencyKey, model.DefaultCurrency.ToUpperInvariant(), "Default finance currency code.");
+            CapLabelQrMagnification(model.LabelPrinter, ExternalUrlHelper.GetConfiguredBaseUrl());
             UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter, includeLayoutDesign: false);
 
             foreach (var process in model.ApprovalProcesses ?? new List<ApprovalProcessSettingsVm>())
@@ -77,6 +78,8 @@ namespace AssetManagement.Web.Controllers
             var repository = UnitOfWork.Repository<SystemSetting>();
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
             var labelPrinter = LabelPrinterSettingsHelper.FromDictionary(settings);
+            // rel1009i: normalise on load - a stored magnification larger than the label allows is shown capped.
+            CapLabelQrMagnification(labelPrinter, ExternalUrlHelper.GetConfiguredBaseUrl());
             var design = LabelPrinterSettingsHelper.GetLayoutDesign(labelPrinter)
                 ?? LabelLayoutDesignHelper.CreateDefault(labelPrinter.WidthMm, labelPrinter.HeightMm);
 
@@ -88,7 +91,29 @@ namespace AssetManagement.Web.Controllers
                 ExternalBaseUrl = ExternalUrlHelper.GetConfiguredBaseUrl()
             };
 
+            SetLabelQrViewBag(model.LabelPrinter, model.ExternalBaseUrl);
             return View(model);
+        }
+
+        /// <summary>rel1009i: caps the QR magnification so the QR fits the label (worst-case scan URL for this site).</summary>
+        private void CapLabelQrMagnification(LabelPrinterSettingsVm labelPrinter, string externalBaseUrl)
+        {
+            if (labelPrinter == null)
+            {
+                return;
+            }
+
+            var payloadBytes = AssetQrUrlHelper.WorstCaseQrPayloadBytes(Request, Url, externalBaseUrl);
+            labelPrinter.QrMagnification = LabelQrSizing.CapMagnification(labelPrinter.QrMagnification, labelPrinter.WidthMm, labelPrinter.HeightMm, payloadBytes);
+        }
+
+        private void SetLabelQrViewBag(LabelPrinterSettingsVm labelPrinter, string externalBaseUrl)
+        {
+            var payloadBytes = AssetQrUrlHelper.WorstCaseQrPayloadBytes(Request, Url, externalBaseUrl);
+            ViewBag.QrPayloadBytes = payloadBytes;
+            ViewBag.QrMaxMagnification = labelPrinter == null
+                ? LabelQrSizing.MaxMagnification
+                : LabelQrSizing.MaxMagnificationFor(labelPrinter.WidthMm, labelPrinter.HeightMm, payloadBytes);
         }
 
         [HttpPost]
@@ -100,6 +125,8 @@ namespace AssetManagement.Web.Controllers
                 var repository = UnitOfWork.Repository<SystemSetting>();
                 var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
                 var collection = LabelLayoutTemplateHelper.Deserialize(settings);
+                qrMagnification = LabelQrSizing.CapMagnification(
+                    qrMagnification, widthMm, heightMm, AssetQrUrlHelper.WorstCaseQrPayloadBytes(Request, Url, ExternalUrlHelper.GetConfiguredBaseUrl()));
                 var template = LabelLayoutTemplateHelper.SaveTemplate(
                     collection,
                     name,
@@ -187,9 +214,12 @@ namespace AssetManagement.Web.Controllers
             if (!ModelState.IsValid)
             {
                 model.ExternalBaseUrl = ExternalUrlHelper.GetConfiguredBaseUrl();
+                SetLabelQrViewBag(model.LabelPrinter, model.ExternalBaseUrl);
                 return View(model);
             }
 
+            // rel1009i: normalise on save (server side) - cap the magnification before the layout is re-clamped.
+            CapLabelQrMagnification(model.LabelPrinter, ExternalUrlHelper.GetConfiguredBaseUrl());
             var repository = UnitOfWork.Repository<SystemSetting>();
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(repository.GetAll());
             var design = LabelLayoutDesignHelper.Deserialize(

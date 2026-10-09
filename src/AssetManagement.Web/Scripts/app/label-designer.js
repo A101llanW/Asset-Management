@@ -17,11 +17,38 @@
         SerialNumber: { label: 'Serial number', sample: 'S/N: SN-123456', fontHeight: 14 }
     };
 
+    // rel1009i: real QR size and magnification cap (same as LabelQrSizing.cs). ZPL ^BQN prints magnification
+    // dots per module with no quiet zone; modules = 17 + 4 x version, version = smallest QR version whose
+    // byte capacity at error correction M holds the payload. maxMag = floor((min(w, h) - 2 x margin) x 8 / modules).
+    var QR_BYTE_CAPACITY_M = [14, 26, 42, 62, 84, 106, 122, 152, 180, 213, 251, 287, 331, 362, 412, 450, 504, 560, 624, 666,
+        711, 779, 857, 911, 997, 1059, 1125, 1190, 1264, 1370, 1452, 1538, 1628, 1722, 1809, 1911, 1989, 2099, 2213, 2331];
+    var MAX_ZPL_MAGNIFICATION = 10;
+    var DEFAULT_WORST_CASE_PAYLOAD_BYTES = 100;
+
     var dragState = null;
     var uiState = {
         displayScale: MIN_DISPLAY_SCALE,
-        qrMagnification: 3
+        qrMagnification: 3,
+        qrPayloadBytes: DEFAULT_WORST_CASE_PAYLOAD_BYTES,
+        qrMaxMagnification: MAX_ZPL_MAGNIFICATION
     };
+
+    function qrModules(payloadBytes) {
+        var bytes = Math.max(1, payloadBytes || DEFAULT_WORST_CASE_PAYLOAD_BYTES);
+        for (var i = 0; i < QR_BYTE_CAPACITY_M.length; i++) {
+            if (bytes <= QR_BYTE_CAPACITY_M[i]) {
+                return 17 + 4 * (i + 1);
+            }
+        }
+
+        return 17 + 4 * QR_BYTE_CAPACITY_M.length;
+    }
+
+    function maxQrMagnification(widthMm, heightMm, payloadBytes) {
+        var usableDots = (Math.min(widthMm, heightMm) - (2 * MARGIN_MM)) * DOTS_PER_MM;
+        var max = Math.floor(usableDots / qrModules(payloadBytes));
+        return Math.max(1, Math.min(MAX_ZPL_MAGNIFICATION, max));
+    }
 
     function parseDesign(jsonValue, widthMm, heightMm) {
         try {
@@ -44,7 +71,19 @@
         return normalizeDesign({ Elements: [] }, widthMm, heightMm);
     }
 
+    // Printed QR square in mm: modules(payload) x ZPL magnification dots (rel1009i).
     function estimateQrSizeMm(magnification) {
+        var mag = Math.round(parseFloat(magnification));
+        if (isNaN(mag) || mag <= 0) {
+            mag = 3;
+        }
+
+        mag = Math.max(1, Math.min(MAX_ZPL_MAGNIFICATION, mag));
+        return (qrModules(uiState.qrPayloadBytes) * mag) / DOTS_PER_MM;
+    }
+
+    // Legacy estimate kept only for the default text column (unchanged default layouts).
+    function legacyQrSizeMm(magnification) {
         var mag = parseInt(magnification, 10);
         if (isNaN(mag) || mag <= 0) {
             mag = 3;
@@ -54,7 +93,7 @@
     }
 
     function estimateTextColumnX(widthMm, qrMagnification) {
-        var qrSizeMm = estimateQrSizeMm(qrMagnification);
+        var qrSizeMm = legacyQrSizeMm(qrMagnification);
         return clamp(MARGIN_MM + qrSizeMm + MARGIN_MM, MARGIN_MM, widthMm - MARGIN_MM);
     }
 
@@ -183,15 +222,39 @@
 
     function getQrMagnification(field) {
         if (!field) {
-            return 3;
+            return Math.min(3, uiState.qrMaxMagnification);
         }
 
         var value = parseInt(field.value, 10);
         if (isNaN(value) || value <= 0) {
-            return 3;
+            value = 3;
         }
 
-        return clamp(value, 1, 10);
+        return clamp(value, 1, uiState.qrMaxMagnification || MAX_ZPL_MAGNIFICATION);
+    }
+
+    // rel1009i: recompute the cap for the current label size, set the input max, clamp the input value
+    // and show the hint. Returns the capped magnification.
+    function applyQrCap(qrField, dimensions, hint) {
+        uiState.qrMaxMagnification = maxQrMagnification(dimensions.widthMm, dimensions.heightMm, uiState.qrPayloadBytes);
+        var capped = getQrMagnification(qrField);
+        if (qrField) {
+            qrField.max = String(uiState.qrMaxMagnification);
+            if (String(capped) !== String(qrField.value)) {
+                qrField.value = capped;
+            }
+        }
+
+        if (hint) {
+            var fits = qrModules(uiState.qrPayloadBytes) <= (Math.min(dimensions.widthMm, dimensions.heightMm) - 2 * MARGIN_MM) * DOTS_PER_MM;
+            hint.textContent = fits
+                ? 'Largest magnification that fits this label: x' + uiState.qrMaxMagnification + '.'
+                : 'This label is too small for the QR code even at x1; use a larger label.';
+            hint.classList.toggle('text-danger', !fits);
+        }
+
+        uiState.qrMagnification = capped;
+        return capped;
     }
 
     function computeDisplayScale(widthMm, heightMm) {
@@ -684,6 +747,7 @@
         var widthField = document.getElementById(options.widthFieldId);
         var heightField = document.getElementById(options.heightFieldId);
         var qrField = document.getElementById(options.qrMagnificationFieldId);
+        var qrHint = document.getElementById('labelQrMagnificationHint');
         var form = document.getElementById('labelDesignerForm');
 
         if (!root || !scaler || !canvas || !fieldsRoot || !jsonField || !widthField || !heightField) {
@@ -700,12 +764,14 @@
             barcodePayload: root.getAttribute('data-sample-tag') || 'AST-1001'
         };
 
-        uiState.qrMagnification = getQrMagnification(qrField);
+        var payloadAttr = parseInt(root.getAttribute('data-qr-payload-bytes'), 10);
+        uiState.qrPayloadBytes = payloadAttr > 0 ? payloadAttr : DEFAULT_WORST_CASE_PAYLOAD_BYTES;
+        applyQrCap(qrField, getDimensions(widthField, heightField), qrHint);
         var design = parseDesign(jsonField.value, getDimensions(widthField, heightField).widthMm, getDimensions(widthField, heightField).heightMm);
 
         function getState() {
             var dimensions = getDimensions(widthField, heightField);
-            uiState.qrMagnification = getQrMagnification(qrField);
+            applyQrCap(qrField, dimensions, qrHint);
             design = normalizeDesign(design, dimensions.widthMm, dimensions.heightMm);
             jsonField.value = serializeDesign(design);
 
@@ -728,14 +794,14 @@
                 qrField.value = state.qrMagnification;
             }
 
-            uiState.qrMagnification = getQrMagnification(qrField);
+            applyQrCap(qrField, getDimensions(widthField, heightField), qrHint);
             design = parseDesign(state.layoutDesignJson, state.widthMm, state.heightMm);
             refresh();
         }
 
         function refresh() {
             var dimensions = getDimensions(widthField, heightField);
-            uiState.qrMagnification = getQrMagnification(qrField);
+            applyQrCap(qrField, dimensions, qrHint);
             design = normalizeDesign(design, dimensions.widthMm, dimensions.heightMm);
             renderFieldControls(fieldsRoot, design, refresh);
             renderCanvas(scaler, canvas, meta, design, dimensions, sampleData, uiState.qrMagnification);
@@ -746,10 +812,17 @@
         heightField.addEventListener('change', refresh);
         if (qrField) {
             qrField.addEventListener('change', refresh);
+            qrField.addEventListener('input', function () {
+                var value = parseInt(qrField.value, 10);
+                if (!isNaN(value) && value > uiState.qrMaxMagnification) {
+                    qrField.value = uiState.qrMaxMagnification;
+                }
+            });
         }
 
         if (form) {
             form.addEventListener('submit', function () {
+                applyQrCap(qrField, getDimensions(widthField, heightField), qrHint);
                 jsonField.value = serializeDesign(normalizeDesign(design, getDimensions(widthField, heightField).widthMm, getDimensions(widthField, heightField).heightMm));
             });
         }
@@ -795,6 +868,8 @@
     window.LabelDesigner = {
         init: init,
         estimateQrSizeMm: estimateQrSizeMm,
+        qrModules: qrModules,
+        maxQrMagnification: maxQrMagnification,
         marginMm: MARGIN_MM,
         clampAxis: clampAxis,
         normalizeDesign: normalizeDesign

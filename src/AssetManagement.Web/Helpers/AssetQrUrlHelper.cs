@@ -35,5 +35,27 @@ namespace AssetManagement.Web.Helpers
 
             return new Uri(request.Url, relative).AbsoluteUri;
         }
+
+        /// <summary>Sample asset tag used for the designer's sample scan URL and the worst-case QR payload.</summary>
+        public const string SampleAssetTag = "AST-1001";
+
+        /// <summary>
+        /// rel1009i: worst-case scan-URL length (bytes) for this deployment and organisation, used to cap the QR
+        /// magnification (designer, save, load, print config). See LabelQrSizing.WorstCasePayloadBytes.
+        /// </summary>
+        public static int WorstCaseQrPayloadBytes(HttpRequestBase request, UrlHelper urlHelper, string externalBaseUrl = null)
+        {
+            string sample = null;
+            try
+            {
+                sample = BuildScanUrl(request, urlHelper, SampleAssetTag, externalBaseUrl: externalBaseUrl);
+            }
+            catch (Exception)
+            {
+                // Fall back to the default worst case.
+            }
+
+            return AssetManagement.Application.Helpers.LabelQrSizing.WorstCasePayloadBytes(sample, SampleAssetTag);
+        }
     }
 }

@@ -52,10 +52,7 @@ namespace AssetManagement.Application.Helpers
 
             var widthDots = MmToDots(settings.WidthMm);
             var heightDots = MmToDots(settings.HeightMm);
-            var magnification = ClampDecimal(
-                settings.QrMagnification,
-                LabelPrinterSettingsHelper.MinQrMagnification,
-                LabelPrinterSettingsHelper.MaxQrMagnification);
+            var magnification = CapForLabel(settings, data.ScanUrl);
             var preset = string.IsNullOrWhiteSpace(settings.LayoutPreset)
                 ? LabelPrinterSettingsHelper.LayoutQrWithMeta
                 : settings.LayoutPreset;
@@ -128,10 +125,7 @@ namespace AssetManagement.Application.Helpers
 
             var widthDots = MmToDots(settings.WidthMm);
             var heightDots = MmToDots(settings.HeightMm);
-            var magnification = ClampDecimal(
-                settings.QrMagnification,
-                LabelPrinterSettingsHelper.MinQrMagnification,
-                LabelPrinterSettingsHelper.MaxQrMagnification);
+            var magnification = CapForLabel(settings, data.ScanUrl);
             var sb = new StringBuilder();
             sb.AppendLine("^XA");
             sb.AppendLine("^CI28");
@@ -342,6 +336,19 @@ namespace AssetManagement.Application.Helpers
             {
                 AppendText(sb, textX, textY, "S/N: " + Truncate(data.SerialNumber, 24), 18, 18);
             }
+        }
+
+        /// <summary>
+        /// rel1009i: never print a QR larger than the label. The stored value is already capped with the worst-case
+        /// scan URL (designer/save/load); this caps again with the actual payload, so it is normally a no-op.
+        /// </summary>
+        public static decimal CapForLabel(LabelPrinterSettingsVm settings, string scanUrl)
+        {
+            var clamped = ClampDecimal(
+                settings.QrMagnification,
+                LabelPrinterSettingsHelper.MinQrMagnification,
+                LabelPrinterSettingsHelper.MaxQrMagnification);
+            return LabelQrSizing.CapMagnification(clamped, settings.WidthMm, settings.HeightMm, LabelQrSizing.PayloadBytes(scanUrl));
         }
 
         public static int ResolveZplQrMagnification(decimal magnification)

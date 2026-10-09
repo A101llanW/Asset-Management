@@ -45,7 +45,8 @@
                     </div>
                     <div class="mb-3">
                         @Html.LabelFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-label" })
-                        @Html.TextBoxFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-control", type = "number", min = "1", max = "10", id = "labelQrMagnification" })
+                        @Html.TextBoxFor(m => m.LabelPrinter.QrMagnification, new { @class = "form-control", type = "number", min = "1", max = (ViewBag.QrMaxMagnification ?? 10).ToString(), step = "1", id = "labelQrMagnification" })
+                        <div class="form-text" id="labelQrMagnificationHint">Largest magnification that fits this label: x@(ViewBag.QrMaxMagnification ?? 10).</div>
                     </div>
                     <div class="mb-3">
                         @Html.LabelFor(m => m.LabelPrinter.Mode, new { @class = "form-label" })
@@ -96,6 +97,7 @@
                          data-sample-name="@Model.SampleAssetName"
                          data-sample-dept="@Model.SampleDepartmentName"
                          data-sample-serial="@Model.SampleSerialNumber"
+                         data-qr-payload-bytes="@(ViewBag.QrPayloadBytes ?? 100)"
                          data-sample-scan-url="@AssetQrUrlHelper.BuildScanUrl(Request, Url, "AST-1001", externalBaseUrl: Model.ExternalBaseUrl)">
                         <div class="am-label-designer-fields mb-3" id="labelDesignerFields"></div>
                         <p class="am-label-designer-canvas-meta text-muted small mb-2" id="labelDesignerMeta"></p>

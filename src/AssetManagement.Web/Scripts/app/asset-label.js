@@ -123,7 +123,8 @@
         var data = getShellData(shell);
         var widthMm = config.labelWidthMm || 76;
         var heightMm = config.labelHeightMm || 37;
-        var qrSizeMm = estimateQrSizeMm(config.qrMagnification || 3);
+        // rel1009i: the server sends the printed QR size (modules for this URL x capped magnification).
+        var qrSizeMm = config.qrSizeMm > 0 ? config.qrSizeMm : estimateQrSizeMm(config.qrMagnification || 3);
         root.innerHTML = '';
         root.className = 'am-asset-label am-asset-label--layout am-asset-label--designed';
         root.style.width = widthMm + 'mm';

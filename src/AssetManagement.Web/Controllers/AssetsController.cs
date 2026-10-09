@@ -739,7 +739,9 @@ namespace AssetManagement.Web.Controllers
                 zplUrl = Url.Action("LabelZpl", new { id = model.AssetId }),
                 labelWidthMm = settings.WidthMm,
                 labelHeightMm = settings.HeightMm,
-                qrMagnification = settings.QrMagnification,
+                qrMagnification = ZplLabelBuilder.CapForLabel(settings, model.ScanUrl),
+                // rel1009i: the printed QR square (modules for this URL x ZPL magnification), same as the Zebra output.
+                qrSizeMm = LabelQrSizing.QrSizeMm(ZplLabelBuilder.CapForLabel(settings, model.ScanUrl), LabelQrSizing.PayloadBytes(model.ScanUrl)),
                 usesCustomLayout = LabelPrinterSettingsHelper.UsesCustomLayout(settings),
                 layoutDesign = layoutDesign,
                 assetId = model.AssetId,
@@ -760,8 +762,15 @@ namespace AssetManagement.Web.Controllers
 
         private LabelPrinterSettingsVm GetLabelPrinterSettings()
         {
-            return LabelPrinterSettingsHelper.FromDictionary(
+            var settings = LabelPrinterSettingsHelper.FromDictionary(
                 ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll()));
+            // rel1009i: same cap as the Label Designer (worst-case scan URL), so print matches the preview.
+            settings.QrMagnification = LabelQrSizing.CapMagnification(
+                settings.QrMagnification,
+                settings.WidthMm,
+                settings.HeightMm,
+                AssetQrUrlHelper.WorstCaseQrPayloadBytes(Request, Url, GetExternalBaseUrl()));
+            return settings;
         }
 
         private static ZplLabelData ToZplLabelData(AssetManagement.Web.ViewModels.AssetLabelPrintVm model)

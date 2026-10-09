@@ -68,6 +68,9 @@ namespace AssetManagement.Application.Helpers
         /// </summary>
         public static LabelLayoutDesign Normalize(LabelLayoutDesign design, int widthMm, int heightMm, decimal qrMagnification)
         {
+            // rel1009i: the QR footprint uses the magnification capped to the label (worst-case scan URL), so a
+            // position that only fitted the uncapped size is re-clamped against the real, capped QR square.
+            qrMagnification = LabelQrSizing.CapMagnification(qrMagnification, widthMm, heightMm, LabelQrSizing.DefaultWorstCasePayloadBytes);
             design = design ?? new LabelLayoutDesign();
             var byId = design.Elements
                 .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Id))
@@ -262,10 +265,15 @@ namespace AssetManagement.Application.Helpers
         /// <summary>Footprint used for clamping: the QR square, or a text line (minimum visible width x line height).</summary>
         public static void GetElementFootprintMm(LabelLayoutElement element, decimal qrMagnification, out double widthMm, out double heightMm)
         {
+            GetElementFootprintMm(element, qrMagnification, LabelQrSizing.DefaultWorstCasePayloadBytes, out widthMm, out heightMm);
+        }
+
+        /// <summary>rel1009i: the QR square is modules(payload) x ZPL magnification dots (what ^BQN prints).</summary>
+        public static void GetElementFootprintMm(LabelLayoutElement element, decimal qrMagnification, int payloadBytes, out double widthMm, out double heightMm)
+        {
             if (element != null && string.Equals(element.Id, ScanCodeId, StringComparison.OrdinalIgnoreCase))
             {
-                var magnification = (int)Math.Round(qrMagnification <= 0 ? DefaultQrMagnification : qrMagnification, MidpointRounding.AwayFromZero);
-                var qr = EstimateQrSizeMm(magnification);
+                var qr = LabelQrSizing.QrSizeMm(qrMagnification <= 0 ? DefaultQrMagnification : qrMagnification, payloadBytes);
                 widthMm = qr;
                 heightMm = qr;
                 return;
