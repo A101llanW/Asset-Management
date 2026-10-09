@@ -527,6 +527,16 @@ namespace AssetManagement.Application.Services
                                 AllowDeferredSubTypeClassification = !plan.Classification.AssetSubTypeId.HasValue
                             });
                             var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+                            // AssetService.Create always starts at Condition=New; the receiver's per-line condition wins.
+                            AssetCondition receivedCondition;
+                            if (asset != null
+                                && Enum.TryParse(plan.Condition, true, out receivedCondition)
+                                && asset.Condition != receivedCondition)
+                            {
+                                asset.Condition = receivedCondition;
+                                _unitOfWork.Repository<Asset>().Update(asset);
+                            }
+
                             var receiving = new AssetReceiving
                             {
                                 OrganizationId = purchase.OrganizationId,

@@ -325,6 +325,7 @@ namespace AssetManagement.Tests.Purchases
             Assert.AreEqual(2, printerAsset.AssetTypeId);
             Assert.AreEqual(4, printerAsset.DepartmentId);
             Assert.AreEqual("Good", printerAsset.ConditionOnReceipt);
+            Assert.AreEqual(AssetCondition.Good, printerAsset.Condition, "asset condition follows the receipt condition");
 
             Assert.AreEqual(PurchaseOrderQuantityRules.StatusReceived, TestServiceFactory.CreatePurchaseService(uow).GetOrderStatus(poId).Status);
             Assert.IsNotNull(uow.Repository<PurchaseRecord>().GetById(poId).ReceivedDate, "PO stamped received");
