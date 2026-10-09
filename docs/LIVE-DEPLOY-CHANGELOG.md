@@ -9,10 +9,10 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
-## 2026-10-09 14:54 - rel1009i: QR magnification cap, deactivated-user login message, platform admin bootstrap, POs from approved requisitions (098), receiving per PO line (`9b3a9b4`, `5633f6b`, `f722a89`, `32044a3`, `ce42016`, `e565d21`, `6438394`, `83f39a6`) - STAGED (not published)
+## 2026-10-09 15:59 - rel1009i: QR magnification cap, deactivated-user login message, platform admin bootstrap, POs from approved requisitions (098), receiving per PO line, /Sys/Database allowlist wildcard (`9b3a9b4`, `5633f6b`, `f722a89`, `32044a3`, `ce42016`, `e565d21`, `6438394`, `83f39a6`, `d1708ec`) - STAGED (not published)
 
-- **Date/time EAT:** commits 14:0x-14:54. Package 14:54:40 (`artifacts\web-publish-rel1009i-20261009_145440`, no Web.config), built at HEAD `83f39a6` on top of rel1009h (`5b71697`).
-  - Package DLLs: Web.dll `2AD8B33E68662AE3B15C0DDDC2DB988EBC0D3896E41E38A493D3A81AEB3E5B2A`, Application `5DD4B588...7839`, Infrastructure `1FE3241B...5CFD`, Domain `A71BAB1A...3688`. Full list in `artifacts\rel1009i-expected.txt`.
+- **Date/time EAT:** commits 14:0x-15:58. Package 15:59:11 (`artifacts\web-publish-rel1009i-20261009_155911`, no Web.config), built at HEAD `d1708ec` on top of rel1009h (`5b71697`). It replaces the 14:54 package (`..._145440`, Web.dll `2AD8B33E...5B2A`, deleted).
+  - Package DLLs: Web.dll `9EDFCD0F13E0C97AD311806CB48FD97FA1DFB4865CC8C04F531B8CE7D04E93C3`, Application `69E40FDA...0EF9`, Infrastructure `3163E78F...452F`, Domain `AC771CB6...3FB5`. Full list in `artifacts\rel1009i-expected.txt`.
   - This entry's commit is docs only, so the package was not rebuilt. The rel1009g and rel1009h files and packages are untouched.
 - **What and why:**
   1. **Label Designer QR cap.** The magnification was only clamped to 1..10, so a large value printed a QR wider than the label.
@@ -53,19 +53,23 @@ Every change must be recorded here so it can be applied to live later. **One ent
      - receipts are recorded in `PurchaseOrderLineReceipt` and audited `Purchases.Receive`, the PO gets ReceivedDate and "Received" when complete, the requisition gets "Received", and the requester is notified.
 
      Depends on item 4 (098 and the ledger). The rel1009h asset-request "Receive into store" is unchanged. `receive-serial-wizard.js`, `receive-catalog-match.js` and `_ReceiveSerialWizardModal` are now unused but left in place.
+  6. **/Sys/Database IP allowlist wildcard** (Allan: "remove the ip restriction"). `DatabaseConsoleAllowedIps` = `*` or `any` (case-insensitive, alone or as one list entry) skips the IP check.
+     - The logic is in the new pure `DatabaseConsoleIpAllowlist` (in `DatabaseConsoleController.cs`). A blank or missing value still means loopback only, and explicit lists are still enforced.
+     - The Platform Admin gate and [Authorize] login/MFA are unchanged.
+     - DB_CONSOLE_VIEW/DENIED/EXECUTE audit rows keep `ip=` and add `allowlist=disabled`, and the console shows a red warning banner (`DatabaseConsoleViewModel.AllowlistDisabled`, `Views/DatabaseConsole/Index.cshtml`).
 - **Commit hash:**
   - `9b3a9b4` item 1, `5633f6b` item 2, `f722a89` item 3, `32044a3` item 4, `ce42016` item 5 (also covers the purge steps and FK snapshot for the new tables, and `Rel1009iTests`).
-  - Fixes: `e565d21` (item 2), `6438394` (item 5), `83f39a6` (item 3).
-  - Tests: full suite 663 = 644 pass, the same 13 pre-existing failures as baseline `5b71697` (645 = 626/13/6), 6 skipped.
+  - Fixes: `e565d21` (item 2), `6438394` (item 5), `83f39a6` (item 3). `d1708ec` item 6 (`DatabaseConsoleIpAllowlistTests`, 14 cases).
+  - Tests: full suite 677 = 658 pass, the same 13 pre-existing failures as baseline `5b71697` (645 = 626/13/6), 6 skipped.
   - Each item is in its own commit, so any one can be held back; item 5 needs item 4. Local only, not pushed.
 - **Files changed:** see `git diff --stat 5b71697 83f39a6`.
   - New: `098_PurchaseOrderLines.sql`; `LabelQrSizing.cs`, `PurchaseOrderQuantityRules.cs`, `PurchaseOrderLedger.cs`, `PurchaseOrderLineViewModels.cs`, `ReceiveOrderViewModels.cs` (Application); `PurchaseOrderLine.cs`, `PurchaseOrderLineReceipt.cs` (Domain); `InactiveAccountLoginRules.cs`, `PlatformAdminBootstrap.cs` (Infrastructure/Security); `Scripts/app/purchase-order-lines.js`, `Scripts/app/receive-order.js`; `tests/.../Purchases/Rel1009iTests.cs`.
 - **DB migration/script:** **NEW `098_PurchaseOrderLines.sql`** (sha256 `BC9C1FA93BB7744F45404523CAE9FF8F3807CE01E5F0E0526FCE2CD11EBB2BDA`).
   - Adds the `PurchaseOrderLine` and `PurchaseOrderLineReceipt` tables. Additive and idempotent; the rollback is in its header.
   - Run after 097 and after the backup. Applied locally 14:33 EAT (SchemaMigrationHistory Id 102); a re-run was a no-op.
-- **Config/Web.config keys:** none needed. The optional, temporary `Bootstrap:*` keys are covered in `artifacts\rel1009i\DEPLOY-SHEET.md` section 3, with exact lines, a plain-text-password security note and removal after the first sign-in. They change the Web.config hash while present.
+- **Config/Web.config keys:** item 6 uses `<add key="DatabaseConsoleAllowedIps" value="*" />` to turn the allowlist off (it replaces the existing key; apply it after the publish because it changes the Web.config hash). `C:\Users\allan\Desktop\Web.config.UPDATED` updated to `*`. No other keys are needed. The optional, temporary `Bootstrap:*` keys are covered in `artifacts\rel1009i\DEPLOY-SHEET.md` section 3, with exact lines, a plain-text-password security note and removal after the first sign-in. They change the Web.config hash while present.
 - **IIS/server steps (local):** **STAGED, NOT FIRED.** `artifacts\rel1009i-launch-elevated.ps1` -> `artifacts\rel1009i-iis-publish.ps1`.
-  - Pre-checks: live Web.dll `C50083D34DE540EFB036E38FAA64F057C2C8452E218719374764975FB313FA43` (rel1009h), Web.config `BF64D20E...44EB`, package Web.dll `2AD8B33E...5B2A`.
+  - Pre-checks: live Web.dll `C50083D34DE540EFB036E38FAA64F057C2C8452E218719374764975FB313FA43` (rel1009h), Web.config `BF64D20E...44EB`, package Web.dll `9EDFCD0F...93C3`.
   - Backs up the site to `C:\inetpub\_backups\AssetManagement_root_pre_rel1009i_<stamp>` and takes a DB COPY_ONLY backup `_pre_rel1009i_publish_<stamp>.bak`.
   - Runs and verifies 097 (no-op), then runs and verifies 098.
   - Stops the pool, copies the package (skipping Web.config and secrets), hash-verifies, starts the pool, then runs a read-only smoke test. Rollback restores the site backup.
@@ -77,6 +81,12 @@ Every change must be recorded here so it can be applied to live later. **One ent
   - POs: PO from a requisition, over-order blocked, picker hides fully-ordered requisitions, standalone refused, links shown, legacy "Not linked".
   - Receiving: partial receipts, over-receipt blocked, serials, tags, conditions and destinations stored, PO and requisition "Received".
   - rel1009h receive-into-store still works.
+  - Item 6 (scratch Platform Admin and tenant admin, IIS Express :8091, backup `..._pre-rel1009i-dbconsole-proof_20261009_155955.bak`):
+    - `192.0.2.1` -> 403 "restricted by IP allowlist";
+    - `*` -> console 200 with banner, Execute works, audit `allowlist=disabled`; anonymous -> Login; tenant admin -> 403 Platform Admin;
+    - `ANY;192.0.2.1` -> 200 with banner;
+    - key removed -> loopback 200, no banner, no `allowlist=disabled`.
+    - Scratch users, 14 audit rows, 5 LoginAttempts and 2 rate-limit rows removed (zero `zzj` references).
   - Scratch data removed (zero `zzi` references).
 - **Rollback:** the publish script's Rollback restores the site backup. 098 is additive and the old code ignores its tables; drop script in the 098 header if needed. Remove any `Bootstrap:*` keys.
 
