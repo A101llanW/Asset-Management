@@ -156,6 +156,45 @@ WHERE [Id]=@Id";
             return results;
         }
 
+        /// <summary>
+        /// rel1009i: deactivated accounts for an email (optionally one organisation). Used ONLY after the password check to
+        /// tell a deactivated user why sign-in is refused; never used for the portal picker (that stays active-only).
+        /// </summary>
+        public System.Collections.Generic.IList<ApplicationUser> FindInactiveByEmail(string email, int? organizationId)
+        {
+            var results = new System.Collections.Generic.List<ApplicationUser>();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return results;
+            }
+
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = organizationId.HasValue
+                        ? "SELECT * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [OrganizationId]=@OrganizationId AND [IsActive]=0 ORDER BY [Id]"
+                        : "SELECT * FROM [Users] WHERE LOWER(LTRIM(RTRIM([Email])))=LOWER(LTRIM(RTRIM(@Email))) AND [IsActive]=0 ORDER BY [Id]";
+                    AddParameter(command, "@Email", email);
+                    if (organizationId.HasValue)
+                    {
+                        AddParameter(command, "@OrganizationId", organizationId.Value);
+                    }
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapUser(reader));
+                        }
+                    }
+                }
+            }
+
+            return results;
+        }
+
         public bool ValidateAccessToken(string userId, int? organizationId, string accessToken)
         {
             if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(accessToken))

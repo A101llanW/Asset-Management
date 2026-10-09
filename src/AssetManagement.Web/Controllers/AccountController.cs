@@ -128,6 +128,17 @@ namespace AssetManagement.Web.Controllers
 
             var resolvedEmail = DemoLoginEmailHelper.ResolveLoginEmail(model.Email, tenantSlug);
             var candidates = DiscoverLoginCandidates(resolvedEmail, organizationId);
+            if (candidates.Count == 0)
+            {
+                // rel1009i: no ACTIVE account here. If a deactivated one matches AND the password verifies, say so
+                // (no failure count, no lockout). Otherwise fall through to the generic failure + counting.
+                var inactiveResult = TryDenyDeactivatedLogin(model, resolvedEmail, organizationId, clientIp);
+                if (inactiveResult != null)
+                {
+                    return inactiveResult;
+                }
+            }
+
             var disambiguationResult = HandleLoginDisambiguation(model, candidates, organizationId, tenantSlug);
             if (disambiguationResult != null)
             {
@@ -189,6 +200,47 @@ namespace AssetManagement.Web.Controllers
             _accountSecurityService.ClearFailedLoginAttempts(model.Email, attemptOrganizationId);
 
             return CompleteLoginAfterCredentials(model, ParseReturnPathOrNull(returnUrl), userId, tenantSlug);
+        }
+
+        /// <summary>
+        /// rel1009i: tenant portal = deactivated accounts in that organisation; root portal = any organisation
+        /// (platform included). Records LOGIN_DENIED_INACTIVE (SecurityEvents + AuditLog, no secrets).
+        /// </summary>
+        private ActionResult TryDenyDeactivatedLogin(LoginViewModel model, string resolvedEmail, int? organizationId, string clientIp)
+        {
+            var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+            if (connectionFactory == null || model == null || string.IsNullOrEmpty(model.Password))
+            {
+                return null;
+            }
+
+            var inactive = new UserAccountRepository(connectionFactory).FindInactiveByEmail(resolvedEmail, organizationId);
+            var user = InactiveAccountLoginRules.FindVerifiedInactive(inactive, model.Password);
+            if (user == null)
+            {
+                return null;
+            }
+
+            RoleAccessGuard.RecordDenied(InactiveAccountLoginRules.LoginDeniedInactiveEventType, user.Email, clientIp, user.OrganizationId);
+            try
+            {
+                if (_auditWriter != null)
+                {
+                    _auditWriter.Write(
+                        InactiveAccountLoginRules.LoginDeniedInactiveEventType,
+                        "User",
+                        user.Id,
+                        null,
+                        "{\"reason\":\"Account is deactivated\",\"portal\":\"" + (organizationId.HasValue ? "tenant" : "root") + "\"}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning("LOGIN_DENIED_INACTIVE audit write failed: " + ex.Message);
+            }
+
+            ModelState.AddModelError("", AuthenticationErrorMessages.LoginAccountDeactivated());
+            return View(model);
         }
 
         private ActionResult LoginLockedResult(LoginViewModel model, string clientIp, int? organizationId)

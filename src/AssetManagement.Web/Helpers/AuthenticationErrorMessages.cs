@@ -53,6 +53,14 @@ namespace AssetManagement.Web.Helpers
             return BuildDetailedLoginFailureMessage(email, tenantSlug, remainingAttempts);
         }
 
+        /// <summary>rel1009i: shown only after the password verified for a deactivated account.</summary>
+        public const string AccountDeactivatedMessage = "This account is deactivated. Contact your administrator.";
+
+        public static string LoginAccountDeactivated()
+        {
+            return IsGenericAuthMessagesEnabled() ? GenericLoginFailure : AccountDeactivatedMessage;
+        }
+
         public static string MfaInvalidCode()
         {
             return IsGenericAuthMessagesEnabled()
