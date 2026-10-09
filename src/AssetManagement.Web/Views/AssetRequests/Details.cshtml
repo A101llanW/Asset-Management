@@ -139,10 +139,11 @@
                                         <input class="form-check-input" type="radio" name="PicPlacementChoice" id="PicPlacementPool" value="Pool" />
                                         <label class="form-check-label" for="PicPlacementPool">Room pool (no person)</label>
                                     </div>
+                                    <div class="form-text" id="fulfil-pool-hint" style="display:none">The room pool moves the asset into the room, so it must come from another room, a sub-department or a class (asset move rules). Store stock in an administrative department goes to the person in charge instead.</div>
                                 }
                                 else
                                 {
-                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool.</div>
+                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool. The pool moves the asset into the room, so pick an asset that sits in another room, a sub-department or a class (asset move rules).</div>
                                 }
                             </div>
                         }
@@ -157,13 +158,16 @@
                                 }
                             </div>
                         }
-                        <div class="mb-2">
-                            <label class="form-label" for="DepartmentDisposition">If the asset sits in another department or room</label>
-                            <select class="form-select" name="DepartmentDisposition" id="DepartmentDisposition">
-                                <option value="Move" @(isRoomTarget ? "selected" : "")>Move it to @(isRoomTarget ? "the delivery room" : "the request department")</option>
-                                <option value="Keep" @(isRoomTarget ? "" : "selected")>Keep its current department (ownership only)</option>
-                            </select>
-                        </div>
+                        if (!isRoomTarget || !string.IsNullOrWhiteSpace(targetPicUserName))
+                        {
+                            <div class="mb-2" id="fulfil-disposition">
+                                <label class="form-label" for="DepartmentDisposition">If the asset sits in another department or room</label>
+                                <select class="form-select" name="DepartmentDisposition" id="DepartmentDisposition">
+                                    <option value="Keep" selected>Keep its current department (ownership only)</option>
+                                    <option value="Move">Move it to @(isRoomTarget ? "the delivery room" : "the request department")</option>
+                                </select>
+                            </div>
+                        }
                         <div class="mb-2">
                             <label class="form-label">Handover notes</label>
                             <input class="form-control" name="HandoverNotes" />
@@ -175,6 +179,28 @@
         }
     </div>
 </div>
+
+@if (canFulfill && isRoomTarget && !string.IsNullOrWhiteSpace(targetPicUserName))
+{
+    <script>
+        (function () {
+            var pic = document.getElementById("PicPlacementPic");
+            var pool = document.getElementById("PicPlacementPool");
+            var disposition = document.getElementById("fulfil-disposition");
+            var hint = document.getElementById("fulfil-pool-hint");
+            if (!pic || !pool) {
+                return;
+            }
+            function sync() {
+                if (disposition) { disposition.style.display = pool.checked ? "none" : ""; }
+                if (hint) { hint.style.display = pool.checked ? "" : "none"; }
+            }
+            pic.addEventListener("change", sync);
+            pool.addEventListener("change", sync);
+            sync();
+        })();
+    </script>
+}
 
 @if (canFulfill && !isRoomTarget && !string.IsNullOrWhiteSpace(defaultAssigneeUserId))
 {

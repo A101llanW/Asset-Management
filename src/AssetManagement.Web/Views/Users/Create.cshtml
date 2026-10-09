@@ -1,4 +1,4 @@
-@model AssetManagement.Web.ViewModels.UserCreateViewModel
+﻿@model AssetManagement.Web.ViewModels.UserCreateViewModel
 @{
     ViewBag.Title = "Create User";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
@@ -24,11 +24,11 @@
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3">
-        <div class="col-md-4"><label class="form-label">Email</label>@Html.TextBoxFor(m => m.Email, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Employee Number</label>@Html.TextBoxFor(m => m.EmployeeNumber, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">First Name</label>@Html.TextBoxFor(m => m.FirstName, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Last Name</label>@Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Phone</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>
+        <div class="col-md-4"><label class="form-label">Email</label>@Html.TextBoxFor(m => m.Email, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger small" })</div>
+        <div class="col-md-3"><label class="form-label">Employee Number</label>@Html.TextBoxFor(m => m.EmployeeNumber, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.EmployeeNumber, "", new { @class = "text-danger small" })</div>
+        <div class="col-md-3"><label class="form-label">First Name</label>@Html.TextBoxFor(m => m.FirstName, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.FirstName, "", new { @class = "text-danger small" })</div>
+        <div class="col-md-3"><label class="form-label">Last Name</label>@Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.LastName, "", new { @class = "text-danger small" })</div>
+        <div class="col-md-3"><label class="form-label">Phone</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })@Html.ValidationMessageFor(m => m.Phone, "", new { @class = "text-danger small" })</div>
         <div class="col-md-4">
             <label class="form-label" for="DepartmentId">Department@(departmentRequired ? "" : " (optional)")</label>
             @Html.DropDownListFor(m => m.DepartmentId, departments, departmentRequired ? "Select department (Company Admin only without one)" : "No department", new { @class = "form-select" })
@@ -40,7 +40,7 @@
             <div class="form-text"><span id="am-invite-role-status" aria-live="polite"></span> Only active roles you may grant that apply in the chosen department are listed. The position title is set from the role.</div>
             @Html.ValidationMessageFor(m => m.RoleId, "", new { @class = "text-danger small" })
         </div>
-        <div class="col-md-4"><label class="form-label">Password</label>@Html.PasswordFieldFor(m => m.Password)</div>
+        <div class="col-md-4"><label class="form-label">Password</label>@Html.PasswordFieldFor(m => m.Password)@Html.ValidationMessageFor(m => m.Password, "", new { @class = "text-danger small" })</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
