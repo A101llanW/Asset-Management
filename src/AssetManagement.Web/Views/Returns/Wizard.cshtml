@@ -3,6 +3,7 @@
 @{
     ViewBag.Title = "Return (mobile)";
     var users = ViewBag.Users as System.Collections.Generic.IEnumerable<SelectListItem> ?? System.Linq.Enumerable.Empty<SelectListItem>();
+    var returnedByUsers = ViewBag.ReturnedByUsers as System.Collections.Generic.IEnumerable<SelectListItem> ?? users;
     var assetContext = ViewBag.AssetContext as AssetManagement.Web.ViewModels.AssetWorkflowContextViewModel;
     var lockReturnedBy = ViewBag.LockReturnedBy == true;
     var requireReturnedBy = ViewBag.RequireReturnedBy == true;
@@ -46,8 +47,8 @@
                         @Html.LabelFor(m => m.ReturnedById, new { @class = "form-label" })
                         @Html.DropDownListFor(
                             m => m.ReturnedById,
-                            users,
-                            "-- Select returning user --",
+                            returnedByUsers,
+                            "-- Not recorded (optional) --",
                             new { @class = "form-select", required = requireReturnedBy ? "required" : null })
                     </div>
                 }

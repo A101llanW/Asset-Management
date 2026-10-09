@@ -92,9 +92,13 @@ namespace AssetManagement.Web.Controllers
             }
 
             viewModel.ReturnedById = ResolveReturningUserId(asset, viewModel);
-            if (string.IsNullOrWhiteSpace(viewModel.ReturnedById))
+            // rel1009h: with no custodian (room/pool-only assignment) "Returned By" is optional and
+            // may be any active user; with a custodian it stays locked to that custodian.
+            if (string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
+                && !string.IsNullOrWhiteSpace(viewModel.ReturnedById)
+                && !GetActiveUsers().Any(x => string.Equals(x.Id, viewModel.ReturnedById, StringComparison.OrdinalIgnoreCase)))
             {
-                ModelState.AddModelError("ReturnedById", "Select the user returning this asset.");
+                ModelState.AddModelError("ReturnedById", "Select an active user as the returning user, or leave it blank.");
             }
 
             string scopeError;
@@ -135,9 +139,10 @@ namespace AssetManagement.Web.Controllers
             var activeUsers = GetActiveUsers().ToList();
             var receiveDepartmentId = asset != null && asset.DepartmentId > 0 ? (int?)asset.DepartmentId : null;
             ViewBag.Users = BuildActiveUserSelectList(model?.ReceivedById, receiveDepartmentId);
+            ViewBag.ReturnedByUsers = BuildActiveUserSelectList(model?.ReturnedById);
             ViewBag.ConditionOptions = BuildAssetConditionSelectList(model?.ReturnCondition);
             ViewBag.LockReturnedBy = !string.IsNullOrWhiteSpace(asset?.CurrentCustodianId);
-            ViewBag.RequireReturnedBy = !ViewBag.LockReturnedBy;
+            ViewBag.RequireReturnedBy = false;
             ViewBag.ReturnedByName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.ReturnedById, activeUsers);
             ViewBag.ReceiveDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 receiveDepartmentId,
@@ -163,9 +168,10 @@ namespace AssetManagement.Web.Controllers
                 return asset.CurrentCustodianId.Trim();
             }
 
-            if (!string.IsNullOrWhiteSpace(model?.ReturnedById))
+            if (model != null)
             {
-                return model.ReturnedById.Trim();
+                // Posted form: blank is a valid answer when there is no custodian (rel1009h).
+                return string.IsNullOrWhiteSpace(model.ReturnedById) ? null : model.ReturnedById.Trim();
             }
 
             var lastAssignee = UnitOfWork.Repository<AssetAssignment>().Query()

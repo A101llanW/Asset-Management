@@ -57,9 +57,15 @@ namespace AssetManagement.Application.Services
 
             var returnedById = NormalizeId(model.ReturnedById) ?? NormalizeId(asset.CurrentCustodianId);
             var receivedById = NormalizeId(model.ReceivedById);
-            if (string.IsNullOrWhiteSpace(returnedById))
+            // rel1009h: a room/pool-only assignment has no custodian, so "Returned By" is optional
+            // there; when supplied it may be any active user in the organisation.
+            if (string.IsNullOrWhiteSpace(asset.CurrentCustodianId) && !string.IsNullOrWhiteSpace(returnedById))
             {
-                throw new BusinessException("A returning user is required.");
+                var returningUser = _userService.GetById(returnedById);
+                if (returningUser == null || !returningUser.IsActive)
+                {
+                    throw new BusinessException("Selected returning user was not found or is inactive.");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(asset.CurrentCustodianId)
