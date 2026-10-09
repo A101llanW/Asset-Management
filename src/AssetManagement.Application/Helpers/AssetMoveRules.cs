@@ -41,6 +41,40 @@ namespace AssetManagement.Application.Helpers
             }
         }
 
+        public const string AssignmentRefusedMessage =
+            "This assignment is not allowed. Assets can be assigned into or out of a top-level department, or moved room to room, between a room and a sub-department, or from a class to a room.";
+
+        /// <summary>
+        /// rel1009h (Allan, 2026-10-09): rule for assignment and transfer targets (Assign, Batch assign, Asset request
+        /// fulfil, Transfer "Move"). Everything <see cref="IsAllowed"/> permits, plus:
+        /// (a) a top-level department (no parent) may always be the target - assigning to a department is allowed;
+        /// (b) a top-level department acts as the store, so an asset held there may be placed into any department
+        ///     (this is what refused Administrative to Room pool assignments in rel1009g).
+        /// Physical relocations (Move to room, bulk department move, asset edit) keep using <see cref="IsAllowed"/>.
+        /// </summary>
+        public static bool IsAllowedAssignmentTarget(DepartmentKind? fromKind, bool fromIsTopLevel, DepartmentKind toKind, bool toIsTopLevel)
+        {
+            if (IsAllowed(fromKind, toKind))
+            {
+                return true;
+            }
+
+            if (toIsTopLevel)
+            {
+                return true;
+            }
+
+            return fromKind.HasValue && fromIsTopLevel;
+        }
+
+        public static void EnsureAssignmentTarget(DepartmentKind? fromKind, bool fromIsTopLevel, DepartmentKind toKind, bool toIsTopLevel)
+        {
+            if (!IsAllowedAssignmentTarget(fromKind, fromIsTopLevel, toKind, toIsTopLevel))
+            {
+                throw new BusinessException(AssignmentRefusedMessage);
+            }
+        }
+
         /// <summary>True when assets in a department of this kind can be moved to a room (UI "Move to room").</summary>
         public static bool CanMoveToRoomFrom(DepartmentKind? fromKind)
         {

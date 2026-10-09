@@ -279,8 +279,12 @@ namespace AssetManagement.Web.Controllers
             var fromKindVm = asset != null && asset.DepartmentId > 0 ? departments.FirstOrDefault(d => d.Id == asset.DepartmentId) : null;
             var toKindVm = selectedDepartmentId.HasValue ? departments.FirstOrDefault(d => d.Id == selectedDepartmentId.Value) : null;
             ViewBag.DepartmentMoveBlockedMessage = needsDisposition && toKindVm != null
-                && !AssetMoveRules.IsAllowed(fromKindVm == null ? (AssetManagement.Domain.Enums.DepartmentKind?)null : fromKindVm.DepartmentKind, toKindVm.DepartmentKind)
-                ? AssetMoveRules.RefusedMessage
+                && !AssetMoveRules.IsAllowedAssignmentTarget(
+                    fromKindVm == null ? (AssetManagement.Domain.Enums.DepartmentKind?)null : fromKindVm.DepartmentKind,
+                    fromKindVm != null && !fromKindVm.ParentDepartmentId.HasValue,
+                    toKindVm.DepartmentKind,
+                    !toKindVm.ParentDepartmentId.HasValue)
+                ? AssetMoveRules.AssignmentRefusedMessage
                 : null;
             ViewBag.AssetDepartmentName = asset != null && asset.DepartmentId > 0
                 ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(asset.DepartmentId, departments) ?? "current department")

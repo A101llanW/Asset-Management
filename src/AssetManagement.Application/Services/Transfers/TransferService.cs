@@ -616,7 +616,12 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Target department not found.");
             }
 
-            AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, to.DepartmentKind);
+            // rel1009h: assignment-target rule (top-level departments allowed); see AssetMoveRules.IsAllowedAssignmentTarget.
+            AssetMoveRules.EnsureAssignmentTarget(
+                from == null ? (DepartmentKind?)null : from.DepartmentKind,
+                from != null && !from.ParentDepartmentId.HasValue,
+                to.DepartmentKind,
+                !to.ParentDepartmentId.HasValue);
         }
     }
 }

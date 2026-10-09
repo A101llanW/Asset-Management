@@ -192,17 +192,29 @@ namespace AssetManagement.Application.Services
             EnsureUserBelongsToDepartment(toUserId, model.ToDepartmentId);
             EnsureUserBelongsToDepartment(receivedById, model.ToDepartmentId);
 
+            // rel1009h: a pool into a sub-department/department follows Move/Keep too (Keep = no silent move).
+            var targetDepartment = model.ToDepartmentId.HasValue
+                ? _unitOfWork.Repository<Department>().GetById(model.ToDepartmentId.Value)
+                : null;
+            var targetKind = targetDepartment == null ? (DepartmentKind?)null : targetDepartment.DepartmentKind;
+            var isCrossDeptPool = CrossDepartmentDisposition.IsCrossDepartmentPool(
+                asset.DepartmentId,
+                model.ToDepartmentId,
+                toUserId,
+                targetKind);
             var effectiveDepartmentId = CrossDepartmentDisposition.ResolveEffectiveDepartmentId(
                 asset.DepartmentId,
                 model.ToDepartmentId,
                 toUserId,
-                disposition);
+                disposition,
+                targetKind);
             EnsureDepartmentMoveAllowed(asset.DepartmentId, effectiveDepartmentId);
 
             var assignment = new AssetAssignment
             {
                 AssetId = model.AssetId,
-                ToDepartmentId = effectiveDepartmentId,
+                // A kept cross-department pool still records the department it is pooled for.
+                ToDepartmentId = isCrossDeptPool ? model.ToDepartmentId : effectiveDepartmentId,
                 ToUserId = toUserId,
                 AssignmentType = type,
                 AssignedDate = assignedDate,
@@ -449,7 +461,12 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Target department not found.");
             }
 
-            AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, to.DepartmentKind);
+            // rel1009h: assignment-target rule (top-level departments allowed); see AssetMoveRules.IsAllowedAssignmentTarget.
+            AssetMoveRules.EnsureAssignmentTarget(
+                from == null ? (DepartmentKind?)null : from.DepartmentKind,
+                from != null && !from.ParentDepartmentId.HasValue,
+                to.DepartmentKind,
+                !to.ParentDepartmentId.HasValue);
         }
     }
 }

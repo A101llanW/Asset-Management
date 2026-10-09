@@ -1,4 +1,5 @@
 using System;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Helpers
 {
@@ -28,6 +29,61 @@ namespace AssetManagement.Application.Helpers
             }
 
             return selectedDepartmentId.Value != assetDepartmentId.Value;
+        }
+
+        /// <summary>
+        /// rel1009h: a department-pool target (no person) that is not a room/class and differs from the asset's
+        /// department (sub-department, department, grade) also needs Move or Keep - never move it silently.
+        /// Room/Class pool targets always move the asset into that room.
+        /// </summary>
+        public static bool IsCrossDepartmentPool(
+            int? assetDepartmentId,
+            int? selectedDepartmentId,
+            string toUserId,
+            DepartmentKind? selectedKind)
+        {
+            if (!string.IsNullOrWhiteSpace(toUserId) || !selectedKind.HasValue)
+            {
+                return false;
+            }
+
+            if (!selectedDepartmentId.HasValue || !assetDepartmentId.HasValue || assetDepartmentId.Value <= 0
+                || selectedDepartmentId.Value == assetDepartmentId.Value)
+            {
+                return false;
+            }
+
+            return selectedKind.Value != DepartmentKind.Room && selectedKind.Value != DepartmentKind.Class;
+        }
+
+        /// <summary>True when the form must ask Move or Keep (cross-department person or cross-department pool).</summary>
+        public static bool NeedsChoice(
+            int? assetDepartmentId,
+            int? selectedDepartmentId,
+            string toUserId,
+            DepartmentKind? selectedKind)
+        {
+            return IsCrossDepartmentPerson(assetDepartmentId, selectedDepartmentId, toUserId)
+                || IsCrossDepartmentPool(assetDepartmentId, selectedDepartmentId, toUserId, selectedKind);
+        }
+
+        /// <summary>
+        /// Effective asset department including the rel1009h pool rule: a cross-department pool moves only on Move,
+        /// otherwise the asset stays in its department (the assignment still records the selected department).
+        /// </summary>
+        public static int? ResolveEffectiveDepartmentId(
+            int? assetDepartmentId,
+            int? selectedDepartmentId,
+            string toUserId,
+            string disposition,
+            DepartmentKind? selectedKind)
+        {
+            if (IsCrossDepartmentPool(assetDepartmentId, selectedDepartmentId, toUserId, selectedKind))
+            {
+                return Normalize(disposition) == Move ? selectedDepartmentId : assetDepartmentId;
+            }
+
+            return ResolveEffectiveDepartmentId(assetDepartmentId, selectedDepartmentId, toUserId, disposition);
         }
 
         public static string Normalize(string value)

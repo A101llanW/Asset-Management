@@ -162,10 +162,12 @@ namespace AssetManagement.Web.Controllers
 
             var disposition = CrossDepartmentDisposition.Normalize(viewModel.DepartmentDisposition);
             viewModel.DepartmentDisposition = disposition;
-            var needsDisposition = CrossDepartmentDisposition.IsCrossDepartmentPerson(
+            // rel1009h: a cross-department person or a pool into a sub-department/department needs Move/Keep.
+            var needsDisposition = CrossDepartmentDisposition.NeedsChoice(
                 asset.DepartmentId,
                 viewModel.ToDepartmentId,
-                viewModel.ToUserId);
+                viewModel.ToUserId,
+                ResolveDepartmentKind(viewModel.ToDepartmentId));
             if (needsDisposition && disposition == null)
             {
                 ModelState.AddModelError(
@@ -632,6 +634,17 @@ namespace AssetManagement.Web.Controllers
             return false;
         }
 
+        private AssetManagement.Domain.Enums.DepartmentKind? ResolveDepartmentKind(int? departmentId)
+        {
+            if (!departmentId.HasValue)
+            {
+                return null;
+            }
+
+            var dept = GetActiveDepartments().FirstOrDefault(d => d.Id == departmentId.Value);
+            return dept == null ? (AssetManagement.Domain.Enums.DepartmentKind?)null : dept.DepartmentKind;
+        }
+
         private void ApplyDepartmentDispositionViewBag(Asset asset, int? selectedDepartmentId, string disposition, bool needsDisposition)
         {
             var departments = GetActiveDepartments();
@@ -641,8 +654,12 @@ namespace AssetManagement.Web.Controllers
             var fromKindVm = asset != null && asset.DepartmentId > 0 ? departments.FirstOrDefault(d => d.Id == asset.DepartmentId) : null;
             var toKindVm = selectedDepartmentId.HasValue ? departments.FirstOrDefault(d => d.Id == selectedDepartmentId.Value) : null;
             ViewBag.DepartmentMoveBlockedMessage = needsDisposition && toKindVm != null
-                && !AssetMoveRules.IsAllowed(fromKindVm == null ? (AssetManagement.Domain.Enums.DepartmentKind?)null : fromKindVm.DepartmentKind, toKindVm.DepartmentKind)
-                ? AssetMoveRules.RefusedMessage
+                && !AssetMoveRules.IsAllowedAssignmentTarget(
+                    fromKindVm == null ? (AssetManagement.Domain.Enums.DepartmentKind?)null : fromKindVm.DepartmentKind,
+                    fromKindVm != null && !fromKindVm.ParentDepartmentId.HasValue,
+                    toKindVm.DepartmentKind,
+                    !toKindVm.ParentDepartmentId.HasValue)
+                ? AssetMoveRules.AssignmentRefusedMessage
                 : null;
             ViewBag.AssetDepartmentName = asset != null && asset.DepartmentId > 0
                 ? (DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(asset.DepartmentId, departments) ?? "current department")
