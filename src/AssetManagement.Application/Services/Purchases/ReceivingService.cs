@@ -141,6 +141,12 @@ namespace AssetManagement.Application.Services
             var purchaseRequest = purchase.PurchaseRequestId.HasValue
                 ? _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value)
                 : null;
+            if (new PurchaseOrderLedger(_unitOfWork).GetLines(purchase.Id).Count > 0)
+            {
+                // rel1009i: a PO with lines is received per line (ReceiveOrder) so line receipts stay exact.
+                throw new BusinessException("This purchase order has lines. Receive it on the receiving screen, line by line.");
+            }
+
             ValidateRequisitionDepartment(purchaseRequest);
             ApplyReceivePlacementChoice(model);
             var context = ResolveReceiveContext(purchase, purchaseRequest, model.CatalogMatchConfirmed);
@@ -272,6 +278,468 @@ namespace AssetManagement.Application.Services
                 CreatedAssets = createdAssets
             };
         }
+        // ===================== rel1009i: receiving screen (per PO line) =====================
+
+        public ReceiveOrderVm GetReceiveOrder(int purchaseRecordId)
+        {
+            var purchase = _unitOfWork.Repository<PurchaseRecord>().GetById(purchaseRecordId);
+            if (purchase == null)
+            {
+                return null;
+            }
+
+            var request = purchase.PurchaseRequestId.HasValue
+                ? _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value)
+                : null;
+            var status = new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+            var model = new ReceiveOrderVm
+            {
+                PurchaseRecordId = purchase.Id,
+                PurchaseOrderNumber = purchase.PurchaseOrderNumber,
+                SupplierName = _unitOfWork.Repository<Supplier>().GetById(purchase.SupplierId)?.SupplierName,
+                PurchaseRequestId = purchase.PurchaseRequestId,
+                PurchaseRequestNumber = request?.RequestNumber,
+                RequisitionDepartmentId = request != null && request.DepartmentId > 0 ? (int?)request.DepartmentId : null,
+                RequisitionDepartmentName = request != null ? ResolveDepartmentName(request.DepartmentId) : null,
+                IsLegacy = status.IsLegacy,
+                Status = status.Status,
+                Ordered = status.Ordered,
+                Received = status.Received,
+                Outstanding = status.Outstanding,
+                ReceivedDate = DateTime.UtcNow
+            };
+
+            foreach (var line in status.Lines)
+            {
+                model.Lines.Add(new ReceiveOrderLineVm
+                {
+                    PurchaseOrderLineId = line.Id,
+                    LineNumber = line.LineNumber,
+                    Description = line.Description,
+                    Ordered = line.Ordered,
+                    Received = line.Received,
+                    Outstanding = line.Outstanding,
+                    UnitCost = line.UnitCost,
+                    AssetCategoryName = line.AssetCategoryName,
+                    AssetTypeId = line.AssetTypeId,
+                    AssetTypeName = line.AssetTypeName,
+                    AssetSubTypeId = line.AssetSubTypeId,
+                    AssetSubTypeName = line.AssetSubTypeName,
+                    ClassificationSourceLabel = PurchaseOrderLedger.DescribeSource(line.ClassificationSource),
+                    NeedsClassification = !line.HasClassification,
+                    QuantityReceived = line.Outstanding,
+                    Condition = AssetCondition.New.ToString(),
+                    TagMode = ReceiveOrderLineVm.TagModeGenerate,
+                    DestinationKind = model.RequisitionDepartmentId.HasValue ? ReceiveOrderLineVm.DestinationDepartment : ReceiveOrderLineVm.DestinationStore,
+                    DestinationDepartmentId = model.RequisitionDepartmentId
+                });
+            }
+
+            return model;
+        }
+
+        /// <summary>
+        /// Receives any number of units on any lines of one PO. Classification comes from the line / requisition asset /
+        /// supplier catalog (posted values are ignored when a source has it). Partial receipts are allowed; over-receipt
+        /// is refused per line and per PO, cumulatively, inside one transaction that locks the PO's receipts.
+        /// </summary>
+        public ReceiveResultVm ReceiveOrder(ReceiveOrderVm model, string receivedById)
+        {
+            if (model == null)
+            {
+                throw new BusinessException("Receipt details are required.");
+            }
+
+            var purchase = _unitOfWork.Repository<PurchaseRecord>().GetById(model.PurchaseRecordId);
+            if (purchase == null || !purchase.IsActive)
+            {
+                throw new BusinessException("Purchase order not found.");
+            }
+
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (organizationId.HasValue && purchase.OrganizationId.HasValue && purchase.OrganizationId.Value != organizationId.Value)
+            {
+                throw new BusinessException("Purchase order not found.");
+            }
+
+            if (model.ReceivedDate == default(DateTime))
+            {
+                throw new BusinessException("Received date is required.");
+            }
+
+            var request = purchase.PurchaseRequestId.HasValue
+                ? _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value)
+                : null;
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var postedLines = (model.Lines ?? new List<ReceiveOrderLineVm>())
+                .Where(x => x != null && x.QuantityReceived != 0)
+                .ToList();
+            if (postedLines.Count == 0)
+            {
+                throw new BusinessException("Enter a quantity received on at least one line.");
+            }
+
+            if (postedLines.Select(x => x.PurchaseOrderLineId).Distinct().Count() != postedLines.Count)
+            {
+                throw new BusinessException("Each purchase order line can appear only once in a receipt.");
+            }
+
+            // Validate the inputs that do not depend on current quantities before opening the transaction.
+            var plans = new List<ReceiveLinePlan>();
+            var seenSerials = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var input in postedLines)
+            {
+                var label = "line " + (input.LineNumber > 0 ? input.LineNumber.ToString() : input.PurchaseOrderLineId.ToString());
+                if (input.QuantityReceived < 0)
+                {
+                    throw new BusinessException("Quantity received cannot be negative (" + label + ").");
+                }
+
+                AssetCondition condition;
+                if (string.IsNullOrWhiteSpace(input.Condition)
+                    || !Enum.TryParse(input.Condition.Trim(), true, out condition)
+                    || !Enum.IsDefined(typeof(AssetCondition), condition))
+                {
+                    throw new BusinessException("Choose the condition on receipt (" + label + ").");
+                }
+
+                var serials = PurchaseOrderQuantityRules.ParseList(input.SerialNumbersText);
+                if (serials.Count > 0 && serials.Count != input.QuantityReceived)
+                {
+                    throw new BusinessException("Enter exactly " + input.QuantityReceived + " serial number(s), one per line, or leave serials blank (" + label + ": " + serials.Count + " entered).");
+                }
+
+                foreach (var serial in serials)
+                {
+                    if (serial.Length > 120)
+                    {
+                        throw new BusinessException("Serial number is too long (max 120): " + serial);
+                    }
+
+                    if (!seenSerials.Add(serial))
+                    {
+                        throw new BusinessException("Duplicate serial number in this receipt: " + serial);
+                    }
+                }
+
+                IList<string> tags = null;
+                if (string.Equals(input.TagMode, ReceiveOrderLineVm.TagModeEnter, StringComparison.OrdinalIgnoreCase))
+                {
+                    tags = PurchaseOrderQuantityRules.ParseList(input.AssetTagsText);
+                    if (tags.Count != input.QuantityReceived)
+                    {
+                        throw new BusinessException("Enter exactly " + input.QuantityReceived + " asset tag(s), one per line, or choose 'Generate tags' (" + label + ": " + tags.Count + " entered).");
+                    }
+
+                    foreach (var tag in tags)
+                    {
+                        if (!seenTags.Add(tag))
+                        {
+                            throw new BusinessException("Duplicate asset tag in this receipt: " + tag);
+                        }
+                    }
+                }
+
+                plans.Add(new ReceiveLinePlan
+                {
+                    Input = input,
+                    Label = label,
+                    Condition = condition.ToString(),
+                    Serials = serials,
+                    Tags = tags,
+                    Destination = ResolveDestination(input, purchase, label)
+                });
+            }
+
+            var createdAssets = new List<ReceiveCreatedAssetVm>();
+            var summary = new List<string>();
+            var receivingId = 0;
+            var fullyReceived = false;
+            try
+            {
+                _unitOfWork.ExecuteInTransaction(() =>
+                {
+                    // Locks the PO row and its receipts (UPDLOCK, HOLDLOCK) until commit: concurrent receipts serialise.
+                    var remainingOnOrder = _unitOfWork.GetRemainingPurchaseQuantity(purchase.Id);
+                    var lines = ledger.GetLines(purchase.Id);
+                    var receivedByLine = lines.Count > 0 ? ledger.ReceivedByLine(purchase.Id) : new Dictionary<int, int>();
+                    var totalRequested = 0;
+                    foreach (var plan in plans)
+                    {
+                        if (lines.Count == 0)
+                        {
+                            if (plan.Input.PurchaseOrderLineId != 0)
+                            {
+                                throw new BusinessException("That line does not belong to this purchase order.");
+                            }
+
+                            plan.Description = request?.ItemDescription;
+                            plan.UnitCost = purchase.UnitCost;
+                            PurchaseOrderQuantityRules.EnsureCanReceive(plan.Label, plan.Input.QuantityReceived, purchase.Quantity, ledger.ReceivedForPurchase(purchase.Id));
+                        }
+                        else
+                        {
+                            var line = lines.FirstOrDefault(x => x.Id == plan.Input.PurchaseOrderLineId);
+                            if (line == null)
+                            {
+                                throw new BusinessException("That line does not belong to this purchase order.");
+                            }
+
+                            int alreadyReceived;
+                            receivedByLine.TryGetValue(line.Id, out alreadyReceived);
+                            PurchaseOrderQuantityRules.EnsureCanReceive(plan.Label, plan.Input.QuantityReceived, line.Quantity, alreadyReceived);
+                            plan.Line = line;
+                            plan.Description = line.Description;
+                            plan.UnitCost = line.UnitCost;
+                        }
+
+                        plan.Classification = ResolvePlanClassification(ledger, purchase, request, plan);
+                        totalRequested += plan.Input.QuantityReceived;
+                    }
+
+                    PurchaseOrderQuantityRules.EnsureCanReceive("this purchase order", totalRequested, remainingOnOrder, 0);
+
+                    var now = DateTime.UtcNow;
+                    foreach (var plan in plans)
+                    {
+                        for (var i = 0; i < plan.Input.QuantityReceived; i++)
+                        {
+                            var serial = plan.Serials.Count > 0 ? plan.Serials[i] : null;
+                            var assetId = _assetService.Create(new AssetCreateVm
+                            {
+                                AssetName = ResolveLineAssetName(plan),
+                                AssetTag = plan.Tags == null ? null : plan.Tags[i], // null = the existing tag-number scheme
+                                CategoryId = plan.Classification.AssetCategoryId.Value,
+                                AssetTypeId = plan.Classification.AssetTypeId.Value,
+                                AssetSubTypeId = plan.Classification.AssetSubTypeId,
+                                Brand = plan.Classification.Brand,
+                                Model = plan.Classification.Model,
+                                SerialNumber = serial,
+                                Description = plan.Description,
+                                PurchaseDate = model.ReceivedDate,
+                                AcquisitionCost = plan.UnitCost > 0 ? plan.UnitCost : (purchase.UnitCost > 0 ? purchase.UnitCost : (decimal?)null),
+                                Currency = purchase.Currency,
+                                SupplierId = purchase.SupplierId > 0 ? purchase.SupplierId : (int?)null,
+                                DepartmentId = plan.Destination == null ? (int?)null : plan.Destination.Id,
+                                ConditionOnReceipt = plan.Condition,
+                                CurrentStatus = AssetStatus.InStore,
+                                AllowDeferredSubTypeClassification = !plan.Classification.AssetSubTypeId.HasValue
+                            });
+                            var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+                            var receiving = new AssetReceiving
+                            {
+                                OrganizationId = purchase.OrganizationId,
+                                PurchaseRecordId = purchase.Id,
+                                AssetId = assetId,
+                                ReceivedDate = model.ReceivedDate,
+                                ConditionOnReceipt = plan.Condition,
+                                QuantityReceived = 1,
+                                ReceivedById = receivedById,
+                                Notes = model.Notes,
+                                CreatedAt = now,
+                                IsActive = true
+                            };
+                            _unitOfWork.Repository<AssetReceiving>().Add(receiving);
+                            _unitOfWork.SaveChanges();
+                            receivingId = receiving.Id;
+                            if (plan.Line != null)
+                            {
+                                _unitOfWork.Repository<PurchaseOrderLineReceipt>().Add(new PurchaseOrderLineReceipt
+                                {
+                                    OrganizationId = purchase.OrganizationId,
+                                    PurchaseRecordId = purchase.Id,
+                                    PurchaseOrderLineId = plan.Line.Id,
+                                    AssetReceivingId = receiving.Id,
+                                    AssetId = assetId,
+                                    QuantityReceived = 1,
+                                    CreatedAt = now,
+                                    IsActive = true
+                                });
+                                _unitOfWork.SaveChanges();
+                            }
+
+                            createdAssets.Add(new ReceiveCreatedAssetVm { AssetId = assetId, AssetTag = asset?.AssetTag, SerialNumber = serial });
+                        }
+
+                        summary.Add(plan.Label + " x" + plan.Input.QuantityReceived + " -> "
+                            + (plan.Destination == null ? "store (company custody)" : plan.Destination.Name)
+                            + " [" + plan.Condition + "]");
+                    }
+
+                    // PO status: Received once nothing is outstanding (ReceivedDate stamped); otherwise Partially Received.
+                    if (remainingOnOrder - totalRequested <= 0)
+                    {
+                        fullyReceived = true;
+                        purchase.ReceivedDate = model.ReceivedDate;
+                        purchase.UpdatedAt = now;
+                        _unitOfWork.Repository<PurchaseRecord>().Update(purchase);
+                        _unitOfWork.SaveChanges();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                if (PurchaseOrderQuantityRules.IsMissingTable(ex))
+                {
+                    throw new BusinessException("Receiving per line is not available yet: database migration 098 has not been applied.");
+                }
+
+                throw;
+            }
+
+            var statusText = fullyReceived ? PurchaseOrderQuantityRules.StatusReceived : PurchaseOrderQuantityRules.StatusPartiallyReceived;
+            _auditWriter?.Write(
+                "Purchases.Receive",
+                nameof(AssetReceiving),
+                receivingId > 0 ? receivingId.ToString() : null,
+                purchase.Id.ToString(),
+                "PO " + (purchase.PurchaseOrderNumber ?? purchase.Id.ToString())
+                    + (request == null ? string.Empty : " | requisition " + (request.RequestNumber ?? request.Id.ToString()))
+                    + " | " + string.Join("; ", summary)
+                    + " | status " + statusText
+                    + " | assets " + string.Join(",", createdAssets.Select(x => x.AssetId)));
+
+            NotifyRequisitionReceipt(request, purchase, createdAssets.Count, statusText);
+            return new ReceiveResultVm { ReceivingId = receivingId, CreatedAssets = createdAssets };
+        }
+
+        private Department ResolveDestination(ReceiveOrderLineVm input, PurchaseRecord purchase, string label)
+        {
+            if (string.IsNullOrWhiteSpace(input.DestinationKind)
+                || string.Equals(input.DestinationKind, ReceiveOrderLineVm.DestinationStore, StringComparison.OrdinalIgnoreCase))
+            {
+                return null; // Store = company custody (no department), In Store.
+            }
+
+            if (!string.Equals(input.DestinationKind, ReceiveOrderLineVm.DestinationDepartment, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException("Invalid destination (" + label + ").");
+            }
+
+            if (!input.DestinationDepartmentId.HasValue || input.DestinationDepartmentId.Value <= 0)
+            {
+                throw new BusinessException("Choose the department or room the goods go to (" + label + ").");
+            }
+
+            var department = _unitOfWork.Repository<Department>().GetById(input.DestinationDepartmentId.Value);
+            if (department == null || !department.IsActive
+                || (purchase.OrganizationId.HasValue && department.OrganizationId.HasValue && department.OrganizationId.Value != purchase.OrganizationId.Value))
+            {
+                throw new BusinessException("The selected department or room was not found (" + label + ").");
+            }
+
+            // A received unit comes from company custody (no department): this is a first placement, which the move
+            // rules always allow; the rel1009h assignment-target rule is applied for consistency with Assign.
+            AssetMoveRules.EnsureAssignmentTarget(null, false, department.DepartmentKind, !department.ParentDepartmentId.HasValue);
+            return department;
+        }
+
+        private PurchaseLineClassification ResolvePlanClassification(PurchaseOrderLedger ledger, PurchaseRecord purchase, PurchaseRequest request, ReceiveLinePlan plan)
+        {
+            var classification = ledger.ResolveClassification(purchase, request, plan.Line, plan.Description);
+            if (classification != null && classification.HasType)
+            {
+                return classification; // Source wins: posted type / sub-type are ignored.
+            }
+
+            var input = plan.Input;
+            if (!input.OverrideAssetTypeId.HasValue || input.OverrideAssetTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the asset type (" + plan.Label + "): neither the purchase order line, the requisition nor the supplier catalog has one.");
+            }
+
+            var type = _unitOfWork.Repository<AssetType>().GetById(input.OverrideAssetTypeId.Value);
+            if (type == null || !type.IsActive)
+            {
+                throw new BusinessException("The selected asset type was not found (" + plan.Label + ").");
+            }
+
+            int? subTypeId = null;
+            if (input.OverrideAssetSubTypeId.HasValue && input.OverrideAssetSubTypeId.Value > 0)
+            {
+                var subType = _unitOfWork.Repository<AssetSubType>().GetById(input.OverrideAssetSubTypeId.Value);
+                if (subType == null || subType.AssetTypeId != type.Id)
+                {
+                    throw new BusinessException("The selected sub-type does not belong to the selected asset type (" + plan.Label + ").");
+                }
+
+                subTypeId = subType.Id;
+            }
+
+            return ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, AssetSubTypeId = subTypeId, Source = "ReceiverOverride" });
+        }
+
+        private string ResolveLineAssetName(ReceiveLinePlan plan)
+        {
+            if (!string.IsNullOrWhiteSpace(plan.Description))
+            {
+                return plan.Description.Trim().Length > 200 ? plan.Description.Trim().Substring(0, 200) : plan.Description.Trim();
+            }
+
+            if (plan.Classification.AssetSubTypeId.HasValue)
+            {
+                var name = _unitOfWork.Repository<AssetSubType>().GetById(plan.Classification.AssetSubTypeId.Value)?.Name;
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    return name;
+                }
+            }
+
+            var brandModel = string.Join(" ", new[] { plan.Classification.Brand, plan.Classification.Model }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+            return string.IsNullOrWhiteSpace(brandModel) ? "Received asset" : brandModel;
+        }
+
+        private void NotifyRequisitionReceipt(PurchaseRequest request, PurchaseRecord purchase, int unitCount, string statusText)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.RequestedById) || unitCount <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                NotificationHelper.AddNotification(
+                    _unitOfWork,
+                    _outboxWriter,
+                    _organizationScope,
+                    request.RequestedById,
+                    NotificationType.General,
+                    "Goods received",
+                    unitCount + " unit(s) received on PO " + (purchase.PurchaseOrderNumber ?? purchase.Id.ToString())
+                        + " for requisition " + (request.RequestNumber ?? request.Id.ToString()) + " (" + statusText + ").",
+                    "/PurchaseRequests/Details/" + request.Id);
+                _unitOfWork.SaveChanges();
+            }
+            catch (BusinessException)
+            {
+                // A notification problem never undoes a committed receipt.
+            }
+        }
+
+        private sealed class ReceiveLinePlan
+        {
+            public ReceiveOrderLineVm Input { get; set; }
+
+            public string Label { get; set; }
+
+            public string Condition { get; set; }
+
+            public IList<string> Serials { get; set; }
+
+            public IList<string> Tags { get; set; }
+
+            public Department Destination { get; set; }
+
+            public PurchaseOrderLine Line { get; set; }
+
+            public string Description { get; set; }
+
+            public decimal UnitCost { get; set; }
+
+            public PurchaseLineClassification Classification { get; set; }
+        }
+
         private static IList<ReceiveAssetUnitVm> BuildReceiveUnits(AssetReceiveVm model)
         {
             var quantity = model.QuantityReceived;

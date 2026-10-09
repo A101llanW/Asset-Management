@@ -103,6 +103,9 @@ namespace AssetManagement.Infrastructure.Services
             Delete("AssetMaintenanceRecord"),
             Delete("AssetIncident"),
             Delete("AssetAssignment"),
+            // rel1009i (098): receipt rows -> AssetReceiving/Asset/PurchaseOrderLine; lines -> PurchaseRecord/PurchaseRequestLine/AssetType.
+            Delete("PurchaseOrderLineReceipt"),
+            Delete("PurchaseOrderLine"),
             Delete("AssetReceiving"),
             Delete("PurchaseRecord"),
             Delete("PurchaseApprovalAction"),

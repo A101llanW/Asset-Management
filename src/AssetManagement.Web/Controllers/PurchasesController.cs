@@ -82,34 +82,39 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
         }
 
+        /// <summary>rel1009i: receiving starts from a PO; from a requisition, go to its only open PO (else its PO list).</summary>
         [PermissionAuthorize("Assets.Receive")]
-        public ActionResult Receive(int id, int? assetId = null, string returnUrl = null, bool catalogConfirmed = false)
+        public ActionResult ReceiveForRequisition(int purchaseRequestId, string returnUrl = null)
         {
-            var detail = _receivingService.GetReceiveDetail(id, catalogConfirmed);
-            if (detail == null)
+            var summary = _purchaseService.GetRequisitionOrderSummary(purchaseRequestId);
+            var open = summary == null ? new System.Collections.Generic.List<RequisitionLinkedOrderVm>() : summary.Orders.Where(x => x.Received < x.Quantity).ToList();
+            if (open.Count == 1)
+            {
+                return RedirectToAction("Receive", new { id = open[0].PurchaseRecordId, returnUrl });
+            }
+
+            TempData["Message"] = open.Count == 0
+                ? "This requisition has no purchase order with goods still to receive."
+                : "This requisition has several open purchase orders. Choose one to receive.";
+            return RedirectToAction("Details", "PurchaseRequests", new { id = purchaseRequestId, returnUrl });
+        }
+
+        [PermissionAuthorize("Assets.Receive")]
+        public ActionResult Receive(int id, string returnUrl = null)
+        {
+            var model = _receivingService.GetReceiveOrder(id);
+            if (model == null)
             {
                 return HttpNotFound();
             }
 
-            if (detail.RemainingQuantity <= 0)
+            if (model.Outstanding <= 0)
             {
-                TempData["Message"] = "This purchase is already fully received.";
+                TempData["Message"] = "This purchase order is already fully received.";
                 return RedirectToAction("Details", new { id, returnUrl });
             }
 
-            var lookup = _receivingService.GetReceiveAssetLookup(id, assetId, catalogConfirmed);
-            var model = new AssetReceiveVm
-            {
-                PurchaseRecordId = id,
-                AssetId = lookup.SelectedAssetId ?? 0,
-                AssetSubTypeId = detail.AssetSubTypeId,
-                CatalogMatchConfirmed = catalogConfirmed,
-                ReceivedDate = System.DateTime.UtcNow,
-                QuantityReceived = detail.RemainingQuantity
-            };
-
-            PopulateReceiveLookups(model, lookup, detail);
-            ViewBag.ReceiveDetail = detail;
+            PopulateReceiveOrderLookups();
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id });
             return View(model);
         }
@@ -117,63 +122,71 @@ namespace AssetManagement.Web.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize("Assets.Receive")]
-        public ActionResult Receive(AssetReceiveVm model, string returnUrl = null)
+        public ActionResult Receive(ReceiveOrderVm model, string returnUrl = null)
         {
-            var detail = _receivingService.GetReceiveDetail(model.PurchaseRecordId, model.CatalogMatchConfirmed);
-            if (detail == null)
+            if (model == null)
             {
                 return HttpNotFound();
             }
 
-            PopulateReceiveLookups(model, _receivingService.GetReceiveAssetLookup(model.PurchaseRecordId, model.AssetId > 0 ? model.AssetId : (int?)null, model.CatalogMatchConfirmed), detail);
-            if (detail != null && detail.RequiresTypeSelection
-                && (!model.AssetTypeId.HasValue || model.AssetTypeId.Value <= 0)
-                && (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0))
-            {
-                ModelState.AddModelError("AssetTypeId", "Select an asset type before receiving. Classification cannot be deferred when this purchase has no requisition/catalog type context.");
-            }
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "Purchases", new { id = model.PurchaseRecordId });
-
-            ModelState.Remove("AssetId");
-            if (detail.RequisitionDepartmentId.HasValue && detail.RequisitionDepartmentId.Value > 0
-                && string.IsNullOrWhiteSpace(model.ReceivePlacementChoice))
+            if (ModelState.IsValid)
             {
-                ModelState.AddModelError("ReceivePlacementChoice", "Choose whether received goods go to the requisition department or company custody.");
-            }
-
-            if (string.IsNullOrWhiteSpace(model.ConditionOnReceipt))
-            {
-                ModelState.AddModelError("ConditionOnReceipt", "Condition on receipt is required when creating new assets.");
-            }
-
-            if (!ModelState.IsValid)
-            {
-                return View(model);
-            }
-
-            try
-            {
-                var result = _receivingService.Receive(model, User.GetUserId());
-                if (result.CreatedAssets != null && result.CreatedAssets.Any())
+                try
                 {
+                    var result = _receivingService.ReceiveOrder(model, User.GetUserId());
                     var tags = string.Join(", ", result.CreatedAssets.Select(x => x.AssetTag).Where(x => !string.IsNullOrWhiteSpace(x)));
                     TempData["Message"] = result.CreatedAssets.Count == 1
                         ? "Asset " + tags + " created and received."
                         : result.CreatedAssets.Count + " assets created and received: " + tags + ".";
                     TempData["CreatedAssetIds"] = string.Join(",", result.CreatedAssets.Select(x => x.AssetId));
+                    return RedirectToAction("Details", new { id = model.PurchaseRecordId, returnUrl = ViewBag.ReturnUrl });
                 }
-                else
+                catch (BusinessException ex)
                 {
-                    TempData["Message"] = "Assets received against purchase record.";
+                    ModelState.AddModelError("", ex.Message);
+                }
+            }
+
+            // Redisplay: quantities and classification from the server, the user's entries kept.
+            var fresh = _receivingService.GetReceiveOrder(model.PurchaseRecordId);
+            if (fresh == null)
+            {
+                return HttpNotFound();
+            }
+
+            var posted = model.Lines ?? new System.Collections.Generic.List<ReceiveOrderLineVm>();
+            foreach (var line in fresh.Lines)
+            {
+                var input = posted.FirstOrDefault(x => x != null && x.PurchaseOrderLineId == line.PurchaseOrderLineId);
+                if (input == null)
+                {
+                    continue;
                 }
 
-                return RedirectToAction("Details", new { id = model.PurchaseRecordId, returnUrl = ViewBag.ReturnUrl });
+                line.QuantityReceived = input.QuantityReceived;
+                line.OverrideAssetTypeId = input.OverrideAssetTypeId;
+                line.OverrideAssetSubTypeId = input.OverrideAssetSubTypeId;
+                line.SerialNumbersText = input.SerialNumbersText;
+                line.TagMode = input.TagMode;
+                line.AssetTagsText = input.AssetTagsText;
+                line.Condition = input.Condition;
+                line.DestinationKind = input.DestinationKind;
+                line.DestinationDepartmentId = input.DestinationDepartmentId;
             }
-            catch (BusinessException ex)
-            {
-                ModelState.AddModelError("", ex.Message);
-                return View(model);
-            }
+
+            fresh.ReceivedDate = model.ReceivedDate == default(System.DateTime) ? fresh.ReceivedDate : model.ReceivedDate;
+            fresh.Notes = model.Notes;
+            PopulateReceiveOrderLookups();
+            return View(fresh);
+        }
+
+        private void PopulateReceiveOrderLookups()
+        {
+            PopulateLookups(null);
+            // Full-depth "Parent > Child" department / room picker (rel1009g tree).
+            ViewBag.DepartmentTree = BuildDepartmentTreeSelectList();
+            ViewBag.ConditionOptions = BuildAssetConditionSelectList(null);
         }
 
         [PermissionAuthorize("Purchases.Edit")]

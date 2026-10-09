@@ -138,6 +138,10 @@
                             &middot; ordered @orderSummary.OrderedQuantity of @orderSummary.RequisitionQuantity
                             &middot; received @orderSummary.ReceivedQuantity
                             &middot; <span class="badge bg-light text-dark border" id="requisition-fulfilment-status">@orderSummary.FulfilmentStatus</span></p>
+                        @if (orderSummary.Orders.Any(x => x.Received < x.Quantity) && Html.HasPermission("Assets.Receive"))
+                        {
+                            <a class="btn btn-sm btn-primary mb-2" id="requisition-receive-goods" href="@Url.Action("ReceiveForRequisition", "Purchases", new { purchaseRequestId = Model.Id, returnUrl = Request.RawUrl })">Receive goods</a>
+                        }
                         @if (orderSummary.Orders.Count > 0)
                         {
                             <table class="table table-sm mb-0">

@@ -1,212 +1,205 @@
-﻿@model AssetManagement.Application.ViewModels.AssetReceiveVm
+@model AssetManagement.Application.ViewModels.ReceiveOrderVm
+@using System.Linq
 @using AssetManagement.Domain.Enums
+@using AssetManagement.Application.ViewModels
 @{
-    ViewBag.Title = "Receive Asset";
-    var detail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
+    ViewBag.Title = "Receive Goods";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.PurchaseRecordId });
-    var requiresSubType = detail != null && detail.RequiresSubTypeAssignment;
-    var requiresTypeSelection = detail != null && detail.RequiresTypeSelection;
-    var requiresCatalogConfirm = detail != null && detail.RequiresCatalogMatchConfirmation;
-    var requisitionDepartmentName = detail != null ? detail.RequisitionDepartmentName : null;
-    var hasRequisitionDepartment = detail != null && detail.RequisitionDepartmentId.HasValue && detail.RequisitionDepartmentId.Value > 0;
-    var catalogConfirmBase = AssetManagement.Web.Helpers.TenantUrlHelper.TenantRouteUrl(
-        Url, "Receive", "Purchases", new { id = Model.PurchaseRecordId });
-    var catalogConfirmUrl = catalogConfirmBase
-        + "?catalogConfirmed=true"
-        + (string.IsNullOrEmpty(returnUrl) ? "" : "&returnUrl=" + Uri.EscapeDataString(returnUrl));
-    var conditionOptions = ViewBag.ConditionOptions as SelectList;
-    if (conditionOptions == null)
-    {
-        var conditionItems = Enum.GetNames(typeof(AssetCondition))
-            .Select(name => new System.Web.Mvc.SelectListItem
-            {
-                Value = name,
-                Text = name.Replace("RepairNeeded", "Repair Needed").Replace("BeyondRepair", "Beyond Repair")
-            })
-            .ToList();
-        conditionOptions = new System.Web.Mvc.SelectList(conditionItems, "Value", "Text", Model.ConditionOnReceipt);
-    }
+    var departmentTree = ViewBag.DepartmentTree as SelectList;
+    var departmentItems = departmentTree == null ? new System.Collections.Generic.List<SelectListItem>() : departmentTree.Cast<SelectListItem>().ToList();
+    var typeOptions = ViewBag.LineTypeOptions as System.Collections.Generic.IList<AssetClassOptionVm> ?? new System.Collections.Generic.List<AssetClassOptionVm>();
+    var subTypeOptions = ViewBag.LineSubTypeOptions as System.Collections.Generic.IList<AssetClassOptionVm> ?? new System.Collections.Generic.List<AssetClassOptionVm>();
+    var conditionNames = System.Enum.GetNames(typeof(AssetCondition));
+    var poLabel = string.IsNullOrWhiteSpace(Model.PurchaseOrderNumber) ? ("#" + Model.PurchaseRecordId) : Model.PurchaseOrderNumber;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Receive Asset",
-    Subtitle = detail != null ? ("PO " + (detail.PurchaseOrderNumber ?? detail.PurchaseRecordId.ToString()) + " - " + detail.RemainingQuantity + " unit(s) remaining") : "Create new assets and link them to this purchase.",
+    Title = "Receive Goods - PO " + poLabel,
+    Subtitle = "Ordered " + Model.Ordered + " · received " + Model.Received + " · outstanding " + Model.Outstanding + " · " + Model.Status,
     BackUrl = returnUrl,
     BackLabel = "Back to Purchase"
 })
+
 <div class="card card-kpi mb-3">
-    <div class="card-body">
-        @using (Html.BeginForm("Receive", "Purchases", FormMethod.Post, new { id = "receive-form", data_am_receive_mode = "true" }))
-        {
-            @Html.AntiForgeryToken()
-            @Html.HiddenFor(m => m.PurchaseRecordId)
-            @* When type context is resolved, keep subtype as hidden; when unresolved, the selector binds AssetTypeId/AssetSubTypeId. *@
-            if (!requiresTypeSelection)
+    <div class="card-body row g-3 small">
+        <div class="col-md-3"><div class="text-muted">Supplier</div><div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.SupplierName) ? "Not set" : Model.SupplierName)</div></div>
+        <div class="col-md-3">
+            <div class="text-muted">Requisition</div>
+            @if (Model.PurchaseRequestId.HasValue)
             {
-                @Html.HiddenFor(m => m.AssetSubTypeId)
+                <a class="fw-semibold" href="@Url.Action("Details", "PurchaseRequests", new { id = Model.PurchaseRequestId.Value, returnUrl = Request.RawUrl })">@(string.IsNullOrWhiteSpace(Model.PurchaseRequestNumber) ? ("#" + Model.PurchaseRequestId) : Model.PurchaseRequestNumber)</a>
             }
-            @Html.HiddenFor(m => m.CatalogMatchConfirmed)
-            <input type="hidden" id="ReceiveAssetTypeId" value="@(detail != null && detail.ContextAssetTypeId.HasValue ? detail.ContextAssetTypeId.Value.ToString() : "")" />
-            <input type="hidden" id="ReceiveBrand" value="@(detail != null ? detail.ContextBrand : "")" />
-            <input type="hidden" id="ReceiveModel" value="@(detail != null ? detail.ContextModel : "")" />
-            <div class="row g-3">
-                @{
-                    var assetTypeOptions = ViewBag.AssetTypeOptions as System.Collections.Generic.IEnumerable<AssetManagement.Web.ViewModels.AssetTypeLookupVm>
-                        ?? System.Linq.Enumerable.Empty<AssetManagement.Web.ViewModels.AssetTypeLookupVm>();
-                }
-                @if (requiresTypeSelection)
-                {
-                    <div class="col-md-12" id="receive-type-selector">
-                        <div class="alert alert-warning py-2">
-                            This purchase has no linked requisition/catalog type. Select classification before receive - create-without-type is not allowed here.
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label" for="AssetTypeId">Asset type</label>
-                                <select class="form-select" id="AssetTypeId" name="AssetTypeId">
-                                    <option value="">-- Select asset type --</option>
-                                    @foreach (var grp in assetTypeOptions.GroupBy(t => t.AssetCategoryId))
-                                    {
-                                        <optgroup label="Category #@grp.Key">
-                                        @foreach (var t in grp.OrderBy(x => x.Name))
+            else
+            {
+                <span class="text-muted">Not linked (legacy purchase record)</span>
+            }
+        </div>
+        <div class="col-md-3"><div class="text-muted">Requisition destination</div><div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.RequisitionDepartmentName) ? "None" : Model.RequisitionDepartmentName)</div></div>
+        <div class="col-md-3"><div class="text-muted">Status</div><span class="badge bg-light text-dark border" id="receive-po-status">@Model.Status</span></div>
+    </div>
+</div>
+
+@using (Html.BeginForm("Receive", "Purchases", FormMethod.Post, new { id = "receive-order-form" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.PurchaseRecordId)
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger", id = "receive-errors" })
+
+    for (var i = 0; i < Model.Lines.Count; i++)
+    {
+        var line = Model.Lines[i];
+        var isDepartment = string.Equals(line.DestinationKind, ReceiveOrderLineVm.DestinationDepartment, System.StringComparison.OrdinalIgnoreCase);
+        var enterTags = string.Equals(line.TagMode, ReceiveOrderLineVm.TagModeEnter, System.StringComparison.OrdinalIgnoreCase);
+        <div class="card card-kpi mb-3 am-receive-line" data-am-line-index="@i" data-am-outstanding="@line.Outstanding">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span><strong>#@line.LineNumber</strong> @line.Description</span>
+                <span class="small">Ordered <strong>@line.Ordered</strong> · received <strong>@line.Received</strong> · outstanding <strong class="am-outstanding">@line.Outstanding</strong></span>
+            </div>
+            <div class="card-body">
+                <input type="hidden" name="Lines[@i].PurchaseOrderLineId" value="@line.PurchaseOrderLineId" />
+                <input type="hidden" name="Lines[@i].LineNumber" value="@line.LineNumber" />
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label mb-1">Category / type / sub-type</label>
+                        @if (!line.NeedsClassification)
+                        {
+                            <div class="form-control-plaintext py-0 fw-medium am-classification-readonly">
+                                @(string.Join(" > ", new[] { line.AssetCategoryName, line.AssetTypeName, line.AssetSubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x))))
+                                @if (string.IsNullOrWhiteSpace(line.AssetSubTypeName))
+                                {
+                                    <span class="text-muted small">(no sub-type; refine on the asset later)</span>
+                                }
+                                <span class="text-muted small d-block">From: @(line.ClassificationSourceLabel ?? "purchase order")</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning py-2 mb-2 small">No classification on the purchase order line, the requisition or the supplier catalog. Choose it here (override).</div>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <select class="form-select am-po-type" name="Lines[@i].OverrideAssetTypeId">
+                                        <option value="">-- Asset type --</option>
+                                        @foreach (var grp in typeOptions.GroupBy(t => t.GroupName ?? "Other"))
                                         {
-                                            if (Model.AssetTypeId == t.Id)
+                                            <optgroup label="@grp.Key">
+                                                @foreach (var t in grp)
+                                                {
+                                                    if (line.OverrideAssetTypeId == t.Id)
+                                                    {
+                                                        <option value="@t.Id" selected="selected">@t.Name</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@t.Id">@t.Name</option>
+                                                    }
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <select class="form-select am-po-subtype" name="Lines[@i].OverrideAssetSubTypeId">
+                                        <option value="">-- Sub-type (optional) --</option>
+                                        @foreach (var st in subTypeOptions)
+                                        {
+                                            if (line.OverrideAssetSubTypeId == st.Id)
                                             {
-                                                <option value="@t.Id" selected="selected">@t.Name</option>
+                                                <option value="@st.Id" data-type-id="@st.ParentId" selected="selected">@st.Name</option>
                                             }
                                             else
                                             {
-                                                <option value="@t.Id">@t.Name</option>
+                                                <option value="@st.Id" data-type-id="@st.ParentId">@st.Name</option>
                                             }
                                         }
-                                        </optgroup>
-                                    }
-                                </select>
-                                @Html.ValidationMessageFor(m => m.AssetTypeId, "", new { @class = "text-danger" })
+                                    </select>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="AssetSubTypeId">Asset sub-type (optional)</label>
-                                @Html.TextBoxFor(m => m.AssetSubTypeId, new { @class = "form-control", placeholder = "Sub-type id (optional)" })
-                                <div class="form-text">Optional. You can refine sub-type on the asset after create once type is set.</div>
-                            </div>
-                        </div>
+                        }
                     </div>
-                }
-                else
-                {
-                    @Html.HiddenFor(m => m.AssetTypeId)
-                    <div class="col-md-12">
-                        <label class="form-label">Asset sub-type</label>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <div id="receive-subtype-display" class="form-control-plaintext @(string.IsNullOrWhiteSpace(detail != null ? detail.AssetSubTypeName : null) ? "text-muted" : "fw-medium")">
-                                @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
+                    <div class="col-md-2">
+                        <label class="form-label">Qty received</label>
+                        <input type="number" class="form-control am-receive-qty" name="Lines[@i].QuantityReceived" min="0" max="@line.Outstanding" step="1" value="@line.QuantityReceived" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Condition</label>
+                        <select class="form-select" name="Lines[@i].Condition">
+                            @foreach (var name in conditionNames)
+                            {
+                                var text = name.Replace("RepairNeeded", "Repair Needed").Replace("BeyondRepair", "Beyond Repair");
+                                if (string.Equals(line.Condition, name, System.StringComparison.OrdinalIgnoreCase))
                                 {
-                                    @detail.AssetSubTypeName
-                                }
-                                else if (requiresSubType)
-                                {
-                                    <text>Not assigned - classify after create on the asset</text>
+                                    <option value="@name" selected="selected">@text</option>
                                 }
                                 else
                                 {
-                                    <text>Not assigned</text>
+                                    <option value="@name">@text</option>
                                 }
-                            </div>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label">Destination</label>
+                        <div class="input-group">
+                            <select class="form-select am-dest-kind" name="Lines[@i].DestinationKind" style="max-width:220px">
+                                <option value="@ReceiveOrderLineVm.DestinationStore" @(isDepartment ? "" : "selected")>Store (company custody)</option>
+                                <option value="@ReceiveOrderLineVm.DestinationDepartment" @(isDepartment ? "selected" : "")>Department / room</option>
+                            </select>
+                            <select class="form-select am-dest-department" name="Lines[@i].DestinationDepartmentId" @(isDepartment ? "" : "disabled")>
+                                <option value="">-- Department / room --</option>
+                                @foreach (var item in departmentItems)
+                                {
+                                    if (line.DestinationDepartmentId.HasValue && item.Value == line.DestinationDepartmentId.Value.ToString())
+                                    {
+                                        <option value="@item.Value" selected="selected">@item.Text</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@item.Value">@item.Text</option>
+                                    }
+                                }
+                            </select>
                         </div>
+                        <div class="form-text">Units are created In Store with no custodian. Assign them to people afterwards from the purchase details.</div>
                     </div>
-                }
-                @* Custody Assign is post-receive only (Purchases Details "Assign these units"). Receive always keeps units In Store / company custody. *@
-                <input type="hidden" name="ReceivePlacementChoice" value="CompanyCustody" />
-                <div class="col-md-12">
-                    <div class="form-text">
-                        Received items are recorded under <strong>company custody</strong> (In Store, no custodian).
-                        After create, you can optionally assign from Purchase Details, or keep them in store.
-                        @if (hasRequisitionDepartment)
-                        {
-                            <span>Intended requisition destination: <strong>@requisitionDepartmentName</strong> (assign later if needed).</span>
-                        }
+                    <div class="col-md-6">
+                        <label class="form-label">Serial numbers <span class="text-muted small">(optional; paste one per line)</span></label>
+                        <textarea class="form-control font-monospace am-serials" name="Lines[@i].SerialNumbersText" rows="3" placeholder="One serial per unit">@line.SerialNumbersText</textarea>
+                        <div class="form-text am-serial-count"></div>
                     </div>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Received Date</label>
-                    @Html.TextBoxFor(m => m.ReceivedDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Quantity Received</label>
-                    @Html.TextBoxFor(m => m.QuantityReceived, new { @class = "form-control", type = "number", min = "1", max = detail != null ? detail.RemainingQuantity.ToString() : "1", id = "receive-quantity-input" })
-                    @Html.ValidationMessageFor(m => m.QuantityReceived, "", new { @class = "text-danger small" })
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Condition on Receipt</label>
-                    @Html.DropDownListFor(
-                        m => m.ConditionOnReceipt,
-                        conditionOptions,
-                        "-- Select condition --",
-                        new { @class = "form-select" })
-                    @Html.ValidationMessageFor(m => m.ConditionOnReceipt, "", new { @class = "text-danger small" })
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label">New assets</label>
-                    <p class="form-text mb-2">
-                        Each unit received creates a new asset with an auto-generated tag and QR code.
-                        Serial numbers are optional.
-                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.SuggestedAssetName))
-                        {
-                            <span>Name: <strong>@detail.SuggestedAssetName</strong>.</span>
-                        }
-                        @if (detail != null && !string.IsNullOrWhiteSpace(detail.AssetSubTypeName))
-                        {
-                            <span>Sub-type: <strong>@detail.AssetSubTypeName</strong>.</span>
-                        }
-                    </p>
-                    <button type="button" class="btn btn-outline-primary" id="receive-open-serial-wizard">Enter serial numbers (optional)</button>
-                    <div id="receive-serial-status" class="small mt-2"><span class="text-muted">Serial numbers are optional. Submit without them to create assets with tags only.</span></div>
-                    <div id="receive-serial-hidden-fields"></div>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Notes</label>
-                    @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "2" })
-                </div>
-            </div>
-            @Html.ValidationSummary(true, "", new { @class = "text-danger mt-2" })
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary" id="receive-submit-btn">Create assets &amp; record receiving</button>
-                <a class="btn btn-outline-secondary" href="@returnUrl">Cancel</a>
-            </div>
-        }
-    </div>
-</div>
-@Html.Partial("_ReceiveSerialWizardModal")
-@if (requiresCatalogConfirm)
-{
-    <div class="modal fade" id="catalogMatchConfirmModal" tabindex="-1" aria-hidden="true"
-         data-am-confirm-url="@catalogConfirmUrl" data-am-auto-show="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Confirm catalog match</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-2">This purchase looks like it matches an existing asset from the supplier catalog:</p>
-                    <p class="mb-1"><strong>Asset:</strong> @detail.CatalogMatchLabel</p>
-                    @if (!string.IsNullOrWhiteSpace(detail.CatalogMatchItemName))
-                    {
-                        <p class="mb-1"><strong>Catalog item:</strong> @detail.CatalogMatchItemName</p>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(detail.ItemDescription))
-                    {
-                        <p class="mb-0 text-muted">Requisition item: @detail.ItemDescription</p>
-                    }
-                    <p class="mt-3 mb-0">Do you want to use this match?</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="catalog-match-decline">No, classify after create</button>
-                    <button type="button" class="btn btn-primary" id="catalog-match-confirm">Yes, use this match</button>
+                    <div class="col-md-6">
+                        <label class="form-label">Asset tags</label>
+                        <select class="form-select mb-2 am-tag-mode" name="Lines[@i].TagMode">
+                            <option value="@ReceiveOrderLineVm.TagModeGenerate" @(enterTags ? "" : "selected")>Generate tags (standard tag numbers)</option>
+                            <option value="@ReceiveOrderLineVm.TagModeEnter" @(enterTags ? "selected" : "")>Enter / paste tags</option>
+                        </select>
+                        <textarea class="form-control font-monospace am-tags" name="Lines[@i].AssetTagsText" rows="3" placeholder="One tag per unit" @(enterTags ? "" : "disabled")>@line.AssetTagsText</textarea>
+                        <div class="form-text am-tag-count"></div>
+                    </div>
                 </div>
             </div>
         </div>
+    }
+
+    <div class="card card-kpi mb-3">
+        <div class="card-body row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Received date</label>
+                @Html.TextBoxFor(m => m.ReceivedDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+            </div>
+            <div class="col-md-9">
+                <label class="form-label">Notes (delivery note, GRN number, ...)</label>
+                @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = "2" })
+            </div>
+        </div>
+    </div>
+    <div class="mb-4">
+        <button type="submit" class="btn btn-primary" id="receive-submit-btn">Receive &amp; create assets</button>
+        <a class="btn btn-outline-secondary" href="@returnUrl">Cancel</a>
+        <span class="small text-muted ms-2">Partial receipts are fine; you cannot receive more than is outstanding.</span>
     </div>
 }
-<script src="@Url.Content("~/Scripts/app/receive-catalog-match.js")"></script>
-<script src="@Url.Content("~/Scripts/app/receive-serial-wizard.js")"></script>
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/receive-order.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/receive-order.js")).Ticks"></script>
+}

@@ -338,6 +338,7 @@
     <Content Include="Scripts\app\purchase-request-create.js" />
     <Content Include="Scripts\app\purchase-create.js" />
     <Content Include="Scripts\app\purchase-order-lines.js" />
+    <Content Include="Scripts\app\receive-order.js" />
     <Content Include="Scripts\app\claim-create.js" />
     <Content Include="Scripts\app\asset-tax-amount.js" />
     <Content Include="Scripts\app\asset-monetary-input.js" />
