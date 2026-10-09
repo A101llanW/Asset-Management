@@ -238,6 +238,28 @@ namespace AssetManagement.Application.Services
             _auditWriter.Write("Roles.Edit", nameof(Role), role.Id.ToString(), null, role.Name);
         }
 
+        /// <summary>
+        /// Permission ids the Roles Create/Edit permission matrix renders as checkboxes. Built the same way
+        /// RolesController builds the matrix (ModulePermissionService over PermissionService.GetAll, which hides
+        /// the Api and Depreciation modules), never from a client-posted list.
+        /// </summary>
+        public IList<int> GetMatrixPermissionIds()
+        {
+            var groups = new ModulePermissionService(new PermissionService(_unitOfWork)).GetModuleGroupedPermissions()
+                ?? new List<PermissionGroupVm>();
+            return groups
+                .SelectMany(g => g.Permissions ?? Enumerable.Empty<PermissionVm>())
+                .Select(p => p.Id)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Saves the permission matrix for a role. Only permissions rendered in the matrix are added or removed;
+        /// every RolePermission outside the matrix (e.g. Api.*, Depreciation.*) is preserved, and a posted id
+        /// outside the matrix is ignored (never granted).
+        /// </summary>
         public void SetPermissions(int roleId, IEnumerable<int> permissionIds)
         {
             var role = _unitOfWork.Repository<Role>().GetById(roleId);
@@ -246,7 +268,10 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Role not found.");
             }
 
-            var requested = permissionIds?.Distinct().ToList() ?? new List<int>();
+            var matrix = new HashSet<int>(GetMatrixPermissionIds());
+            var posted = permissionIds?.Distinct().ToList() ?? new List<int>();
+            var ignored = posted.Where(id => !matrix.Contains(id)).OrderBy(x => x).ToList();
+            var requested = posted.Where(id => matrix.Contains(id)).OrderBy(x => x).ToList();
             EnsurePermissionCeiling(requested);
 
             var organizationId = role.OrganizationId
@@ -254,23 +279,56 @@ namespace AssetManagement.Application.Services
 
             var rolePermissionRepo = _unitOfWork.Repository<RolePermission>();
             var current = rolePermissionRepo.Find(x => x.RoleId == roleId).ToList();
+            var requestedSet = new HashSet<int>(requested);
+            var currentIds = new HashSet<int>(current.Select(x => x.PermissionId));
+
+            var removed = new List<int>();
             foreach (var item in current)
             {
+                // Outside the matrix: not shown, so the form cannot express it. Keep it.
+                if (!matrix.Contains(item.PermissionId) || requestedSet.Contains(item.PermissionId))
+                {
+                    continue;
+                }
+
                 rolePermissionRepo.Remove(item);
+                removed.Add(item.PermissionId);
             }
 
+            var added = new List<int>();
             foreach (var permissionId in requested)
             {
+                if (currentIds.Contains(permissionId))
+                {
+                    continue;
+                }
+
                 rolePermissionRepo.Add(new RolePermission
                 {
                     RoleId = roleId,
                     PermissionId = permissionId,
                     OrganizationId = organizationId
                 });
+                added.Add(permissionId);
             }
 
             _unitOfWork.SaveChanges();
-            _auditWriter.Write("Permissions.Assign", nameof(RolePermission), roleId.ToString(), null, string.Join(",", requested));
+
+            var preserved = current
+                .Where(x => !matrix.Contains(x.PermissionId))
+                .Select(x => x.PermissionId)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+            var detail = "added=" + string.Join(",", added.Distinct().OrderBy(x => x))
+                + ";removed=" + string.Join(",", removed.Distinct().OrderBy(x => x))
+                + ";keptOutsideMatrix=" + string.Join(",", preserved);
+            if (ignored.Count > 0)
+            {
+                detail += ";ignoredOutsideMatrix=" + string.Join(",", ignored);
+            }
+
+            _auditWriter.Write("Permissions.Assign", nameof(RolePermission), roleId.ToString(), detail, string.Join(",", requested));
         }
 
         private void EnsurePermissionCeiling(IEnumerable<int> permissionIds)

@@ -24,5 +24,8 @@ namespace AssetManagement.Application.Contracts
         void Update(RoleCreateEditVm model);
 
         void SetPermissions(int roleId, IEnumerable<int> permissionIds);
+
+        /// <summary>Permission ids rendered in the Roles Create/Edit matrix (server-side; preserves the rest on save).</summary>
+        IList<int> GetMatrixPermissionIds();
     }
 }
