@@ -149,5 +149,8 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>Move / Keep when the asset sits in another department (b21ac7f rules).</summary>
         public string DepartmentDisposition { get; set; }
+
+        /// <summary>rel1009h: "Assign" (default, deliver to the user/room target) or "Store" (receive into store, no assignee).</summary>
+        public string FulfilMode { get; set; }
     }
 }

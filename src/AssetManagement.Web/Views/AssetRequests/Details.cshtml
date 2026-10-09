@@ -120,10 +120,22 @@
                     {
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="RequestId" value="@Model.Id" />
+                        <div class="mb-2" id="fulfil-mode">
+                            <label class="form-label">How to fulfil</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="FulfilMode" id="FulfilModeAssign" value="Assign" checked />
+                                <label class="form-check-label" for="FulfilModeAssign">Assign it to @(isRoomTarget ? ("the room (" + Model.TargetDepartmentName + ")") : "the user")</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="FulfilMode" id="FulfilModeStore" value="Store" />
+                                <label class="form-check-label" for="FulfilModeStore">Receive into store (asset stays in store, no assignee)</label>
+                            </div>
+                        </div>
                         <div class="mb-2">
-                            <label class="form-label">Asset to assign</label>
+                            <label class="form-label">Asset</label>
                             @Html.DropDownList("AssetId", availableAssets, "Select asset", new { @class = "form-select", required = "required" })
                         </div>
+                        @:<div id="fulfil-assign-fields">
                         if (isRoomTarget)
                         {
                             <div class="mb-2" id="fulfil-room-target">
@@ -139,11 +151,11 @@
                                         <input class="form-check-input" type="radio" name="PicPlacementChoice" id="PicPlacementPool" value="Pool" />
                                         <label class="form-check-label" for="PicPlacementPool">Room pool (no person)</label>
                                     </div>
-                                    <div class="form-text" id="fulfil-pool-hint" style="display:none">The room pool moves the asset into the room, so it must come from another room, a sub-department or a class (asset move rules). Store stock in an administrative department goes to the person in charge instead.</div>
+                                    <div class="form-text" id="fulfil-pool-hint" style="display:none">The room pool moves the asset into the room (assignment rules: from a top-level department, another room, a sub-department or a class).</div>
                                 }
                                 else
                                 {
-                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool. The pool moves the asset into the room, so pick an asset that sits in another room, a sub-department or a class (asset move rules).</div>
+                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool. The pool moves the asset into the room (assignment rules: from a top-level department, another room, a sub-department or a class).</div>
                                 }
                             </div>
                         }
@@ -168,11 +180,12 @@
                                 </select>
                             </div>
                         }
+                        @:</div>
                         <div class="mb-2">
-                            <label class="form-label">Handover notes</label>
+                            <label class="form-label">Notes</label>
                             <input class="form-control" name="HandoverNotes" />
                         </div>
-                        <button type="submit" class="btn btn-success w-100">Assign &amp; fulfill</button>
+                        <button type="submit" class="btn btn-success w-100" id="fulfil-submit" data-assign-text="Assign &amp; fulfill" data-store-text="Receive into store &amp; fulfill">Assign &amp; fulfill</button>
                     }
                 </div>
             </div>
@@ -197,6 +210,34 @@
             }
             pic.addEventListener("change", sync);
             pool.addEventListener("change", sync);
+            sync();
+        })();
+    </script>
+}
+
+@if (canFulfill)
+{
+    <script>
+        (function () {
+            // rel1009h item 1: "Receive into store" hides the assign fields (and their required flags).
+            var assign = document.getElementById("FulfilModeAssign");
+            var store = document.getElementById("FulfilModeStore");
+            var fields = document.getElementById("fulfil-assign-fields");
+            var submit = document.getElementById("fulfil-submit");
+            if (!assign || !store || !fields) {
+                return;
+            }
+            var requiredNodes = fields.querySelectorAll("[required]");
+            function sync() {
+                var isStore = store.checked;
+                fields.style.display = isStore ? "none" : "";
+                for (var i = 0; i < requiredNodes.length; i++) {
+                    if (isStore) { requiredNodes[i].removeAttribute("required"); } else { requiredNodes[i].setAttribute("required", "required"); }
+                }
+                if (submit) { submit.textContent = isStore ? submit.getAttribute("data-store-text") : submit.getAttribute("data-assign-text"); }
+            }
+            assign.addEventListener("change", sync);
+            store.addEventListener("change", sync);
             sync();
         })();
     </script>

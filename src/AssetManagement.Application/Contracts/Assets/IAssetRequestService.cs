@@ -16,5 +16,8 @@ namespace AssetManagement.Application.Contracts
         void Reject(int id, string reviewedByUserId, string notes);
 
         void Fulfill(int id, int assetId, string fulfilledByUserId, AssetAssignmentVm assignment);
+
+        /// <summary>rel1009h: fulfil an approved request by receiving the asset into store (no assignee), like Purchases receive.</summary>
+        void ReceiveIntoStore(int id, int assetId, string fulfilledByUserId, string notes);
     }
 }

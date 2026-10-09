@@ -339,6 +339,69 @@ namespace AssetManagement.Application.Services
             _auditWriter.Write("AssetRequests.Fulfill", nameof(AssetRequest), entity.Id.ToString(), AssetRequestStatus.Approved.ToString(), AssetRequestStatus.Fulfilled.ToString());
         }
 
+        /// <summary>
+        /// rel1009h item 1: "Receive into store" - the approved request is closed as Fulfilled with the picked asset,
+        /// which stays in store with no assignee (no assignment, no department change), like Purchases receive.
+        /// </summary>
+        public void ReceiveIntoStore(int id, int assetId, string fulfilledByUserId, string notes)
+        {
+            var entity = _unitOfWork.Repository<AssetRequest>().GetById(id);
+            if (entity == null || !entity.IsActive)
+            {
+                throw new BusinessException("Asset request not found.");
+            }
+
+            if (entity.Status != AssetRequestStatus.Approved)
+            {
+                throw new BusinessException("Only approved requests can be fulfilled.");
+            }
+
+            _segregationOfDuties.EnsureActorIsNotRequester(entity.RequestedById, fulfilledByUserId, ApprovalProcessCodes.AssetRequest);
+
+            var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+            if (asset == null || !asset.IsActive)
+            {
+                throw new BusinessException("Asset not found.");
+            }
+
+            if (asset.CurrentStatus != AssetStatus.InStore || !string.IsNullOrWhiteSpace(asset.CurrentCustodianId))
+            {
+                throw new BusinessException("Only an in-store asset with no custodian can be received into store for this request.");
+            }
+
+            _unitOfWork.ExecuteInTransaction(() =>
+            {
+                entity.Status = AssetRequestStatus.Fulfilled;
+                entity.FulfilledAssetId = assetId;
+                entity.ReviewedById = fulfilledByUserId;
+                entity.ReviewedAt = DateTime.UtcNow;
+                entity.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Repository<AssetRequest>().Update(entity);
+                NotificationHelper.AddNotification(
+                    _unitOfWork,
+                    _outboxWriter,
+                    _organizationScope,
+                    entity.RequestedById,
+                    NotificationType.General,
+                    "Asset request fulfilled",
+                    "Asset request #" + entity.Id + " has been fulfilled: asset " + (asset.AssetTag ?? ("#" + assetId)) + " was received into store.",
+                    "/AssetRequests/Details/" + entity.Id);
+            });
+
+            var note = string.IsNullOrWhiteSpace(notes) ? string.Empty : " Notes: " + notes.Trim();
+            if (note.Length > 400)
+            {
+                note = note.Substring(0, 400);
+            }
+
+            _auditWriter.Write(
+                "AssetRequests.ReceiveIntoStore",
+                nameof(AssetRequest),
+                entity.Id.ToString(),
+                AssetRequestStatus.Approved.ToString(),
+                AssetRequestStatus.Fulfilled + " (received into store, asset " + assetId + ")." + note);
+        }
+
         private AssetRequest GetPendingRequest(int id)
         {
             var entity = _unitOfWork.Repository<AssetRequest>().GetById(id);

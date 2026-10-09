@@ -259,6 +259,11 @@ namespace AssetManagement.Web.Controllers
             }
 
             ApplyTarget(request);
+            if (string.Equals((viewModel.FulfilMode ?? string.Empty).Trim(), "Store", StringComparison.OrdinalIgnoreCase))
+            {
+                return ReceiveIntoStore(viewModel, request);
+            }
+
             var assignmentType = AssignmentType.Permanent;
             if (request.TargetKind == AssetRequestTargetKind.Room && request.TargetDepartmentId.HasValue)
             {
@@ -324,6 +329,39 @@ namespace AssetManagement.Web.Controllers
                         HandedOverById = User.GetUserId()
                     });
                 TempData["Message"] = "Asset request fulfilled and asset assigned.";
+                return RedirectToTenantAware("AssetRequests", "Details", new { id = viewModel.RequestId });
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Details", new { id = viewModel.RequestId });
+            }
+        }
+
+        /// <summary>rel1009h item 1: close the approved request with the asset kept in store (user or room target).</summary>
+        private ActionResult ReceiveIntoStore(AssetRequestFulfillVm viewModel, AssetRequestDetailsVm request)
+        {
+            if (viewModel.AssetId <= 0)
+            {
+                TempData["Error"] = "Pick the in-store asset that fulfils this request.";
+                return RedirectToAction("Details", new { id = viewModel.RequestId });
+            }
+
+            if (request.DepartmentId.HasValue)
+            {
+                var asset = UnitOfWork.Repository<Asset>().GetById(viewModel.AssetId);
+                var subtree = DepartmentTreeHelper.GetSelfAndDescendantIds(request.DepartmentId.Value, GetActiveDepartments());
+                if (asset == null || !asset.DepartmentId.HasValue || !subtree.Contains(asset.DepartmentId.Value))
+                {
+                    TempData["Error"] = "Pick an in-store asset from the request department or one of its rooms.";
+                    return RedirectToAction("Details", new { id = viewModel.RequestId });
+                }
+            }
+
+            try
+            {
+                _assetRequestService.ReceiveIntoStore(viewModel.RequestId, viewModel.AssetId, User.GetUserId(), viewModel.HandoverNotes);
+                TempData["Message"] = "Asset request fulfilled. The asset was received into store with no assignee.";
                 return RedirectToTenantAware("AssetRequests", "Details", new { id = viewModel.RequestId });
             }
             catch (BusinessException ex)
