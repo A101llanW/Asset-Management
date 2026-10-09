@@ -66,14 +66,14 @@
                     {
                         @Html.DropDownListFor(m => m.ToDepartmentId, ViewBag.AllDepartments as IEnumerable<SelectListItem> ?? departments, "-- All departments --", new { @class = "form-select", id = "ToDepartmentId" })
                     }
-                    <div class="form-text">Optional filter for custodian pickers below.</div>
+                    <div class="form-text">Filters the custodian pickers below. When a department or room is chosen, a custodian is optional: rows left without one are assigned to it as a department pool.</div>
                 </div>
                 <div class="col-md-8">
                     @Html.LabelFor(m => m.HandoverNotes, new { @class = "form-label" })
                     @Html.TextAreaFor(m => m.HandoverNotes, 2, 80, new { @class = "form-control", placeholder = "Optional notes applied to every assignment" })
                 </div>
                 <div class="col-12" id="am-batch-dept-disposition">
-                    <label class="form-label">If a custodian is in a different department than the asset</label>
+                    <label class="form-label">If a custodian (or a pool into a sub-department/department) is in a different department than the asset</label>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="DepartmentDisposition" id="batchDispositionKeep" value="Keep" @(Model.DepartmentDisposition == "Move" ? "" : "checked") />
                         <label class="form-check-label" for="batchDispositionKeep"><strong>Keep</strong> each asset in its current department (ownership changes only).</label>
@@ -82,7 +82,7 @@
                         <input class="form-check-input" type="radio" name="DepartmentDisposition" id="batchDispositionMove" value="Move" @(Model.DepartmentDisposition == "Move" ? "checked" : "") />
                         <label class="form-check-label" for="batchDispositionMove"><strong>Move</strong> each asset to its new custodian's department.</label>
                     </div>
-                    <div class="form-text">Moves follow the asset movement rules (room to room, between a room and a sub-department, or class to room); assets that cannot be moved are skipped with the reason.</div>
+                    <div class="form-text">Moves follow the assignment rules (into or out of a top-level department, room to room, between a room and a sub-department, or class to room); assets that cannot be moved are skipped with the reason. Pools into a room or class always move the asset into it.</div>
                 </div>
             </div>
         </div>

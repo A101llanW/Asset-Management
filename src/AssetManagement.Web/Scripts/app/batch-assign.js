@@ -60,11 +60,12 @@
         var selects = form.querySelectorAll(".batch-assign-user-select");
         for (var i = 0; i < selects.length; i++) {
             var select = selects[i];
+            // rel1009h: with a department/room chosen, an empty custodian means a department pool row.
             rebuildUserSelect(
                 select,
                 users,
                 select.value,
-                select.getAttribute("data-am-user-placeholder"));
+                departmentId ? "-- No custodian (department pool) --" : select.getAttribute("data-am-user-placeholder"));
         }
     }
 

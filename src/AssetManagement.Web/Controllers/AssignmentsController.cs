@@ -263,19 +263,20 @@ namespace AssetManagement.Web.Controllers
                     DepartmentDisposition = CrossDepartmentDisposition.Normalize(model.DepartmentDisposition) ?? CrossDepartmentDisposition.Keep,
                     HandedOverById = CurrentUserContext.UserId,
                     HandoverNotes = model.HandoverNotes,
+                    // rel1009h item 2: with a department/room chosen, rows without a custodian become pool assignments.
                     Items = assignableRows
-                        .Where(x => !string.IsNullOrWhiteSpace(x.ToUserId))
+                        .Where(x => model.ToDepartmentId.HasValue || !string.IsNullOrWhiteSpace(x.ToUserId))
                         .Select(x => new BatchAssignItemVm
                         {
                             AssetId = x.AssetId,
-                            ToUserId = x.ToUserId
+                            ToUserId = string.IsNullOrWhiteSpace(x.ToUserId) ? null : x.ToUserId
                         })
                         .ToList()
                 };
 
                 if (request.Items.Count == 0)
                 {
-                    ModelState.AddModelError("", "Select at least one custodian before saving.");
+                    ModelState.AddModelError("", "Select at least one custodian, or choose a department or room to assign the assets as a department pool.");
                     return View("BatchCreate", model);
                 }
 

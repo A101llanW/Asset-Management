@@ -295,7 +295,10 @@ namespace AssetManagement.Application.Services
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(item.ToUserId))
+                // rel1009h: like single Assign, a custodian is only required when no department/room is chosen;
+                // otherwise a row without a custodian becomes a department pool assignment.
+                var isPoolRow = string.IsNullOrWhiteSpace(item.ToUserId);
+                if (isPoolRow && !request.ToDepartmentId.HasValue)
                 {
                     skipped++;
                     rowResults.Add(new BatchAssignRowResultVm
@@ -303,7 +306,7 @@ namespace AssetManagement.Application.Services
                         AssetId = item.AssetId,
                         AssetTag = assetTag,
                         Success = false,
-                        Message = "Select a custodian for this asset."
+                        Message = "Select a custodian for this asset, or choose a department or room to assign it as a department pool."
                     });
                     continue;
                 }
@@ -318,16 +321,16 @@ namespace AssetManagement.Application.Services
                     }
 
                     assetTag = asset.AssetTag;
-                    var recipient = _userService.GetById(item.ToUserId);
+                    var recipient = isPoolRow ? null : _userService.GetById(item.ToUserId);
                     var model = new AssetAssignmentVm
                     {
                         AssetId = item.AssetId,
-                        ToUserId = item.ToUserId,
+                        ToUserId = isPoolRow ? null : item.ToUserId,
                         // Recipient's own department, so a cross-department custodian follows the page's Move/Keep choice.
                         ToDepartmentId = request.ToDepartmentId ?? (recipient != null ? recipient.DepartmentId : null) ?? asset.DepartmentId,
                         DepartmentDisposition = request.DepartmentDisposition,
                         HandedOverById = request.HandedOverById,
-                        AssignmentType = AssignmentType.Permanent.ToString(),
+                        AssignmentType = (isPoolRow ? AssignmentType.DepartmentPool : AssignmentType.Permanent).ToString(),
                         AssignedDate = DateTime.UtcNow,
                         ConditionBeforeHandover = asset.Condition.ToString(),
                         HandoverNotes = request.HandoverNotes
@@ -341,7 +344,7 @@ namespace AssetManagement.Application.Services
                         AssetId = item.AssetId,
                         AssetTag = assetTag,
                         Success = true,
-                        Message = "Assigned successfully."
+                        Message = isPoolRow ? "Assigned as a department pool (no custodian)." : "Assigned successfully."
                     });
                 }
                 catch (BusinessException ex)
