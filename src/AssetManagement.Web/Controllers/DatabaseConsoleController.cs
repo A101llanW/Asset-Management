@@ -19,6 +19,9 @@ namespace AssetManagement.Web.Controllers
     /// Unauthenticated → Login (via [Authorize]). Tenant/company Admin → Forbidden.
     /// Only IOrganizationScopeService.IsActualPlatformAdmin() may use the console.
     /// Phase B (#3): IP allowlist via DatabaseConsoleAllowedIps + richer audit.
+    /// rel1009i: DatabaseConsoleAllowedIps = "*" or "any" (case-insensitive, alone or as one list entry) disables the
+    /// IP check; the Platform Admin gate and login/MFA still apply, audit rows add "allowlist=disabled" and the page
+    /// shows a warning banner. Blank/missing still means loopback only.
     /// Audit (AuditLog): DB_CONSOLE_VIEW for every allowed page view, DB_CONSOLE_DENIED for every refused attempt
     /// (unauthenticated, not Platform Admin, IP not allowlisted; written before the redirect), DB_CONSOLE_EXECUTE
     /// for SQL execution. A logging failure never breaks the page.
@@ -71,6 +74,7 @@ namespace AssetManagement.Web.Controllers
 
             TryAuditConsole(AuditViewAction, "allowed");
             var model = new DatabaseConsoleViewModel();
+            model.AllowlistDisabled = IsAllowlistDisabled();
             _consoleService.LoadSchema(model);
             return View(model);
         }
@@ -86,6 +90,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var model = _consoleService.Execute(sql);
+            model.AllowlistDisabled = IsAllowlistDisabled();
             _consoleService.LoadSchema(model);
 
             TryAuditExecute(sql, model);
@@ -125,62 +130,19 @@ namespace AssetManagement.Web.Controllers
 
         private bool IsClientIpAllowed()
         {
-            var raw = ConfigurationManager.AppSettings[AllowedIpsAppSettingKey];
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                raw = "127.0.0.1,::1";
-            }
+            return DatabaseConsoleIpAllowlist.IsAllowed(
+                ConfigurationManager.AppSettings[AllowedIpsAppSettingKey],
+                ResolveClientIp());
+        }
 
-            var allowed = raw.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.Trim())
-                .Where(x => x.Length > 0)
-                .ToList();
+        private static bool IsAllowlistDisabled()
+        {
+            return DatabaseConsoleIpAllowlist.IsDisabled(ConfigurationManager.AppSettings[AllowedIpsAppSettingKey]);
+        }
 
-            if (allowed.Count == 0)
-            {
-                allowed.Add("127.0.0.1");
-                allowed.Add("::1");
-            }
-
-            var clientIp = ResolveClientIp();
-            if (string.IsNullOrWhiteSpace(clientIp))
-            {
-                return false;
-            }
-
-            // Normalize IPv6 loopback / IPv4-mapped forms for comparison.
-            IPAddress parsedClient;
-            if (!IPAddress.TryParse(clientIp, out parsedClient))
-            {
-                return allowed.Any(a => string.Equals(a, clientIp, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (IPAddress.IsLoopback(parsedClient))
-            {
-                return allowed.Any(a =>
-                {
-                    IPAddress parsedAllowed;
-                    return string.Equals(a, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(a, "::1", StringComparison.OrdinalIgnoreCase)
-                        || (IPAddress.TryParse(a, out parsedAllowed) && IPAddress.IsLoopback(parsedAllowed));
-                });
-            }
-
-            foreach (var entry in allowed)
-            {
-                IPAddress parsedAllowed;
-                if (IPAddress.TryParse(entry, out parsedAllowed) && parsedClient.Equals(parsedAllowed))
-                {
-                    return true;
-                }
-
-                if (string.Equals(entry, clientIp, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+        private static string AllowlistAuditSuffix()
+        {
+            return IsAllowlistDisabled() ? " allowlist=disabled" : "";
         }
 
         private string ResolveClientIp()
@@ -213,7 +175,7 @@ namespace AssetManagement.Web.Controllers
                     ? (" error=" + TruncateForAudit(model.Message, 2000))
                     : "";
                 var durationPart = " durationMs=" + model.ExecutionTimeMs;
-                var newValues = outcome + " ip=" + clientIp + rowsPart + durationPart + errorPart;
+                var newValues = outcome + " ip=" + clientIp + AllowlistAuditSuffix() + rowsPart + durationPart + errorPart;
 
                 _auditWriter.Write(
                     "DB_CONSOLE_EXECUTE",
@@ -244,7 +206,7 @@ namespace AssetManagement.Web.Controllers
                 var method = Request != null ? Request.HttpMethod : null;
                 var path = Request != null && Request.Url != null ? Request.Url.AbsolutePath : null;
                 var newValues = TruncateForAudit(
-                    outcome + " user=" + userName + " ip=" + clientIp + " method=" + method + " path=" + path,
+                    outcome + " user=" + userName + " ip=" + clientIp + AllowlistAuditSuffix() + " method=" + method + " path=" + path,
                     4000);
 
                 if (!string.IsNullOrWhiteSpace(userId) && _auditWriter != null)
@@ -324,6 +286,89 @@ VALUES (@ActorUserId,@Action,@EntityType,@EntityId,NULL,@NewValues,@Now,@IPAddre
             }
 
             return trimmed.Substring(0, maxLength) + "...";
+        }
+    }
+
+    /// <summary>
+    /// Pure DatabaseConsoleAllowedIps evaluation (unit-tested). "*" or "any" (case-insensitive, alone or as one
+    /// entry of a , ; or space separated list) disables the IP check. Blank/missing = loopback only.
+    /// </summary>
+    public static class DatabaseConsoleIpAllowlist
+    {
+        public const string DefaultAllowedIps = "127.0.0.1,::1";
+
+        public static string[] ParseEntries(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                raw = DefaultAllowedIps;
+            }
+
+            var entries = raw.Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => x.Length > 0)
+                .ToArray();
+            return entries.Length == 0 ? new[] { "127.0.0.1", "::1" } : entries;
+        }
+
+        public static bool IsDisabled(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            return ParseEntries(raw).Any(e =>
+                string.Equals(e, "*", StringComparison.Ordinal)
+                || string.Equals(e, "any", StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static bool IsAllowed(string raw, string clientIp)
+        {
+            if (IsDisabled(raw))
+            {
+                return true;
+            }
+
+            var allowed = ParseEntries(raw);
+            if (string.IsNullOrWhiteSpace(clientIp))
+            {
+                return false;
+            }
+
+            // Normalize IPv6 loopback / IPv4-mapped forms for comparison.
+            IPAddress parsedClient;
+            if (!IPAddress.TryParse(clientIp, out parsedClient))
+            {
+                return allowed.Any(a => string.Equals(a, clientIp, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (IPAddress.IsLoopback(parsedClient))
+            {
+                return allowed.Any(a =>
+                {
+                    IPAddress parsedAllowed;
+                    return string.Equals(a, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(a, "::1", StringComparison.OrdinalIgnoreCase)
+                        || (IPAddress.TryParse(a, out parsedAllowed) && IPAddress.IsLoopback(parsedAllowed));
+                });
+            }
+
+            foreach (var entry in allowed)
+            {
+                IPAddress parsedAllowed;
+                if (IPAddress.TryParse(entry, out parsedAllowed) && parsedClient.Equals(parsedAllowed))
+                {
+                    return true;
+                }
+
+                if (string.Equals(entry, clientIp, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

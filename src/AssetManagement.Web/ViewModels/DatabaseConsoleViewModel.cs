@@ -13,6 +13,9 @@ namespace AssetManagement.Web.ViewModels
         public List<string> Tables { get; set; }
         public string DatabaseName { get; set; }
 
+        /// <summary>DatabaseConsoleAllowedIps is "*"/"any": the IP allowlist is off (warning banner).</summary>
+        public bool AllowlistDisabled { get; set; }
+
         public DatabaseConsoleViewModel()
         {
             ResultSets = new List<QueryResultSetViewModel>();

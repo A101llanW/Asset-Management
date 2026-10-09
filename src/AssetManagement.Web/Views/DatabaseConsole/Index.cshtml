@@ -251,6 +251,12 @@
             <span style="margin-left: 1rem;">Platform Admin only &middot; Hidden page</span>
         </div>
     </div>
+    @if (Model.AllowlistDisabled)
+    {
+        <div class="db-console-allowlist-warning" role="alert" style="background:#5a1d1d;color:#ffd7d7;border:1px solid #a33;padding:0.4rem 0.75rem;font-size:0.8rem;font-family:Inter, system-ui, sans-serif;">
+            &#9888; IP allowlist is disabled (DatabaseConsoleAllowedIps = *): the console is reachable from any IP by a signed-in Platform Admin. Restore an IP list when no longer needed.
+        </div>
+    }
 
     <div class="db-console-layout">
         <aside class="db-console-sidebar">
