@@ -519,6 +519,11 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
             ViewBag.AssignmentTypes = new SelectList(assignmentTypes, "Value", "Text", selectedType);
             ViewBag.ConditionOptions = BuildAssetConditionSelectList(model?.ConditionBeforeHandover);
+            if (model != null && model.AssetId > 0)
+            {
+                // rel1009h item 3: Move/Keep is asked up front, before submit.
+                SetDepartmentDispositionConfig(UnitOfWork.Repository<Asset>().GetById(model.AssetId), true);
+            }
 
             var lockedFields = new List<WorkflowLockedFieldVm>
             {

@@ -1,52 +1,47 @@
-﻿@* Shown when assigning/transferring to a person whose department differs from the asset's. *@
+﻿@* Move / Keep department choice (rel1009h: shown up front while filling the form, see Scripts/app/department-disposition.js).
+   Needed when the selected person is in another department than the asset, or (Assign only) when a department pool
+   targets a sub-department / department that differs from the asset's department. The server re-checks on submit. *@
 @{
     var require = ViewBag.RequireDepartmentDisposition == true;
     var assetDeptName = ViewBag.AssetDepartmentName as string ?? "current department";
     var selectedDeptName = ViewBag.SelectedDepartmentName as string ?? "selected department";
     var chosen = ViewBag.DepartmentDispositionValue as string ?? "";
     var moveBlocked = ViewBag.DepartmentMoveBlockedMessage as string;
+    var configJson = ViewBag.DepartmentDispositionConfigJson as string;
+    var poolPrompt = ViewBag.DepartmentDispositionPoolPrompt == true;
 }
-@if (require)
+@if (require || !string.IsNullOrEmpty(configJson))
 {
-    <div class="alert alert-warning" id="am-dept-disposition-prompt" role="alert">
+    <div class="alert alert-warning @(require ? "" : "d-none")" id="am-dept-disposition-prompt" role="alert"
+         data-am-dept-disposition="@(configJson ?? "")"
+         data-am-dept-disposition-pool="@(poolPrompt ? "true" : "false")"
+         data-am-dept-disposition-server="@(require ? "true" : "false")">
         <strong>Department choice required.</strong>
-        The selected person is in <em>@selectedDeptName</em>, but this asset is currently in <em>@assetDeptName</em>.
+        <span id="am-dept-disposition-reason">The selected target is in <em>@selectedDeptName</em>, but this asset is currently in <em>@assetDeptName</em>.</span>
         <div class="mt-2">
             <div class="form-check">
-                @if (!string.IsNullOrEmpty(moveBlocked))
-                {
-                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move" disabled="disabled" />
-                }
-                else if (chosen == "Move")
-                {
-                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move" checked="checked" />
-                }
-                else
-                {
-                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move" />
-                }
+                <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move"
+                       @(string.IsNullOrEmpty(moveBlocked) ? "" : "disabled") @(string.IsNullOrEmpty(moveBlocked) && chosen == "Move" ? "checked" : "") @(require && string.IsNullOrEmpty(moveBlocked) ? "required" : "") />
                 <label class="form-check-label" for="deptDispositionMove">
-                    <strong>Move</strong> the asset to <em>@selectedDeptName</em> (selected / teacher's department).
+                    <strong>Move</strong> the asset to <em class="am-dd-selected-name">@selectedDeptName</em>.
                 </label>
-                @if (!string.IsNullOrEmpty(moveBlocked))
-                {
-                    <div class="form-text text-muted" id="deptDispositionMoveBlocked">Move is not available: @moveBlocked</div>
-                }
+                <div class="form-text text-muted @(string.IsNullOrEmpty(moveBlocked) ? "d-none" : "")" id="deptDispositionMoveBlocked">Move is not available: <span class="am-dd-blocked-text">@moveBlocked</span></div>
             </div>
             <div class="form-check">
-                @if (chosen == "Keep")
-                {
-                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionKeep" value="Keep" checked="checked" />
-                }
-                else
-                {
-                    <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionKeep" value="Keep" />
-                }
+                <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionKeep" value="Keep"
+                       @(chosen == "Keep" ? "checked" : "") @(require ? "required" : "") />
                 <label class="form-check-label" for="deptDispositionKeep">
-                    <strong>Keep</strong> the asset in <em>@assetDeptName</em> but change ownership to the selected person.
+                    <strong>Keep</strong> the asset in <em class="am-dd-asset-name">@assetDeptName</em> (only ownership / the pool department changes).
                 </label>
             </div>
         </div>
-        <div class="form-text text-danger mt-1">Choose Move or Keep, then submit again.</div>
+        @if (require)
+        {
+            <div class="form-text text-danger mt-1">Choose Move or Keep, then submit again.</div>
+        }
+        else
+        {
+            <div class="form-text mt-1">Choose Move or Keep before saving.</div>
+        }
     </div>
 }

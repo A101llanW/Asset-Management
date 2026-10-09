@@ -270,6 +270,48 @@ namespace AssetManagement.Web.Controllers
             };
         }
 
+        /// <summary>
+        /// rel1009h: client config for the up-front Move/Keep prompt (_DepartmentDispositionPrompt +
+        /// Scripts/app/department-disposition.js). Per department: whether a pool there needs Move/Keep and,
+        /// when Move would break AssetMoveRules.IsAllowedAssignmentTarget, the reason Move is disabled.
+        /// </summary>
+        protected void SetDepartmentDispositionConfig(Asset asset, bool poolPrompt)
+        {
+            if (asset == null)
+            {
+                return;
+            }
+
+            var departments = GetActiveDepartments();
+            var assetDepartmentId = asset.DepartmentId.HasValue && asset.DepartmentId.Value > 0 ? asset.DepartmentId : null;
+            var from = assetDepartmentId.HasValue ? departments.FirstOrDefault(d => d.Id == assetDepartmentId.Value) : null;
+            var map = new Dictionary<string, object>();
+            foreach (var d in departments)
+            {
+                var moveAllowed = !assetDepartmentId.HasValue || d.Id == assetDepartmentId.Value
+                    || AssetMoveRules.IsAllowedAssignmentTarget(
+                        from == null ? (DepartmentKind?)null : from.DepartmentKind,
+                        from != null && !from.ParentDepartmentId.HasValue,
+                        d.DepartmentKind,
+                        !d.ParentDepartmentId.HasValue);
+                map[d.Id.ToString()] = new Dictionary<string, object>
+                {
+                    { "name", d.Name },
+                    { "pool", CrossDepartmentDisposition.IsCrossDepartmentPool(assetDepartmentId, d.Id, null, d.DepartmentKind) },
+                    { "moveBlocked", moveAllowed ? null : AssetMoveRules.AssignmentRefusedMessage }
+                };
+            }
+
+            var config = new Dictionary<string, object>
+            {
+                { "assetDepartmentId", assetDepartmentId },
+                { "assetDepartmentName", from == null ? null : from.Name },
+                { "departments", map }
+            };
+            ViewBag.DepartmentDispositionConfigJson = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue }.Serialize(config);
+            ViewBag.DepartmentDispositionPoolPrompt = poolPrompt;
+        }
+
         protected bool ValidateUserBelongsToDepartment(string userId, int? departmentId)
         {
             return DepartmentUserWorkflowHelper.UserBelongsToDepartment(userId, departmentId, GetActiveUsers());

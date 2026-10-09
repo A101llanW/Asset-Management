@@ -243,6 +243,8 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DepartmentGroups = BuildGroupedDepartmentSelectGroups(model?.ToDepartmentId ?? toDepartmentId);
             ViewBag.LockToDepartment = lockToDepartment;
             ViewBag.LockFromFields = true;
+            // rel1009h item 3: Move/Keep is asked up front (person transfers only; no pools here).
+            SetDepartmentDispositionConfig(asset, false);
             ViewBag.FromDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(model?.FromDepartmentId, departments);
             ViewBag.FromUserName = DepartmentUserWorkflowHelper.ResolveUserDisplayName(model?.FromUserId, activeUsers);
             ViewBag.ToDepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(toDepartmentId, departments);

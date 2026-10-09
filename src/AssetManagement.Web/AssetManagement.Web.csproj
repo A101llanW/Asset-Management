@@ -341,6 +341,7 @@
     <Content Include="Scripts\app\asset-tax-amount.js" />
     <Content Include="Scripts\app\asset-monetary-input.js" />
     <Content Include="Scripts\app\assignment-return-date.js" />
+    <Content Include="Scripts\app\department-disposition.js" />
     <Content Include="Scripts\app\asset-subtype-picker.js" />
     <Content Include="Scripts\app\receive-serial-wizard.js" />
     <Content Include="Scripts\app\asset-category-type.js" />
