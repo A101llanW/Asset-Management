@@ -115,6 +115,15 @@ namespace AssetManagement.Application.Helpers
         /// </summary>
         public static IList<KeyValuePair<int, string>> BuildRequisitionOptions(IEnumerable<DepartmentVm> departments)
         {
+            return BuildTreeOptions(departments, true);
+        }
+
+        /// <summary>
+        /// Same tree order and "Parent > Child" labels as BuildRequisitionOptions; when requisitionTargetsOnly is false
+        /// every active department is listed (Asset Requests department picker).
+        /// </summary>
+        public static IList<KeyValuePair<int, string>> BuildTreeOptions(IEnumerable<DepartmentVm> departments, bool requisitionTargetsOnly)
+        {
             var list = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null && x.IsActive).ToList();
             var lookup = ToLookup(list);
             var childrenByParent = list
@@ -130,7 +139,7 @@ namespace AssetManagement.Application.Helpers
             var seen = new HashSet<int>();
             foreach (var root in roots)
             {
-                Walk(root, childrenByParent, lookup, result, seen, 0);
+                Walk(root, childrenByParent, lookup, result, seen, 0, requisitionTargetsOnly);
             }
 
             return result;
@@ -184,14 +193,15 @@ namespace AssetManagement.Application.Helpers
             IDictionary<int, DepartmentVm> lookup,
             IList<KeyValuePair<int, string>> result,
             ISet<int> seen,
-            int depth)
+            int depth,
+            bool requisitionTargetsOnly)
         {
             if (node == null || depth > MaxDepth || !seen.Add(node.Id))
             {
                 return;
             }
 
-            if (node.IsRequisitionTarget)
+            if (node.IsRequisitionTarget || !requisitionTargetsOnly)
             {
                 result.Add(new KeyValuePair<int, string>(node.Id, BuildPathLabel(node.Id, lookup)));
             }
@@ -201,7 +211,7 @@ namespace AssetManagement.Application.Helpers
             {
                 foreach (var child in children)
                 {
-                    Walk(child, childrenByParent, lookup, result, seen, depth + 1);
+                    Walk(child, childrenByParent, lookup, result, seen, depth + 1, requisitionTargetsOnly);
                 }
             }
         }

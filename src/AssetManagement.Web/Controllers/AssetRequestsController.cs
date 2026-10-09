@@ -471,7 +471,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 model == null ? GetCurrentUserDepartmentId() : model.DepartmentId,
                 GetActiveDepartments());
-            ViewBag.Departments = BuildDepartmentSelectList(model == null ? null : model.DepartmentId);
+            ViewBag.Departments = BuildDepartmentTreeSelectList(model == null ? null : model.DepartmentId);
             ViewBag.Categories = BuildCategorySelectList(model == null ? null : model.CategoryId);
             ViewBag.RoomTargetsAvailable = TargetRepository.IsAvailable();
             ViewBag.RoomTargets = new SelectList(

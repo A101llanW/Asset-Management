@@ -204,6 +204,17 @@ namespace AssetManagement.Tests.Helpers
         }
 
         [Test]
+        public void BuildTreeOptions_AllDepartments_IncludesNonTargets()
+        {
+            var t = Tree();
+            t[2].IsRequisitionTarget = false;
+            CollectionAssert.DoesNotContain(DepartmentTreeHelper.BuildRequisitionOptions(t).Select(x => x.Key).ToList(), 3);
+            var all = DepartmentTreeHelper.BuildTreeOptions(t, false);
+            CollectionAssert.AreEqual(new[] { 2, 3, 4, 1, 5 }, all.Select(x => x.Key).ToList());
+            Assert.AreEqual("Grade 1 > 1 East", all.Single(x => x.Key == 3).Value);
+        }
+
+        [Test]
         public void FormatAssetOption_TagSerialNameDept()
         {
             Assert.AreEqual("AT-1 - SN9 - Laptop (ICT)", DepartmentTreeHelper.FormatAssetOption("AT-1", "SN9", "Laptop", "ICT"));

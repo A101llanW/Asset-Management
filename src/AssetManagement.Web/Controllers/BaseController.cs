@@ -385,6 +385,20 @@ namespace AssetManagement.Web.Controllers
             return new SelectList(cachedDepartments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
         }
 
+        /// <summary>rel1009g: every active department in tree order with "Parent > Child" labels (Asset Requests).</summary>
+        protected SelectList BuildDepartmentTreeSelectList(int? selectedDepartmentId = null)
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            var departments = orgId.HasValue
+                ? BuildReferenceDataCache().GetDepartments(orgId.Value, true)
+                : BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList();
+            var items = AssetManagement.Application.Helpers.DepartmentTreeHelper
+                .BuildTreeOptions(departments, false)
+                .Select(x => new SelectListItem { Value = x.Key.ToString(), Text = x.Value })
+                .ToList();
+            return new SelectList(items, "Value", "Text", selectedDepartmentId);
+        }
+
         protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null)
         {
             // rel1009g: full-depth tree (Grade > Class, Admin > Sub > Room, ...) with "Parent > Child" labels; the
