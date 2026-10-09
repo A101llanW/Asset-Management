@@ -149,6 +149,7 @@ namespace AssetManagement.Application.Services
                     _userService,
                     approvalConfig.StageRoleIds.FirstOrDefault(),
                     ApprovalWorkflowHelper.GetStageUserId(approvalConfig.StageUserIds, 1),
+                    ApprovalWorkflowHelper.ResolveTransferDepartmentId(transfer, asset),
                     "Transfer approval required",
                     "Transfer #" + transfer.Id + " for asset " + asset.AssetTag + " is awaiting Stage 1 approval.",
                     "/Assets/Details/" + transfer.AssetId);
@@ -182,6 +183,7 @@ namespace AssetManagement.Application.Services
             var stageNumber = transfer.CurrentApprovalStage <= 0 ? 1 : transfer.CurrentApprovalStage;
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Transfer);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
+            var requestDepartmentId = ApprovalWorkflowHelper.ResolveTransferDepartmentId(transfer, asset);
             var isFinalStage = stageNumber >= stageRoleIds.Count;
 
             _approvalEngine.ExecuteStageDecision(new ApprovalStageDecisionRequest
@@ -199,6 +201,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
                 ApprovalActionEntity = new TransferApprovalAction
                 {
                     AssetTransferId = transfer.Id,
@@ -249,6 +252,7 @@ namespace AssetManagement.Application.Services
                             _userService,
                             ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, transfer.CurrentApprovalStage, ApprovalProcessCodes.Transfer),
                             ApprovalWorkflowHelper.GetStageUserId(stageUserIds, transfer.CurrentApprovalStage),
+                            requestDepartmentId,
                             "Transfer approval stage advanced",
                             "Transfer #" + transfer.Id + " is now awaiting Stage " + transfer.CurrentApprovalStage + " approval.",
                             "/Assets/Details/" + transfer.AssetId);
@@ -291,6 +295,7 @@ namespace AssetManagement.Application.Services
             var stageNumber = transfer.CurrentApprovalStage <= 0 ? 1 : transfer.CurrentApprovalStage;
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Transfer);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
+            var requestDepartmentId = ApprovalWorkflowHelper.ResolveTransferDepartmentId(transfer, asset);
 
             _approvalEngine.ExecuteStageDecision(new ApprovalStageDecisionRequest
             {
@@ -307,6 +312,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
                 ApprovalActionEntity = new TransferApprovalAction
                 {
                     AssetTransferId = transfer.Id,

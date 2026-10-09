@@ -1123,6 +1123,7 @@ namespace AssetManagement.Application.Services
                 _userService,
                 approvalConfig.StageRoleIds.FirstOrDefault(),
                 ApprovalWorkflowHelper.GetStageUserId(approvalConfig.StageUserIds, 1),
+                asset.DepartmentId,
                 "Disposal approval required",
                 "Disposal request #" + disposal.Id + " for asset " + (asset.AssetTag ?? ("#" + asset.Id)) + " is awaiting Stage 1 approval.",
                 "/Assets/Details/" + asset.Id);
@@ -1150,6 +1151,7 @@ namespace AssetManagement.Application.Services
             var stageNumber = pendingRequest.CurrentApprovalStage <= 0 ? 1 : pendingRequest.CurrentApprovalStage;
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Disposal);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
+            var requestDepartmentId = asset.DepartmentId;
             var isFinalStage = stageNumber >= stageRoleIds.Count;
 
             _approvalEngine.ExecuteStageDecision(new ApprovalStageDecisionRequest
@@ -1167,6 +1169,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
                 ApprovalActionEntity = new DisposalApprovalAction
                 {
                     DisposalRecordId = pendingRequest.Id,
@@ -1212,6 +1215,7 @@ namespace AssetManagement.Application.Services
                             _userService,
                             ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, pendingRequest.CurrentApprovalStage, ApprovalProcessCodes.Disposal),
                             ApprovalWorkflowHelper.GetStageUserId(stageUserIds, pendingRequest.CurrentApprovalStage),
+                            requestDepartmentId,
                             "Disposal approval stage advanced",
                             "Disposal request #" + pendingRequest.Id + " is now awaiting Stage " + pendingRequest.CurrentApprovalStage + " approval.",
                             "/Assets/Details/" + asset.Id);
@@ -1249,6 +1253,7 @@ namespace AssetManagement.Application.Services
             var stageNumber = pendingRequest.CurrentApprovalStage <= 0 ? 1 : pendingRequest.CurrentApprovalStage;
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Disposal);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
+            var requestDepartmentId = asset.DepartmentId;
 
             _approvalEngine.ExecuteStageDecision(new ApprovalStageDecisionRequest
             {
@@ -1265,6 +1270,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
                 ApprovalActionEntity = new DisposalApprovalAction
                 {
                     DisposalRecordId = pendingRequest.Id,

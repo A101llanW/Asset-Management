@@ -43,7 +43,8 @@ namespace AssetManagement.Application.Services
                 request.ExpectedUserId,
                 request.RequesterUserId,
                 request.ActingUserId,
-                request.ProcessCode);
+                request.ProcessCode,
+                request.ApproverScope);
 
             var isApprove = request.Decision == ApprovalStatus.Approved;
             var isReject = request.Decision == ApprovalStatus.Rejected;

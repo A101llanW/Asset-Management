@@ -77,7 +77,7 @@ SELECT
     END AS Summary,
     NULL AS DisplayTag,
     NULL AS DisplayName,
-    a.[DepartmentId],
+    COALESCE(t.[FromDepartmentId], a.[DepartmentId]) AS DepartmentId,
     0 AS IsAssetRequest
 FROM [AssetTransfer] t
 INNER JOIN [Asset] a ON a.[Id] = t.[AssetId]

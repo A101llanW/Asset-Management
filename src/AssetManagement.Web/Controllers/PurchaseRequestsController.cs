@@ -176,13 +176,19 @@ namespace AssetManagement.Web.Controllers
                     isSuperAdmin,
                     currentRoleId,
                     model.CurrentStageRoleId,
-                    model.CurrentStageUserId);
+                    model.CurrentStageUserId,
+                    // rel1009e: same approver resolver as the notification and the approve/reject check.
+                    StageApproverScopeResolver.ResolveFor(UnitOfWork, BuildUserService(), model.CurrentStageRoleId, model.CurrentStageUserId, model.DepartmentId));
 
             // "Purchase order raised by" (resolved from the unit the flow is taken from): hide the PO button for others.
             var entity = UnitOfWork.Repository<Domain.Entities.PurchaseRequest>().GetById(id);
             var poRaiserConfig = PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, entity);
             model.PurchaseOrderRaiserLabel = PurchaseOrderRaiserRules.Describe(UnitOfWork, BuildUserService(), poRaiserConfig);
-            model.CanCurrentUserRaisePurchaseOrder = PurchaseOrderRaiserRules.CanRaise(poRaiserConfig, currentUserId, currentRoleId);
+            model.CanCurrentUserRaisePurchaseOrder = PurchaseOrderRaiserRules.CanRaise(
+                poRaiserConfig,
+                currentUserId,
+                currentRoleId,
+                PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), poRaiserConfig, entity == null ? (int?)null : entity.DepartmentId));
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             // The path this requisition resolves to (its snapshot / unit flow), not the org default.

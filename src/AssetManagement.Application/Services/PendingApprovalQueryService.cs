@@ -18,6 +18,8 @@ namespace AssetManagement.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAuthorizationService _authorizationService;
         private readonly ICurrentUserContext _currentUser;
+        private readonly IUserService _userService;
+        private StageApproverScopeResolver _scopeResolver;
 
         public PendingApprovalQueryService(
             IPendingApprovalQueryRepository queryRepository,
@@ -26,8 +28,10 @@ namespace AssetManagement.Application.Services
             IReferenceDataCache referenceDataCache,
             IUnitOfWork unitOfWork,
             IAuthorizationService authorizationService = null,
-            ICurrentUserContext currentUser = null)
+            ICurrentUserContext currentUser = null,
+            IUserService userService = null)
         {
+            _userService = userService;
             _queryRepository = queryRepository;
             _organizationScope = organizationScope;
             _departmentScope = departmentScope;
@@ -62,6 +66,44 @@ namespace AssetManagement.Application.Services
                 scope.BypassPurchaseDepartmentScope,
                 scope.BypassAssetRequestDepartmentScope);
             var items = new List<PendingApprovalQueryItemVm>();
+            _scopeResolver = _userService == null ? null : StageApproverScopeResolver.Create(_unitOfWork, _userService);
+
+            // rel1009e: a department-scoped user can be the resolved approver of another unit's request (nearest-
+            // ancestor fallback, e.g. the parent department's head for a room). Add those workflow items too, but
+            // only the ones this user can act on per the shared resolver.
+            if (_scopeResolver != null && !scope.BypassesDepartmentScope && !string.IsNullOrWhiteSpace(context.UserId))
+            {
+                var seen = new HashSet<string>(sources.Select(x => x.ProcessName + "#" + x.RequestId), StringComparer.OrdinalIgnoreCase);
+                var orgWide = _queryRepository.GetPendingSources(scope.OrganizationId, null, true, false, true, false);
+                var extra = new List<PendingApprovalSourceRow>();
+                foreach (var row in orgWide)
+                {
+                    if (row == null || row.IsAssetRequest || !seen.Add(row.ProcessName + "#" + row.RequestId))
+                    {
+                        continue;
+                    }
+
+                    var rowRoleId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageRoleId(row.ApprovalStageRoleIds, row.CurrentApprovalStage);
+                    var rowUserId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageUserId(row.ApprovalStageUserIds, row.CurrentApprovalStage);
+                    if (ApprovalWorkflowHelper.CanUserActOnStage(
+                            _unitOfWork,
+                            row.RequestedById,
+                            context.UserId,
+                            false,
+                            context.RoleId,
+                            rowRoleId,
+                            rowUserId,
+                            _scopeResolver.Resolve(rowRoleId, rowUserId, row.DepartmentId)))
+                    {
+                        extra.Add(row);
+                    }
+                }
+
+                if (extra.Count > 0)
+                {
+                    sources = sources.Concat(extra).ToList();
+                }
+            }
 
             foreach (var source in sources)
             {
@@ -149,7 +191,8 @@ namespace AssetManagement.Application.Services
                 context.IsSuperAdmin,
                 context.RoleId,
                 stageRoleId,
-                stageUserId);
+                stageUserId,
+                _scopeResolver == null ? null : _scopeResolver.Resolve(stageRoleId, stageUserId, source.DepartmentId));
             if (!ApprovalWorkflowHelper.ShouldIncludePendingItem(context.IsSuperAdmin, canAct, isMine))
             {
                 return;

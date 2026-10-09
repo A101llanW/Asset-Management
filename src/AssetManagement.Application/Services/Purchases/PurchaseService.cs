@@ -17,17 +17,20 @@ namespace AssetManagement.Application.Services
         private readonly IOperationsQueryRepository _operationsQueryRepository;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
+        private readonly IUserService _userService;
 
         public PurchaseService(
             IUnitOfWork unitOfWork,
             IOperationsQueryRepository operationsQueryRepository,
             IOrganizationScopeService organizationScope,
-            IAuditWriter auditWriter = null)
+            IAuditWriter auditWriter = null,
+            IUserService userService = null)
         {
             _unitOfWork = unitOfWork;
             _operationsQueryRepository = operationsQueryRepository;
             _organizationScope = organizationScope;
             _auditWriter = auditWriter;
+            _userService = userService;
         }
 
         public IEnumerable<PurchaseRecordVm> GetAll()
@@ -180,7 +183,13 @@ namespace AssetManagement.Application.Services
             }
 
             // Configured: only the raiser (person, else any active holder of the role). No Company Admin exemption.
-            PurchaseOrderRaiserRules.EnsureCanRaise(config, actingUserId, actingRoleId, null);
+            // rel1009e: role-only raiser = holders of that role scoped to the requisition's department (shared resolver).
+            PurchaseOrderRaiserRules.EnsureCanRaise(
+                config,
+                actingUserId,
+                actingRoleId,
+                null,
+                PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, config, request == null ? (int?)null : request.DepartmentId));
         }
     }
 }

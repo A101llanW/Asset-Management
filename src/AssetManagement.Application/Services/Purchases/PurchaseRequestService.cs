@@ -355,6 +355,7 @@ namespace AssetManagement.Application.Services
                 _userService,
                 approvalConfig.StageRoleIds.FirstOrDefault(),
                 ApprovalWorkflowHelper.GetStageUserId(snapshotUserIds, 1),
+                entity.DepartmentId,
                 "Purchase approval required",
                 "Purchase request " + entity.RequestNumber + " is awaiting Stage 1 approval.",
                 "/PurchaseRequests/Details/" + entity.Id);
@@ -412,6 +413,7 @@ namespace AssetManagement.Application.Services
             var stageNumber = request.CurrentApprovalStage <= 0 ? 1 : request.CurrentApprovalStage;
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Purchase);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
+            int? requestDepartmentId = request.DepartmentId;
             var isFinalStage = stageNumber >= stageRoleIds.Count;
             var poRaiserConfig = isFinalStage ? PurchaseOrderRaiserRules.ResolveForRequest(_unitOfWork, request) : null;
 
@@ -430,6 +432,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
                 ApprovalActionEntity = new PurchaseApprovalAction
                 {
                     PurchaseRequestId = request.Id,
@@ -478,6 +481,7 @@ namespace AssetManagement.Application.Services
                             _userService,
                             ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, request.CurrentApprovalStage, ApprovalProcessCodes.Purchase),
                             ApprovalWorkflowHelper.GetStageUserId(stageUserIds, request.CurrentApprovalStage),
+                            requestDepartmentId,
                             "Purchase approval stage advanced",
                             "Purchase request " + request.RequestNumber + " is now awaiting Stage " + request.CurrentApprovalStage + " approval.",
                             "/PurchaseRequests/Details/" + request.Id);
@@ -514,6 +518,7 @@ namespace AssetManagement.Application.Services
             var stageNumber = request.CurrentApprovalStage <= 0 ? 1 : request.CurrentApprovalStage;
             var expectedRoleId = ApprovalWorkflowHelper.GetStageRoleId(stageRoleIds, stageNumber, ApprovalProcessCodes.Purchase);
             var expectedUserId = ApprovalWorkflowHelper.GetStageUserId(stageUserIds, stageNumber);
+            int? requestDepartmentId = request.DepartmentId;
 
             _approvalEngine.ExecuteStageDecision(new ApprovalStageDecisionRequest
             {
@@ -530,6 +535,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
                 ApprovalActionEntity = new PurchaseApprovalAction
                 {
                     PurchaseRequestId = request.Id,
@@ -675,11 +681,11 @@ namespace AssetManagement.Application.Services
         /// </summary>
         private void WriteReadyForPurchaseOrderNotifications(IUnitOfWork uow, PurchaseRequest request, ApprovalProcessConfiguration poRaiserConfig)
         {
-            var organizationId = _organizationScope.GetCurrentOrganizationId();
-            var orgUsers = string.IsNullOrWhiteSpace(poRaiserConfig.PurchaseOrderRaiserUserId) && _userService != null
-                ? _userService.GetAll().Select(x => PurchaseOrderRaiserRules.ToRecord(x, organizationId)).Where(x => x != null).ToList()
-                : new List<ApproverUserRecord>();
-            var raiserIds = PurchaseOrderRaiserRules.ResolveNotifyUserIds(poRaiserConfig, orgUsers);
+            // rel1009e: same scoped resolver as the PO-raise permission check (PurchaseService / Details button).
+            var raiserScope = PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, poRaiserConfig, request.DepartmentId);
+            var raiserIds = raiserScope == null
+                ? PurchaseOrderRaiserRules.ResolveNotifyUserIds(poRaiserConfig, new List<ApproverUserRecord>())
+                : raiserScope.UserIds;
             var requesterId = string.IsNullOrWhiteSpace(request.RequestedById) ? null : request.RequestedById.Trim();
             var requesterIsRaiser = requesterId != null
                 && raiserIds.Any(x => string.Equals(x, requesterId, StringComparison.OrdinalIgnoreCase));
@@ -755,7 +761,45 @@ namespace AssetManagement.Application.Services
                 return true;
             }
 
-            return request.DepartmentId == departmentId.Value;
+            return request.DepartmentId == departmentId.Value || IsCurrentStageApprover(request);
+        }
+
+        /// <summary>
+        /// rel1009e: an approver resolved for the current stage (e.g. a parent unit's head via the nearest-ancestor
+        /// fallback) can open the requisition even though it belongs to another department. Same resolver as the
+        /// notification and the approve/reject check.
+        /// </summary>
+        private bool IsCurrentStageApprover(PurchaseRequest request)
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            if (request == null || request.ApprovalStatus != ApprovalStatus.Pending || string.IsNullOrWhiteSpace(userId) || _userService == null)
+            {
+                return false;
+            }
+
+            var stageNumber = request.CurrentApprovalStage <= 0 ? 1 : request.CurrentApprovalStage;
+            var stageRoleId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageRoleId(request.ApprovalStageRoleIds, stageNumber);
+            var stageUserId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageUserId(request.ApprovalStageUserIds, stageNumber);
+            if (!stageRoleId.HasValue && string.IsNullOrWhiteSpace(stageUserId))
+            {
+                return false;
+            }
+
+            var user = _userService.GetById(userId);
+            if (user == null || !user.IsActive)
+            {
+                return false;
+            }
+
+            return ApprovalWorkflowHelper.CanUserActOnStage(
+                null,
+                request.RequestedById,
+                userId,
+                false,
+                user.RoleId,
+                stageRoleId,
+                stageUserId,
+                StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, stageRoleId, stageUserId, request.DepartmentId));
         }
 
         private void EnsureCanAccessPurchaseRequest(PurchaseRequest request)

@@ -590,26 +590,40 @@ namespace AssetManagement.Web.Controllers
             var currentRoleId = GetCurrentUserRoleId();
             var isSuperAdmin = IsCurrentUserSuperAdmin();
             var currentUserId = User.GetUserId();
+            // rel1009e: same approver resolver as the notification and the approve/reject check.
+            var scopeAsset = UnitOfWork.Repository<Asset>().GetById(assetId);
+            var approverScopes = StageApproverScopeResolver.Create(UnitOfWork, BuildUserService());
             foreach (var pendingTransfer in model.PendingTransfers)
             {
+                var transferEntity = UnitOfWork.Repository<AssetTransfer>().GetById(pendingTransfer.Id);
                 pendingTransfer.CanCurrentUserApprove = ApprovalWorkflowHelper.CanUserActOnStage(
+                    null,
                     pendingTransfer.RequestedByName,
                     currentUserId,
                     isSuperAdmin,
                     currentRoleId,
                     pendingTransfer.CurrentStageRoleId,
-                    pendingTransfer.CurrentStageUserId);
+                    pendingTransfer.CurrentStageUserId,
+                    approverScopes.Resolve(
+                        pendingTransfer.CurrentStageRoleId,
+                        pendingTransfer.CurrentStageUserId,
+                        ApprovalWorkflowHelper.ResolveTransferDepartmentId(transferEntity, scopeAsset)));
             }
 
             if (model.PendingDisposal != null)
             {
                 model.PendingDisposal.CanCurrentUserApprove = ApprovalWorkflowHelper.CanUserActOnStage(
+                    null,
                     model.PendingDisposal.RequestedByName,
                     currentUserId,
                     isSuperAdmin,
                     currentRoleId,
                     model.PendingDisposal.CurrentStageRoleId,
-                    model.PendingDisposal.CurrentStageUserId);
+                    model.PendingDisposal.CurrentStageUserId,
+                    approverScopes.Resolve(
+                        model.PendingDisposal.CurrentStageRoleId,
+                        model.PendingDisposal.CurrentStageUserId,
+                        scopeAsset == null ? null : scopeAsset.DepartmentId));
             }
 
             var entity = UnitOfWork.Repository<Asset>().GetById(assetId);

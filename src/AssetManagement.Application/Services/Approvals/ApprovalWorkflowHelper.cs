@@ -93,7 +93,8 @@ namespace AssetManagement.Application.Services
             string expectedUserId,
             string requesterUserId,
             string actingUserId,
-            string processCode)
+            string processCode,
+            StageApproverScope approverScope = null)
         {
             var requester = NormalizeUserId(requesterUserId);
             var actor = NormalizeUserId(actingUserId);
@@ -152,6 +153,37 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("You are not configured to approve this stage.");
             }
+
+            // rel1009e: holding the stage role is not enough; the actor must be in the resolved approver set
+            // for this request (its department's holders, else nearest ancestor, else no-department holders,
+            // else org-wide). Same resolver as the pending-approval notification.
+            if (!IsInApproverScope(approverScope, actor))
+            {
+                throw new BusinessException(
+                    "You are not configured to approve this stage. It is routed to the approvers of the request's department.");
+            }
+        }
+
+        /// <summary>
+        /// True when no scope was supplied (legacy callers), the scope is a named person (checked elsewhere), or
+        /// the user is one of the resolved approvers.
+        /// </summary>
+        public static bool IsInApproverScope(StageApproverScope approverScope, string userId)
+        {
+            return approverScope == null
+                || approverScope.Kind == StageApproverScopeKind.NamedPerson
+                || approverScope.Contains(userId);
+        }
+
+        /// <summary>Department a transfer is approved under: where the asset is moving FROM (its owner at request time).</summary>
+        public static int? ResolveTransferDepartmentId(AssetTransfer transfer, Asset asset)
+        {
+            if (transfer != null && transfer.FromDepartmentId.HasValue)
+            {
+                return transfer.FromDepartmentId;
+            }
+
+            return asset == null ? null : asset.DepartmentId;
         }
 
         public static void EnsureUserCanApprove(
@@ -239,7 +271,8 @@ namespace AssetManagement.Application.Services
             bool bypassesApprovalRoleCheck,
             int? currentRoleId,
             int? stageRoleId,
-            string stageUserId = null)
+            string stageUserId = null,
+            StageApproverScope approverScope = null)
         {
             var isMine = !string.IsNullOrWhiteSpace(requesterUserId)
                 && !string.IsNullOrWhiteSpace(currentUserId)
@@ -258,7 +291,8 @@ namespace AssetManagement.Application.Services
             }
 
             return bypassesApprovalRoleCheck
-                || (stageRoleId.HasValue && currentRoleId.HasValue && stageRoleId.Value == currentRoleId.Value);
+                || (stageRoleId.HasValue && currentRoleId.HasValue && stageRoleId.Value == currentRoleId.Value
+                    && IsInApproverScope(approverScope, currentUserId));
         }
 
         public static bool CanUserActOnStage(
@@ -359,13 +393,16 @@ namespace AssetManagement.Application.Services
             var pendingTransfer = unitOfWork.Repository<AssetTransfer>()
                 .Find(x => x.AssetId == asset.Id && x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
                 .FirstOrDefault();
+            var resolver = StageApproverScopeResolver.Create(unitOfWork, userService);
             if (pendingTransfer != null)
             {
                 return CanUserActOnPendingTransfer(
                     pendingTransfer,
                     userId,
                     user.RoleId,
-                    bypassesApprovalRoleCheck);
+                    bypassesApprovalRoleCheck,
+                    resolver,
+                    ResolveTransferDepartmentId(pendingTransfer, asset));
             }
 
             var pendingDisposal = unitOfWork.Repository<DisposalRecord>()
@@ -377,7 +414,9 @@ namespace AssetManagement.Application.Services
                     pendingDisposal,
                     userId,
                     user.RoleId,
-                    bypassesApprovalRoleCheck);
+                    bypassesApprovalRoleCheck,
+                    resolver,
+                    asset.DepartmentId);
             }
 
             return false;
@@ -399,7 +438,9 @@ namespace AssetManagement.Application.Services
             AssetTransfer pending,
             string userId,
             int? roleId,
-            bool bypassesApprovalRoleCheck)
+            bool bypassesApprovalRoleCheck,
+            StageApproverScopeResolver resolver,
+            int? requestDepartmentId)
         {
             var stageRoleIds = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(pending.ApprovalStageRoleIds);
             if (stageRoleIds == null || stageRoleIds.Count == 0)
@@ -423,14 +464,17 @@ namespace AssetManagement.Application.Services
                 bypassesApprovalRoleCheck,
                 roleId,
                 stageRoleId,
-                stageUserId);
+                stageUserId,
+                resolver == null ? null : resolver.Resolve(stageRoleId, stageUserId, requestDepartmentId));
         }
 
         private static bool CanUserActOnPendingDisposal(
             DisposalRecord pending,
             string userId,
             int? roleId,
-            bool bypassesApprovalRoleCheck)
+            bool bypassesApprovalRoleCheck,
+            StageApproverScopeResolver resolver,
+            int? requestDepartmentId)
         {
             var stageRoleIds = ApprovalWorkflowSettingsHelper.ParseStageRoleIds(pending.ApprovalStageRoleIds);
             if (stageRoleIds == null || stageRoleIds.Count == 0)
@@ -454,7 +498,8 @@ namespace AssetManagement.Application.Services
                 bypassesApprovalRoleCheck,
                 roleId,
                 stageRoleId,
-                stageUserId);
+                stageUserId,
+                resolver == null ? null : resolver.Resolve(stageRoleId, stageUserId, requestDepartmentId));
         }
     }
 

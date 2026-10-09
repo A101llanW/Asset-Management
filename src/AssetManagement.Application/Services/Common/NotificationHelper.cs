@@ -39,6 +39,7 @@ namespace AssetManagement.Application.Services
             IOrganizationScopeService organizationScope,
             IUserService userService,
             int roleId,
+            int? requestDepartmentId,
             string subject,
             string message,
             string linkUrl)
@@ -50,6 +51,7 @@ namespace AssetManagement.Application.Services
                 userService,
                 roleId,
                 null,
+                requestDepartmentId,
                 subject,
                 message,
                 linkUrl);
@@ -62,6 +64,7 @@ namespace AssetManagement.Application.Services
             IUserService userService,
             int roleId,
             string approverUserId,
+            int? requestDepartmentId,
             string subject,
             string message,
             string linkUrl)
@@ -72,13 +75,10 @@ namespace AssetManagement.Application.Services
             }
 
             var roleName = unitOfWork.Repository<Role>().GetById(roleId)?.Name ?? ("Role #" + roleId);
-            var approverUserIds = !string.IsNullOrWhiteSpace(approverUserId)
-                ? new[] { approverUserId.Trim() }
-                : userService.GetAll()
-                    .Where(x => x.IsActive && x.RoleId == roleId && !string.IsNullOrWhiteSpace(x.Id))
-                    .Select(x => x.Id)
-                    .Distinct()
-                    .ToArray();
+            // rel1009e: same resolver as approval eligibility (named person; else role holders of the request's
+            // department, nearest ancestor, holders with no department, then org-wide as the last resort).
+            var scope = StageApproverScopeResolver.ResolveFor(unitOfWork, userService, roleId, approverUserId, requestDepartmentId);
+            var approverUserIds = scope.UserIds.ToArray();
 
             if (approverUserIds.Length == 0)
             {

@@ -204,6 +204,7 @@ namespace AssetManagement.Application.Services
                     _organizationScope,
                     _userService,
                     managerRole.Id,
+                    entity.DepartmentId,
                     "Asset request pending",
                     "Asset request #" + entity.Id + " requires review.",
                     "/AssetRequests/Details/" + entity.Id);

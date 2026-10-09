@@ -139,7 +139,7 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             EnsurePermissionCeiling(roleId);
-            EnsureDepartmentHeadAssignment(user, user.DepartmentId, roleId);
+            // rel1009e: a department may have any number of Department Heads (one-head rule removed).
 
             var previousRoleId = user.RoleId;
             user.RoleId = roleId;
@@ -173,7 +173,6 @@ namespace AssetManagement.Infrastructure.Services
                 }
             }
 
-            EnsureDepartmentHeadAssignment(user, departmentId, user.RoleId);
 
             var previousDepartmentId = user.DepartmentId;
             user.DepartmentId = departmentId;
@@ -195,60 +194,6 @@ namespace AssetManagement.Infrastructure.Services
             if (_referenceDataCache != null && orgId.HasValue)
             {
                 _referenceDataCache.InvalidateUsers(orgId.Value);
-            }
-        }
-
-        private void EnsureDepartmentHeadAssignment(ApplicationUser user, int? departmentId, int? roleId)
-        {
-            if (user == null || !roleId.HasValue)
-            {
-                return;
-            }
-
-            var role = _unitOfWork.Writer<Role>().GetById(roleId.Value);
-            if (!DepartmentHeadAssignmentRules.IsDepartmentHeadRole(role))
-            {
-                return;
-            }
-
-            if (!departmentId.HasValue)
-            {
-                throw new BusinessException("Assign a department before making this user a Department Head.");
-            }
-
-            var organizationId = user.OrganizationId;
-            var peers = _unitOfWork.Repository<ApplicationUser>()
-                .Find(u => u.Id != user.Id
-                    && u.IsActive
-                    && u.OrganizationId == organizationId
-                    && u.DepartmentId == departmentId
-                    && u.RoleId.HasValue)
-                .ToList();
-
-            foreach (var peer in peers)
-            {
-                var peerRole = _unitOfWork.Writer<Role>().GetById(peer.RoleId.Value);
-                if (!DepartmentHeadAssignmentRules.IsDepartmentHeadRole(peerRole))
-                {
-                    continue;
-                }
-
-                var department = _unitOfWork.Writer<Department>().GetById(departmentId.Value);
-                var departmentName = department == null || string.IsNullOrWhiteSpace(department.Name)
-                    ? "this department"
-                    : department.Name;
-                var peerName = ((peer.FirstName ?? string.Empty) + " " + (peer.LastName ?? string.Empty)).Trim();
-                if (string.IsNullOrWhiteSpace(peerName))
-                {
-                    peerName = peer.Email;
-                }
-
-                throw new BusinessException(
-                    "Cannot assign Department Head: "
-                    + departmentName
-                    + " already has a Department Head ("
-                    + peerName
-                    + "). Each department may have only one head, and a head may lead only one department.");
             }
         }
 

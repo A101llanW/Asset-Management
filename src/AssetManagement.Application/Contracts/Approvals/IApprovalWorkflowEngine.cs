@@ -32,6 +32,12 @@ namespace AssetManagement.Application.Contracts
 
         public string ExpectedUserId { get; set; }
 
+        /// <summary>
+        /// rel1009e: resolved approvers of this stage for this request (StageApproverScopeResolver - the same set the
+        /// pending-approval notification went to). Null = legacy role-only check.
+        /// </summary>
+        public AssetManagement.Application.Services.StageApproverScope ApproverScope { get; set; }
+
         public object ApprovalActionEntity { get; set; }
 
         public Type ApprovalActionEntityType { get; set; }

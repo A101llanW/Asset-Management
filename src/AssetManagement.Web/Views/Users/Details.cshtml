@@ -47,7 +47,7 @@
                 @if (canEditUser)
                 {
                     <hr class="my-3" />
-                    <p class="text-muted small mb-3">Assign department before setting the Department Head role. Each department may have only one head.</p>
+                    <p class="text-muted small mb-3">Set the department so approvals route to the right unit. A department can have more than one Department Head.</p>
                     using (Html.BeginForm("AssignDepartment", "Users", FormMethod.Post, new { @class = "row g-2 align-items-end" }))
                     {
                         @Html.AntiForgeryToken()

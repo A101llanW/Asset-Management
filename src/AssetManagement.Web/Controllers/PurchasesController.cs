@@ -256,7 +256,11 @@ namespace AssetManagement.Web.Controllers
         {
             message = null;
             var config = Application.Services.PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, request);
-            if (Application.Services.PurchaseOrderRaiserRules.CanRaise(config, User.GetUserId(), GetCurrentUserRoleId()))
+            if (Application.Services.PurchaseOrderRaiserRules.CanRaise(
+                    config,
+                    User.GetUserId(),
+                    GetCurrentUserRoleId(),
+                    Application.Services.PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), config, request == null ? (int?)null : request.DepartmentId)))
             {
                 return true;
             }

@@ -21,7 +21,7 @@ namespace AssetManagement.Application.Services
             return config != null && config.HasPurchaseOrderRaiser;
         }
 
-        public static bool IsConfiguredRaiser(ApprovalProcessConfiguration config, string userId, int? roleId)
+        public static bool IsConfiguredRaiser(ApprovalProcessConfiguration config, string userId, int? roleId, StageApproverScope raiserScope = null)
         {
             if (!IsConfigured(config))
             {
@@ -39,21 +39,23 @@ namespace AssetManagement.Application.Services
                 return string.Equals(actor, config.PurchaseOrderRaiserUserId.Trim(), StringComparison.OrdinalIgnoreCase);
             }
 
-            return roleId.HasValue && roleId.Value == config.PurchaseOrderRaiserRoleId.Value;
+            return roleId.HasValue && roleId.Value == config.PurchaseOrderRaiserRoleId.Value
+                && ApprovalWorkflowHelper.IsInApproverScope(raiserScope, actor);
         }
 
-        public static bool CanRaise(ApprovalProcessConfiguration config, string userId, int? roleId)
+        public static bool CanRaise(ApprovalProcessConfiguration config, string userId, int? roleId, StageApproverScope raiserScope = null)
         {
-            return !IsConfigured(config) || IsConfiguredRaiser(config, userId, roleId);
+            return !IsConfigured(config) || IsConfiguredRaiser(config, userId, roleId, raiserScope);
         }
 
         public static void EnsureCanRaise(
             ApprovalProcessConfiguration config,
             string userId,
             int? roleId,
-            string raiserLabel)
+            string raiserLabel,
+            StageApproverScope raiserScope = null)
         {
-            if (CanRaise(config, userId, roleId))
+            if (CanRaise(config, userId, roleId, raiserScope))
             {
                 return;
             }
@@ -81,6 +83,30 @@ namespace AssetManagement.Application.Services
                 .Select(x => x.Id.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        /// <summary>
+        /// rel1009e: the PO raisers for a requisition via the shared StageApproverScopeResolver (named person; else
+        /// holders of the raiser role in the requisition's department, nearest ancestor, no-department holders,
+        /// then org-wide). Null when no raiser is configured (legacy: anyone with the Purchases permission).
+        /// </summary>
+        public static StageApproverScope ResolveRaiserScope(
+            IUnitOfWork unitOfWork,
+            IUserService userService,
+            ApprovalProcessConfiguration config,
+            int? requestDepartmentId)
+        {
+            if (!IsConfigured(config) || userService == null)
+            {
+                return null;
+            }
+
+            return StageApproverScopeResolver.ResolveFor(
+                unitOfWork,
+                userService,
+                config.PurchaseOrderRaiserRoleId,
+                config.PurchaseOrderRaiserUserId,
+                requestDepartmentId);
         }
 
         /// <summary>
