@@ -193,6 +193,8 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             // The path this requisition resolves to (its snapshot / unit flow), not the org default.
             ViewBag.PurchaseApprovalSummary = BuildPurchaseRequestApprovalSummary(entity);
+            // rel1009i: every PO raised from this requisition, with ordered / received quantities.
+            ViewBag.OrderSummary = BuildPurchaseService().GetRequisitionOrderSummary(id);
             return View(model);
         }
 

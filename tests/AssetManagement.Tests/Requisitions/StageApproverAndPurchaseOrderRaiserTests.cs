@@ -407,7 +407,7 @@ namespace AssetManagement.Tests.Requisitions
             unitOfWork.Seed(new PurchaseRequest
             {
                 Id = id, DepartmentId = 3, RequestedById = "requester", ApprovalStatus = ApprovalStatus.Approved,
-                RequestNumber = "PR-" + id, IsActive = true, OrganizationId = Org
+                RequestNumber = "PR-" + id, IsActive = true, OrganizationId = Org, Quantity = 5 // rel1009i: POs are capped by the requisition quantity
             });
         }
 

@@ -6,6 +6,7 @@
     ViewBag.Title = "Purchase Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var receiveDetail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
+    var orderStatus = ViewBag.OrderStatus as AssetManagement.Application.ViewModels.PurchaseOrderStatusVm;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -100,16 +101,62 @@
                 <div class="text-muted small">Currency</div>
                 <div class="fw-semibold">@Model.Currency</div>
             </div>
-            @if (Model.PurchaseRequestId.HasValue)
-            {
-                <div class="col-12 mt-2">
-                    <div class="text-muted small">Linked requisition</div>
+            <div class="col-md-6 mt-2" id="po-requisition-link">
+                <div class="text-muted small">Linked requisition</div>
+                @if (Model.PurchaseRequestId.HasValue)
+                {
                     <a href="@Url.Action("Details", "PurchaseRequests", new { id = Model.PurchaseRequestId.Value, returnUrl = Request.RawUrl })">@(string.IsNullOrWhiteSpace(Model.PurchaseRequestNumber) ? ("Request #" + Model.PurchaseRequestId) : Model.PurchaseRequestNumber)</a>
+                }
+                else
+                {
+                    <span class="text-muted" id="po-not-linked">Not linked</span> <span class="small text-muted">(legacy purchase record)</span>
+                }
+            </div>
+            @if (orderStatus != null)
+            {
+                <div class="col-md-6 mt-2">
+                    <div class="text-muted small">Receipt status</div>
+                    <span class="badge bg-light text-dark border" id="po-receipt-status">@orderStatus.Status</span>
                 </div>
             }
         </div>
     </div>
 </div>
+
+@if (orderStatus != null && orderStatus.Lines.Count > 0)
+{
+    <div class="card card-kpi mt-3" id="po-lines-card">
+        <div class="card-header">Order lines@(orderStatus.IsLegacy ? " (legacy purchase record: one line)" : "")</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>#</th><th>Item</th><th>Classification</th><th class="text-end">Ordered</th><th class="text-end">Received</th><th class="text-end">Outstanding</th><th class="text-end">Unit cost</th></tr></thead>
+                <tbody>
+                @foreach (var line in orderStatus.Lines)
+                {
+                    <tr>
+                        <td>@line.LineNumber</td>
+                        <td>@line.Description</td>
+                        <td class="small">
+                            @if (line.HasClassification)
+                            {
+                                @(string.Join(" > ", new[] { line.AssetCategoryName, line.AssetTypeName, line.AssetSubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x))))
+                            }
+                            else
+                            {
+                                <span class="text-muted">Chosen when receiving</span>
+                            }
+                        </td>
+                        <td class="text-end">@line.Ordered</td>
+                        <td class="text-end">@line.Received</td>
+                        <td class="text-end fw-semibold">@line.Outstanding</td>
+                        <td class="text-end">@Html.FormatCurrency(line.UnitCost)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
 
 @if (receiveDetail != null)
 {

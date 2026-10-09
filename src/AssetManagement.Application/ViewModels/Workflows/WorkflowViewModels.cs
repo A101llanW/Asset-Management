@@ -174,6 +174,9 @@ namespace AssetManagement.Application.ViewModels
         public decimal TotalCost { get; set; }
 
         public string Currency { get; set; }
+
+        /// <summary>rel1009i: PO lines prefilled from the requisition's lines.</summary>
+        public System.Collections.Generic.IList<PurchaseOrderLineInputVm> Lines { get; set; } = new System.Collections.Generic.List<PurchaseOrderLineInputVm>();
     }
 
     public class AssetMaintenanceVm

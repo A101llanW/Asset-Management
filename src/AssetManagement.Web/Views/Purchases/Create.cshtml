@@ -1,86 +1,228 @@
 @model AssetManagement.Application.ViewModels.PurchaseRecordVm
+@using System.Linq
 @{
-    ViewBag.Title = "Create Purchase Record";
+    ViewBag.Title = "Create Purchase Order";
     var suppliers = ViewBag.Suppliers as SelectList;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
-    var linkedRequestId = ViewBag.PurchaseRequestId as int?;
+    var linkedRequestId = Model.PurchaseRequestId;
     var itemDescription = ViewBag.ItemDescription as string;
     var comparisonUrl = Url.Action("SupplierPriceComparison", "Purchases");
+    var requisitionOptions = ViewBag.RequisitionOptions as System.Collections.Generic.IList<AssetManagement.Application.ViewModels.PurchaseRequisitionOptionVm>;
+    var typeOptions = ViewBag.LineTypeOptions as System.Collections.Generic.IList<AssetManagement.Application.ViewModels.AssetClassOptionVm>
+        ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.AssetClassOptionVm>();
+    var subTypeOptions = ViewBag.LineSubTypeOptions as System.Collections.Generic.IList<AssetManagement.Application.ViewModels.AssetClassOptionVm>
+        ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.AssetClassOptionVm>();
+    var lines = Model.Lines ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.PurchaseOrderLineInputVm>();
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = "Create Purchase Record",
-    Subtitle = "Compare supplier catalog prices, select a supplier, then capture PO details.",
+    Title = "Create Purchase Order",
+    Subtitle = linkedRequestId.HasValue
+        ? "Lines are prefilled from the requisition. Order up to the outstanding quantity of each line."
+        : "A purchase order is raised from an approved requisition. Choose the requisition first.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Purchase Record" }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Create Purchase Order" }
     }
 })
-@if (linkedRequestId.HasValue)
+
+@if (!linkedRequestId.HasValue)
 {
-    <div class="alert alert-info mb-3">This purchase record will be linked to <strong>approved</strong> requisition #@linkedRequestId.</div>
+    @* rel1009i: requisition picker (required). Approved requisitions in your scope, with quantity still to order, that you may raise a PO for. *@
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    <div class="card card-kpi mb-3" id="po-requisition-picker">
+        <div class="card-header">1. Choose the requisition</div>
+        <div class="card-body">
+            @if (requisitionOptions == null || requisitionOptions.Count == 0)
+            {
+                <p class="text-muted mb-0" id="po-no-requisitions">No approved requisitions are waiting for a purchase order that you can raise. Purchase orders can only be created from an approved requisition.</p>
+            }
+            else
+            {
+                using (Html.BeginForm("Create", "Purchases", FormMethod.Get))
+                {
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-9">
+                            <label class="form-label" for="purchaseRequestId">Approved requisition</label>
+                            <select class="form-select" id="purchaseRequestId" name="purchaseRequestId" required="required">
+                                <option value="">-- Select requisition --</option>
+                                @foreach (var option in requisitionOptions)
+                                {
+                                    <option value="@option.Id">@option.Label</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100" id="po-requisition-continue">Continue</button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
 }
-
-<div id="supplier-comparison-panel" class="card card-kpi mb-3" style="display:none;"
-     data-am-comparison-url="@comparisonUrl"
-     data-am-purchase-request-id="@(linkedRequestId.HasValue ? linkedRequestId.Value.ToString() : "")"
-     data-am-item-description="@(itemDescription ?? "")"
-     data-am-requisition-quantity="@(Model.Quantity > 0 ? Model.Quantity.ToString() : "")">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Supplier price comparison</span>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-comparison">Refresh</button>
-    </div>
-    <div class="card-body p-0">
-        <div id="comparison-empty" class="p-3 text-muted">Loading supplier offers&hellip;</div>
-        <table class="table mb-0" id="comparison-table" style="display:none;">
-            <thead class="table-light">
-                <tr>
-                    <th>Supplier</th>
-                    <th>Item</th>
-                    <th>Unit price</th>
-                    <th>Lead time</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-</div>
-
-@using (Html.BeginForm())
+else
 {
-    @Html.AntiForgeryToken()
-    @Html.ValidationSummary(true, "", new { @class = "text-danger", id = "purchase-create-errors" })
-    @Html.HiddenFor(m => m.PurchaseRequestId)
-    <input type="hidden" name="returnUrl" value="@returnUrl" />
-    <div class="row g-3">
-        <div class="col-md-4"><label class="form-label">PO Number</label>@Html.TextBoxFor(m => m.PurchaseOrderNumber, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Supplier</label>@Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select", id = "SupplierId" })</div>
-        <div class="col-md-3"><label class="form-label">Invoice #</label>@Html.TextBoxFor(m => m.InvoiceNumber, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Date</label>@Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })</div>
-        <div class="col-md-2"><label class="form-label">Quantity</label>@Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number", min = "1", step = "1", id = "Quantity" })</div>
-        <div class="col-md-2"><label class="form-label">Unit Cost</label>@Html.TextBoxFor(m => m.UnitCost, new { @class = "form-control", type = "number", step = "0.01", min = "0", id = "UnitCost" })</div>
-        <div class="col-md-2"><label class="form-label">Total Cost</label>@Html.TextBoxFor(m => m.TotalCost, new { @class = "form-control", type = "number", step = "0.01", min = "0", id = "TotalCost" })</div>
-        <div class="col-md-2"><label class="form-label">Currency</label>@Html.TextBoxFor(m => m.Currency, new { @class = "form-control", @readonly = "readonly", id = "Currency" })</div>
-        @if (!linkedRequestId.HasValue)
-        {
-            <div class="col-md-12">
-                <label class="form-label">Item description (for supplier lookup)</label>
-                <input type="text" class="form-control" id="manual-item-description" value="@itemDescription" />
-            </div>
-        }
+    <div class="alert alert-info mb-3" id="po-linked-requisition">
+        Linked to approved requisition
+        <a href="@Url.Action("Details", "PurchaseRequests", new { id = linkedRequestId.Value, returnUrl = Request.RawUrl })"><strong>@(string.IsNullOrWhiteSpace(Model.PurchaseRequestNumber) ? ("#" + linkedRequestId) : Model.PurchaseRequestNumber)</strong></a>.
+        <a class="ms-2 small" href="@Url.Action("Create", new { returnUrl })">Choose a different requisition</a>
     </div>
-    @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+
+    <div id="supplier-comparison-panel" class="card card-kpi mb-3" style="display:none;"
+         data-am-comparison-url="@comparisonUrl"
+         data-am-purchase-request-id="@linkedRequestId.Value"
+         data-am-item-description="@(itemDescription ?? "")"
+         data-am-requisition-quantity="">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Supplier price comparison</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-comparison">Refresh</button>
+        </div>
+        <div class="card-body p-0">
+            <div id="comparison-empty" class="p-3 text-muted">Loading supplier offers&hellip;</div>
+            <table class="table mb-0" id="comparison-table" style="display:none;">
+                <thead class="table-light">
+                    <tr>
+                        <th>Supplier</th>
+                        <th>Item</th>
+                        <th>Unit price</th>
+                        <th>Lead time</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    using (Html.BeginForm("Create", "Purchases", FormMethod.Post, new { id = "purchase-create-form" }))
     {
-        SubmitLabel = "Create Purchase Record",
-        BackUrl = returnUrl,
-        BackLabel = "Back"
-    })
+        @Html.AntiForgeryToken()
+        @Html.ValidationSummary(true, "", new { @class = "text-danger", id = "purchase-create-errors" })
+        @Html.HiddenFor(m => m.PurchaseRequestId)
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <div class="row g-3">
+            <div class="col-md-3"><label class="form-label">PO Number</label>@Html.TextBoxFor(m => m.PurchaseOrderNumber, new { @class = "form-control" })</div>
+            <div class="col-md-3"><label class="form-label">Supplier</label>@Html.DropDownListFor(m => m.SupplierId, suppliers, "-- Select supplier --", new { @class = "form-select", id = "SupplierId" })</div>
+            <div class="col-md-2"><label class="form-label">Invoice #</label>@Html.TextBoxFor(m => m.InvoiceNumber, new { @class = "form-control" })</div>
+            <div class="col-md-2"><label class="form-label">Date</label>@Html.TextBoxFor(m => m.PurchaseDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })</div>
+            <div class="col-md-2"><label class="form-label">Currency</label>@Html.TextBoxFor(m => m.Currency, new { @class = "form-control", @readonly = "readonly", id = "Currency" })</div>
+        </div>
+
+        <div class="card card-kpi mt-3">
+            <div class="card-header">Lines (from the requisition)</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="po-lines-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Item</th>
+                            <th class="text-end">Requisition</th>
+                            <th class="text-end">Already ordered</th>
+                            <th class="text-end">Outstanding</th>
+                            <th style="width:110px">Order qty</th>
+                            <th style="width:130px">Unit cost</th>
+                            <th style="min-width:260px">Classification (optional)</th>
+                            <th class="text-end">Line total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @for (var i = 0; i < lines.Count; i++)
+                    {
+                        var line = lines[i];
+                        <tr data-am-po-line="@i">
+                            <td>
+                                @line.LineNumber
+                                <input type="hidden" name="Lines[@i].PurchaseRequestLineId" value="@(line.PurchaseRequestLineId.HasValue ? line.PurchaseRequestLineId.Value.ToString() : "")" />
+                                <input type="hidden" name="Lines[@i].LineNumber" value="@line.LineNumber" />
+                            </td>
+                            <td>@line.Description</td>
+                            <td class="text-end">@line.RequisitionQuantity</td>
+                            <td class="text-end">@line.AlreadyOrdered</td>
+                            <td class="text-end fw-semibold">@line.Outstanding</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm am-po-qty" name="Lines[@i].Quantity" id="@(i == 0 ? "Quantity" : "Lines_" + i + "_Quantity")"
+                                       min="0" max="@line.Outstanding" step="1" value="@line.Quantity" @(line.Outstanding <= 0 ? "readonly" : "") />
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm am-po-cost" name="Lines[@i].UnitCost" id="@(i == 0 ? "UnitCost" : "Lines_" + i + "_UnitCost")"
+                                       min="0" step="0.01" value="@line.UnitCost.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" />
+                            </td>
+                            <td>
+                                @if (line.ClassificationLocked)
+                                {
+                                    <div class="small">@line.ClassificationLabel</div>
+                                }
+                                else
+                                {
+                                    <select class="form-select form-select-sm am-po-type mb-1" name="Lines[@i].AssetTypeId">
+                                        <option value="">-- Type (or from the supplier catalog) --</option>
+                                        @foreach (var grp in typeOptions.GroupBy(t => t.GroupName ?? "Other"))
+                                        {
+                                            <optgroup label="@grp.Key">
+                                                @foreach (var t in grp)
+                                                {
+                                                    if (line.AssetTypeId == t.Id)
+                                                    {
+                                                        <option value="@t.Id" selected="selected">@t.Name</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@t.Id">@t.Name</option>
+                                                    }
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                    <select class="form-select form-select-sm am-po-subtype" name="Lines[@i].AssetSubTypeId">
+                                        <option value="">-- Sub-type (optional) --</option>
+                                        @foreach (var st in subTypeOptions)
+                                        {
+                                            if (line.AssetSubTypeId == st.Id)
+                                            {
+                                                <option value="@st.Id" data-type-id="@st.ParentId" selected="selected">@st.Name</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@st.Id" data-type-id="@st.ParentId">@st.Name</option>
+                                            }
+                                        }
+                                    </select>
+                                }
+                            </td>
+                            <td class="text-end am-po-line-total"></td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="5" class="text-end">Total</th>
+                            <th id="po-total-qty"></th>
+                            <th colspan="2"></th>
+                            <th class="text-end" id="po-total-cost"></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="card-body small text-muted">
+                Quantities cannot exceed what is still outstanding on the requisition (all of its purchase orders together); the server checks this again on save.
+                The classification is what Receiving fills in automatically; leave it blank to take it from the supplier catalog, or to choose it when receiving.
+            </div>
+        </div>
+        @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
+        {
+            SubmitLabel = "Create Purchase Order",
+            BackUrl = returnUrl,
+            BackLabel = "Back"
+        })
+    }
 }
 
 @section scripts {
     <script src="@Url.Content("~/Scripts/app/purchase-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-create.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/purchase-order-lines.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-order-lines.js")).Ticks"></script>
 }

@@ -35,6 +35,8 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(PurchaseApprovalAction));
             Register(typeof(PurchaseRecord));
             Register(typeof(AssetReceiving));
+            Register(typeof(PurchaseOrderLine)); // migration 098 (rel1009i)
+            Register(typeof(PurchaseOrderLineReceipt)); // migration 098 (rel1009i)
             Register(typeof(AssetAssignment));
             Register(typeof(AssetTransfer));
             Register(typeof(TransferApprovalAction));

@@ -1317,9 +1317,12 @@ namespace AssetManagement.Tests
                 IsActive = true
             });
 
+            // rel1009i: a PO is always raised from an approved requisition.
+            unitOfWork.Seed(new PurchaseRequest { Id = 500, RequestNumber = "PR-500", DepartmentId = 1, ApprovalStatus = ApprovalStatus.Approved, Quantity = 2, IsActive = true, CreatedAt = DateTime.UtcNow });
             var service = TestServiceFactory.CreatePurchaseService(unitOfWork);
             var purchaseId = service.Create(new PurchaseRecordVm
             {
+                PurchaseRequestId = 500,
                 PurchaseOrderNumber = "PO-500",
                 SupplierId = 5,
                 InvoiceNumber = "INV-500",

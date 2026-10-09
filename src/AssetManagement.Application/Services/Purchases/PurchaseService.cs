@@ -5,6 +5,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -105,6 +106,9 @@ namespace AssetManagement.Application.Services
             return Create(model, null, null);
         }
 
+        public const string RequisitionRequiredMessage =
+            "A purchase order must be raised from an approved requisition. Choose the requisition first.";
+
         public int Create(PurchaseRecordVm model, string actingUserId, int? actingRoleId)
         {
             if (model == null)
@@ -112,65 +116,390 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Purchase record details are required.");
             }
 
-            var organizationId = _organizationScope.GetCurrentOrganizationId();
-            if (model.PurchaseRequestId.HasValue)
+            // rel1009i: every new PO is linked to an approved requisition (standalone POs are legacy only).
+            if (!model.PurchaseRequestId.HasValue || model.PurchaseRequestId.Value <= 0)
             {
-                var request = _unitOfWork.Repository<PurchaseRequest>().GetById(model.PurchaseRequestId.Value);
-                if (request == null)
-                {
-                    throw new BusinessException("Purchase request not found.");
-                }
-
-                if (request.ApprovalStatus != ApprovalStatus.Approved)
-                {
-                    throw new BusinessException("Only approved purchase requests can be linked to a purchase record.");
-                }
-
-                if (!organizationId.HasValue && request.OrganizationId.HasValue)
-                {
-                    organizationId = request.OrganizationId;
-                }
-
-                var alreadyLinked = _unitOfWork.Repository<PurchaseRecord>().Find(x => x.PurchaseRequestId == model.PurchaseRequestId.Value).Any();
-                if (alreadyLinked)
-                {
-                    throw new BusinessException("A purchase record is already linked to this request.");
-                }
-
-                EnsurePurchaseOrderRaiser(request, actingUserId, actingRoleId);
+                throw new BusinessException(RequisitionRequiredMessage);
             }
+
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var request = _unitOfWork.Repository<PurchaseRequest>().GetById(model.PurchaseRequestId.Value);
+            if (request == null || !request.IsActive)
+            {
+                throw new BusinessException("Purchase request not found.");
+            }
+
+            if (request.ApprovalStatus != ApprovalStatus.Approved)
+            {
+                throw new BusinessException("Only approved purchase requests can be linked to a purchase record.");
+            }
+
+            if (organizationId.HasValue && request.OrganizationId.HasValue && request.OrganizationId.Value != organizationId.Value)
+            {
+                throw new BusinessException("Purchase request not found.");
+            }
+
+            if (!organizationId.HasValue && request.OrganizationId.HasValue)
+            {
+                organizationId = request.OrganizationId;
+            }
+
+            EnsurePurchaseOrderRaiser(request, actingUserId, actingRoleId);
 
             if (!organizationId.HasValue)
             {
                 throw new BusinessException("Organization context is required to create a purchase record.");
             }
 
-            var entity = new PurchaseRecord
-            {
-                OrganizationId = organizationId,
-                PurchaseRequestId = model.PurchaseRequestId,
-                PurchaseOrderNumber = model.PurchaseOrderNumber,
-                SupplierId = model.SupplierId,
-                InvoiceNumber = model.InvoiceNumber,
-                PurchaseDate = model.PurchaseDate,
-                Quantity = model.Quantity,
-                UnitCost = model.UnitCost,
-                TotalCost = model.TotalCost <= 0 ? model.UnitCost * model.Quantity : model.TotalCost,
-                Currency = string.IsNullOrWhiteSpace(model.Currency)
-                    ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())
-                    : model.Currency.Trim().ToUpperInvariant(),
-                CreatedAt = DateTime.UtcNow
-            };
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var currency = string.IsNullOrWhiteSpace(model.Currency)
+                ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())
+                : model.Currency.Trim().ToUpperInvariant();
+            PurchaseRecord entity = null;
+            var createdLines = new List<PurchaseOrderLine>();
 
-            _unitOfWork.Repository<PurchaseRecord>().Add(entity);
-            _unitOfWork.SaveChanges();
+            try
+            {
+                _unitOfWork.ExecuteInTransaction(() =>
+                {
+                    // Touch the requisition first: concurrent POs for the same requisition serialise on this row
+                    // (or fail on its row version), so the cumulative over-ordering check below cannot be raced.
+                    request.UpdatedAt = DateTime.UtcNow;
+                    _unitOfWork.Repository<PurchaseRequest>().Update(request);
+                    _unitOfWork.SaveChanges();
+
+                    var lines = BuildOrderLines(ledger, request, model);
+                    if (lines.Count == 0 || lines.Sum(x => x.Quantity) <= 0)
+                    {
+                        throw new BusinessException("Enter a quantity of at least 1 on one or more requisition lines.");
+                    }
+
+                    var requisitionLines = ledger.GetRequisitionLines(request.Id);
+                    var requisitionTotal = ledger.RequisitionTotal(request, requisitionLines);
+                    var orderedTotal = ledger.OrderedForRequisition(request.Id);
+                    var orderedByLine = ledger.OrderedByRequisitionLine(request.Id);
+                    foreach (var line in lines.Where(x => x.PurchaseRequestLineId.HasValue))
+                    {
+                        var requisitionLine = requisitionLines.First(x => x.Id == line.PurchaseRequestLineId.Value);
+                        int alreadyOrdered;
+                        orderedByLine.TryGetValue(requisitionLine.Id, out alreadyOrdered);
+                        PurchaseOrderQuantityRules.EnsureCanOrder(
+                            "line " + requisitionLine.LineNumber + " (" + Shorten(requisitionLine.Description) + ")",
+                            line.Quantity,
+                            requisitionLine.Quantity,
+                            alreadyOrdered);
+                    }
+
+                    PurchaseOrderQuantityRules.EnsureCanOrder(
+                        "requisition " + (request.RequestNumber ?? request.Id.ToString()),
+                        lines.Sum(x => x.Quantity),
+                        requisitionTotal,
+                        orderedTotal);
+
+                    var quantity = lines.Sum(x => x.Quantity);
+                    var total = lines.Sum(x => x.Quantity * x.UnitCost);
+                    entity = new PurchaseRecord
+                    {
+                        OrganizationId = organizationId,
+                        PurchaseRequestId = request.Id,
+                        PurchaseOrderNumber = model.PurchaseOrderNumber,
+                        SupplierId = model.SupplierId,
+                        InvoiceNumber = model.InvoiceNumber,
+                        PurchaseDate = model.PurchaseDate,
+                        Quantity = quantity,
+                        UnitCost = quantity > 0 ? Math.Round(total / quantity, 2) : 0m,
+                        TotalCost = total,
+                        Currency = currency,
+                        CreatedAt = DateTime.UtcNow,
+                        IsActive = true
+                    };
+
+                    _unitOfWork.Repository<PurchaseRecord>().Add(entity);
+                    _unitOfWork.SaveChanges();
+
+                    var lineNumber = 0;
+                    foreach (var line in lines.Where(x => x.Quantity > 0))
+                    {
+                        line.PurchaseRecordId = entity.Id;
+                        line.OrganizationId = organizationId;
+                        line.LineNumber = ++lineNumber;
+                        line.CreatedAt = DateTime.UtcNow;
+                        line.IsActive = true;
+                        _unitOfWork.Repository<PurchaseOrderLine>().Add(line);
+                        createdLines.Add(line);
+                    }
+
+                    _unitOfWork.SaveChanges();
+                });
+            }
+            catch (Exception ex)
+            {
+                if (PurchaseOrderQuantityRules.IsMissingTable(ex))
+                {
+                    throw new BusinessException("Purchase order lines are not available yet: database migration 098 has not been applied.");
+                }
+
+                throw;
+            }
+
             _auditWriter?.Write(
                 "Purchases.Create",
                 nameof(PurchaseRecord),
                 entity.Id.ToString(),
                 null,
-                entity.PurchaseOrderNumber ?? entity.Id.ToString());
+                (entity.PurchaseOrderNumber ?? entity.Id.ToString())
+                    + " | requisition " + (request.RequestNumber ?? request.Id.ToString())
+                    + " | " + string.Join("; ", createdLines.Select(x => "L" + x.LineNumber + " x" + x.Quantity)));
             return entity.Id;
+        }
+
+        /// <summary>
+        /// The PO lines to create: posted lines are matched to the requisition's lines by id (description and limits
+        /// always come from the requisition, never from the post). Without posted lines (older callers) the whole
+        /// quantity goes on the single requisition line, or on the requisition itself when it has no / several lines.
+        /// </summary>
+        private IList<PurchaseOrderLine> BuildOrderLines(PurchaseOrderLedger ledger, PurchaseRequest request, PurchaseRecordVm model)
+        {
+            var requisitionLines = ledger.GetRequisitionLines(request.Id);
+            var posted = (model.Lines ?? new List<PurchaseOrderLineInputVm>()).Where(x => x != null).ToList();
+            var result = new List<PurchaseOrderLine>();
+            if (posted.Count == 0)
+            {
+                var single = requisitionLines.Count == 1 ? requisitionLines[0] : null;
+                result.Add(BuildLine(ledger, request, model.SupplierId, single, single == null ? request.ItemDescription : single.Description, model.Quantity, model.UnitCost, null, null));
+                return result;
+            }
+
+            var seen = new HashSet<int>();
+            foreach (var input in posted)
+            {
+                if (input.Quantity < 0)
+                {
+                    throw new BusinessException("Quantity cannot be negative.");
+                }
+
+                if (input.UnitCost < 0)
+                {
+                    throw new BusinessException("Unit cost cannot be negative.");
+                }
+
+                PurchaseRequestLine requisitionLine = null;
+                if (requisitionLines.Count > 0)
+                {
+                    if (!input.PurchaseRequestLineId.HasValue)
+                    {
+                        throw new BusinessException("Each purchase order line must come from a line of the requisition.");
+                    }
+
+                    requisitionLine = requisitionLines.FirstOrDefault(x => x.Id == input.PurchaseRequestLineId.Value);
+                    if (requisitionLine == null)
+                    {
+                        throw new BusinessException("A purchase order line does not belong to this requisition.");
+                    }
+
+                    if (!seen.Add(requisitionLine.Id))
+                    {
+                        throw new BusinessException("A requisition line can appear only once on a purchase order.");
+                    }
+                }
+                else if (input.PurchaseRequestLineId.HasValue || result.Count > 0)
+                {
+                    throw new BusinessException("A purchase order line does not belong to this requisition.");
+                }
+
+                if (input.Quantity == 0)
+                {
+                    continue;
+                }
+
+                result.Add(BuildLine(
+                    ledger,
+                    request,
+                    model.SupplierId,
+                    requisitionLine,
+                    requisitionLine == null ? request.ItemDescription : requisitionLine.Description,
+                    input.Quantity,
+                    input.UnitCost,
+                    input.AssetTypeId,
+                    input.AssetSubTypeId));
+            }
+
+            return result;
+        }
+
+        private PurchaseOrderLine BuildLine(
+            PurchaseOrderLedger ledger,
+            PurchaseRequest request,
+            int supplierId,
+            PurchaseRequestLine requisitionLine,
+            string description,
+            int quantity,
+            decimal unitCost,
+            int? selectedTypeId,
+            int? selectedSubTypeId)
+        {
+            // Classification precedence: the requisition's existing asset (fixed), then a type chosen on the PO,
+            // then the supplier catalog item; otherwise none and Receiving asks for it.
+            var classification = ledger.FromRequisitionAsset(request);
+            if (classification == null && selectedTypeId.HasValue && selectedTypeId.Value > 0)
+            {
+                var type = _unitOfWork.Repository<AssetType>().GetById(selectedTypeId.Value);
+                if (type == null || !type.IsActive)
+                {
+                    throw new BusinessException("The selected asset type was not found.");
+                }
+
+                if (selectedSubTypeId.HasValue && selectedSubTypeId.Value > 0)
+                {
+                    var subType = _unitOfWork.Repository<AssetSubType>().GetById(selectedSubTypeId.Value);
+                    if (subType == null || subType.AssetTypeId != type.Id)
+                    {
+                        throw new BusinessException("The selected sub-type does not belong to the selected asset type.");
+                    }
+                }
+
+                classification = ledger.Complete(new PurchaseLineClassification
+                {
+                    AssetTypeId = type.Id,
+                    AssetSubTypeId = selectedSubTypeId.HasValue && selectedSubTypeId.Value > 0 ? selectedSubTypeId : null,
+                    Source = PurchaseOrderLedger.SourceSelectedOnOrder
+                });
+            }
+
+            if (classification == null)
+            {
+                classification = ledger.FromSupplierCatalog(supplierId, description);
+            }
+
+            return new PurchaseOrderLine
+            {
+                PurchaseRequestLineId = requisitionLine == null ? (int?)null : requisitionLine.Id,
+                Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+                Quantity = quantity,
+                UnitCost = unitCost,
+                AssetCategoryId = classification == null ? null : classification.AssetCategoryId,
+                AssetTypeId = classification == null ? null : classification.AssetTypeId,
+                AssetSubTypeId = classification == null ? null : classification.AssetSubTypeId,
+                ClassificationSource = classification == null || !classification.HasType ? null : classification.Source
+            };
+        }
+
+        private static string Shorten(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return "item";
+            }
+
+            var trimmed = text.Trim();
+            return trimmed.Length <= 60 ? trimmed : trimmed.Substring(0, 57) + "...";
+        }
+
+        /// <summary>rel1009i: a PO draft prefilled from the requisition's lines (outstanding quantities).</summary>
+        public PurchaseRecordVm BuildFromRequisition(int purchaseRequestId)
+        {
+            var request = _unitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId);
+            if (request == null || !request.IsActive || request.ApprovalStatus != ApprovalStatus.Approved)
+            {
+                return null;
+            }
+
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var lines = ledger.BuildRequisitionDraft(request);
+            var fixedClassification = ledger.FromRequisitionAsset(request);
+            foreach (var line in lines)
+            {
+                if (fixedClassification != null)
+                {
+                    line.AssetTypeId = fixedClassification.AssetTypeId;
+                    line.AssetSubTypeId = fixedClassification.AssetSubTypeId;
+                    line.ClassificationLocked = true;
+                    line.ClassificationLabel = DescribeClassification(fixedClassification) + " (from the requisition's existing asset)";
+                }
+            }
+
+            return new PurchaseRecordVm
+            {
+                PurchaseRequestId = request.Id,
+                PurchaseRequestNumber = request.RequestNumber,
+                PurchaseDate = DateTime.UtcNow,
+                Currency = request.Currency,
+                Quantity = lines.Sum(x => x.Quantity),
+                Lines = lines
+            };
+        }
+
+        /// <summary>rel1009i: approved requisitions (of the given visible ids) with quantity still to order.</summary>
+        public IList<PurchaseRequisitionOptionVm> GetRequisitionsReadyForPurchaseOrder(IEnumerable<int> visibleRequestIds)
+        {
+            var ids = new HashSet<int>(visibleRequestIds ?? Enumerable.Empty<int>());
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var departments = _unitOfWork.Repository<Department>().GetAll().GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
+            var result = new List<PurchaseRequisitionOptionVm>();
+            foreach (var request in _unitOfWork.Repository<PurchaseRequest>()
+                .Find(x => x.IsActive && x.ApprovalStatus == ApprovalStatus.Approved)
+                .Where(x => ids.Contains(x.Id))
+                .OrderByDescending(x => x.ApprovedAt ?? x.CreatedAt))
+            {
+                var total = ledger.RequisitionTotal(request, ledger.GetRequisitionLines(request.Id));
+                var outstanding = PurchaseOrderQuantityRules.Outstanding(total, ledger.OrderedForRequisition(request.Id));
+                if (outstanding <= 0)
+                {
+                    continue;
+                }
+
+                string departmentName;
+                departments.TryGetValue(request.DepartmentId, out departmentName);
+                result.Add(new PurchaseRequisitionOptionVm
+                {
+                    Id = request.Id,
+                    RequestNumber = request.RequestNumber,
+                    DepartmentName = departmentName,
+                    ItemDescription = request.ItemDescription,
+                    RequisitionQuantity = total,
+                    Outstanding = outstanding,
+                    Label = (request.RequestNumber ?? ("#" + request.Id))
+                        + (string.IsNullOrWhiteSpace(departmentName) ? string.Empty : " - " + departmentName)
+                        + " - " + Shorten(request.ItemDescription)
+                        + " (" + outstanding + " of " + total + " to order)"
+                });
+            }
+
+            return result;
+        }
+
+        public PurchaseOrderStatusVm GetOrderStatus(int purchaseRecordId)
+        {
+            var purchase = _unitOfWork.Repository<PurchaseRecord>().GetById(purchaseRecordId);
+            return purchase == null ? null : new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+        }
+
+        public RequisitionOrderSummaryVm GetRequisitionOrderSummary(int purchaseRequestId)
+        {
+            var request = _unitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId);
+            return request == null ? null : new PurchaseOrderLedger(_unitOfWork).BuildRequisitionSummary(request);
+        }
+
+        private string DescribeClassification(PurchaseLineClassification classification)
+        {
+            if (classification == null || !classification.HasType)
+            {
+                return null;
+            }
+
+            var parts = new List<string>();
+            if (classification.AssetCategoryId.HasValue)
+            {
+                parts.Add(_unitOfWork.Repository<AssetCategory>().GetById(classification.AssetCategoryId.Value)?.Name);
+            }
+
+            parts.Add(_unitOfWork.Repository<AssetType>().GetById(classification.AssetTypeId.Value)?.Name);
+            if (classification.AssetSubTypeId.HasValue)
+            {
+                parts.Add(_unitOfWork.Repository<AssetSubType>().GetById(classification.AssetSubTypeId.Value)?.Name);
+            }
+
+            return string.Join(" > ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
         }
 
         /// <summary>Server-side "Purchase order raised by" check for a requisition-linked PO (all create paths).</summary>

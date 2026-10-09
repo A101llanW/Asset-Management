@@ -5,8 +5,11 @@
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
     var canApprove = Model.CanCurrentUserApprove && Html.HasPermission("Purchases.Approve");
-    var canCreatePo = Model.IsApproved && !Model.HasPurchaseRecord && Html.HasPermission("Purchases.Create") && Model.CanCurrentUserRaisePurchaseOrder;
-    var poBlockedForMe = Model.IsApproved && !Model.HasPurchaseRecord && !Model.CanCurrentUserRaisePurchaseOrder;
+    // rel1009i: several POs per requisition, capped by the requisition quantity (summed over its POs).
+    var orderSummary = ViewBag.OrderSummary as AssetManagement.Application.ViewModels.RequisitionOrderSummaryVm;
+    var outstandingToOrder = orderSummary == null ? (Model.HasPurchaseRecord ? 0 : 1) : orderSummary.OutstandingToOrder;
+    var canCreatePo = Model.IsApproved && outstandingToOrder > 0 && Html.HasPermission("Purchases.Create") && Model.CanCurrentUserRaisePurchaseOrder;
+    var poBlockedForMe = Model.IsApproved && outstandingToOrder > 0 && !Model.CanCurrentUserRaisePurchaseOrder;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -128,10 +131,38 @@
                 {
                     <p class="text-muted mb-3" id="po-raiser-blocked">Ready for purchase order. Only @Model.PurchaseOrderRaiserLabel can record it.</p>
                 }
-                else if (Model.IsApproved && Model.HasPurchaseRecord && Model.LinkedPurchaseRecordId.HasValue)
+                @if (orderSummary != null && (orderSummary.Orders.Count > 0 || Model.IsApproved))
                 {
-                    <p class="mb-2">Linked purchase record:</p>
-                    <a class="btn btn-outline-primary" href="@Url.Action("Details", "Purchases", new { id = Model.LinkedPurchaseRecordId.Value, returnUrl = Request.RawUrl })">Open purchase #@Model.LinkedPurchaseRecordId</a>
+                    <div id="requisition-purchase-orders" class="mb-3">
+                        <p class="mb-1"><strong>Purchase orders:</strong> @orderSummary.Orders.Count
+                            &middot; ordered @orderSummary.OrderedQuantity of @orderSummary.RequisitionQuantity
+                            &middot; received @orderSummary.ReceivedQuantity
+                            &middot; <span class="badge bg-light text-dark border" id="requisition-fulfilment-status">@orderSummary.FulfilmentStatus</span></p>
+                        @if (orderSummary.Orders.Count > 0)
+                        {
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>PO</th><th>Supplier</th><th class="text-end">Qty</th><th class="text-end">Received</th><th>Status</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach (var order in orderSummary.Orders)
+                                {
+                                    <tr>
+                                        <td><a href="@Url.Action("Details", "Purchases", new { id = order.PurchaseRecordId, returnUrl = Request.RawUrl })">@(string.IsNullOrWhiteSpace(order.PurchaseOrderNumber) ? ("#" + order.PurchaseRecordId) : order.PurchaseOrderNumber)</a></td>
+                                        <td>@(string.IsNullOrWhiteSpace(order.SupplierName) ? DisplayText.Empty : order.SupplierName)</td>
+                                        <td class="text-end">@order.Quantity</td>
+                                        <td class="text-end">@order.Received</td>
+                                        <td>@order.Status</td>
+                                        <td>
+                                            @if (order.Received < order.Quantity && Html.HasPermission("Assets.Receive"))
+                                            {
+                                                <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Receive", "Purchases", new { id = order.PurchaseRecordId, returnUrl = Request.RawUrl })">Receive</a>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
                 }
 
                 @if (Model.IsPending)

@@ -52,6 +52,7 @@ namespace AssetManagement.Web.Controllers
             var receiveDetail = _receivingService.GetReceiveDetail(id);
             ViewBag.ReceiveDetail = receiveDetail;
             ViewBag.AssignableAssetIds = ResolveAssignableAssetIdsForPurchase(receiveDetail);
+            ViewBag.OrderStatus = _purchaseService.GetOrderStatus(id);
             return View(model);
         }
 
@@ -178,40 +179,47 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Edit")]
         public ActionResult Create(string returnUrl = null, int? purchaseRequestId = null)
         {
-            var model = new PurchaseRecordVm
+            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            if (!purchaseRequestId.HasValue)
             {
-                PurchaseDate = System.DateTime.UtcNow,
-                Currency = GetDefaultCurrencyCode(),
-                PurchaseRequestId = purchaseRequestId
-            };
-
-            if (purchaseRequestId.HasValue)
-            {
-                var req = UnitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId.Value);
-                string raiserBlock;
-                if (req != null && !CanCurrentUserRaisePurchaseOrder(req, out raiserBlock))
-                {
-                    // "Purchase order raised by" configured for this requisition's flow and this user is not it.
-                    TempData["Error"] = raiserBlock;
-                    return RedirectToAction("Details", "PurchaseRequests", new { id = req.Id, returnUrl = returnUrl });
-                }
-
-                if (req != null && req.ApprovalStatus == ApprovalStatus.Approved)
-                {
-                    model.Currency = req.Currency ?? model.Currency;
-                    if (req.Quantity > 0)
-                    {
-                        model.Quantity = req.Quantity;
-                    }
-                }
+                // rel1009i: a PO is always raised from an approved requisition; start with the picker.
+                PopulateRequisitionPicker();
+                PopulateLookups(null);
+                return View(new PurchaseRecordVm { PurchaseDate = System.DateTime.UtcNow, Currency = GetDefaultCurrencyCode() });
             }
 
+            var req = UnitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId.Value);
+            if (req == null || !IsRequisitionVisible(req.Id))
+            {
+                TempData["Error"] = "That requisition was not found or is outside your scope.";
+                return RedirectToAction("Create", new { returnUrl });
+            }
+
+            string raiserBlock;
+            if (!CanCurrentUserRaisePurchaseOrder(req, out raiserBlock))
+            {
+                // "Purchase order raised by" configured for this requisition's flow and this user is not it.
+                TempData["Error"] = raiserBlock;
+                return RedirectToAction("Details", "PurchaseRequests", new { id = req.Id, returnUrl = returnUrl });
+            }
+
+            var model = _purchaseService.BuildFromRequisition(req.Id);
+            if (model == null)
+            {
+                TempData["Error"] = "Only approved requisitions can be ordered.";
+                return RedirectToAction("Details", "PurchaseRequests", new { id = req.Id, returnUrl = returnUrl });
+            }
+
+            if (model.Lines.Sum(x => x.Outstanding) <= 0)
+            {
+                TempData["Message"] = "Everything on this requisition is already on purchase orders.";
+                return RedirectToAction("Details", "PurchaseRequests", new { id = req.Id, returnUrl = returnUrl });
+            }
+
+            model.Currency = string.IsNullOrWhiteSpace(model.Currency) ? GetDefaultCurrencyCode() : model.Currency;
             PopulateLookups(model);
-            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.PurchaseRequestId = purchaseRequestId;
-            ViewBag.ItemDescription = purchaseRequestId.HasValue
-                ? UnitOfWork.Repository<PurchaseRequest>().GetById(purchaseRequestId.Value)?.ItemDescription
-                : null;
+            ViewBag.PurchaseRequestId = req.Id;
+            ViewBag.ItemDescription = req.ItemDescription;
             return View(model);
         }
 
@@ -226,29 +234,96 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Edit")]
         public ActionResult Create(PurchaseRecordVm model, string returnUrl = null)
         {
-            PopulateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.PurchaseRequestId = model.PurchaseRequestId;
-            ViewBag.ItemDescription = model.PurchaseRequestId.HasValue
-                ? UnitOfWork.Repository<PurchaseRequest>().GetById(model.PurchaseRequestId.Value)?.ItemDescription
-                : null;
-            if (!ModelState.IsValid)
+            model = model ?? new PurchaseRecordVm();
+            if (!model.PurchaseRequestId.HasValue || !IsRequisitionVisible(model.PurchaseRequestId.Value))
             {
+                ModelState.AddModelError("", model.PurchaseRequestId.HasValue
+                    ? "That requisition was not found or is outside your scope."
+                    : Application.Services.PurchaseService.RequisitionRequiredMessage);
+                model.PurchaseRequestId = null;
+                PopulateRequisitionPicker();
+                PopulateLookups(model);
                 return View(model);
             }
 
-            try
+            if (ModelState.IsValid)
             {
-                // Server-side PO-raiser enforcement lives in the service (covers every create path).
-                var purchaseId = _purchaseService.Create(model, User.GetUserId(), GetCurrentUserRoleId());
-                TempData["Message"] = "Purchase record created.";
-                TempData["Guidance"] = "Next step: review the purchase details and verify the supplier, invoice, and cost values.";
-                return RedirectToAction("Details", new { id = purchaseId, returnUrl = ViewBag.ReturnUrl });
+                try
+                {
+                    // Server-side PO-raiser, scope and over-ordering enforcement live in the service.
+                    var purchaseId = _purchaseService.Create(model, User.GetUserId(), GetCurrentUserRoleId());
+                    TempData["Message"] = "Purchase order created.";
+                    TempData["Guidance"] = "Next step: when the goods arrive, use Receive on this purchase order.";
+                    return RedirectToAction("Details", new { id = purchaseId, returnUrl = ViewBag.ReturnUrl });
+                }
+                catch (BusinessException ex)
+                {
+                    ModelState.AddModelError("", ex.Message);
+                }
             }
-            catch (BusinessException ex)
+
+            RestoreDraftLines(model);
+            PopulateLookups(model);
+            ViewBag.PurchaseRequestId = model.PurchaseRequestId;
+            ViewBag.ItemDescription = UnitOfWork.Repository<PurchaseRequest>().GetById(model.PurchaseRequestId.Value)?.ItemDescription;
+            return View(model);
+        }
+
+        /// <summary>rel1009i: the requisition is visible to this user (same org/department scope as the Requisitions list).</summary>
+        private bool IsRequisitionVisible(int purchaseRequestId)
+        {
+            return _purchaseRequestService.GetAll().Any(x => x.Id == purchaseRequestId);
+        }
+
+        private void PopulateRequisitionPicker()
+        {
+            var visibleIds = _purchaseRequestService.GetAll().Select(x => x.Id).ToList();
+            var options = _purchaseService.GetRequisitionsReadyForPurchaseOrder(visibleIds)
+                .Where(option =>
+                {
+                    var req = UnitOfWork.Repository<PurchaseRequest>().GetById(option.Id);
+                    string ignored;
+                    return req != null && CanCurrentUserRaisePurchaseOrder(req, out ignored);
+                })
+                .ToList();
+            ViewBag.RequisitionOptions = options;
+        }
+
+        /// <summary>After a failed save: the requisition's lines again (limits from the server) with the posted entries.</summary>
+        private void RestoreDraftLines(PurchaseRecordVm model)
+        {
+            var draft = _purchaseService.BuildFromRequisition(model.PurchaseRequestId.Value);
+            if (draft == null)
             {
-                ModelState.AddModelError("", ex.Message);
-                return View(model);
+                return;
+            }
+
+            var posted = model.Lines ?? new System.Collections.Generic.List<PurchaseOrderLineInputVm>();
+            for (var i = 0; i < draft.Lines.Count; i++)
+            {
+                var line = draft.Lines[i];
+                var input = posted.FirstOrDefault(x => x != null && x.PurchaseRequestLineId == line.PurchaseRequestLineId)
+                    ?? (i < posted.Count ? posted[i] : null);
+                if (input == null)
+                {
+                    continue;
+                }
+
+                line.Quantity = input.Quantity;
+                line.UnitCost = input.UnitCost;
+                if (!line.ClassificationLocked)
+                {
+                    line.AssetTypeId = input.AssetTypeId;
+                    line.AssetSubTypeId = input.AssetSubTypeId;
+                }
+            }
+
+            model.Lines = draft.Lines;
+            model.PurchaseRequestNumber = draft.PurchaseRequestNumber;
+            if (string.IsNullOrWhiteSpace(model.Currency))
+            {
+                model.Currency = draft.Currency ?? GetDefaultCurrencyCode();
             }
         }
 
@@ -274,6 +349,26 @@ namespace AssetManagement.Web.Controllers
         private void PopulateLookups(PurchaseRecordVm model)
         {
             ViewBag.Suppliers = BuildSupplierSelectList(model?.SupplierId);
+
+            // rel1009i: optional per-line classification on the PO (what Receiving auto-fills).
+            var categories = UnitOfWork.Repository<AssetCategory>().GetAll().Where(x => x.IsActive)
+                .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
+            var types = UnitOfWork.Repository<AssetType>().GetAll().Where(x => x.IsActive).ToList();
+            ViewBag.LineTypeOptions = types
+                .Select(t => new AssetClassOptionVm
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    GroupName = categories.ContainsKey(t.AssetCategoryId) ? categories[t.AssetCategoryId] : "Other"
+                })
+                .OrderBy(x => x.GroupName).ThenBy(x => x.Name)
+                .ToList();
+            var typeNames = types.ToDictionary(t => t.Id, t => t.Name);
+            ViewBag.LineSubTypeOptions = UnitOfWork.Repository<AssetSubType>().GetAll()
+                .Where(x => x.IsActive && typeNames.ContainsKey(x.AssetTypeId))
+                .Select(st => new AssetClassOptionVm { Id = st.Id, Name = st.Name, ParentId = st.AssetTypeId, GroupName = typeNames[st.AssetTypeId] })
+                .OrderBy(x => x.GroupName).ThenBy(x => x.Name)
+                .ToList();
         }
 
         private void PopulateReceiveLookups(AssetReceiveVm model, ReceiveAssetLookupVm lookup, PurchaseReceiveDetailVm detail)
