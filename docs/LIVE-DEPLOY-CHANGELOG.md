@@ -9,6 +9,77 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-09 14:54 - rel1009i: QR magnification cap, deactivated-user login message, platform admin bootstrap, POs from approved requisitions (098), receiving per PO line (`9b3a9b4`, `5633f6b`, `f722a89`, `32044a3`, `ce42016`, `e565d21`, `6438394`, `83f39a6`) - STAGED (not published)
+
+- **Date/time EAT:** commits 14:0x-14:54. Package 14:54:40 (`artifacts\web-publish-rel1009i-20261009_145440`, no Web.config), built at HEAD `83f39a6` on top of rel1009h (`5b71697`).
+  - Package DLLs: Web.dll `2AD8B33E68662AE3B15C0DDDC2DB988EBC0D3896E41E38A493D3A81AEB3E5B2A`, Application `5DD4B588...7839`, Infrastructure `1FE3241B...5CFD`, Domain `A71BAB1A...3688`. Full list in `artifacts\rel1009i-expected.txt`.
+  - This entry's commit is docs only, so the package was not rebuilt. The rel1009g and rel1009h files and packages are untouched.
+- **What and why:**
+  1. **Label Designer QR cap.** The magnification was only clamped to 1..10, so a large value printed a QR wider than the label.
+     - New `LabelQrSizing.MaxMagnificationFor` (`LabelQrSizing.cs:76`): maxMag = floor((min(w,h) - 2x2 mm margin) x dots/mm / modules), clamped to 1..10.
+     - modules = 17 + 4 x version, where the version comes from the worst-case scan-URL payload (byte mode, ECC M, 40-character tag).
+     - At 203 dpi (8 dots/mm) with a payload up to 106 bytes (version 6, 41 modules): 50x25 caps at **x4** (164 dots = 20.5 mm) and 20x10 at **x1** (41 dots, about 5.1 mm). A longer public URL (version 7, 45 modules) caps 50x25 at x3.
+     - Applied in the settings save (stored value clamped, positions re-clamped), the designer UI (input max, hint, preview) and `ZplLabelBuilder.CapForLabel` (`ZplLabelBuilder.cs:345`, used at :55 and :128), so preview and print agree.
+  2. **Deactivated-user login.** Inactive users got the generic "invalid" message and were counted as failures.
+     - Now, only after the password verifies, they see "This account is deactivated. Contact your administrator.". There is no failure count or lockout. A SecurityEvent and AuditLog `LOGIN_DENIED_INACTIVE` are written (entity type ApplicationUser, so the root portal is covered: fix `e565d21`).
+     - A wrong password still gives the generic message and counts.
+     - Tenant and root multi-portal login: `AccountController.cs:135` `TryDenyDeactivatedLogin`, plus `InactiveAccountLoginRules`.
+  3. **Platform admin bootstrap.** Recovery when the platform admin cannot sign in (the email changed in the DB, MFA lost).
+     - `PlatformAdminBootstrap` runs from `Global.asax.cs:33` (`RunPlatformAdminBootstrap`, defined at :98). Keys: `Bootstrap:PlatformAdminEmail`, `Bootstrap:PlatformAdminPassword`, `Bootstrap:ClearMfaEnrollment`, `Bootstrap:RunId`.
+     - It finds the single platform admin by role and syncs the email (and UserName), reactivates and unlocks, and clears failed attempts and MFA rate limits. It optionally clears MFA enrolment.
+     - A password is optional. When one is set, it uses the policy and hasher, sets `RequirePasswordChange=1` and LastPasswordChange, and rotates the AccessToken.
+     - It writes AuditLog `PLATFORM_ADMIN_BOOTSTRAP` (no secrets), which also serves as the run-once marker (SHA256 of the key set). The run is skipped if the admin changed the password afterwards or the hash already matches.
+     - The password is never logged. Everything is in one transaction wrapped in try/catch, so start-up is never blocked. The log is `App_Data\platform-admin-bootstrap.log`, and a banner shows on Platform pages while any key is present.
+  4. **POs must come from an approved requisition.**
+     - Before: a PO was one quantity, optionally linked to a requisition, with no limit (one PO per requisition, any quantity) and a standalone path.
+     - Now Create has a requisition picker: Approved, same org, scoped to the user's department subtree and raiser. Lines are prefilled from the requisition lines (`PurchaseService.cs:112` Create, :399 BuildFromRequisition).
+     - Cumulative over-ordering per requisition line is blocked on the server (`PurchaseOrderQuantityRules`, `PurchaseOrderLedger`). Forged posts are refused, and so are standalone creates.
+     - The link shows on PO Details and requisition Details. Legacy POs show "Not linked" and stay viewable and receivable.
+  5. **Receiving per PO line.** Old problems:
+     - single-quantity POs with no lines;
+     - a "Category #id" type selector with a raw subtype id box, where a posted subtype could override the context;
+     - a catalog modal that reloaded the page;
+     - a hidden hard-coded CompanyCustody;
+     - one condition for every unit;
+     - a one-at-a-time serial wizard;
+     - PO status never updated;
+     - no cache-busting;
+     - dead code.
+
+     Now `ReceivingService.GetReceiveOrder` (:283) and `ReceiveOrder` (:346) work per PO line:
+     - category, type and subtype come from the line or requisition, read-only (receiver override only when unknown; posted values are otherwise ignored);
+     - each line takes a quantity, bulk serials (count and duplicates checked), generated or entered tags, a condition (written to Asset.Condition: fix `6438394`) and a destination (store, or any department/room through AssetMoveRules);
+     - partial receipts are allowed and cumulative over-receipt is blocked;
+     - receipts are recorded in `PurchaseOrderLineReceipt` and audited `Purchases.Receive`, the PO gets ReceivedDate and "Received" when complete, the requisition gets "Received", and the requester is notified.
+
+     Depends on item 4 (098 and the ledger). The rel1009h asset-request "Receive into store" is unchanged. `receive-serial-wizard.js`, `receive-catalog-match.js` and `_ReceiveSerialWizardModal` are now unused but left in place.
+- **Commit hash:**
+  - `9b3a9b4` item 1, `5633f6b` item 2, `f722a89` item 3, `32044a3` item 4, `ce42016` item 5 (also covers the purge steps and FK snapshot for the new tables, and `Rel1009iTests`).
+  - Fixes: `e565d21` (item 2), `6438394` (item 5), `83f39a6` (item 3).
+  - Tests: full suite 663 = 644 pass, the same 13 pre-existing failures as baseline `5b71697` (645 = 626/13/6), 6 skipped.
+  - Each item is in its own commit, so any one can be held back; item 5 needs item 4. Local only, not pushed.
+- **Files changed:** see `git diff --stat 5b71697 83f39a6`.
+  - New: `098_PurchaseOrderLines.sql`; `LabelQrSizing.cs`, `PurchaseOrderQuantityRules.cs`, `PurchaseOrderLedger.cs`, `PurchaseOrderLineViewModels.cs`, `ReceiveOrderViewModels.cs` (Application); `PurchaseOrderLine.cs`, `PurchaseOrderLineReceipt.cs` (Domain); `InactiveAccountLoginRules.cs`, `PlatformAdminBootstrap.cs` (Infrastructure/Security); `Scripts/app/purchase-order-lines.js`, `Scripts/app/receive-order.js`; `tests/.../Purchases/Rel1009iTests.cs`.
+- **DB migration/script:** **NEW `098_PurchaseOrderLines.sql`** (sha256 `BC9C1FA93BB7744F45404523CAE9FF8F3807CE01E5F0E0526FCE2CD11EBB2BDA`).
+  - Adds the `PurchaseOrderLine` and `PurchaseOrderLineReceipt` tables. Additive and idempotent; the rollback is in its header.
+  - Run after 097 and after the backup. Applied locally 14:33 EAT (SchemaMigrationHistory Id 102); a re-run was a no-op.
+- **Config/Web.config keys:** none needed. The optional, temporary `Bootstrap:*` keys are covered in `artifacts\rel1009i\DEPLOY-SHEET.md` section 3, with exact lines, a plain-text-password security note and removal after the first sign-in. They change the Web.config hash while present.
+- **IIS/server steps (local):** **STAGED, NOT FIRED.** `artifacts\rel1009i-launch-elevated.ps1` -> `artifacts\rel1009i-iis-publish.ps1`.
+  - Pre-checks: live Web.dll `C50083D34DE540EFB036E38FAA64F057C2C8452E218719374764975FB313FA43` (rel1009h), Web.config `BF64D20E...44EB`, package Web.dll `2AD8B33E...5B2A`.
+  - Backs up the site to `C:\inetpub\_backups\AssetManagement_root_pre_rel1009i_<stamp>` and takes a DB COPY_ONLY backup `_pre_rel1009i_publish_<stamp>.bak`.
+  - Runs and verifies 097 (no-op), then runs and verifies 098.
+  - Stops the pool, copies the package (skipping Web.config and secrets), hash-verifies, starts the pool, then runs a read-only smoke test. Rollback restores the site backup.
+- **Live-deploy steps:** see `artifacts\rel1009i\DEPLOY-SHEET.md`. Copy the package after rel1009h and run 098 after 097. Use the bootstrap only if the platform admin is locked out, and remove its keys right after.
+- **Verify:** proven on IIS Express :8091 (package plus proof Web.config, MfaAllowAnyCode) with A461 scratch data (backups `..._pre-rel1009i-098-proof_20261009_143307.bak`, `..._pre-rel1009i-bootstrap-proof_20261009_144441.bak`, `..._pre-rel1009i-cleanup_20261009_145749.bak`):
+  - QR: 50x25 with mag 10 was saved as 4 (Y re-clamped); 20x10 was saved as 1.
+  - Deactivated login: the message and audit appear on tenant and root; a wrong password counts.
+  - Bootstrap: applied once, re-start skipped, no secret in the log or audit. The real seed-user-platform row was backed up and restored exactly. The banner is not UI-proven.
+  - POs: PO from a requisition, over-order blocked, picker hides fully-ordered requisitions, standalone refused, links shown, legacy "Not linked".
+  - Receiving: partial receipts, over-receipt blocked, serials, tags, conditions and destinations stored, PO and requisition "Received".
+  - rel1009h receive-into-store still works.
+  - Scratch data removed (zero `zzi` references).
+- **Rollback:** the publish script's Rollback restores the site backup. 098 is additive and the old code ignores its tables; drop script in the 098 header if needed. Remove any `Bootstrap:*` keys.
+
 ## 2026-10-09 13:41 - rel1009h: receive asset requests into store, batch pool rows, up-front Move/Keep, assign to top-level departments (RULE CHANGE), room-only returns (`2998cb7`, `a1c0581`, `1c62958`, `d08c93b`, `4af258c`, `03af7bb`) - PUBLISHED (rel1009h, local IIS :8080 2026-10-09 13:56:08 EAT)
 
 - **Date/time EAT:** commits 13:0x-13:40; package 13:41 (`artifacts\web-publish-rel1009h-20261009_134127`, no Web.config), built at HEAD `03af7bb` on top of rel1009g (`936b0e9`). Package Web.dll `C50083D34DE540EFB036E38FAA64F057C2C8452E218719374764975FB313FA43`, Application `AEE333A5...22A1`, Infrastructure `B541FD12...5625`, Domain `3E1C85F6...66BB` (full list in `artifacts\rel1009h-expected.txt`). Later commits (rel1009g PUBLISHED changelog `774b69a`, this entry) are docs only, so the package was not rebuilt. rel1009g files and package are untouched. **PUBLISHED_AT 2026-10-09 13:56:08 EAT** (local IIS :8080; see IIS/server steps).
