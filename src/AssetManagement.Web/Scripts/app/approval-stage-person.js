@@ -5,7 +5,8 @@
  * <select class="am-person-select">; options JSON ([{roleId, users:[{id,label}]}], live org-scoped
  * active users) comes from the closest [data-person-options]. Rules (server re-validates on save):
  *  - the list shows only active users holding the selected role, first option "Any user in role";
- *  - on role change: refresh; exactly one holder = auto-select, several = keep "Any user in role";
+ *  - on role change: refresh and reset to "Any user in role" (rel1009f: never auto-select, even when exactly one
+ *    user holds the role; a named person overrides department routing, so it must be an explicit pick);
  *  - on load: keep the saved person; if they no longer hold the role, reset to "Any" with a note.
  */
 (function () {
@@ -55,7 +56,7 @@
         note.classList.toggle("d-none", !text);
     }
 
-    // mode: "load" keeps the saved person; "role-change" applies the auto-select rule.
+    // mode: "load" keeps the saved person; "role-change" resets to "Any user in role" (no auto-select).
     function fill(pair, mode) {
         var roleSelect = pair.querySelector(".am-person-role");
         var personSelect = pair.querySelector(".am-person-select");
@@ -97,8 +98,9 @@
                 }
             }
         } else {
-            // Auto-select only when exactly one active user holds the role.
-            personSelect.value = users.length === 1 ? String(users[0].id) : "";
+            // rel1009f: no auto-select. Blank = "Any user in role", which routes to the role holders of the
+            // request's department (then parent, then no-department holders). Only an explicit pick names a person.
+            personSelect.value = "";
             if (!roleId) {
                 setNote(pair, "");
             } else if (users.length === 0) {

@@ -184,13 +184,30 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void AutoSelect_ExactlyOneHolder_SelectsThem_SeveralOrNone_Any()
+        public void AutoSelect_Never_EvenWithExactlyOneHolder_DefaultIsAnyUserInRole()
         {
+            // rel1009f: role-based stages default to a blank named approver (no auto-select of the sole holder).
             var users = Users().Values.Where(x => x.OrganizationId == Org).ToList();
-            Assert.AreEqual("po-1", StageApproverRules.ResolveAutoSelectUserId(users, ProcOfficerRole));
+            Assert.IsNull(StageApproverRules.ResolveAutoSelectUserId(users, ProcOfficerRole), "po-1 is the only holder: still not auto-selected");
             Assert.IsNull(StageApproverRules.ResolveAutoSelectUserId(users, ProcManagerRole), "pm-1 + pm-2 active (pm-off ignored)");
             Assert.IsNull(StageApproverRules.ResolveAutoSelectUserId(users, FinanceRole));
             Assert.IsNull(StageApproverRules.ResolveAutoSelectUserId(users, null));
+        }
+
+        [Test]
+        public void ValidateStages_BlankPersonStaysBlank_ExplicitPickSaved_ServerNeverFillsIn()
+        {
+            var errors = new List<string>();
+            Action<string, string> add = (k, m) => errors.Add(k + ": " + m);
+            var stages = new List<ApprovalStageSettingsVm>
+            {
+                new ApprovalStageSettingsVm { RoleId = ProcOfficerRole, UserId = null },   // sole holder po-1, left blank
+                new ApprovalStageSettingsVm { RoleId = ProcOfficerRole, UserId = "po-1" }  // explicit pick
+            };
+            StageApproverRules.ValidateStages(stages, new List<int> { ProcOfficerRole, ProcOfficerRole }, Org, OrgRoles, Finder(), add, "Stages");
+            Assert.IsNull(stages[0].UserId, "blank stays blank: server does not fill in the sole holder");
+            Assert.AreEqual("po-1", stages[1].UserId, "an explicit pick still saves");
+            Assert.AreEqual(0, errors.Count);
         }
 
         [Test]

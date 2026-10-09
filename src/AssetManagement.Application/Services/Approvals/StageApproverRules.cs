@@ -203,22 +203,13 @@ namespace AssetManagement.Application.Services
         }
 
         /// <summary>
-        /// The auto-select rule used by the picker (mirrored in approval-stage-person.js): exactly one active
-        /// role holder = that user; zero or several = null ("Any user in role").
+        /// The default person for a role-based stage or PO raiser (mirrored in approval-stage-person.js).
+        /// rel1009f: always null ("Any user in role"). It used to auto-select the sole active role holder, which
+        /// silently stored a named person that overrides department-scoped routing. Only an explicit pick saves a person.
         /// </summary>
         public static string ResolveAutoSelectUserId(IEnumerable<ApproverUserRecord> users, int? roleId)
         {
-            if (!roleId.HasValue)
-            {
-                return null;
-            }
-
-            var holders = (users ?? Enumerable.Empty<ApproverUserRecord>())
-                .Where(x => x != null && x.IsActive && x.RoleId == roleId && !string.IsNullOrWhiteSpace(x.Id))
-                .Select(x => x.Id)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            return holders.Count == 1 ? holders[0] : null;
+            return null;
         }
 
         public static string BuildPersonLabel(string email, string firstName, string lastName, string fallbackId)
