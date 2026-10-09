@@ -85,6 +85,13 @@
     }
 
     <main class="container-fluid px-3 px-md-4 py-3 am-main-content">
+        @if (AssetManagement.Infrastructure.Security.PlatformAdminBootstrap.AnyKeysPresent(System.Configuration.ConfigurationManager.AppSettings))
+        {
+            @* rel1009i: shown to the Platform Admin while the one-time bootstrap keys are still in Web.config. *@
+            <div class="alert alert-warning" role="alert" data-am-bootstrap-banner>
+                <strong>Security:</strong> Remove Bootstrap:* keys from Web.config. The bootstrap password is stored there in plain text.
+            </div>
+        }
         @Html.Partial("~/Views/Shared/_Alerts.cshtml")
         @RenderBody()
     </main>

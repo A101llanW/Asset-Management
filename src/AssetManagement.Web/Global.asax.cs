@@ -13,6 +13,7 @@ using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.Security;
 using AssetManagement.Infrastructure.Identity;
 using AssetManagement.Infrastructure.Persistence;
+using AssetManagement.Infrastructure.Security;
 using AssetManagement.Web.App_Start;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
@@ -29,6 +30,7 @@ namespace AssetManagement.Web
             DatabaseConfig.Configure();
             AutofacConfig.Register();
             ValidateSmtpConfigurationAtStartup();
+            RunPlatformAdminBootstrap();
             AreaRegistration.RegisterAllAreas();
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
@@ -86,6 +88,57 @@ namespace AssetManagement.Web
             catch (Exception ex)
             {
                 Trace.TraceError("SMTP startup validation failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// rel1009i: inert unless Bootstrap:PlatformAdminEmail is in appSettings. Never blocks start-up and never logs
+        /// the password (results go to Trace and App_Data\platform-admin-bootstrap.log).
+        /// </summary>
+        private static void RunPlatformAdminBootstrap()
+        {
+            try
+            {
+                if (!PlatformAdminBootstrap.AnyKeysPresent(ConfigurationManager.AppSettings))
+                {
+                    return;
+                }
+
+                var result = PlatformAdminBootstrap.Run(
+                    DependencyResolver.Current.GetService<ISqlConnectionFactory>(),
+                    ConfigurationManager.AppSettings);
+                WriteBootstrapLog("Platform admin bootstrap " + result.Status + ": " + result.Message,
+                    result.Status == PlatformAdminBootstrapStatus.Refused);
+            }
+            catch (Exception ex)
+            {
+                WriteBootstrapLog("Platform admin bootstrap FAILED (start-up continues): " + ex.GetType().Name + ": " + ex.Message, true);
+            }
+        }
+
+        private static void WriteBootstrapLog(string message, bool isError)
+        {
+            if (isError)
+            {
+                Trace.TraceError(message);
+            }
+            else
+            {
+                Trace.TraceWarning(message);
+            }
+
+            try
+            {
+                var path = System.Web.Hosting.HostingEnvironment.MapPath("~/App_Data/platform-admin-bootstrap.log");
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                    System.IO.File.AppendAllText(path, DateTime.UtcNow.ToString("u") + " " + message + Environment.NewLine);
+                }
+            }
+            catch (Exception)
+            {
+                // Logging must never break start-up.
             }
         }
 
