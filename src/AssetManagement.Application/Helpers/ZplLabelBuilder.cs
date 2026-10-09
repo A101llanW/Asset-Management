@@ -112,7 +112,7 @@ namespace AssetManagement.Application.Helpers
                 return string.Empty;
             }
 
-            design = LabelLayoutDesignHelper.Normalize(design, settings.WidthMm, settings.HeightMm);
+            design = LabelLayoutDesignHelper.Normalize(design, settings.WidthMm, settings.HeightMm, settings.QrMagnification);
             var resolvedCodeType = ResolveCodeType(codeType);
             var useBarcode = string.Equals(resolvedCodeType, LabelPrinterSettingsHelper.CodeTypeBarcode, StringComparison.OrdinalIgnoreCase);
 

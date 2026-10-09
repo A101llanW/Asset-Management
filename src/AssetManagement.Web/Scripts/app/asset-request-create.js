@@ -22,15 +22,71 @@
             return;
         }
 
-        var html = '<option value="">' + placeholder + "</option>";
-        for (var i = 0; i < items.length; i++) {
-            var item = items[i];
-            var selected = selectedValue && String(item.id) === String(selectedValue) ? ' selected="selected"' : "";
-            html += '<option value="' + item.id + '"' + selected + ">" + item.name + "</option>";
+        // Built with DOM nodes (textContent) so asset/room names are never parsed as HTML.
+        while (select.firstChild) {
+            select.removeChild(select.firstChild);
         }
 
-        select.innerHTML = html;
+        var first = document.createElement("option");
+        first.value = "";
+        first.textContent = placeholder;
+        select.appendChild(first);
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var option = document.createElement("option");
+            option.value = String(item.id);
+            option.textContent = item.name == null ? "" : String(item.name);
+            if (selectedValue && String(item.id) === String(selectedValue)) {
+                option.selected = true;
+            }
+
+            select.appendChild(option);
+        }
+
         select.disabled = items.length === 0;
+    }
+
+    function isRoomTarget(form) {
+        var checked = form.querySelector('input[data-am-target-kind]:checked');
+        return !!checked && checked.value === "Room";
+    }
+
+    function syncTarget(form) {
+        var wrap = byId("asset-request-room-wrap");
+        var roomSelect = form.querySelector("[data-am-room-select]");
+        var room = isRoomTarget(form);
+        if (wrap) {
+            wrap.hidden = !room;
+        }
+
+        if (roomSelect) {
+            roomSelect.required = room;
+        }
+    }
+
+    function loadRooms(form) {
+        var roomSelect = form.querySelector("[data-am-room-select]");
+        var roomsUrl = form.getAttribute("data-am-rooms-url");
+        if (!roomSelect || !roomsUrl) {
+            return;
+        }
+
+        var departmentId = getDepartmentId(form);
+        var current = getSelectedValue(roomSelect);
+        if (!departmentId) {
+            setSelectOptions(roomSelect, [], "-- Select department first --", null);
+            return;
+        }
+
+        fetch(roomsUrl + "?departmentId=" + encodeURIComponent(departmentId), { credentials: "same-origin" })
+            .then(function (response) { return response.json(); })
+            .then(function (items) {
+                items = items || [];
+                setSelectOptions(roomSelect, items, items.length ? "-- Select room or class --" : "No rooms or classes in this department", current);
+            })
+            .catch(function () {
+                setSelectOptions(roomSelect, [], "Unable to load rooms", null);
+            });
     }
 
     function loadAssets(form) {
@@ -87,8 +143,16 @@
         if (departmentSelect) {
             departmentSelect.addEventListener("change", function () {
                 loadAssets(form);
+                loadRooms(form);
             });
         }
+
+        form.querySelectorAll("input[data-am-target-kind]").forEach(function (radio) {
+            radio.addEventListener("change", function () {
+                syncTarget(form);
+            });
+        });
+        syncTarget(form);
 
         if (categorySelect) {
             categorySelect.addEventListener("change", function () {

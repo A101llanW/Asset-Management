@@ -185,7 +185,8 @@ WHERE u.[OrganizationId] = @OrganizationId
             }
 
             var items = LoadCategories(organizationId, activeOnly);
-            SetCached(cacheKey, items, DepartmentTtl);
+            // Absolute expiry: a busy page must never keep a stale category list alive (rel1009g).
+            SetCachedAbsolute(cacheKey, items, DepartmentTtl);
             return items;
         }
 
@@ -199,7 +200,7 @@ WHERE u.[OrganizationId] = @OrganizationId
             }
 
             var items = LoadAssetTypes(organizationId, activeOnly);
-            SetCached(cacheKey, items, DepartmentTtl);
+            SetCachedAbsolute(cacheKey, items, DepartmentTtl);
             return items;
         }
 
@@ -229,6 +230,18 @@ WHERE u.[OrganizationId] = @OrganizationId
         public void InvalidateUsers(int organizationId)
         {
             InvalidateUsersForOrganization(organizationId);
+        }
+
+        /// <summary>
+        /// Drops the cached category and asset-type lists for the organization (rel1009g).
+        /// Call after a category is created, edited, (de)activated, or imported.
+        /// </summary>
+        public void InvalidateCategories(int organizationId)
+        {
+            RemoveCacheKey("org:" + organizationId + ":categories:active");
+            RemoveCacheKey("org:" + organizationId + ":categories:all");
+            RemoveCacheKey("org:" + organizationId + ":assettypes:active");
+            RemoveCacheKey("org:" + organizationId + ":assettypes:all");
         }
 
         /// <summary>

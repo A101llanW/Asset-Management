@@ -317,6 +317,8 @@ namespace AssetManagement.Tests.Security
             public void InvalidateSettings(int organizationId) { }
 
             public void InvalidateUsers(int organizationId) { }
+
+            public void InvalidateCategories(int organizationId) { }
         }
     }
 }

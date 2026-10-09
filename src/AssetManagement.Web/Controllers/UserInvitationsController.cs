@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
@@ -183,16 +183,6 @@ namespace AssetManagement.Web.Controllers
             ViewBag.HasInvitableDepartments = departments.Count > 0;
         }
 
-        /// <summary>A grantable role plus its department (null = organization-wide).</summary>
-        private class InvitableRoleOption
-        {
-            public int Id { get; set; }
-
-            public string Name { get; set; }
-
-            public int? DepartmentId { get; set; }
-        }
-
         /// <summary>
         /// Active departments of this organization that the inviter can see (the existing department scope:
         /// Company Admin sees every department, department-scoped users only their own).
@@ -213,107 +203,41 @@ namespace AssetManagement.Web.Controllers
 
         private static bool IsCompanyAdminRole(Role role)
         {
-            return role != null && role.IsSystemRole
-                && string.Equals(role.Name, "Company Admin", System.StringComparison.OrdinalIgnoreCase);
+            return GrantableRoleResolver.IsCompanyAdminRole(role);
         }
 
-        /// <summary>
-        /// Grantable roles that apply in the department: organization-wide roles (Roles.DepartmentId NULL) for every
-        /// department, a department role only for its own department. With no department chosen, only Company Admin
-        /// (or, when the organization has no departments yet, every organization-wide role).
-        /// </summary>
-        private System.Collections.Generic.IList<InvitableRoleOption> GetRolesForDepartment(int organizationId, int? departmentId)
+        /// <summary>Cascade filter (moved unchanged to GrantableRoleResolver in rel1009g; shared with Users/Create).</summary>
+        private System.Collections.Generic.IList<GrantableRoleOption> GetRolesForDepartment(int organizationId, int? departmentId)
         {
-            var roleDepartments = RoleDepartments.GetRoleDepartmentIds(organizationId);
-            var noDepartmentAllowsAll = !departmentId.HasValue && !OrganizationHasDepartments();
-            return GetInvitableRoles(organizationId)
-                .Select(r =>
-                {
-                    int? roleDepartmentId;
-                    if (!roleDepartments.TryGetValue(r.Id, out roleDepartmentId))
-                    {
-                        roleDepartmentId = null;
-                    }
-
-                    return new { Role = r, DepartmentId = roleDepartmentId };
-                })
-                .Where(x => departmentId.HasValue
-                    ? (!x.DepartmentId.HasValue || x.DepartmentId.Value == departmentId.Value)
-                    : (!x.DepartmentId.HasValue && (noDepartmentAllowsAll || IsCompanyAdminRole(x.Role))))
-                .Select(x => new InvitableRoleOption { Id = x.Role.Id, Name = x.Role.Name, DepartmentId = x.DepartmentId })
-                .ToList();
+            return RoleResolver.GetRolesForDepartment(organizationId, departmentId);
         }
 
-        private AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository _roleDepartments;
+        /// <summary>Active org roles the inviter may grant, no escalation (GrantableRoleResolver).</summary>
+        private System.Collections.Generic.IList<Role> GetInvitableRoles(int organizationId)
+        {
+            return RoleResolver.GetGrantableRoles(organizationId);
+        }
 
-        private AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository RoleDepartments
+        private GrantableRoleResolver _roleResolver;
+
+        private GrantableRoleResolver RoleResolver
         {
             get
             {
-                if (_roleDepartments == null)
+                if (_roleResolver == null)
                 {
-                    _roleDepartments = new AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository(
-                        DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>());
+                    _roleResolver = new GrantableRoleResolver(
+                        UnitOfWork,
+                        BuildAuthorizationService(),
+                        BuildUserService(),
+                        new AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository(
+                            DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>()),
+                        User.GetUserId(),
+                        OrganizationHasDepartments);
                 }
 
-                return _roleDepartments;
+                return _roleResolver;
             }
-        }
-
-        /// <summary>
-        /// Roles an inviter may lock into an invitation: this organization's active roles only (never platform roles,
-        /// never hardcoded), and only roles whose every permission the inviter already has (no escalation).
-        /// </summary>
-        private System.Collections.Generic.IList<Role> GetInvitableRoles(int organizationId)
-        {
-            var roles = UnitOfWork.Repository<Role>().GetAll()
-                .Where(r => r.OrganizationId.HasValue && r.OrganizationId.Value == organizationId && r.IsActive)
-                .OrderBy(r => r.Name)
-                .ToList();
-            if (roles.Count == 0)
-            {
-                return roles;
-            }
-
-            var userId = User.GetUserId();
-            var auth = BuildAuthorizationService();
-            var roleIds = roles.Select(r => r.Id).ToList();
-            var rolePermissions = UnitOfWork.Repository<RolePermission>().GetAll()
-                .Where(rp => roleIds.Contains(rp.RoleId))
-                .ToList();
-            var codes = UnitOfWork.Repository<Permission>().GetAll()
-                .ToDictionary(p => p.Id, p => p.Code);
-            // The inviter's own role permissions (by id) plus anything the authorization service grants them.
-            var inviter = string.IsNullOrWhiteSpace(userId) ? null : BuildUserService().GetById(userId);
-            var ownPermissionIds = new System.Collections.Generic.HashSet<int>();
-            if (inviter != null && inviter.RoleId.HasValue)
-            {
-                var ownRoleId = inviter.RoleId.Value;
-                foreach (var rp in UnitOfWork.Repository<RolePermission>().GetAll().Where(x => x.RoleId == ownRoleId))
-                {
-                    ownPermissionIds.Add(rp.PermissionId);
-                }
-            }
-
-            var held = new System.Collections.Generic.Dictionary<int, bool>();
-            System.Func<int, bool> has = permissionId =>
-            {
-                bool value;
-                if (!held.TryGetValue(permissionId, out value))
-                {
-                    string code;
-                    value = ownPermissionIds.Contains(permissionId)
-                        || (codes.TryGetValue(permissionId, out code) && !string.IsNullOrWhiteSpace(code)
-                            && !string.IsNullOrWhiteSpace(userId) && auth != null && auth.HasPermission(userId, code));
-                    held[permissionId] = value;
-                }
-
-                return value;
-            };
-
-            return roles
-                .Where(r => rolePermissions.Where(rp => rp.RoleId == r.Id).All(rp => has(rp.PermissionId)))
-                .ToList();
         }
 
         private int? GetCurrentOrganizationIdOrDeny()

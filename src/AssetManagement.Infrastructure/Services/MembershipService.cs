@@ -474,6 +474,8 @@ namespace AssetManagement.Infrastructure.Services
             var baseUrl = AssetScanUrlHelper.ResolvePasswordResetBaseUrl(configuredBaseUrl, requestUrl, HttpRuntime.AppDomainAppVirtualPath);
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
+                System.Diagnostics.Trace.TraceWarning(
+                    "BuildPasswordResetLink: no ExternalBaseUrl and no request URL; the link falls back to http://localhost. Set ExternalBaseUrl in Platform settings.");
                 baseUrl = "http://localhost";
             }
 

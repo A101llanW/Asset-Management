@@ -115,7 +115,13 @@ namespace AssetManagement.Application.Services
         {
             if (!string.IsNullOrWhiteSpace(namedUserId))
             {
-                return new StageApproverScope(StageApproverScopeKind.NamedPerson, null, new[] { namedUserId.Trim() });
+                // rel1009g: a named person who has been deactivated no longer approves; fall back to the stage role.
+                var named = namedUserId.Trim();
+                var namedUser = GetUsers().FirstOrDefault(x => x != null && string.Equals(x.Id, named, StringComparison.OrdinalIgnoreCase));
+                if (namedUser == null || namedUser.IsActive)
+                {
+                    return new StageApproverScope(StageApproverScopeKind.NamedPerson, null, new[] { named });
+                }
             }
 
             if (!stageRoleId.HasValue || stageRoleId.Value <= 0)

@@ -5,6 +5,13 @@ using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.ViewModels
 {
+    /// <summary>Where a fulfilled request is delivered (migration 097).</summary>
+    public enum AssetRequestTargetKind
+    {
+        User = 0,
+        Room = 1
+    }
+
     public class AssetRequestFilterVm
     {
         public string Search { get; set; }
@@ -70,6 +77,12 @@ namespace AssetManagement.Application.ViewModels
         [Required]
         [StringLength(500)]
         public string Justification { get; set; }
+
+        /// <summary>User (default) or a Class/Room location.</summary>
+        public AssetRequestTargetKind TargetKind { get; set; }
+
+        /// <summary>Class/Room department when TargetKind is Room.</summary>
+        public int? TargetDepartmentId { get; set; }
     }
 
     public class AssetRequestDetailsVm
@@ -109,6 +122,12 @@ namespace AssetManagement.Application.ViewModels
         public string ReviewNotes { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        public AssetRequestTargetKind TargetKind { get; set; }
+
+        public int? TargetDepartmentId { get; set; }
+
+        public string TargetDepartmentName { get; set; }
     }
 
     public class AssetRequestFulfillVm
@@ -120,9 +139,15 @@ namespace AssetManagement.Application.ViewModels
 
         public int? ToDepartmentId { get; set; }
 
-        [Required]
+        /// <summary>Required for a user target; empty for a room target (person in charge or pool).</summary>
         public string ToUserId { get; set; }
 
         public string HandoverNotes { get; set; }
+
+        /// <summary>Room target with a person in charge: "Pic" or "Pool" (same prompt as Assignments).</summary>
+        public string PicPlacementChoice { get; set; }
+
+        /// <summary>Move / Keep when the asset sits in another department (b21ac7f rules).</summary>
+        public string DepartmentDisposition { get; set; }
     }
 }

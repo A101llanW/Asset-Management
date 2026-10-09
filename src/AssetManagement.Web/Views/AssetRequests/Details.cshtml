@@ -9,6 +9,9 @@
     var defaultAssigneeUserId = ViewBag.DefaultAssigneeUserId as string;
     var canCreateRequisition = ViewBag.CanCreateRequisition == true;
     var inStoreAssetCount = ViewBag.InStoreAssetCount as int? ?? 0;
+    var isRoomTarget = Model.TargetKind == AssetManagement.Application.ViewModels.AssetRequestTargetKind.Room && Model.TargetDepartmentId.HasValue;
+    var targetPicUserName = ViewBag.TargetPicUserName as string;
+    var targetPicRoleLabel = ViewBag.TargetPicRoleLabel as string ?? "room custodian";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -25,6 +28,7 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Requester</dt><dd class="col-sm-8">@Model.RequestedByName</dd>
                     <dt class="col-sm-4">Department</dt><dd class="col-sm-8">@(Model.DepartmentName ?? DisplayText.Empty)</dd>
+                    <dt class="col-sm-4">Deliver to</dt><dd class="col-sm-8" id="asset-request-target">@(isRoomTarget ? ("Room: " + Model.TargetDepartmentName) : Model.RequestedByName)</dd>
                     <dt class="col-sm-4">Category</dt><dd class="col-sm-8">@(Model.CategoryName ?? "Any")</dd>
                     <dt class="col-sm-4">Requested asset</dt>
                     <dd class="col-sm-8">
@@ -110,7 +114,7 @@
                     }
                     else
                     {
-                        <p class="small text-muted mb-2">@inStoreAssetCount in-store asset(s) available in this department and category.</p>
+                        <p class="small text-muted mb-2">@inStoreAssetCount in-store asset(s) available in this department (including its classes and rooms) and category.</p>
                     }
                     @using (Html.BeginForm("Fulfill", "AssetRequests", FormMethod.Post))
                     {
@@ -120,13 +124,45 @@
                             <label class="form-label">Asset to assign</label>
                             @Html.DropDownList("AssetId", availableAssets, "Select asset", new { @class = "form-select", required = "required" })
                         </div>
+                        if (isRoomTarget)
+                        {
+                            <div class="mb-2" id="fulfil-room-target">
+                                <label class="form-label">Deliver to room</label>
+                                <input type="text" class="form-control" readonly="readonly" value="@Model.TargetDepartmentName" />
+                                @if (!string.IsNullOrWhiteSpace(targetPicUserName))
+                                {
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="radio" name="PicPlacementChoice" id="PicPlacementPic" value="Pic" checked />
+                                        <label class="form-check-label" for="PicPlacementPic">Under the @targetPicRoleLabel (@targetPicUserName)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="PicPlacementChoice" id="PicPlacementPool" value="Pool" />
+                                        <label class="form-check-label" for="PicPlacementPool">Room pool (no person)</label>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool.</div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-2">
+                                <label class="form-label">Assign to user</label>
+                                @Html.DropDownList("ToUserId", assigneeUsers, new { @class = "form-select", required = "required", id = "ToUserId" })
+                                @if (Model.DepartmentId.HasValue)
+                                {
+                                    <div class="form-text">Only users in @(Model.DepartmentName ?? "the request department") are listed.</div>
+                                }
+                            </div>
+                        }
                         <div class="mb-2">
-                            <label class="form-label">Assign to user</label>
-                            @Html.DropDownList("ToUserId", assigneeUsers, new { @class = "form-select", required = "required", id = "ToUserId" })
-                            @if (Model.DepartmentId.HasValue)
-                            {
-                                <div class="form-text">Only users in @(Model.DepartmentName ?? "the request department") are listed.</div>
-                            }
+                            <label class="form-label" for="DepartmentDisposition">If the asset sits in another department or room</label>
+                            <select class="form-select" name="DepartmentDisposition" id="DepartmentDisposition">
+                                <option value="Move" @(isRoomTarget ? "selected" : "")>Move it to @(isRoomTarget ? "the delivery room" : "the request department")</option>
+                                <option value="Keep" @(isRoomTarget ? "" : "selected")>Keep its current department (ownership only)</option>
+                            </select>
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Handover notes</label>
@@ -140,7 +176,7 @@
     </div>
 </div>
 
-@if (canFulfill && !string.IsNullOrWhiteSpace(defaultAssigneeUserId))
+@if (canFulfill && !isRoomTarget && !string.IsNullOrWhiteSpace(defaultAssigneeUserId))
 {
     <script>
         (function () {

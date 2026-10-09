@@ -105,6 +105,7 @@ namespace AssetManagement.Web.Controllers
 
             UnitOfWork.Repository<AssetCategory>().Add(entity);
             UnitOfWork.SaveChanges();
+            InvalidateCategoryCache();
             TempData["Message"] = "Asset category created.";
             TempData["Guidance"] = "Next step: add one or more asset types under this category so assets can be classified correctly.";
             return RedirectToAction("Details", new { id = entity.Id, returnUrl = ViewBag.ReturnUrl });
@@ -158,8 +159,18 @@ namespace AssetManagement.Web.Controllers
             ApplyCategoryDepreciation(entity, model);
             UnitOfWork.Repository<AssetCategory>().Update(entity);
             UnitOfWork.SaveChanges();
+            InvalidateCategoryCache();
             TempData["Message"] = "Asset category updated.";
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+        }
+
+        private void InvalidateCategoryCache()
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (orgId.HasValue)
+            {
+                BuildReferenceDataCache().InvalidateCategories(orgId.Value);
+            }
         }
 
         private void ValidateCategory(AssetCategoryVm model)

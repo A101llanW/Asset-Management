@@ -167,7 +167,8 @@
         var organizationName = TempData["NewOrganizationName"] ?? "the new organization";
         // Build outside area routing - Url.Action inherits Platform area and produces /Platform/Account/...
         var securityFilePath = Url.Content("~/Account/DownloadAdminCredentials") + "?token=" + Uri.EscapeDataString(token);
-        var securityFileAbsoluteUrl = Request.Url.GetLeftPart(UriPartial.Authority) + securityFilePath;
+        var securityFileAbsoluteUrl = AssetManagement.Web.Helpers.AppPathHelper.CombineBaseAndAppRelative(
+            AssetManagement.Web.Helpers.ExternalUrlHelper.GetBaseUri(Request).ToString(), securityFilePath);
 
         <div class="modal show" id="adminCredentialsModal" tabindex="-1" role="dialog" aria-labelledby="adminCredentialsModalLabel" aria-hidden="false" style="display: block; background-color: rgba(0,0,0,0.8); z-index: 10001; overflow-y: auto; overflow-x: hidden;">
             <div class="modal-dialog modal-dialog-centered" role="document">

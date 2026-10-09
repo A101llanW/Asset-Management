@@ -250,6 +250,7 @@ namespace AssetManagement.Application.Helpers
 
             _unitOfWork.SaveChanges();
             _referenceDataCache.InvalidateDepartments(organizationId.Value);
+            _referenceDataCache.InvalidateCategories(organizationId.Value);
             return result;
         }
 

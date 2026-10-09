@@ -1,4 +1,4 @@
-@model IEnumerable<AssetManagement.Application.ViewModels.AuditLogVm>
+﻿@model AssetManagement.Application.ViewModels.AuditLogPageVm
 @using System.Linq
 @using AssetManagement.Web.Helpers
 @using AssetManagement.Application.Helpers
@@ -10,7 +10,32 @@
     var relatedAssetTag = ViewBag.RelatedAssetTag as string;
     var relatedAssetName = ViewBag.RelatedAssetName as string;
     var backUrl = ViewBag.BackUrl as string;
-    var logs = Model == null ? Enumerable.Empty<AssetManagement.Application.ViewModels.AuditLogVm>() : Model.ToList();
+    var pageModel = Model ?? new AssetManagement.Application.ViewModels.AuditLogPageVm();
+    var logs = pageModel.Items == null ? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.AuditLogVm>() : pageModel.Items.ToList();
+    var isRelated = filter.RelatedAssetId.HasValue;
+    Func<int, string> pageUrl = p => Url.Action("Index", "AuditLogs", new
+    {
+        EntityType = filter.EntityType,
+        ActionCode = filter.ActionCode,
+        Actor = filter.Actor,
+        FromDate = filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : null,
+        ToDate = filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : null,
+        IncludePageViews = filter.IncludePageViews ? "true" : null,
+        HideLogins = filter.HideLogins ? "true" : null,
+        PageSize = pageModel.PageSize,
+        Page = p
+    });
+    var exportUrl = Url.Action("Export", "AuditLogs", new
+    {
+        EntityType = filter.EntityType,
+        ActionCode = filter.ActionCode,
+        Actor = filter.Actor,
+        FromDate = filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : null,
+        ToDate = filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : null,
+        IncludePageViews = filter.IncludePageViews ? "true" : null,
+        HideLogins = filter.HideLogins ? "true" : null,
+        RelatedAssetId = filter.RelatedAssetId
+    });
 }
 
 @if (!string.IsNullOrWhiteSpace(relatedAssetTag))
@@ -26,9 +51,10 @@
 else
 {
     <h3>Audit Logs</h3>
+    <p class="text-muted small mb-3">Sign-ins, creates, edits, deletes, approvals, transfers, settings, roles and permission changes for this organization. Page views are hidden unless you include them.</p>
 }
 
-@if (!string.IsNullOrWhiteSpace(relatedAssetTag))
+@if (isRelated)
 {
     <div class="alert alert-light border mb-3" role="status">
         Showing audit activity for this asset, including assignments, transfers, maintenance, incidents, and returns.
@@ -37,32 +63,52 @@ else
 
 @if (canExport)
 {
-    <p><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Export", "AuditLogs", Request.QueryString)">Export CSV</a></p>
+    <p><a class="btn btn-sm btn-outline-primary" href="@exportUrl">Export CSV</a></p>
 }
 
-<form method="get" class="row g-2 mb-3">
-    @if (filter.RelatedAssetId.HasValue)
+<form method="get" action="@Url.Action("Index", "AuditLogs")" class="row g-2 mb-3 align-items-end" id="audit-log-filter">
+    @if (isRelated)
     {
         <input type="hidden" name="RelatedAssetId" value="@filter.RelatedAssetId.Value" />
     }
-    <div class="col-md-3"><input class="form-control" name="EntityType" placeholder="Record type (e.g. Asset)" value="@(filter.EntityType ?? Request.QueryString["EntityType"])" /></div>
-    <div class="col-md-3"><input class="form-control" name="Action" placeholder="Action code (optional)" value="@(filter.Action ?? Request.QueryString["Action"])" /></div>
-    <div class="col-md-2"><input class="form-control" type="date" name="FromDate" value="@(filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : Request.QueryString["FromDate"])" /></div>
-    <div class="col-md-2"><input class="form-control" type="date" name="ToDate" value="@(filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : Request.QueryString["ToDate"])" /></div>
-    <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Filter</button></div>
+    <div class="col-md-2"><label class="form-label small mb-1" for="audit-entity">Record type</label><input class="form-control" id="audit-entity" name="EntityType" placeholder="e.g. Asset, Account" value="@filter.EntityType" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1" for="audit-action">Action code</label><input class="form-control" id="audit-action" name="ActionCode" placeholder="e.g. Assets.Edit" value="@filter.ActionCode" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1" for="audit-actor">Actor</label><input class="form-control" id="audit-actor" name="Actor" placeholder="Name or e-mail" value="@filter.Actor" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1" for="audit-from">From (@eatLabel)</label><input class="form-control" id="audit-from" type="date" name="FromDate" value="@(filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : "")" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1" for="audit-to">To (@eatLabel)</label><input class="form-control" id="audit-to" type="date" name="ToDate" value="@(filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : "")" /></div>
+    <div class="col-md-2">
+        <label class="form-label small mb-1" for="audit-pagesize">Rows per page</label>
+        <select class="form-select" id="audit-pagesize" name="PageSize">
+            @foreach (var size in new[] { 25, 50, 100, 200 })
+            {
+                <option value="@size" @(pageModel.PageSize == size ? "selected" : "")>@size</option>
+            }
+        </select>
+    </div>
+    @if (!isRelated)
+    {
+        <div class="col-md-3">
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="audit-pageviews" name="IncludePageViews" value="true" @(filter.IncludePageViews ? "checked" : "") /><label class="form-check-label small" for="audit-pageviews">Include page views</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="audit-hidelogins" name="HideLogins" value="true" @(filter.HideLogins ? "checked" : "") /><label class="form-check-label small" for="audit-hidelogins">Hide sign-ins</label></div>
+        </div>
+    }
+    <div class="col-md-3">
+        <button class="btn btn-outline-primary" type="submit">Filter</button>
+        <a class="btn btn-link" href="@Url.Action("Index", "AuditLogs", isRelated ? (object)new { RelatedAssetId = filter.RelatedAssetId } : null)">Clear</a>
+    </div>
 </form>
 
 <div class="card card-kpi"><div class="card-body p-0">
 @if (logs.Any())
 {
-    <table class="table mb-0 table-sm">
+    <table class="table mb-0 table-sm" id="audit-log-table">
         <thead class="table-light"><tr><th>Time (@eatLabel)</th><th>Actor</th><th>Action</th><th>Record</th><th>Record Id</th><th>IP</th></tr></thead>
         <tbody>
         @foreach (var item in logs)
         {
-            <tr>
+            <tr data-audit-action="@item.Action">
                 <td>@Html.FormatAuditTimestamp(item.Timestamp)</td>
-                <td>@item.ActorUserId</td>
+                <td title="@item.ActorUserId">@(string.IsNullOrWhiteSpace(item.ActorDisplayName) ? item.ActorUserId : item.ActorDisplayName)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.ActionLabel) ? item.Action : item.ActionLabel)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.EntityTypeLabel) ? item.EntityType : item.EntityTypeLabel)</td>
                 <td>@item.EntityId</td>
@@ -75,7 +121,7 @@ else
 else
 {
     <div class="p-4 text-muted">
-        @if (filter.RelatedAssetId.HasValue)
+        @if (isRelated)
         {
             <p class="mb-0">No audit entries are recorded for this asset yet.</p>
         }
@@ -86,3 +132,18 @@ else
     </div>
 }
 </div></div>
+
+@if (!isRelated && pageModel.TotalCount > 0)
+{
+    var first = (pageModel.Page - 1) * pageModel.PageSize + 1;
+    var last = Math.Min(pageModel.TotalCount, pageModel.Page * pageModel.PageSize);
+    <nav class="d-flex justify-content-between align-items-center mt-2" aria-label="Audit log pages" id="audit-log-pager">
+        <span class="small text-muted">Showing @first-@last of @pageModel.TotalCount.ToString("N0") (page @pageModel.Page of @pageModel.TotalPages)</span>
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item @(pageModel.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@pageUrl(1)">First</a></li>
+            <li class="page-item @(pageModel.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@pageUrl(Math.Max(1, pageModel.Page - 1))">Previous</a></li>
+            <li class="page-item @(pageModel.Page >= pageModel.TotalPages ? "disabled" : "")"><a class="page-link" href="@pageUrl(Math.Min(pageModel.TotalPages, pageModel.Page + 1))">Next</a></li>
+            <li class="page-item @(pageModel.Page >= pageModel.TotalPages ? "disabled" : "")"><a class="page-link" href="@pageUrl(pageModel.TotalPages)">Last</a></li>
+        </ul>
+    </nav>
+}

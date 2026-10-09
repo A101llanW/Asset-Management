@@ -7,6 +7,12 @@
     var lockDepartment = ViewBag.LockDepartment == true;
     var departmentName = ViewBag.DepartmentName as string;
     var assetsUrl = Url.Action("AvailableAssets", "AssetRequests");
+    var roomsUrl = Url.Action("RoomTargets", "AssetRequests");
+    var roomTargets = ViewBag.RoomTargets as SelectList;
+    var roomTargetsAvailable = ViewBag.RoomTargetsAvailable == true;
+    var deliverToRoom = Model != null && Model.TargetKind == AssetManagement.Application.ViewModels.AssetRequestTargetKind.Room;
+    var createScriptPath = Server.MapPath("~/Scripts/app/asset-request-create.js");
+    var createScriptVersion = System.IO.File.Exists(createScriptPath) ? System.IO.File.GetLastWriteTimeUtc(createScriptPath).Ticks.ToString() : "1";
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -22,7 +28,8 @@
         {
             id = "asset-request-form",
             data_am_asset_request_form = "true",
-            data_am_assets_url = assetsUrl
+            data_am_assets_url = assetsUrl,
+            data_am_rooms_url = roomsUrl
         }))
         {
             @Html.AntiForgeryToken()
@@ -54,6 +61,26 @@
                     @Html.ValidationMessageFor(m => m.RequestedAssetId, "", new { @class = "text-danger" })
                     <div id="in-store-stock-hint" class="form-text">Select department and category to see in-store availability.</div>
                 </div>
+                @if (roomTargetsAvailable)
+                {
+                    <div class="col-md-6" id="asset-request-target">
+                        <label class="form-label d-block">Deliver to</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="TargetKind" id="TargetKindUser" value="User" @(deliverToRoom ? "" : "checked") data-am-target-kind="true" />
+                            <label class="form-check-label" for="TargetKindUser">Me</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="TargetKind" id="TargetKindRoom" value="Room" @(deliverToRoom ? "checked" : "") data-am-target-kind="true" />
+                            <label class="form-check-label" for="TargetKindRoom">A room / class</label>
+                        </div>
+                        <div class="mt-2" id="asset-request-room-wrap" @(deliverToRoom ? "" : "hidden")>
+                            @Html.DropDownListFor(m => m.TargetDepartmentId, roomTargets, "-- Select room or class --", new { @class = "form-select", data_am_room_select = "true" })
+                            <div class="form-text">On fulfilment the asset is assigned to the room (its custodian / class teacher, or the room pool).</div>
+                        </div>
+                        @Html.ValidationMessageFor(m => m.TargetKind, "", new { @class = "text-danger" })
+                        @Html.ValidationMessageFor(m => m.TargetDepartmentId, "", new { @class = "text-danger" })
+                    </div>
+                }
                 <div class="col-12">
                     <label class="form-label">Justification</label>
                     @Html.TextAreaFor(m => m.Justification, 4, new { @class = "form-control", required = "required" })
@@ -71,5 +98,5 @@
 </div>
 
 @section scripts {
-    <script src="@Url.Content("~/Scripts/app/asset-request-create.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-request-create.js")?v=@createScriptVersion"></script>
 }

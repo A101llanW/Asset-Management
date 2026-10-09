@@ -106,8 +106,7 @@
                     <tbody>
                         @foreach (var org in Model.Organizations.OrderBy(o => o.Name))
                         {
-                            var relativeLogin = Url.RouteUrl("Tenant", new { tenant = org.Slug, controller = "Account", action = "Login" });
-                            var portalUrl = new Uri(Request.Url, relativeLogin).AbsoluteUri;
+                            var portalUrl = AssetManagement.Web.Helpers.ExternalUrlHelper.GetTenantPortalUrl(Request, org.Slug) + "/Account/Login";
                             var expiryTone = org.DaysUntilExpiry.HasValue && org.DaysUntilExpiry.Value < 0
                                 ? "danger"
                                 : (org.DaysUntilExpiry.HasValue && org.DaysUntilExpiry.Value <= 30 ? "warning" : "success");

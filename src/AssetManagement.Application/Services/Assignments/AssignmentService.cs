@@ -379,7 +379,17 @@ namespace AssetManagement.Application.Services
 
             if (!user.DepartmentId.HasValue || user.DepartmentId.Value != departmentId.Value)
             {
-                throw new BusinessException("Selected user does not belong to the target department.");
+                // rel1009g: the Class teacher / Room custodian of the target is its person in charge even when their
+                // profile department is elsewhere (custodians are only required to be in the organization).
+                var target = _unitOfWork.Repository<Department>().GetById(departmentId.Value);
+                var pic = target == null
+                    ? null
+                    : (target.DepartmentKind == DepartmentKind.Class ? target.ClassTeacherUserId
+                        : target.DepartmentKind == DepartmentKind.Room ? target.RoomCustodianUserId : null);
+                if (string.IsNullOrWhiteSpace(pic) || !string.Equals(pic.Trim(), userId.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BusinessException("Selected user does not belong to the target department.");
+                }
             }
         }
 

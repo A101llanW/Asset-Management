@@ -7,6 +7,9 @@
     var statusFilter = ViewBag.StatusFilter as SelectList;
     var canCreateUser = Html.HasPermission("Users.Create");
     var canInviteUser = Html.HasPermission("Users.Invite");
+    var canEditUsers = Html.HasPermission("Users.Edit");
+    var canDeleteUsers = Html.HasPermission("Users.Delete");
+    var currentUserId = AssetManagement.Web.Security.CurrentUserExtensions.GetUserId(User);
     var isDepartmentScoped = ViewBag.IsDepartmentScoped == true;
     var scopedDepartmentName = ViewBag.ScopedDepartmentName as string;
     var currentSort = ViewBag.Sort as string;
@@ -103,6 +106,27 @@ else
                             <td class="text-nowrap"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive) badge-status">@(user.IsActive ? "Active" : "Inactive")</span></td>
                             <td class="text-end pe-3 text-nowrap">
                                 <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id, returnUrl = Request.RawUrl })">Details</a>
+                                @if (canEditUsers && !string.Equals(user.Id, currentUserId, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    using (Html.BeginForm("SetActive", "Users", FormMethod.Post, new { @class = "d-inline" }))
+                                    {
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="userId" value="@user.Id" />
+                                        <input type="hidden" name="isActive" value="@(user.IsActive ? "false" : "true")" />
+                                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                                        <button type="submit" class="btn btn-sm @(user.IsActive ? "btn-outline-secondary" : "btn-outline-success")" data-am-user-toggle="@user.Id" onclick="return confirm('@(user.IsActive ? "Deactivate this user? They will be signed out and can no longer sign in." : "Reactivate this user?")');">@(user.IsActive ? "Deactivate" : "Activate")</button>
+                                    }
+                                }
+                                @if (canDeleteUsers && !string.Equals(user.Id, currentUserId, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    using (Html.BeginForm("Delete", "Users", FormMethod.Post, new { @class = "d-inline" }))
+                                    {
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="userId" value="@user.Id" />
+                                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-am-user-delete="@user.Id" onclick="return confirm('Permanently delete this user? Blocked if they have any assets, custody, approvals, requests or audit history (deactivate instead).');">Delete</button>
+                                    }
+                                }
                             </td>
                         </tr>
                     }

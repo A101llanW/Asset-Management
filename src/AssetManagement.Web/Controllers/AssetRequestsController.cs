@@ -3,9 +3,11 @@ using System.Linq;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
+using AssetManagement.Infrastructure.Queries;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.ViewModels;
@@ -74,6 +76,22 @@ namespace AssetManagement.Web.Controllers
             var user = GetCurrentUserProfile();
             ApplyLockedUserDepartment(user?.DepartmentId, deptId => viewModel.DepartmentId = deptId);
             var requesterId = User.GetUserId();
+            if (viewModel.TargetKind != AssetRequestTargetKind.Room)
+            {
+                viewModel.TargetKind = AssetRequestTargetKind.User;
+                viewModel.TargetDepartmentId = null;
+            }
+            else if (!TargetRepository.IsAvailable())
+            {
+                ModelState.AddModelError("TargetKind", "Delivering to a room is not available yet (database migration 097 has not been applied).");
+            }
+            else if (!viewModel.TargetDepartmentId.HasValue
+                || !viewModel.DepartmentId.HasValue
+                || !GetRoomTargetOptions(viewModel.DepartmentId).Any(x => x.Key == viewModel.TargetDepartmentId.Value))
+            {
+                ModelState.AddModelError("TargetDepartmentId", "Choose a room or class inside the selected department.");
+            }
+
             PopulateLookups(viewModel);
             if (!ModelState.IsValid)
             {
@@ -83,6 +101,15 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 var id = _assetRequestService.Submit(viewModel, requesterId);
+                if (viewModel.TargetKind == AssetRequestTargetKind.Room)
+                {
+                    var orgId = ResolveCurrentOrganizationId();
+                    if (!orgId.HasValue || !TargetRepository.Set(id, orgId.Value, AssetRequestTargetRepository.TargetRoom, viewModel.TargetDepartmentId))
+                    {
+                        TempData["Error"] = "The request was submitted, but its delivery room could not be saved; it will be delivered to you.";
+                    }
+                }
+
                 TempData["Message"] = "Asset request submitted successfully.";
                 return RedirectToAction("Details", new { id });
             }
@@ -108,6 +135,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             EnrichRequestNames(model);
+            ApplyTarget(model);
             ViewBag.CanApprove = HasPermission("Assets.Request.Approve") && model.Status == AssetRequestStatus.Pending;
             ViewBag.CanFulfill = HasPermission("Assets.Request.Approve") && model.Status == AssetRequestStatus.Approved;
             ViewBag.CanCreateRequisition = HasPermission("Purchases.Create");
@@ -129,14 +157,8 @@ namespace AssetManagement.Web.Controllers
 
                 if (inStoreCount == 0 && model.CategoryId.HasValue)
                 {
-                    var stockFilter = new AssetFilterVm
-                    {
-                        Status = AssetStatus.InStore,
-                        DepartmentId = model.DepartmentId,
-                        CategoryId = model.CategoryId,
-                        OrganizationWide = true
-                    };
-                    inStoreCount = _assetService.GetAssetListPage(stockFilter, "name", "asc", 1, 1).TotalCount;
+                    // rel1009g: the department and its descendant classes/rooms.
+                    inStoreCount = GetInStoreAssetsInSubtree(model.DepartmentId.Value, model.CategoryId).Count;
                 }
             }
 
@@ -144,24 +166,23 @@ namespace AssetManagement.Web.Controllers
 
             if (ViewBag.CanFulfill == true)
             {
-                var fulfillFilter = new AssetFilterVm
-                {
-                    Status = AssetStatus.InStore,
-                    OrganizationWide = true
-                };
+                IList<AssetListVm> candidates;
                 if (model.DepartmentId.HasValue)
                 {
-                    fulfillFilter.DepartmentId = model.DepartmentId;
+                    candidates = GetInStoreAssetsInSubtree(model.DepartmentId.Value, model.CategoryId);
                 }
-
-                if (model.CategoryId.HasValue)
+                else
                 {
-                    fulfillFilter.CategoryId = model.CategoryId;
+                    candidates = _assetService.GetAssetListPage(
+                        new AssetFilterVm { Status = AssetStatus.InStore, CategoryId = model.CategoryId, OrganizationWide = true },
+                        "name",
+                        "asc",
+                        1,
+                        500).Items.ToList();
                 }
 
-                var availableAssets = _assetService.GetAssetListPage(fulfillFilter, "name", "asc", 1, 500).Items
-                    .OrderBy(x => x.AssetName)
-                    .Select(x => new { x.Id, Name = x.AssetName })
+                var availableAssets = ToAssetOptions(candidates)
+                    .Select(x => new { Id = x.Key, Name = x.Value })
                     .ToList();
                 ViewBag.AvailableAssets = new SelectList(
                     availableAssets,
@@ -172,6 +193,14 @@ namespace AssetManagement.Web.Controllers
                     model.RequestedById,
                     model.DepartmentId);
                 ViewBag.DefaultAssigneeUserId = model.RequestedById;
+                if (model.TargetKind == AssetRequestTargetKind.Room && model.TargetDepartmentId.HasValue)
+                {
+                    var room = BuildDepartmentService().GetById(model.TargetDepartmentId.Value);
+                    var pic = DepartmentTreeHelper.ResolvePicUserId(room);
+                    var picUser = string.IsNullOrWhiteSpace(pic) ? null : BuildUserService().GetById(pic);
+                    ViewBag.TargetPicUserName = string.IsNullOrWhiteSpace(pic) ? null : (picUser == null ? pic : BuildUserLabel(picUser));
+                    ViewBag.TargetPicRoleLabel = room != null && room.DepartmentKind == DepartmentKind.Class ? "class teacher" : "room custodian";
+                }
             }
 
             return View(model);
@@ -224,12 +253,56 @@ namespace AssetManagement.Web.Controllers
             }
 
             var request = _assetRequestService.GetById(viewModel.RequestId);
-            if (request != null && request.DepartmentId.HasValue)
+            if (request == null)
+            {
+                return HttpNotFound();
+            }
+
+            ApplyTarget(request);
+            var assignmentType = AssignmentType.Permanent;
+            if (request.TargetKind == AssetRequestTargetKind.Room && request.TargetDepartmentId.HasValue)
+            {
+                // Room target: assign to the room like Assignments (person in charge or department pool; never a silent pool).
+                viewModel.ToDepartmentId = request.TargetDepartmentId;
+                var pic = DepartmentTreeHelper.ResolvePicUserId(BuildDepartmentService().GetById(request.TargetDepartmentId.Value));
+                var choice = (viewModel.PicPlacementChoice ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(pic))
+                {
+                    viewModel.ToUserId = null;
+                    assignmentType = AssignmentType.DepartmentPool;
+                }
+                else if (string.Equals(choice, "Pic", StringComparison.OrdinalIgnoreCase))
+                {
+                    viewModel.ToUserId = pic;
+                }
+                else if (string.Equals(choice, "Pool", StringComparison.OrdinalIgnoreCase))
+                {
+                    viewModel.ToUserId = null;
+                    assignmentType = AssignmentType.DepartmentPool;
+                }
+                else
+                {
+                    TempData["Error"] = "This room has a person in charge. Choose whether to put the asset under that person or leave it as a room pool.";
+                    return RedirectToAction("Details", new { id = viewModel.RequestId });
+                }
+            }
+            else if (request.DepartmentId.HasValue)
             {
                 viewModel.ToDepartmentId = request.DepartmentId;
                 if (!ValidateUserBelongsToDepartment(viewModel.ToUserId, request.DepartmentId))
                 {
                     TempData["Error"] = "Assignee must belong to the request department.";
+                    return RedirectToAction("Details", new { id = viewModel.RequestId });
+                }
+            }
+
+            if (request.DepartmentId.HasValue)
+            {
+                var asset = UnitOfWork.Repository<Asset>().GetById(viewModel.AssetId);
+                var subtree = DepartmentTreeHelper.GetSelfAndDescendantIds(request.DepartmentId.Value, GetActiveDepartments());
+                if (asset == null || !asset.DepartmentId.HasValue || !subtree.Contains(asset.DepartmentId.Value))
+                {
+                    TempData["Error"] = "Pick an in-store asset from the request department or one of its rooms.";
                     return RedirectToAction("Details", new { id = viewModel.RequestId });
                 }
             }
@@ -246,7 +319,8 @@ namespace AssetManagement.Web.Controllers
                         ToUserId = viewModel.ToUserId,
                         ToDepartmentId = viewModel.ToDepartmentId,
                         HandoverNotes = viewModel.HandoverNotes,
-                        AssignmentType = AssignmentType.Permanent.ToString(),
+                        AssignmentType = assignmentType.ToString(),
+                        DepartmentDisposition = CrossDepartmentDisposition.Normalize(viewModel.DepartmentDisposition),
                         HandedOverById = User.GetUserId()
                     });
                 TempData["Message"] = "Asset request fulfilled and asset assigned.";
@@ -267,21 +341,127 @@ namespace AssetManagement.Web.Controllers
                 return Json(new object[0], JsonRequestBehavior.AllowGet);
             }
 
-            var filter = new AssetFilterVm
-            {
-                DepartmentId = departmentId,
-                CategoryId = categoryId,
-                Status = AssetStatus.InStore,
-                OrganizationWide = true
-            };
-
-            var page = _assetService.GetAssetListPage(filter, "name", "asc", 1, 500);
-
-            var items = page.Items
-                .OrderBy(x => x.AssetName)
-                .Select(x => new { id = x.Id, name = x.AssetTag + " - " + x.AssetName })
+            // rel1009g: in-store assets in the department and every descendant class/room.
+            var items = ToAssetOptions(GetInStoreAssetsInSubtree(departmentId.Value, categoryId))
+                .Select(x => new { id = x.Key, name = x.Value })
                 .ToList();
             return Json(items, JsonRequestBehavior.AllowGet);
+        }
+
+        [PermissionAuthorize("Assets.Request")]
+        public JsonResult RoomTargets(int? departmentId)
+        {
+            var items = GetRoomTargetOptions(departmentId)
+                .Select(x => new { id = x.Key, name = x.Value })
+                .ToList();
+            return Json(items, JsonRequestBehavior.AllowGet);
+        }
+
+        private const int MaxSubtreeAssets = 500;
+
+        private IList<AssetListVm> GetInStoreAssetsInSubtree(int departmentId, int? categoryId)
+        {
+            var result = new List<AssetListVm>();
+            var seen = new HashSet<int>();
+            foreach (var id in DepartmentTreeHelper.GetSelfAndDescendantIds(departmentId, GetActiveDepartments()))
+            {
+                var filter = new AssetFilterVm
+                {
+                    DepartmentId = id,
+                    CategoryId = categoryId,
+                    Status = AssetStatus.InStore,
+                    OrganizationWide = true
+                };
+                foreach (var item in _assetService.GetAssetListPage(filter, "name", "asc", 1, MaxSubtreeAssets).Items)
+                {
+                    if (seen.Add(item.Id))
+                    {
+                        result.Add(item);
+                    }
+                }
+
+                if (result.Count >= MaxSubtreeAssets)
+                {
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        private IList<KeyValuePair<int, string>> ToAssetOptions(IEnumerable<AssetListVm> assets)
+        {
+            var departments = GetActiveDepartments();
+            return (assets ?? Enumerable.Empty<AssetListVm>())
+                .Select(x => new KeyValuePair<int, string>(
+                    x.Id,
+                    DepartmentTreeHelper.FormatAssetOption(
+                        x.AssetTag,
+                        x.SerialNumber,
+                        x.AssetName,
+                        x.DepartmentId.HasValue ? (departments.FirstOrDefault(d => d.Id == x.DepartmentId.Value)?.Name ?? x.DepartmentName) : x.DepartmentName)))
+                .OrderBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>Active Class/Room departments in the request department's subtree, labelled with their path.</summary>
+        private IList<KeyValuePair<int, string>> GetRoomTargetOptions(int? departmentId)
+        {
+            if (!departmentId.HasValue)
+            {
+                return new List<KeyValuePair<int, string>>();
+            }
+
+            var departments = GetActiveDepartments();
+            var subtree = new HashSet<int>(DepartmentTreeHelper.GetSelfAndDescendantIds(departmentId.Value, departments));
+            return departments
+                .Where(x => subtree.Contains(x.Id) && DepartmentTreeHelper.IsRoomTargetKind(x.DepartmentKind))
+                .Select(x => new KeyValuePair<int, string>(x.Id, DepartmentTreeHelper.BuildPathLabel(x.Id, departments)))
+                .OrderBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private void ApplyTarget(AssetRequestDetailsVm model)
+        {
+            var orgId = ResolveCurrentOrganizationId();
+            if (model == null || !orgId.HasValue)
+            {
+                return;
+            }
+
+            int kind;
+            int? targetDepartmentId;
+            TargetRepository.Get(model.Id, orgId.Value, out kind, out targetDepartmentId);
+            model.TargetKind = kind == AssetRequestTargetRepository.TargetRoom ? AssetRequestTargetKind.Room : AssetRequestTargetKind.User;
+            model.TargetDepartmentId = targetDepartmentId;
+            if (targetDepartmentId.HasValue)
+            {
+                var departments = GetActiveDepartments();
+                var label = DepartmentTreeHelper.BuildPathLabel(targetDepartmentId.Value, departments);
+                if (string.IsNullOrWhiteSpace(label))
+                {
+                    var dept = BuildDepartmentService().GetById(targetDepartmentId.Value);
+                    label = dept == null ? ("Department #" + targetDepartmentId.Value) : dept.Name;
+                }
+
+                model.TargetDepartmentName = label;
+            }
+        }
+
+        private AssetRequestTargetRepository _targetRepository;
+
+        private AssetRequestTargetRepository TargetRepository
+        {
+            get
+            {
+                if (_targetRepository == null)
+                {
+                    _targetRepository = new AssetRequestTargetRepository(
+                        DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>());
+                }
+
+                return _targetRepository;
+            }
         }
 
         private void PopulateLookups(AssetRequestCreateVm model)
@@ -293,6 +473,12 @@ namespace AssetManagement.Web.Controllers
                 GetActiveDepartments());
             ViewBag.Departments = BuildDepartmentSelectList(model == null ? null : model.DepartmentId);
             ViewBag.Categories = BuildCategorySelectList(model == null ? null : model.CategoryId);
+            ViewBag.RoomTargetsAvailable = TargetRepository.IsAvailable();
+            ViewBag.RoomTargets = new SelectList(
+                GetRoomTargetOptions(model == null ? null : model.DepartmentId).Select(x => new { Id = x.Key, Name = x.Value }),
+                "Id",
+                "Name",
+                model == null ? null : model.TargetDepartmentId);
         }
 
         private void EnrichRequestNames(AssetRequestDetailsVm model)

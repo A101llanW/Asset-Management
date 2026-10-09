@@ -6,6 +6,7 @@ using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Application.Security;
 using AssetManagement.Web.Filters;
+using AssetManagement.Web.Helpers;
 using AssetManagement.Web.ViewModels;
 using AssetManagement.Web.Security;
 
@@ -94,6 +95,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Roles = _roleService.GetRoles();
             ViewBag.Departments = BuildDepartmentService().GetAll();
             ViewBag.IsDepartmentScoped = IsDepartmentScopedUserAccess();
+            ViewBag.IsSelf = string.Equals(model.Id, User.GetUserId(), System.StringComparison.OrdinalIgnoreCase);
             return View(model);
         }
 
@@ -101,7 +103,40 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Create(string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new HttpStatusCodeResult(403);
+            }
+
+            ConfigureCreateLookups(organizationId.Value, null, null);
             return View(new UserCreateViewModel());
+        }
+
+        /// <summary>Cascading Department -> Role picker for Create user (same filters as Invite user).</summary>
+        [HttpGet]
+        [PermissionAuthorize("Users.Create")]
+        public ActionResult RolesForDepartment(int? departmentId)
+        {
+            var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new HttpStatusCodeResult(403);
+            }
+
+            if (departmentId.HasValue && !GetAssignableDepartments().Any(d => d.Id == departmentId.Value))
+            {
+                Response.StatusCode = 403;
+                Response.TrySkipIisCustomErrors = true;
+                return Json(new { error = "You can only choose an active department within your scope." }, JsonRequestBehavior.AllowGet);
+            }
+
+            var roles = RoleResolver.GetRolesForDepartment(organizationId.Value, departmentId);
+            return Json(new
+            {
+                departmentId = departmentId,
+                roles = roles.Select(r => new { id = r.Id, name = r.Name, scope = r.DepartmentId.HasValue ? "department" : "org-wide" }).ToList()
+            }, JsonRequestBehavior.AllowGet);
         }
 
         [HttpPost]
@@ -110,11 +145,34 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Create(UserCreateViewModel model, string returnUrl = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            var organizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new HttpStatusCodeResult(403);
+            }
+
+            model = model ?? new UserCreateViewModel();
+            ConfigureCreateLookups(organizationId.Value, model.DepartmentId, model.RoleId);
+
+            // rel1009g: role is chosen from the organization's active roles (no free typing), with the same scope,
+            // active, escalation and Department -> Role checks as Invite user. Position Title is derived from it.
+            var roleError = RoleResolver.ValidateRoleChoice(
+                organizationId.Value,
+                model.RoleId,
+                model.DepartmentId,
+                GetAssignableDepartments(),
+                "Select a role for the user.");
+            if (roleError.HasValue)
+            {
+                ModelState.AddModelError(roleError.Value.Key, roleError.Value.Value);
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
             }
 
+            var selectedRole = RoleResolver.GetGrantableRoles(organizationId.Value).First(r => r.Id == model.RoleId.Value);
             var user = new UserAccountCreateRequest
             {
                 Email = model.Email,
@@ -122,8 +180,10 @@ namespace AssetManagement.Web.Controllers
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 Phone = model.Phone,
-                PositionTitle = model.PositionTitle,
-                OrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()
+                DepartmentId = model.DepartmentId,
+                RoleId = selectedRole.Id,
+                PositionTitle = selectedRole.Name,
+                OrganizationId = organizationId
             };
 
             var result = _userAccountService.CreateUser(user, model.Password);
@@ -137,8 +197,8 @@ namespace AssetManagement.Web.Controllers
                 return View(model);
             }
 
+            AuditUserAction("Users.Create", result.UserId, null, "Role=" + selectedRole.Name + ";DepartmentId=" + (model.DepartmentId.HasValue ? model.DepartmentId.Value.ToString() : ""));
             TempData["Message"] = "User created successfully.";
-            TempData["Guidance"] = "Open the user profile to assign their department and role before assigning assets.";
             return RedirectToAction("Details", new { id = result.UserId, returnUrl = ViewBag.ReturnUrl });
         }
 
@@ -185,6 +245,66 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("Details", new { id = userId, returnUrl });
         }
 
+        /// <summary>Deactivate / reactivate (rel1009g). Inactive users cannot sign in; existing sessions end (token rotated).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize("Users.Edit")]
+        public ActionResult SetActive(string userId, bool isActive, string returnUrl = null)
+        {
+            var target = _userService.GetById(userId);
+            if (target == null)
+            {
+                return HttpNotFound();
+            }
+
+            if (!CanAccessUser(target))
+            {
+                return new HttpStatusCodeResult(403);
+            }
+
+            try
+            {
+                _userService.SetActive(userId, isActive);
+                TempData["Message"] = isActive ? "User reactivated. They can sign in again." : "User deactivated. They can no longer sign in.";
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToReturnUrl(returnUrl, "Details", null, new { id = userId });
+        }
+
+        /// <summary>Hard delete (rel1009g) only when the user has no linked history; otherwise blocked with guidance.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize("Users.Delete")]
+        public ActionResult Delete(string userId, string returnUrl = null)
+        {
+            var target = _userService.GetById(userId);
+            if (target == null)
+            {
+                return HttpNotFound();
+            }
+
+            if (!CanAccessUser(target))
+            {
+                return new HttpStatusCodeResult(403);
+            }
+
+            try
+            {
+                _userService.Delete(userId);
+                TempData["Message"] = "User " + target.Email + " was deleted.";
+                return RedirectToAction("Index");
+            }
+            catch (BusinessException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Details", new { id = userId, returnUrl });
+            }
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize("Users.Edit")]
@@ -207,6 +327,69 @@ namespace AssetManagement.Web.Controllers
             }
 
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = userId });
+        }
+
+        private void AuditUserAction(string action, string entityId, string oldValues, string newValues)
+        {
+            var audit = DependencyResolver.Current.GetService<IAuditWriter>();
+            if (audit != null)
+            {
+                audit.Write(action, "ApplicationUser", entityId, oldValues, newValues);
+            }
+        }
+
+        private void ConfigureCreateLookups(int organizationId, int? departmentId, int? roleId)
+        {
+            var departments = GetAssignableDepartments();
+            ViewBag.Departments = departments
+                .Select(d => new SelectListItem
+                {
+                    Value = d.Id.ToString(),
+                    Text = string.IsNullOrWhiteSpace(d.ParentDepartmentName) ? d.Name : d.Name + " (" + d.ParentDepartmentName + ")",
+                    Selected = departmentId.HasValue && d.Id == departmentId.Value
+                })
+                .ToList();
+            ViewBag.Roles = RoleResolver.GetRolesForDepartment(organizationId, departmentId)
+                .Select(r => new SelectListItem
+                {
+                    Value = r.Id.ToString(),
+                    Text = r.DepartmentId.HasValue ? r.Name + " (this department only)" : r.Name,
+                    Selected = roleId.HasValue && r.Id == roleId.Value
+                })
+                .ToList();
+            ViewBag.DepartmentRequired = GetActiveDepartments().Count > 0;
+        }
+
+        /// <summary>Active departments the actor can see (same department scope as Invite user).</summary>
+        private System.Collections.Generic.IList<DepartmentVm> GetAssignableDepartments()
+        {
+            return BuildDepartmentService().GetAll()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.Name)
+                .ThenBy(x => x.ParentDepartmentName)
+                .ToList();
+        }
+
+        private GrantableRoleResolver _roleResolver;
+
+        private GrantableRoleResolver RoleResolver
+        {
+            get
+            {
+                if (_roleResolver == null)
+                {
+                    _roleResolver = new GrantableRoleResolver(
+                        UnitOfWork,
+                        BuildAuthorizationService(),
+                        BuildUserService(),
+                        new AssetManagement.Infrastructure.Identity.RoleDepartmentScopeRepository(
+                            DependencyResolver.Current.GetService<AssetManagement.Infrastructure.Persistence.ISqlConnectionFactory>()),
+                        User.GetUserId(),
+                        () => GetActiveDepartments().Count > 0);
+                }
+
+                return _roleResolver;
+            }
         }
 
         private bool IsDepartmentScopedUserAccess()

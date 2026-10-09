@@ -32,5 +32,11 @@ namespace AssetManagement.Application.Contracts.Queries
         /// Call after a user is created, edited, (de)activated, or has their role/department changed.
         /// </summary>
         void InvalidateUsers(int organizationId);
+
+        /// <summary>
+        /// Drops the cached category and asset-type lists for the organization.
+        /// Call after a category is created, edited, (de)activated, or imported.
+        /// </summary>
+        void InvalidateCategories(int organizationId);
     }
 }

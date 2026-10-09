@@ -83,8 +83,9 @@ namespace AssetManagement.Web.Controllers
             var model = new LabelDesignerVm
             {
                 LabelPrinter = labelPrinter,
-                LayoutDesignJson = LabelLayoutDesignHelper.Serialize(design, labelPrinter.WidthMm, labelPrinter.HeightMm),
-                LayoutTemplatesJson = LabelLayoutTemplateHelper.SerializeForClient(LabelLayoutTemplateHelper.ListTemplates(settings))
+                LayoutDesignJson = LabelLayoutDesignHelper.Serialize(design, labelPrinter.WidthMm, labelPrinter.HeightMm, labelPrinter.QrMagnification),
+                LayoutTemplatesJson = LabelLayoutTemplateHelper.SerializeForClient(LabelLayoutTemplateHelper.ListTemplates(settings)),
+                ExternalBaseUrl = ExternalUrlHelper.GetConfiguredBaseUrl()
             };
 
             return View(model);
@@ -185,6 +186,7 @@ namespace AssetManagement.Web.Controllers
 
             if (!ModelState.IsValid)
             {
+                model.ExternalBaseUrl = ExternalUrlHelper.GetConfiguredBaseUrl();
                 return View(model);
             }
 
@@ -193,13 +195,15 @@ namespace AssetManagement.Web.Controllers
             var design = LabelLayoutDesignHelper.Deserialize(
                 model.LayoutDesignJson,
                 model.LabelPrinter.WidthMm,
-                model.LabelPrinter.HeightMm);
+                model.LabelPrinter.HeightMm,
+                model.LabelPrinter.QrMagnification);
 
             model.LabelPrinter.LayoutPreset = LabelPrinterSettingsHelper.LayoutCustom;
             model.LabelPrinter.LayoutDesignJson = LabelLayoutDesignHelper.Serialize(
                 design,
                 model.LabelPrinter.WidthMm,
-                model.LabelPrinter.HeightMm);
+                model.LabelPrinter.HeightMm,
+                model.LabelPrinter.QrMagnification);
 
             UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter, includeLayoutDesign: true);
             UnitOfWork.SaveChanges();

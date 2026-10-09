@@ -4,6 +4,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -160,9 +161,29 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Selected asset is not available for request.");
             }
 
-            if (asset.DepartmentId != model.DepartmentId.Value)
+            // rel1009g: in-store assets in descendant departments (classes/rooms under the chosen department) count too.
+            if (!DepartmentTreeHelper.IsSelfOrDescendant(asset.DepartmentId, model.DepartmentId.Value, LoadDepartmentParents()))
             {
-                throw new BusinessException("Selected asset does not belong to the chosen department.");
+                throw new BusinessException("Selected asset does not belong to the chosen department or one of its rooms.");
+            }
+
+            if (model.TargetKind == AssetRequestTargetKind.Room)
+            {
+                if (!model.TargetDepartmentId.HasValue)
+                {
+                    throw new BusinessException("Choose the room or class the asset should be delivered to.");
+                }
+
+                var target = _unitOfWork.Repository<Department>().GetById(model.TargetDepartmentId.Value);
+                if (target == null || !target.IsActive || !DepartmentTreeHelper.IsRoomTargetKind(target.DepartmentKind))
+                {
+                    throw new BusinessException("The delivery location must be an active room or class.");
+                }
+
+                if (!DepartmentTreeHelper.IsSelfOrDescendant(target.Id, model.DepartmentId.Value, LoadDepartmentParents()))
+                {
+                    throw new BusinessException("The delivery room must be in the chosen department.");
+                }
             }
 
             if (asset.CategoryId != model.CategoryId.Value)
@@ -282,7 +303,16 @@ namespace AssetManagement.Application.Services
 
             _segregationOfDuties.EnsureActorIsNotRequester(entity.RequestedById, fulfilledByUserId, ApprovalProcessCodes.AssetRequest);
             assignment.AssetId = assetId;
-            assignment.ToUserId = string.IsNullOrWhiteSpace(assignment.ToUserId) ? entity.RequestedById : assignment.ToUserId;
+            // A room target fulfilled as a department pool has no person; otherwise default to the requester.
+            var isPool = string.Equals(assignment.AssignmentType, AssignmentType.DepartmentPool.ToString(), StringComparison.OrdinalIgnoreCase);
+            if (isPool && !assignment.ToDepartmentId.HasValue)
+            {
+                throw new BusinessException("A pool fulfilment needs the delivery room.");
+            }
+
+            assignment.ToUserId = string.IsNullOrWhiteSpace(assignment.ToUserId)
+                ? (isPool ? null : entity.RequestedById)
+                : assignment.ToUserId;
 
             AssetAssignment createdAssignment = null;
             _unitOfWork.ExecuteInTransaction(() =>
@@ -386,6 +416,14 @@ namespace AssetManagement.Application.Services
                 Status = x.Status,
                 CreatedAt = x.CreatedAt
             });
+        }
+
+        private System.Collections.Generic.IDictionary<int, int?> LoadDepartmentParents()
+        {
+            return _unitOfWork.Repository<Department>().Query()
+                .Select(x => new { x.Id, x.ParentDepartmentId })
+                .ToList()
+                .ToDictionary(x => x.Id, x => x.ParentDepartmentId);
         }
 
         private static string NormalizeText(string value)

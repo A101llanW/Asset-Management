@@ -96,6 +96,28 @@ namespace AssetManagement.Tests.Helpers
         public void AssignDepartment(string userId, int? departmentId)
         {
         }
+
+        public void SetActive(string userId, bool isActive)
+        {
+            UserVm user;
+            if (!string.IsNullOrWhiteSpace(userId) && _users.TryGetValue(userId, out user))
+            {
+                user.IsActive = isActive;
+            }
+        }
+
+        public IList<KeyValuePair<string, int>> GetDeleteBlockers(string userId)
+        {
+            return new List<KeyValuePair<string, int>>();
+        }
+
+        public void Delete(string userId)
+        {
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                _users.Remove(userId);
+            }
+        }
     }
 
     internal class PermissiveMetricsService : IMetricsService
@@ -812,6 +834,49 @@ namespace AssetManagement.Tests.Helpers
                 })
                 .ToList();
         }
+
+        public AuditLogFilterVm LastPageFilter { get; private set; }
+
+        public bool LastPageBypass { get; private set; }
+
+        public AuditLogPageVm GetLogPage(
+            AuditLogFilterVm filter,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string actorUserId,
+            int skip,
+            int take)
+        {
+            LastPageFilter = filter;
+            LastPageBypass = bypassDepartmentScope;
+            var rows = _unitOfWork.Repository<AuditLog>().GetAll()
+                .Where(x => x.OrganizationId == organizationId)
+                .Where(x => filter == null || string.IsNullOrWhiteSpace(filter.Action) || x.Action == filter.Action)
+                .Where(x => filter == null || string.IsNullOrWhiteSpace(filter.EntityType) || x.EntityType == filter.EntityType)
+                .Where(x => (filter != null && filter.IncludePageViews) || !AuditLogFilterHelper.IsPageView(x.Action, x.NewValues))
+                .OrderByDescending(x => x.Timestamp)
+                .ThenByDescending(x => x.Id)
+                .ToList();
+            var page = new AuditLogPageVm { TotalCount = rows.Count };
+            foreach (var x in rows.Skip(skip).Take(take))
+            {
+                page.Items.Add(new AuditLogVm
+                {
+                    Id = x.Id,
+                    ActorUserId = x.ActorUserId,
+                    Action = x.Action,
+                    EntityType = x.EntityType,
+                    EntityId = x.EntityId,
+                    Timestamp = x.Timestamp,
+                    IPAddress = x.IPAddress,
+                    ActorDisplayName = x.ActorUserId
+                });
+            }
+
+            return page;
+        }
     }
 
     internal class FakeReferenceDataCache : IReferenceDataCache
@@ -846,6 +911,13 @@ namespace AssetManagement.Tests.Helpers
 
         public void InvalidateUsers(int organizationId)
         {
+        }
+
+        public int InvalidateCategoriesCalls { get; private set; }
+
+        public void InvalidateCategories(int organizationId)
+        {
+            InvalidateCategoriesCalls++;
         }
     }
 

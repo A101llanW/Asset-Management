@@ -95,20 +95,56 @@
             var source = byId[id] || {};
             var fallback = defaultPosition(id, widthMm, heightMm, uiState.qrMagnification);
 
+            var fontHeight = parseInt(source.FontHeight, 10) || (FIELD_META[id] ? FIELD_META[id].fontHeight : 0);
+            var size = elementSizeMm({ Id: id, FontHeight: fontHeight }, uiState.qrMagnification, null);
             elements.push({
                 Id: id,
                 Enabled: source.Enabled !== false,
-                XMm: clampPosition(source.XMm != null ? source.XMm : fallback.x, widthMm),
-                YMm: clampPosition(source.YMm != null ? source.YMm : fallback.y, heightMm),
-                FontHeight: source.FontHeight || (FIELD_META[id] ? FIELD_META[id].fontHeight : 0)
+                XMm: clampAxis(toMm(source.XMm, fallback.x), size.w, widthMm),
+                YMm: clampAxis(toMm(source.YMm, fallback.y), size.h, heightMm),
+                FontHeight: fontHeight
             });
         }
 
         return { Elements: elements };
     }
 
+    function toMm(value, fallback) {
+        var parsed = parseFloat(value);
+        return isFinite(parsed) ? parsed : fallback;
+    }
+
+    // Element footprint in label millimetres. The QR is square (from the magnification); text uses its measured
+    // box when rendered (offsetWidth is not affected by the canvas CSS transform), else an estimate.
+    function elementSizeMm(element, qrMagnification, node) {
+        if (element.Id === 'ScanCode') {
+            var qr = estimateQrSizeMm(qrMagnification);
+            return { w: qr, h: qr };
+        }
+
+        if (node && node.offsetWidth) {
+            return { w: node.offsetWidth / MM_PX, h: node.offsetHeight / MM_PX };
+        }
+
+        var meta = FIELD_META[element.Id] || { sample: '' };
+        var fontMm = fontHeightToMm(element.FontHeight || meta.fontHeight || 14);
+        var chars = (meta.sample || '').length || 6;
+        return { w: Math.max(4, chars * fontMm * 0.6), h: fontMm * 1.15 };
+    }
+
+    // Keeps the whole element inside the printable area (margin to label edge minus the element size).
+    // When the element is larger than the area it is pinned to the top/left margin.
+    function clampAxis(value, sizeMm, totalMm) {
+        var max = totalMm - MARGIN_MM - (sizeMm || 0);
+        if (max < MARGIN_MM) {
+            max = MARGIN_MM;
+        }
+
+        return clamp(isFinite(value) ? value : MARGIN_MM, MARGIN_MM, max);
+    }
+
     function clampPosition(value, maxMm) {
-        return clamp(value, MARGIN_MM, Math.max(MARGIN_MM, maxMm - MARGIN_MM));
+        return clampAxis(value, 0, maxMm);
     }
 
     function clamp(value, min, max) {
@@ -282,6 +318,13 @@
 
             bindDrag(node, element, canvas, dimensions);
             canvas.appendChild(node);
+
+            // Second pass with the real rendered size so long text cannot run off the label either.
+            var measured = elementSizeMm(element, qrMagnification, node);
+            element.XMm = clampAxis(element.XMm, measured.w, dimensions.widthMm);
+            element.YMm = clampAxis(element.YMm, measured.h, dimensions.heightMm);
+            node.style.left = element.XMm + 'mm';
+            node.style.top = element.YMm + 'mm';
         }
     }
 
@@ -307,8 +350,11 @@
 
     function renderSampleCode(container, scanUrl, barcodePayload, codeType, qrSizeMm, canvas, dimensions) {
         container.innerHTML = '';
-        var pxPerMm = getPxPerMm(canvas, dimensions.widthMm);
-        var qrPx = Math.max(32, Math.round(qrSizeMm * pxPerMm));
+        // The canvas is laid out in CSS mm and then enlarged with transform: scale(displayScale).
+        // getBoundingClientRect() already includes that scale, so sizing the QR from it drew the code
+        // displayScale times too large, far outside the label (rel1009g). Render at the on-screen
+        // resolution for sharpness; the CSS keeps the image inside its qrSizeMm host box.
+        var qrPx = Math.max(64, Math.round(qrSizeMm * MM_PX * (uiState.displayScale || 1)));
 
         if (codeType === 'Barcode') {
             if (!window.JsBarcode || !barcodePayload) {
@@ -351,7 +397,8 @@
                 startX: clientX,
                 startY: clientY,
                 originXMm: element.XMm,
-                originYMm: element.YMm
+                originYMm: element.YMm,
+                sizeMm: elementSizeMm(element, uiState.qrMagnification, node)
             };
             node.classList.add('am-label-designer-item--dragging');
         }
@@ -384,8 +431,8 @@
         var deltaX = (clientX - dragState.startX) / pxPerMm;
         var deltaY = (clientY - dragState.startY) / pxPerMm;
 
-        dragState.element.XMm = clampPosition(dragState.originXMm + deltaX, dragState.dimensions.widthMm);
-        dragState.element.YMm = clampPosition(dragState.originYMm + deltaY, dragState.dimensions.heightMm);
+        dragState.element.XMm = clampAxis(dragState.originXMm + deltaX, dragState.sizeMm.w, dragState.dimensions.widthMm);
+        dragState.element.YMm = clampAxis(dragState.originYMm + deltaY, dragState.sizeMm.h, dragState.dimensions.heightMm);
         dragState.node.style.left = dragState.element.XMm + 'mm';
         dragState.node.style.top = dragState.element.YMm + 'mm';
     }
@@ -410,8 +457,8 @@
 
         dragState.element.XMm = snapMm(dragState.element.XMm);
         dragState.element.YMm = snapMm(dragState.element.YMm);
-        dragState.element.XMm = clampPosition(dragState.element.XMm, dragState.dimensions.widthMm);
-        dragState.element.YMm = clampPosition(dragState.element.YMm, dragState.dimensions.heightMm);
+        dragState.element.XMm = clampAxis(dragState.element.XMm, dragState.sizeMm.w, dragState.dimensions.widthMm);
+        dragState.element.YMm = clampAxis(dragState.element.YMm, dragState.sizeMm.h, dragState.dimensions.heightMm);
         dragState.node.style.left = dragState.element.XMm + 'mm';
         dragState.node.style.top = dragState.element.YMm + 'mm';
         dragState.node.classList.remove('am-label-designer-item--dragging');
@@ -648,7 +695,8 @@
             assetName: root.getAttribute('data-sample-name') || 'Sample asset',
             departmentName: root.getAttribute('data-sample-dept') || 'Department',
             serialNumber: 'S/N: ' + (root.getAttribute('data-sample-serial') || 'SN-123456'),
-            scanUrl: root.getAttribute('data-sample-scan-url') || (window.location.protocol + '//' + window.location.host + '/nanosoft/AssetScan/Lookup?code=AST-1001'),
+            // rel1009g: the server builds the scan URL (ExternalBaseUrl + app path + org code); no hard-coded tenant fallback.
+            scanUrl: root.getAttribute('data-sample-scan-url') || '',
             barcodePayload: root.getAttribute('data-sample-tag') || 'AST-1001'
         };
 
@@ -747,6 +795,8 @@
     window.LabelDesigner = {
         init: init,
         estimateQrSizeMm: estimateQrSizeMm,
-        marginMm: MARGIN_MM
+        marginMm: MARGIN_MM,
+        clampAxis: clampAxis,
+        normalizeDesign: normalizeDesign
     };
 })(window);

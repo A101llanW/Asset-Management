@@ -125,6 +125,10 @@ namespace AssetManagement.Application.Helpers
 
                 { "Users.PasswordChanged", "User password changed" },
 
+                { "Account.LoginSucceeded", "Signed in" },
+
+                { "Account.LoginFailed", "Sign-in failed" },
+
                 { "Security.InvalidateAllSessions", "All user sessions invalidated" },
 
                 { "Roles.Create", "Role created" },

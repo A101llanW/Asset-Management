@@ -25,8 +25,9 @@ namespace AssetManagement.Web.Helpers
                 relative = urlHelper.Action("Lookup", "AssetScan", new { code = assetTag.Trim() });
             }
 
-            var requestAuthority = request.Url != null ? request.Url.GetLeftPart(UriPartial.Authority) : null;
-            var baseUrl = AssetManagement.Application.Helpers.AssetScanUrlHelper.ResolveBaseUrl(externalBaseUrl, requestAuthority);
+            // rel1009g: configured ExternalBaseUrl (+ app path) unless it is localhost and the request is not.
+            var configured = string.IsNullOrWhiteSpace(externalBaseUrl) ? ExternalUrlHelper.GetConfiguredBaseUrl() : externalBaseUrl;
+            var baseUrl = AssetManagement.Application.Helpers.AssetScanUrlHelper.ResolveBaseUrl(configured, request.Url, request.ApplicationPath);
             if (!string.IsNullOrWhiteSpace(baseUrl))
             {
                 return AppPathHelper.CombineBaseAndAppRelative(baseUrl, relative);

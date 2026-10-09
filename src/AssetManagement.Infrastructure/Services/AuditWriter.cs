@@ -193,10 +193,16 @@ namespace AssetManagement.Infrastructure.Services
             return null;
         }
 
-        private static bool ShouldWriteAuditSynchronously()
+        /// <summary>
+        /// Audit rows are written synchronously in the web app by default (rel1009g): the outbox path needs the
+        /// AssetManagement.Runner outbox-worker, which is not deployed, so queued audit rows never reached AuditLog.
+        /// SyncAuditWrites is no longer needed; queueing happens only when AuditWritesViaOutbox="true" is set
+        /// explicitly (for a deployment that really runs the worker).
+        /// </summary>
+        public static bool ShouldWriteAuditSynchronously()
         {
-            var setting = ConfigurationManager.AppSettings["SyncAuditWrites"];
-            return setting != null && setting.Equals("true", StringComparison.OrdinalIgnoreCase);
+            var viaOutbox = ConfigurationManager.AppSettings["AuditWritesViaOutbox"];
+            return viaOutbox == null || !viaOutbox.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

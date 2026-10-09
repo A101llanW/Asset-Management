@@ -96,7 +96,7 @@
                          data-sample-name="@Model.SampleAssetName"
                          data-sample-dept="@Model.SampleDepartmentName"
                          data-sample-serial="@Model.SampleSerialNumber"
-                         data-sample-scan-url="@AssetQrUrlHelper.BuildScanUrl(Request, Url, "AST-1001")">
+                         data-sample-scan-url="@AssetQrUrlHelper.BuildScanUrl(Request, Url, "AST-1001", externalBaseUrl: Model.ExternalBaseUrl)">
                         <div class="am-label-designer-fields mb-3" id="labelDesignerFields"></div>
                         <p class="am-label-designer-canvas-meta text-muted small mb-2" id="labelDesignerMeta"></p>
                         <div class="am-label-designer-canvas-wrap">
@@ -122,7 +122,7 @@
 @section scripts {
     <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
     <script src="@Url.Content("~/Scripts/vendor/jsbarcode.all.min.js")"></script>
-    <script src="@Url.Content("~/Scripts/app/label-designer.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/label-designer.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/label-designer.js")).Ticks"></script>
     <script>
         (function () {
             if (window.LabelDesigner) {

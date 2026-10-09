@@ -110,6 +110,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<MetricsService>().As<IMetricsService>().InstancePerHttpRequest();
             builder.RegisterType<PendingApprovalQueryService>().As<IPendingApprovalQueryService>().InstancePerHttpRequest();
             builder.RegisterType<NotificationService>().As<INotificationService>().InstancePerHttpRequest();
+            builder.RegisterType<AssetManagement.Infrastructure.Identity.UserLifecycleRepository>().As<IUserLifecycleStore>().InstancePerHttpRequest();
             builder.RegisterType<UserService>().As<IUserService>().InstancePerHttpRequest();
             builder.RegisterType<ApprovalWorkflowService>().As<IApprovalWorkflowService>().InstancePerHttpRequest();
             builder.RegisterType<ApprovalWorkflowEngine>().As<IApprovalWorkflowEngine>().InstancePerHttpRequest();

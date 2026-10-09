@@ -54,7 +54,10 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             _platformSettings.SetSetting("FromName", model.FromName, "Outbound from display name");
             _platformSettings.SetSetting("ExternalBaseUrl", model.ExternalBaseUrl, "Public site base URL for password reset links");
 
-            TempData["Message"] = "Email settings saved.";
+            var urlWarning = AssetManagement.Application.Helpers.ExternalBaseUrlValidator.Validate(
+                model.ExternalBaseUrl,
+                Request == null ? null : Request.ApplicationPath);
+            TempData["Message"] = urlWarning == null ? "Email settings saved." : "Email settings saved. Warning: " + urlWarning;
             return RedirectToAction("Email");
         }
 

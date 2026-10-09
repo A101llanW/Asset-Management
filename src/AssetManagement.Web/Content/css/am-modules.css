@@ -380,3 +380,69 @@
         width: 100%;
     }
 }
+
+/* Label designer canvas (rel1009g). These rules were never committed, so items had no absolute positioning, the
+   scaled canvas grew from its centre (default transform-origin) and the QR spilled far outside the label. */
+.am-label-designer-canvas-wrap {
+    max-width: 100%;
+    overflow: auto;
+    padding: 12px;
+    background: #eef1f5;
+    border: 1px solid #d5dbe3;
+    border-radius: 8px;
+}
+
+.am-label-designer-canvas-scaler {
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+}
+
+.am-label-designer-canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 0 0 0.2mm #8a94a6;
+    box-sizing: border-box;
+}
+
+.am-label-designer-margin-guide {
+    position: absolute;
+    box-sizing: border-box;
+    border: 0.15mm dashed rgba(37, 99, 235, 0.45);
+    pointer-events: none;
+}
+
+.am-label-designer-item {
+    position: absolute;
+    white-space: nowrap;
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+    color: #111;
+    outline: 0.15mm dashed transparent;
+}
+
+.am-label-designer-item:hover,
+.am-label-designer-item--dragging {
+    outline-color: #2563eb;
+    z-index: 2;
+}
+
+.am-label-designer-code-host {
+    position: relative;
+    overflow: hidden;
+    line-height: 0;
+}
+
+.am-label-designer-code-host canvas,
+.am-label-designer-code-host img,
+.am-label-designer-code-host svg {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
+}

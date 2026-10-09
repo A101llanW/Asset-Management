@@ -3,7 +3,7 @@
 -- =============================================================================
 -- PURPOSE: READ-ONLY / SELECT-only checks for the SuperAdmin / Platform Admin
 --          login path before publishing SoT (9dc7a7e+) to live
---          https://nanosoft.africa/NanoAssetSuit.
+--          https://nanosoft.africa/NanoAssetSuite.
 --
 -- SAFE FOR: DataConsole / SSMS / sqlcmd on LIVE or local DB.
 -- DO-NOT-MODIFY DB: this file contains SELECT / metadata queries ONLY.
@@ -11,7 +11,7 @@
 --
 -- HOW TO USE (Allan / DataConsole):
 --   1. Open /Sys/Database (or SSMS) against the LIVE database that
---      /NanoAssetSuit uses.
+--      /NanoAssetSuite uses.
 --   2. Paste and run this entire script (or section by section).
 --   3. Every check row should show Status = PRESENT / OK.
 --   4. If any Status = MISSING, apply the named migration (schema-only)
@@ -288,7 +288,7 @@ PRINT N'  MfaAllowAnyCode     : live HTML currently shows MFA any-code banner (t
 PRINT N'                       SoT default is false. PRESERVE live true OR ensure SMTP works,';
 PRINT N'                       else SuperAdmin MFA send fails after publish.';
 PRINT N'  SmtpHost/User/Pass  : required when MfaAllowAnyCode=false.';
-PRINT N'  ExternalBaseUrl     : should be https://nanosoft.africa/NanoAssetSuit (email/QR links).';
+PRINT N'  ExternalBaseUrl     : should be https://nanosoft.africa/NanoAssetSuite (email/QR links).';
 PRINT N'                       Does not block login itself.';
 PRINT N'  DatabaseConsoleAllowedIps : new in Phase B; defaults to 127.0.0.1,::1 if unset.';
 PRINT N'                       Only affects /Sys/Database, not login.';

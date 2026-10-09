@@ -55,8 +55,9 @@ namespace AssetManagement.Web.Controllers
 
         protected string ResolveApplicationBaseUrl()
         {
+            // rel1009g: same rule as every absolute URL (ExternalBaseUrl + app path, request when config is localhost).
             return Request != null && Request.Url != null
-                ? Request.Url.GetLeftPart(UriPartial.Authority) + AppPathHelper.NormalizeBasePath(Request.ApplicationPath)
+                ? ExternalUrlHelper.GetBaseUri(Request).ToString().TrimEnd('/')
                 : null;
         }
 
@@ -386,32 +387,17 @@ namespace AssetManagement.Web.Controllers
 
         protected SelectList BuildRequisitionDepartmentSelectList(int? selectedDepartmentId = null)
         {
-            var items = new List<SelectListItem>();
-            foreach (var section in BuildDepartmentService().GetTreeSections())
-            {
-                foreach (var parent in section.Items)
+            // rel1009g: full-depth tree (Grade > Class, Admin > Sub > Room, ...) with "Parent > Child" labels; the
+            // two-level version dropped every requisition target below the second level (also the Browse-assets modal).
+            var items = AssetManagement.Application.Helpers.DepartmentTreeHelper
+                .BuildRequisitionOptions(BuildDepartmentService().GetAll().Where(x => x.IsActive))
+                .Select(x => new SelectListItem
                 {
-                    if (parent.IsRequisitionTarget)
-                    {
-                        items.Add(new SelectListItem
-                        {
-                            Value = parent.Id.ToString(),
-                            Text = parent.Name,
-                            Selected = selectedDepartmentId.HasValue && parent.Id == selectedDepartmentId.Value
-                        });
-                    }
-
-                    foreach (var child in parent.Children.Where(x => x.IsRequisitionTarget))
-                    {
-                        items.Add(new SelectListItem
-                        {
-                            Value = child.Id.ToString(),
-                            Text = parent.Name + " \u2192 " + child.Name,
-                            Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
-                        });
-                    }
-                }
-            }
+                    Value = x.Key.ToString(),
+                    Text = x.Value,
+                    Selected = selectedDepartmentId.HasValue && x.Key == selectedDepartmentId.Value
+                })
+                .ToList();
 
             return new SelectList(items, "Value", "Text", selectedDepartmentId);
         }

@@ -44,7 +44,9 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
             var page = _securityLogService == null
                 ? new SecurityLogsPageVm { Filter = filter ?? new SecurityLogFilterVm() }
                 : _securityLogService.GetLogs(filter ?? new SecurityLogFilterVm(), true);
-            var baseUrl = Request != null && Request.Url != null ? Request.Url.GetLeftPart(System.UriPartial.Authority) : null;
+            var baseUrl = Request != null && Request.Url != null
+                ? AssetManagement.Web.Helpers.ExternalUrlHelper.GetBaseUri(Request).ToString().TrimEnd('/')
+                : null;
             var html = _exportService == null ? "<html><body>No data</body></html>" : _exportService.ExportHtml(page, baseUrl);
             return Content(html, "text/html");
         }

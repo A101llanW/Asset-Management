@@ -2,11 +2,14 @@
 @{
     ViewBag.Title = "Create User";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+    var roles = ViewBag.Roles as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
+    var departments = ViewBag.Departments as IEnumerable<SelectListItem> ?? new List<SelectListItem>();
+    var departmentRequired = ViewBag.DepartmentRequired is bool && (bool)ViewBag.DepartmentRequired;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Create User",
-    Subtitle = "Set up a person, then open their profile to assign department and role.",
+    Subtitle = "Set up a person with their department and role.",
     BackUrl = returnUrl,
     BackLabel = "Back",
     Breadcrumbs = new[]
@@ -26,7 +29,17 @@
         <div class="col-md-3"><label class="form-label">First Name</label>@Html.TextBoxFor(m => m.FirstName, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Last Name</label>@Html.TextBoxFor(m => m.LastName, new { @class = "form-control" })</div>
         <div class="col-md-3"><label class="form-label">Phone</label>@Html.TextBoxFor(m => m.Phone, new { @class = "form-control" })</div>
-        <div class="col-md-3"><label class="form-label">Position Title</label>@Html.TextBoxFor(m => m.PositionTitle, new { @class = "form-control" })</div>
+        <div class="col-md-4">
+            <label class="form-label" for="DepartmentId">Department@(departmentRequired ? "" : " (optional)")</label>
+            @Html.DropDownListFor(m => m.DepartmentId, departments, departmentRequired ? "Select department (Company Admin only without one)" : "No department", new { @class = "form-select" })
+            @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger small" })
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="RoleId">Role / position</label>
+            @Html.DropDownListFor(m => m.RoleId, roles, "Select role", new { @class = "form-select", required = "required", data_roles_url = Url.Action("RolesForDepartment") })
+            <div class="form-text"><span id="am-invite-role-status" aria-live="polite"></span> Only active roles you may grant that apply in the chosen department are listed. The position title is set from the role.</div>
+            @Html.ValidationMessageFor(m => m.RoleId, "", new { @class = "text-danger small" })
+        </div>
         <div class="col-md-4"><label class="form-label">Password</label>@Html.PasswordFieldFor(m => m.Password)</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
@@ -35,4 +48,8 @@
         BackUrl = returnUrl,
         BackLabel = "Back"
     })
+}
+
+@section scripts {
+    <script src="@Url.Content("~/Scripts/app/invite-create.js")"></script>
 }

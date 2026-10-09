@@ -180,6 +180,61 @@ WHERE al.[OrganizationId] = @OrganizationId" + FilterSql + @"
       )
 OPTION (LOOP JOIN, MAXDOP 1)";
 
+        // Audit Logs page (rel1009g): AuditLog rows (HTTP GET page views hidden unless @IncludePageViews = 1)
+        // merged with LoginAttempts sign-in rows (negative ids), actor resolved from Users, paged in SQL.
+        private const string PageSourceSql = @"
+WITH src AS (
+    SELECT al.[Id], al.[ActorUserId], al.[Action], al.[EntityType], al.[EntityId], al.[Timestamp], al.[IPAddress]
+    FROM [AuditLog] al
+    WHERE al.[OrganizationId] = @OrganizationId" + FilterSql + @"
+      AND (@IncludePageViews = 1 OR NOT (al.[Action] LIKE N'HTTP.%' AND al.[NewValues] LIKE N'VIEW:%'))
+      AND (
+            @BypassDepartmentScope = 1
+            OR al.[ActorUserId] = @ActorUserId
+            OR @DenyDepartmentScope = 0
+            OR (
+                al.[EntityType] = N'Asset'
+                AND EXISTS (
+                    SELECT 1
+                    FROM [Asset] a
+                    WHERE a.[Id] = TRY_CAST(al.[EntityId] AS int)
+                      AND a.[OrganizationId] = @OrganizationId
+                      AND a.[IsActive] = 1
+                      AND a.[DepartmentId] = @DepartmentId
+                )
+            )
+          )
+    UNION ALL
+    SELECT -la.[Id], la.[Username],
+           CASE WHEN la.[Success] = 1 THEN N'Account.LoginSucceeded' ELSE N'Account.LoginFailed' END,
+           N'Account', la.[FailureReason], la.[AttemptedAtUtc], la.[IpAddress]
+    FROM [LoginAttempts] la
+    WHERE @IncludeLogins = 1
+      AND @BypassDepartmentScope = 1
+      AND la.[OrganizationId] = @OrganizationId
+      AND (@EntityType IS NULL OR @EntityType = N'Account')
+      AND (@Action IS NULL OR @Action = CASE WHEN la.[Success] = 1 THEN N'Account.LoginSucceeded' ELSE N'Account.LoginFailed' END)
+      AND (@FromDate IS NULL OR la.[AttemptedAtUtc] >= @FromDate)
+      AND (@ToDate IS NULL OR la.[AttemptedAtUtc] < @ToDate)
+), rows AS (
+    SELECT src.[Id], src.[ActorUserId], src.[Action], src.[EntityType], src.[EntityId], src.[Timestamp], src.[IPAddress],
+           u.[FirstName], u.[LastName], u.[Email]
+    FROM src
+    LEFT JOIN [Users] u ON u.[Id] = src.[ActorUserId]
+    WHERE @ActorLike IS NULL
+       OR src.[ActorUserId] LIKE @ActorLike
+       OR u.[Email] LIKE @ActorLike
+       OR (ISNULL(u.[FirstName], N'') + N' ' + ISNULL(u.[LastName], N'')) LIKE @ActorLike
+)";
+
+        private const string PageSql = PageSourceSql + @"
+SELECT COUNT(*) FROM rows;
+" + PageSourceSql + @"
+SELECT [Id], [ActorUserId], [Action], [EntityType], [EntityId], [Timestamp], [IPAddress], [FirstName], [LastName], [Email]
+FROM rows
+ORDER BY [Timestamp] DESC, [Id] DESC
+OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;";
+
         private readonly ISqlConnectionFactory _connectionFactory;
 
         public AuditLogQueryRepository(ISqlConnectionFactory connectionFactory)
@@ -268,6 +323,73 @@ OPTION (LOOP JOIN, MAXDOP 1)";
                 .OrderByDescending(x => x.Timestamp)
                 .ThenByDescending(x => x.Id)
                 .ToList();
+        }
+
+        public AuditLogPageVm GetLogPage(
+            AuditLogFilterVm filter,
+            int organizationId,
+            int? departmentId,
+            bool bypassDepartmentScope,
+            bool denyDepartmentScope,
+            string actorUserId,
+            int skip,
+            int take)
+        {
+            filter = filter ?? new AuditLogFilterVm();
+            var result = new AuditLogPageVm();
+            using (var connection = _connectionFactory.CreateConnection())
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = PageSql;
+                    command.CommandTimeout = 60;
+                    SqlQueryHelper.AddParameter(command, "@OrganizationId", organizationId);
+                    SqlQueryHelper.AddDepartmentScopeParameters(command, bypassDepartmentScope, denyDepartmentScope, departmentId);
+                    SqlQueryHelper.AddParameter(command, "@ActorUserId",
+                        string.IsNullOrWhiteSpace(actorUserId) ? (object)DBNull.Value : actorUserId.Trim());
+                    AddFilterParameters(command, filter);
+                    SqlQueryHelper.AddParameter(command, "@IncludePageViews", filter.IncludePageViews ? 1 : 0);
+                    SqlQueryHelper.AddParameter(command, "@IncludeLogins", filter.HideLogins ? 0 : 1);
+                    SqlQueryHelper.AddParameter(command, "@ActorLike",
+                        string.IsNullOrWhiteSpace(filter.Actor) ? (object)DBNull.Value : "%" + filter.Actor.Trim() + "%");
+                    SqlQueryHelper.AddParameter(command, "@Skip", skip < 0 ? 0 : skip);
+                    SqlQueryHelper.AddParameter(command, "@Take", take <= 0 ? AuditLogFilterHelper.DefaultPageSize : take);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            result.TotalCount = Convert.ToInt32(reader[0]);
+                        }
+
+                        if (reader.NextResult())
+                        {
+                            while (reader.Read())
+                            {
+                                var actor = SqlQueryHelper.GetString(reader, "ActorUserId");
+                                result.Items.Add(new AuditLogVm
+                                {
+                                    Id = Convert.ToInt32(reader["Id"]),
+                                    ActorUserId = actor,
+                                    Action = SqlQueryHelper.GetString(reader, "Action"),
+                                    EntityType = SqlQueryHelper.GetString(reader, "EntityType"),
+                                    EntityId = SqlQueryHelper.GetString(reader, "EntityId"),
+                                    Timestamp = Convert.ToDateTime(reader["Timestamp"]),
+                                    IPAddress = SqlQueryHelper.GetString(reader, "IPAddress"),
+                                    ActorDisplayName = AuditLogFilterHelper.FormatActor(
+                                        actor,
+                                        SqlQueryHelper.GetString(reader, "FirstName"),
+                                        SqlQueryHelper.GetString(reader, "LastName"),
+                                        SqlQueryHelper.GetString(reader, "Email"))
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         private static void AddFilterParameters(IDbCommand command, AuditLogFilterVm filter)

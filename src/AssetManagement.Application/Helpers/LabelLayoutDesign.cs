@@ -26,6 +26,9 @@ namespace AssetManagement.Application.Helpers
     public static class LabelLayoutDesignHelper
     {
         public const int DefaultMarginMm = 2;
+        public const decimal DefaultQrMagnification = 3m;
+        /// <summary>Smallest part of a text element that must stay on the label when clamping its left edge.</summary>
+        public const double MinVisibleTextWidthMm = 4d;
         private const int DotsPerMm = 8;
 
         public const string ScanCodeId = "ScanCode";
@@ -56,6 +59,15 @@ namespace AssetManagement.Application.Helpers
 
         public static LabelLayoutDesign Normalize(LabelLayoutDesign design, int widthMm, int heightMm)
         {
+            return Normalize(design, widthMm, heightMm, DefaultQrMagnification);
+        }
+
+        /// <summary>
+        /// Rebuilds the five elements in canonical order and clamps each one so its whole footprint (QR square from
+        /// the magnification, text line height from the font) stays inside the margin box (rel1009g).
+        /// </summary>
+        public static LabelLayoutDesign Normalize(LabelLayoutDesign design, int widthMm, int heightMm, decimal qrMagnification)
+        {
             design = design ?? new LabelLayoutDesign();
             var byId = design.Elements
                 .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Id))
@@ -69,11 +81,11 @@ namespace AssetManagement.Application.Helpers
                 LabelLayoutElement element;
                 if (byId.TryGetValue(id, out element))
                 {
-                    normalized.Elements.Add(NormalizeElement(element, id, widthMm, heightMm));
+                    normalized.Elements.Add(NormalizeElement(element, id, widthMm, heightMm, qrMagnification));
                 }
                 else
                 {
-                    normalized.Elements.Add(CreateDefaultElement(id, widthMm, heightMm));
+                    normalized.Elements.Add(CreateDefaultElement(id, widthMm, heightMm, qrMagnification));
                 }
             }
 
@@ -82,11 +94,21 @@ namespace AssetManagement.Application.Helpers
 
         public static string Serialize(LabelLayoutDesign design, int widthMm, int heightMm)
         {
-            design = Normalize(design, widthMm, heightMm);
+            return Serialize(design, widthMm, heightMm, DefaultQrMagnification);
+        }
+
+        public static string Serialize(LabelLayoutDesign design, int widthMm, int heightMm, decimal qrMagnification)
+        {
+            design = Normalize(design, widthMm, heightMm, qrMagnification);
             return new JavaScriptSerializer().Serialize(design);
         }
 
         public static LabelLayoutDesign Deserialize(string json, int widthMm, int heightMm)
+        {
+            return Deserialize(json, widthMm, heightMm, DefaultQrMagnification);
+        }
+
+        public static LabelLayoutDesign Deserialize(string json, int widthMm, int heightMm, decimal qrMagnification)
         {
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -96,7 +118,7 @@ namespace AssetManagement.Application.Helpers
             try
             {
                 var design = new JavaScriptSerializer().Deserialize<LabelLayoutDesign>(json);
-                return Normalize(design, widthMm, heightMm);
+                return Normalize(design, widthMm, heightMm, qrMagnification);
             }
             catch (ArgumentException)
             {
@@ -169,6 +191,11 @@ namespace AssetManagement.Application.Helpers
 
         private static LabelLayoutElement CreateDefaultElement(string id, int widthMm, int heightMm)
         {
+            return CreateDefaultElement(id, widthMm, heightMm, DefaultQrMagnification);
+        }
+
+        private static LabelLayoutElement CreateDefaultElement(string id, int widthMm, int heightMm, decimal qrMagnification)
+        {
             var element = new LabelLayoutElement
             {
                 Id = id,
@@ -214,12 +241,12 @@ namespace AssetManagement.Application.Helpers
                 element.Enabled = heightMm >= 34;
             }
 
-            return ClampElement(element, widthMm, heightMm);
+            return ClampElement(element, widthMm, heightMm, qrMagnification);
         }
 
-        private static LabelLayoutElement NormalizeElement(LabelLayoutElement source, string id, int widthMm, int heightMm)
+        private static LabelLayoutElement NormalizeElement(LabelLayoutElement source, string id, int widthMm, int heightMm, decimal qrMagnification)
         {
-            var defaults = CreateDefaultElement(id, widthMm, heightMm);
+            var defaults = CreateDefaultElement(id, widthMm, heightMm, qrMagnification);
             var element = new LabelLayoutElement
             {
                 Id = id,
@@ -229,13 +256,43 @@ namespace AssetManagement.Application.Helpers
                 FontHeight = source.FontHeight > 0 ? source.FontHeight : defaults.FontHeight
             };
 
-            return ClampElement(element, widthMm, heightMm);
+            return ClampElement(element, widthMm, heightMm, qrMagnification);
         }
 
-        private static LabelLayoutElement ClampElement(LabelLayoutElement element, int widthMm, int heightMm)
+        /// <summary>Footprint used for clamping: the QR square, or a text line (minimum visible width x line height).</summary>
+        public static void GetElementFootprintMm(LabelLayoutElement element, decimal qrMagnification, out double widthMm, out double heightMm)
         {
-            element.XMm = Clamp(element.XMm, DefaultMarginMm, Math.Max(DefaultMarginMm, widthMm - DefaultMarginMm));
-            element.YMm = Clamp(element.YMm, DefaultMarginMm, Math.Max(DefaultMarginMm, heightMm - DefaultMarginMm));
+            if (element != null && string.Equals(element.Id, ScanCodeId, StringComparison.OrdinalIgnoreCase))
+            {
+                var magnification = (int)Math.Round(qrMagnification <= 0 ? DefaultQrMagnification : qrMagnification, MidpointRounding.AwayFromZero);
+                var qr = EstimateQrSizeMm(magnification);
+                widthMm = qr;
+                heightMm = qr;
+                return;
+            }
+
+            var fontDots = element != null && element.FontHeight > 0 ? element.FontHeight : 14;
+            widthMm = MinVisibleTextWidthMm;
+            heightMm = (fontDots / (double)DotsPerMm) * 1.15d;
+        }
+
+        private static LabelLayoutElement ClampElement(LabelLayoutElement element, int widthMm, int heightMm, decimal qrMagnification)
+        {
+            double footprintW;
+            double footprintH;
+            GetElementFootprintMm(element, qrMagnification, out footprintW, out footprintH);
+            if (double.IsNaN(element.XMm) || double.IsInfinity(element.XMm))
+            {
+                element.XMm = DefaultMarginMm;
+            }
+
+            if (double.IsNaN(element.YMm) || double.IsInfinity(element.YMm))
+            {
+                element.YMm = DefaultMarginMm;
+            }
+
+            element.XMm = Clamp(element.XMm, DefaultMarginMm, Math.Max(DefaultMarginMm, widthMm - DefaultMarginMm - footprintW));
+            element.YMm = Clamp(element.YMm, DefaultMarginMm, Math.Max(DefaultMarginMm, heightMm - DefaultMarginMm - footprintH));
             return element;
         }
 

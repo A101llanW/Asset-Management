@@ -75,8 +75,8 @@ namespace AssetManagement.Application.Helpers
                 throw new ArgumentException("Template name is required.");
             }
 
-            var design = LabelLayoutDesignHelper.Deserialize(layoutDesignJson, widthMm, heightMm);
-            var serializedDesign = LabelLayoutDesignHelper.Serialize(design, widthMm, heightMm);
+            var design = LabelLayoutDesignHelper.Deserialize(layoutDesignJson, widthMm, heightMm, qrMagnification);
+            var serializedDesign = LabelLayoutDesignHelper.Serialize(design, widthMm, heightMm, qrMagnification);
             var now = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
 
             LabelLayoutTemplate existing = null;

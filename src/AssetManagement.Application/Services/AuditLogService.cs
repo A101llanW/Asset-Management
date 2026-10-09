@@ -32,6 +32,17 @@ namespace AssetManagement.Application.Services
             return QueryLogs(filter);
         }
 
+        public AuditLogPageVm GetLogPage(AuditLogFilterVm filter)
+        {
+            filter = filter ?? new AuditLogFilterVm();
+            var page = AuditLogFilterHelper.NormalizePage(filter.Page);
+            var pageSize = AuditLogFilterHelper.NormalizePageSize(filter.PageSize);
+            var result = QueryPage(filter, (page - 1) * pageSize, pageSize);
+            result.Page = page;
+            result.PageSize = pageSize;
+            return result;
+        }
+
         public byte[] ExportCsv(AuditLogFilterVm filter)
         {
             var rows = new List<string[]>
@@ -39,12 +50,15 @@ namespace AssetManagement.Application.Services
                 new[] { "Timestamp (EAT)", "ActorUserId", "Action", "EntityType", "EntityId", "IPAddress" }
             };
 
-            foreach (var log in QueryLogs(filter))
+            var exportRows = filter != null && !filter.RelatedAssetId.HasValue && filter.OrganizationWide
+                ? QueryPage(filter, 0, AuditLogFilterHelper.MaxExportRows).Items
+                : QueryLogs(filter);
+            foreach (var log in exportRows)
             {
                 rows.Add(new[]
                 {
                     KenyaTimeHelper.FormatUtc(log.Timestamp),
-                    log.ActorUserId ?? string.Empty,
+                    string.IsNullOrWhiteSpace(log.ActorDisplayName) ? (log.ActorUserId ?? string.Empty) : log.ActorDisplayName,
                     log.ActionLabel ?? log.Action ?? string.Empty,
                     log.EntityTypeLabel ?? log.EntityType ?? string.Empty,
                     log.EntityId ?? string.Empty,
@@ -53,6 +67,42 @@ namespace AssetManagement.Application.Services
             }
 
             return CsvExportHelper.ToUtf8Bytes(rows);
+        }
+
+        private AuditLogPageVm QueryPage(AuditLogFilterVm filter, int skip, int take)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            if (!organizationId.HasValue)
+            {
+                return new AuditLogPageVm();
+            }
+
+            // Users who hold AuditLogs.View (the controller sets OrganizationWide) read the whole organization.
+            var bypassDepartmentScope = filter.OrganizationWide || _departmentScope.BypassesDepartmentScope;
+            int? departmentId = null;
+            var denyDepartmentScope = false;
+            if (!bypassDepartmentScope)
+            {
+                departmentId = _departmentScope.ScopedDepartmentId;
+                denyDepartmentScope = !departmentId.HasValue;
+            }
+
+            var actorId = _currentUser == null ? null : _currentUser.UserId;
+            var result = _auditLogQueryRepository.GetLogPage(
+                filter,
+                organizationId.Value,
+                departmentId,
+                bypassDepartmentScope,
+                denyDepartmentScope,
+                actorId,
+                skip,
+                take) ?? new AuditLogPageVm();
+            foreach (var log in result.Items)
+            {
+                AuditDisplayLabelHelper.ApplyDisplayLabels(log);
+            }
+
+            return result;
         }
 
         private IList<AuditLogVm> QueryLogs(AuditLogFilterVm filter)

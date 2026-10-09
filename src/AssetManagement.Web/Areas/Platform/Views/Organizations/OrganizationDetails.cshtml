@@ -26,8 +26,7 @@
     var canElevate = Html.HasPermission("Platform.Support.Operate");
     var impersonatedOrgId = Session["ImpersonatedOrganizationId"] as int?;
     var isImpersonatingThisOrg = impersonatedOrgId.HasValue && impersonatedOrgId.Value == Model.Organization.Id;
-    var relativeLogin = Url.RouteUrl("Tenant", new { tenant = Model.Organization.Slug, controller = "Account", action = "Login" });
-    var portalUrl = new Uri(Request.Url, relativeLogin).AbsoluteUri;
+    var portalUrl = AssetManagement.Web.Helpers.ExternalUrlHelper.GetTenantPortalUrl(Request, Model.Organization.Slug) + "/Account/Login";
     var tenantDashboardUrl = TenantUrlHelper.TenantRouteUrl(Url, Model.Organization.Slug, "Index", "Dashboard");
     var canManageOrg = Html.HasPermission("Platform.Organizations.Manage");
     var logoUrl = OrganizationLogoHelper.GetLogoUrl(Url, Model.Organization.LogoPath);

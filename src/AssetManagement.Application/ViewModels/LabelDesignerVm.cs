@@ -18,5 +18,8 @@ namespace AssetManagement.Application.ViewModels
         public string SampleSerialNumber { get; set; } = "SN-123456";
 
         public string LayoutTemplatesJson { get; set; } = "[]";
+
+        /// <summary>Configured ExternalBaseUrl (PlatformSettingsService.GetExternalBaseUrl) for the sample scan URL.</summary>
+        public string ExternalBaseUrl { get; set; }
     }
 }

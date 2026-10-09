@@ -4,6 +4,8 @@
     ViewBag.Title = "User Details";
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var canEditUser = Html.HasPermission("Users.Edit");
+    var canDeleteUser = Html.HasPermission("Users.Delete");
+    var isSelf = ViewBag.IsSelf == true;
     var roles = ViewBag.Roles as IEnumerable<AssetManagement.Application.ViewModels.RoleVm>;
     var departments = ViewBag.Departments as IEnumerable<AssetManagement.Application.ViewModels.DepartmentVm>;
     var displayName = (Model.FirstName + " " + Model.LastName).Trim();
@@ -77,6 +79,41 @@
                         <input type="hidden" name="userId" value="@Model.Id" />
                         <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
                         <button class="btn btn-outline-warning w-100" type="submit">Unlock account (clear failed logins)</button>
+                    }
+                    <hr class="my-3" />
+                    using (Html.BeginForm("SetActive", "Users", FormMethod.Post, new { @class = "mb-2", id = "user-active-form" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@Request.RawUrl" />
+                        <input type="hidden" name="isActive" value="@(Model.IsActive ? "false" : "true")" />
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="user-active-toggle" disabled="disabled" @(Model.IsActive ? "checked" : "") />
+                            <label class="form-check-label" for="user-active-toggle">Active (can sign in)</label>
+                        </div>
+                        if (isSelf)
+                        {
+                            <p class="text-muted small mb-0">You cannot deactivate your own account.</p>
+                        }
+                        else if (Model.IsActive)
+                        {
+                            <button class="btn btn-outline-secondary w-100" type="submit" id="user-deactivate" onclick="return confirm('Deactivate this user? They will be signed out and can no longer sign in, approve or receive notifications. You can reactivate them later.');">Deactivate user</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-success w-100" type="submit" id="user-reactivate" onclick="return confirm('Reactivate this user? They will be able to sign in again.');">Reactivate user</button>
+                        }
+                    }
+                }
+                @if (canDeleteUser && !isSelf)
+                {
+                    <hr class="my-3" />
+                    using (Html.BeginForm("Delete", "Users", FormMethod.Post, new { @class = "mb-0", id = "user-delete-form" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@Model.Id" />
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <button class="btn btn-outline-danger w-100" type="submit" id="user-delete" onclick="return confirm('Permanently delete this user? This only works when they have no assets, custody, approvals, requests or audit history; otherwise you will be asked to deactivate them instead.');">Delete user</button>
                     }
                 }
             </div>

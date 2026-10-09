@@ -119,6 +119,13 @@ namespace AssetManagement.Infrastructure.Services
         private void ProcessNotificationMessage(OutboxMessage message)
         {
             var payload = OutboxPayloadBuilder.ParseNotificationPayload(message.Payload);
+            // rel1009g: deactivated users receive no notifications.
+            var recipient = string.IsNullOrWhiteSpace(payload.UserId) ? null : _unitOfWork.Writer<AssetManagement.Infrastructure.Identity.ApplicationUser>().GetById(payload.UserId);
+            if (recipient != null && !recipient.IsActive)
+            {
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(payload.IdempotencyKey)
                 && _notificationQueryService.ExistsByIdempotencyKey(payload.UserId, payload.IdempotencyKey))
             {

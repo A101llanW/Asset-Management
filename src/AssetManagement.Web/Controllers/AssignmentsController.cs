@@ -153,7 +153,9 @@ namespace AssetManagement.Web.Controllers
             // ClassTeacher/RoomCustodian: if target has PIC and To user empty, require Pic vs Pool (never silent pool).
             ApplyPicPlacementChoice(viewModel);
 
-            if (!string.IsNullOrWhiteSpace(viewModel.ToUserId) && !ValidateUserBelongsToDepartment(viewModel.ToUserId, viewModel.ToDepartmentId))
+            if (!string.IsNullOrWhiteSpace(viewModel.ToUserId)
+                && !ValidateUserBelongsToDepartment(viewModel.ToUserId, viewModel.ToDepartmentId)
+                && !string.Equals(viewModel.ToUserId.Trim(), ResolveDepartmentPicUserId(viewModel.ToDepartmentId), StringComparison.OrdinalIgnoreCase))
             {
                 ModelState.AddModelError("ToUserId", "Selected user does not belong to the target department.");
             }

@@ -21,6 +21,22 @@ namespace AssetManagement.Infrastructure.Services
         private readonly IAuditWriter _auditWriter;
         private readonly IUserAccountQueryRepository _userAccountQueryRepository;
         private readonly IReferenceDataCache _referenceDataCache;
+        private readonly IUserLifecycleStore _lifecycleStore;
+
+        /// <summary>DI constructor (rel1009g): adds the user lifecycle store for deactivate / delete.</summary>
+        public UserService(
+            IUnitOfWork unitOfWork,
+            IAuthorizationService authorizationService,
+            IOrganizationScopeService organizationScope,
+            ICurrentUserContext currentUser,
+            IAuditWriter auditWriter,
+            IUserAccountQueryRepository userAccountQueryRepository,
+            IReferenceDataCache referenceDataCache,
+            IUserLifecycleStore lifecycleStore)
+            : this(unitOfWork, authorizationService, organizationScope, currentUser, auditWriter, userAccountQueryRepository, referenceDataCache)
+        {
+            _lifecycleStore = lifecycleStore;
+        }
 
         public UserService(
             IUnitOfWork unitOfWork,
@@ -186,6 +202,107 @@ namespace AssetManagement.Infrastructure.Services
                 userId,
                 previousDepartmentId.HasValue ? previousDepartmentId.Value.ToString() : null,
                 departmentId.HasValue ? departmentId.Value.ToString() : null);
+        }
+
+        public void SetActive(string userId, bool isActive)
+        {
+            var user = LoadTenantUser(userId);
+            var organizationId = user.OrganizationId.Value;
+            if (user.IsActive == isActive)
+            {
+                return;
+            }
+
+            EnsureLifecycleAllowed(user, isActive ? UserLifecycleAction.Reactivate : UserLifecycleAction.Deactivate);
+            user.IsActive = isActive;
+            user.UpdatedAt = System.DateTime.UtcNow;
+            // Rotating the access token ends every existing session (ValidateAccessToken also rejects inactive users).
+            user.AccessToken = Application.Security.SecurePasswordGenerator.GenerateAccessToken();
+            _unitOfWork.Writer<ApplicationUser>().Update(user);
+            _unitOfWork.SaveChanges();
+            InvalidateUserCache(organizationId);
+            _auditWriter.Write(
+                isActive ? "Users.Reactivate" : "Users.Deactivate",
+                nameof(ApplicationUser),
+                userId,
+                isActive ? "Inactive" : "Active",
+                isActive ? "Active" : "Inactive");
+        }
+
+        public IList<KeyValuePair<string, int>> GetDeleteBlockers(string userId)
+        {
+            var user = LoadTenantUser(userId);
+            return RequireLifecycleStore().GetDeleteBlockers(user.Id, user.OrganizationId.Value);
+        }
+
+        public void Delete(string userId)
+        {
+            var user = LoadTenantUser(userId);
+            var organizationId = user.OrganizationId.Value;
+            EnsureLifecycleAllowed(user, UserLifecycleAction.Delete);
+            var store = RequireLifecycleStore();
+            var blocked = UserLifecycleRules.BuildBlockedMessage(store.GetDeleteBlockers(user.Id, organizationId));
+            if (blocked != null)
+            {
+                throw new BusinessException(blocked);
+            }
+
+            var summary = "Email=" + user.Email + ";Name=" + ((user.FirstName ?? string.Empty) + " " + (user.LastName ?? string.Empty)).Trim()
+                + ";RoleId=" + (user.RoleId.HasValue ? user.RoleId.Value.ToString() : string.Empty);
+            store.HardDelete(user.Id, organizationId);
+            InvalidateUserCache(organizationId);
+            _auditWriter.Write("Users.Delete", nameof(ApplicationUser), userId, summary, null);
+        }
+
+        private ApplicationUser LoadTenantUser(string userId)
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var user = string.IsNullOrWhiteSpace(userId) ? null : _unitOfWork.Writer<ApplicationUser>().GetById(userId);
+            if (user == null || !organizationId.HasValue || !user.OrganizationId.HasValue || user.OrganizationId.Value != organizationId.Value)
+            {
+                throw new BusinessException("User not found.");
+            }
+
+            return user;
+        }
+
+        private void EnsureLifecycleAllowed(ApplicationUser user, UserLifecycleAction action)
+        {
+            var store = RequireLifecycleStore();
+            var organizationId = user.OrganizationId.Value;
+            var targetIsCompanyAdmin = store.IsCompanyAdmin(user.Id, organizationId);
+            var error = UserLifecycleRules.Evaluate(
+                action,
+                _currentUser == null ? null : _currentUser.UserId,
+                user.Id,
+                user.IsActive,
+                targetIsCompanyAdmin,
+                targetIsCompanyAdmin ? store.CountOtherActiveCompanyAdmins(organizationId, user.Id) : 1);
+            if (error != null)
+            {
+                throw new BusinessException(error);
+            }
+
+            // Escalation guard: only Company Admins act on a Company Admin; others must hold every permission of the target's role.
+            if (targetIsCompanyAdmin && !_organizationScope.IsCompanyAdmin() && !_organizationScope.IsActualPlatformAdmin())
+            {
+                throw new BusinessException("Only Company Administrators can change or delete a Company Admin account.");
+            }
+
+            if (user.RoleId.HasValue)
+            {
+                EnsurePermissionCeiling(user.RoleId.Value);
+            }
+        }
+
+        private IUserLifecycleStore RequireLifecycleStore()
+        {
+            if (_lifecycleStore == null)
+            {
+                throw new BusinessException("User deactivation and deletion are not available in this context.");
+            }
+
+            return _lifecycleStore;
         }
 
         private void InvalidateUserCache(int? organizationId)

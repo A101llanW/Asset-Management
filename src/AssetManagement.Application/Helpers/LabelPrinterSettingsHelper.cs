@@ -66,7 +66,7 @@ namespace AssetManagement.Application.Helpers
                 return null;
             }
 
-            return LabelLayoutDesignHelper.Deserialize(settings.LayoutDesignJson, settings.WidthMm, settings.HeightMm);
+            return LabelLayoutDesignHelper.Deserialize(settings.LayoutDesignJson, settings.WidthMm, settings.HeightMm, settings.QrMagnification);
         }
 
         public static bool UsesCustomLayout(LabelPrinterSettingsVm settings)
