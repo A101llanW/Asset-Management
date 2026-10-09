@@ -27,6 +27,9 @@ namespace AssetManagement.Infrastructure.Security
 
         public bool ClearMfaEnrollment { get; set; }
 
+        /// <summary>Optional Bootstrap:RunId - any new value forces a new run for otherwise identical keys.</summary>
+        public string RunId { get; set; }
+
         public bool HasPassword
         {
             get { return !string.IsNullOrEmpty(Password); }
@@ -48,13 +51,15 @@ namespace AssetManagement.Infrastructure.Security
     /// set in appSettings. Finds THE platform admin by role (system role "Platform Admin", OrganizationId NULL), sets the
     /// email (and the mirrored UserName), reactivates and unlocks it, optionally sets a password (app hasher + policy,
     /// RequirePasswordChange=1, new AccessToken) and optionally clears the MFA enrolment. Writes AuditLog
-    /// PLATFORM_ADMIN_BOOTSTRAP and a SystemSetting marker so the same key set runs once (not on every recycle).
+    /// PLATFORM_ADMIN_BOOTSTRAP; that audit row (markerKey) is the run-once marker, so the same key set does not run on every
+    /// recycle. (SystemSetting cannot hold it: SystemSetting.OrganizationId is NOT NULL and there is no platform organisation.)
     /// </summary>
     public static class PlatformAdminBootstrap
     {
         public const string EmailKey = "Bootstrap:PlatformAdminEmail";
         public const string PasswordKey = "Bootstrap:PlatformAdminPassword";
         public const string ClearMfaKey = "Bootstrap:ClearMfaEnrollment";
+        public const string RunIdKey = "Bootstrap:RunId";
         public const string AuditAction = "PLATFORM_ADMIN_BOOTSTRAP";
         public const string MarkerKeyPrefix = "Bootstrap.PlatformAdmin.";
         public const string PlatformAdminRoleName = "Platform Admin";
@@ -87,6 +92,7 @@ namespace AssetManagement.Infrastructure.Security
             {
                 Email = email.Trim().ToLowerInvariant(),
                 Password = appSettings[PasswordKey],
+                RunId = (appSettings[RunIdKey] ?? string.Empty).Trim(),
                 ClearMfaEnrollment = string.Equals((clear ?? string.Empty).Trim(), "true", StringComparison.OrdinalIgnoreCase)
                     || string.Equals((clear ?? string.Empty).Trim(), "1", StringComparison.OrdinalIgnoreCase)
             };
@@ -119,10 +125,11 @@ namespace AssetManagement.Infrastructure.Security
             return null;
         }
 
-        /// <summary>Marker key: hash of (email, password present, clear-MFA flag). Never the password.</summary>
+        /// <summary>Marker key: hash of (email, password present, clear-MFA flag, RunId). Never the password.</summary>
         public static string BuildMarkerKey(PlatformAdminBootstrapConfig config)
         {
-            var material = "v1|" + config.Email + "|" + (config.HasPassword ? "1" : "0") + "|" + (config.ClearMfaEnrollment ? "1" : "0");
+            var material = "v2|" + config.Email + "|" + (config.HasPassword ? "1" : "0") + "|" + (config.ClearMfaEnrollment ? "1" : "0")
+                + "|" + (config.RunId ?? string.Empty);
             using (var sha = SHA256.Create())
             {
                 var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(material));
@@ -132,24 +139,14 @@ namespace AssetManagement.Infrastructure.Security
         }
 
         /// <summary>
-        /// The marker value stores a salted PBKDF2 hash of the configured password (same hasher as Users.PasswordHash),
-        /// so a changed password re-runs the bootstrap without ever storing the password or an unsalted digest.
+        /// Run-once decision. No marker (audit row for this key set) = run. With a marker: no password configured = skip;
+        /// password configured = skip while the stored hash still verifies it (not yet changed) or once the user has changed
+        /// the password after the run (stale keys must never reset it again). Otherwise (a different password for the same
+        /// key set, not yet used) = run. Set a new Bootstrap:RunId to force another run. Stores nothing derived from the password.
         /// </summary>
-        public static string BuildMarkerValue(PlatformAdminBootstrapConfig config, string userId, DateTime appliedAtUtc)
+        public static bool ShouldSkip(PlatformAdminBootstrapConfig config, DateTime? markerAppliedUtc, string currentPasswordHash, DateTime? lastPasswordChangeUtc)
         {
-            return JsonConvert.SerializeObject(new Dictionary<string, object>
-            {
-                { "appliedAtUtc", appliedAtUtc.ToString("o") },
-                { "userId", userId },
-                { "passwordSet", config.HasPassword },
-                { "mfaEnrollmentCleared", config.ClearMfaEnrollment },
-                { "passwordCheck", config.HasPassword ? PasswordHasher.HashPassword(config.Password) : null }
-            });
-        }
-
-        public static bool MarkerMatches(string markerValue, PlatformAdminBootstrapConfig config)
-        {
-            if (string.IsNullOrWhiteSpace(markerValue) || config == null)
+            if (config == null || !markerAppliedUtc.HasValue)
             {
                 return false;
             }
@@ -159,18 +156,21 @@ namespace AssetManagement.Infrastructure.Security
                 return true;
             }
 
+            if (lastPasswordChangeUtc.HasValue && lastPasswordChangeUtc.Value > markerAppliedUtc.Value.AddSeconds(5))
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(currentPasswordHash))
+            {
+                return false;
+            }
+
             try
             {
-                var parsed = JsonConvert.DeserializeObject<Dictionary<string, object>>(markerValue);
-                object check;
-                if (parsed == null || !parsed.TryGetValue("passwordCheck", out check) || check == null)
-                {
-                    return false;
-                }
-
-                return PasswordHasher.VerifyHashedPassword(check.ToString(), config.Password) != PasswordVerificationResult.Failed;
+                return PasswordHasher.VerifyHashedPassword(currentPasswordHash, config.Password) != PasswordVerificationResult.Failed;
             }
-            catch (JsonException)
+            catch (FormatException)
             {
                 return false;
             }
@@ -203,10 +203,28 @@ namespace AssetManagement.Infrastructure.Security
             using (var connection = connectionFactory.CreateConnection())
             {
                 connection.Open();
-                var marker = Scalar(connection, null,
-                    "SELECT TOP 1 [SettingValue] FROM [SystemSetting] WHERE [SettingKey]=@Key AND [OrganizationId] IS NULL",
-                    P("@Key", markerKey)) as string;
-                if (MarkerMatches(marker, config))
+                DateTime? markerAppliedUtc = null;
+                string currentHash = null;
+                DateTime? lastPasswordChange = null;
+                using (var cmd = Command(connection, null,
+                    "SELECT TOP 1 a.[Timestamp], u.[PasswordHash], u.[LastPasswordChange] FROM [AuditLog] a "
+                    + "INNER JOIN [Users] u ON u.[Id]=a.[EntityId] "
+                    + "WHERE a.[Action]=@Action AND a.[OrganizationId] IS NULL AND a.[NewValues] LIKE @Like ORDER BY a.[Id] DESC"))
+                {
+                    cmd.Parameters.Add(P("@Action", AuditAction));
+                    cmd.Parameters.Add(P("@Like", "%\"markerKey\":\"" + markerKey + "\"%"));
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            markerAppliedUtc = reader.IsDBNull(0) ? (DateTime?)null : reader.GetDateTime(0);
+                            currentHash = reader.IsDBNull(1) ? null : reader.GetString(1);
+                            lastPasswordChange = reader.IsDBNull(2) ? (DateTime?)null : reader.GetDateTime(2);
+                        }
+                    }
+                }
+
+                if (ShouldSkip(config, markerAppliedUtc, currentHash, lastPasswordChange))
                 {
                     return new PlatformAdminBootstrapResult
                     {
@@ -256,6 +274,7 @@ namespace AssetManagement.Infrastructure.Security
                         return Refused("Another active user already uses " + config.Email + "; nothing changed. Pick a different address or change the other user.", userId);
                     }
 
+                    var now = DateTime.UtcNow;
                     Execute(connection, tx,
                         "UPDATE [Users] SET [Email]=@Email, "
                         + "[UserName]=CASE WHEN [UserName] IS NULL OR LOWER(LTRIM(RTRIM([UserName])))=LOWER(LTRIM(RTRIM(ISNULL([Email],N'')))) THEN @Email ELSE [UserName] END, "
@@ -265,7 +284,8 @@ namespace AssetManagement.Infrastructure.Security
                     if (config.HasPassword)
                     {
                         Execute(connection, tx,
-                            "UPDATE [Users] SET [PasswordHash]=@Hash, [RequirePasswordChange]=1, [LastPasswordChange]=GETUTCDATE(), [AccessToken]=@Token WHERE [Id]=@Id",
+                            "UPDATE [Users] SET [PasswordHash]=@Hash, [RequirePasswordChange]=1, [LastPasswordChange]=@Now, [AccessToken]=@Token WHERE [Id]=@Id",
+                            P("@Now", now),
                             P("@Hash", PasswordHasher.HashPassword(config.Password)),
                             P("@Token", SecurePasswordGenerator.GenerateAccessToken()),
                             P("@Id", userId));
@@ -287,7 +307,6 @@ namespace AssetManagement.Infrastructure.Security
                         + "IF OBJECT_ID(N'[AuthFlowRateLimitState]', N'U') IS NOT NULL DELETE FROM [AuthFlowRateLimitState] WHERE [ScopeKey] IN (N'mfa-send|'+@Id, N'mfa-verify|'+@Id);",
                         P("@Id", userId));
 
-                    var now = DateTime.UtcNow;
                     var oldValues = JsonConvert.SerializeObject(new { email = oldEmail, isActive = wasActive });
                     var newValues = JsonConvert.SerializeObject(new
                     {
@@ -305,13 +324,6 @@ namespace AssetManagement.Infrastructure.Security
                         "INSERT INTO [AuditLog] ([ActorUserId],[Action],[EntityType],[EntityId],[OldValues],[NewValues],[Timestamp],[IPAddress],[CreatedAt],[UpdatedAt],[IsActive],[OrganizationId]) "
                         + "VALUES (NULL,@Action,N'User',@Id,@Old,@New,@Now,N'app-start',@Now,@Now,1,NULL)",
                         P("@Action", AuditAction), P("@Id", userId), P("@Old", oldValues), P("@New", newValues), P("@Now", now));
-
-                    Execute(connection, tx,
-                        "IF EXISTS (SELECT 1 FROM [SystemSetting] WHERE [SettingKey]=@Key AND [OrganizationId] IS NULL) "
-                        + "UPDATE [SystemSetting] SET [SettingValue]=@Value, [UpdatedAt]=@Now, [IsActive]=1 WHERE [SettingKey]=@Key AND [OrganizationId] IS NULL "
-                        + "ELSE INSERT INTO [SystemSetting] ([SettingKey],[SettingValue],[Description],[CreatedAt],[UpdatedAt],[IsActive],[OrganizationId]) "
-                        + "VALUES (@Key,@Value,N'Platform admin bootstrap applied (rel1009i). Remove the Bootstrap:* keys from Web.config.',@Now,@Now,1,NULL)",
-                        P("@Key", markerKey), P("@Value", BuildMarkerValue(config, userId, now)), P("@Now", now));
 
                     tx.Commit();
                     return new PlatformAdminBootstrapResult

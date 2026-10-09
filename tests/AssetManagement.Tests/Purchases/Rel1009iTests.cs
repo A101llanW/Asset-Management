@@ -97,12 +97,16 @@ namespace AssetManagement.Tests.Purchases
             Assert.AreNotEqual(key, PlatformAdminBootstrap.BuildMarkerKey(new PlatformAdminBootstrapConfig { Email = "other@ntlafrica.com", Password = "x" }));
             StringAssert.StartsWith(PlatformAdminBootstrap.MarkerKeyPrefix, key);
 
-            var value = PlatformAdminBootstrap.BuildMarkerValue(withPassword, "user-1", DateTime.UtcNow);
-            StringAssert.DoesNotContain("Str0ng!Passw0rd#2026", value);
-            Assert.IsTrue(PlatformAdminBootstrap.MarkerMatches(value, withPassword), "same password = already applied");
-            Assert.IsFalse(PlatformAdminBootstrap.MarkerMatches(value, new PlatformAdminBootstrapConfig { Email = withPassword.Email, Password = "Other!Passw0rd#2026" }), "new password = run again");
-            Assert.IsTrue(PlatformAdminBootstrap.MarkerMatches(PlatformAdminBootstrap.BuildMarkerValue(noPassword, "user-1", DateTime.UtcNow), noPassword));
-            Assert.IsFalse(PlatformAdminBootstrap.MarkerMatches(null, noPassword));
+            Assert.AreNotEqual(key, PlatformAdminBootstrap.BuildMarkerKey(new PlatformAdminBootstrapConfig { Email = "allan@ntlafrica.com", Password = "x", RunId = "2" }), "RunId forces a new key");
+            StringAssert.DoesNotContain("Str0ng", key);
+
+            var applied = new DateTime(2026, 10, 9, 11, 0, 0, DateTimeKind.Utc);
+            var storedHash = PasswordHasher.HashPassword("Str0ng!Passw0rd#2026");
+            Assert.IsFalse(PlatformAdminBootstrap.ShouldSkip(withPassword, null, storedHash, applied), "no marker = run");
+            Assert.IsTrue(PlatformAdminBootstrap.ShouldSkip(noPassword, applied, storedHash, applied), "marker, no password = skip");
+            Assert.IsTrue(PlatformAdminBootstrap.ShouldSkip(withPassword, applied, storedHash, applied), "same password still pending = skip");
+            Assert.IsFalse(PlatformAdminBootstrap.ShouldSkip(new PlatformAdminBootstrapConfig { Email = withPassword.Email, Password = "Other!Passw0rd#2026" }, applied, storedHash, applied), "new password, unchanged user = run");
+            Assert.IsTrue(PlatformAdminBootstrap.ShouldSkip(new PlatformAdminBootstrapConfig { Email = withPassword.Email, Password = "Other!Passw0rd#2026" }, applied, PasswordHasher.HashPassword("Users!Own#Pass2026"), applied.AddHours(1)), "user changed it after the run = stale keys, skip");
         }
 
         // ---------------- item 4: PO from requisition ----------------
