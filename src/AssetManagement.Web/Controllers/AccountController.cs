@@ -228,7 +228,8 @@ namespace AssetManagement.Web.Controllers
                 {
                     _auditWriter.Write(
                         InactiveAccountLoginRules.LoginDeniedInactiveEventType,
-                        "User",
+                        // "ApplicationUser" lets AuditWriter take the organisation from the user on the root portal too.
+                        "ApplicationUser",
                         user.Id,
                         null,
                         "{\"reason\":\"Account is deactivated\",\"portal\":\"" + (organizationId.HasValue ? "tenant" : "root") + "\"}");
