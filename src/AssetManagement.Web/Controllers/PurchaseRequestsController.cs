@@ -140,8 +140,19 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
-                var id = _purchaseRequestService.Submit(model, User.GetUserId());
-                SaveOptionalAttachment(id, attachment);
+                var submitted = _purchaseRequestService.SubmitBatch(model, User.GetUserId());
+                var id = submitted.PrimaryId;
+                // Split submits share one upload: every requisition of the batch points at the same stored file.
+                SaveOptionalAttachment(id, attachment, submitted.RequestIds);
+                if (submitted.IsSplit)
+                {
+                    // Batch summary view comes with the requisition form UI (stage c); until then, list the numbers.
+                    TempData["Message"] = "Submitted " + submitted.RequestIds.Count + " requisitions ("
+                        + string.Join(", ", submitted.RequestNumbers.ToArray()) + ", " + submitted.BatchLabel
+                        + ") because the items use different approval paths.";
+                    return RedirectToAction("Details", new { id, returnUrl = ViewBag.ReturnUrl });
+                }
+
                 var created = _purchaseRequestService.GetById(id);
                 var requestNumber = created == null || string.IsNullOrWhiteSpace(created.RequestNumber)
                     ? ("#" + id)
@@ -567,7 +578,7 @@ namespace AssetManagement.Web.Controllers
             model.RequestedByName = requester == null ? model.RequestedById : BuildUserLabel(requester);
         }
 
-        private void SaveOptionalAttachment(int purchaseRequestId, HttpPostedFileBase attachment)
+        private void SaveOptionalAttachment(int purchaseRequestId, HttpPostedFileBase attachment, IList<int> batchRequestIds = null)
         {
             if (attachment == null || attachment.ContentLength <= 0 || _storage == null)
             {
@@ -591,13 +602,18 @@ namespace AssetManagement.Web.Controllers
                     storedFileName,
                     attachment.ContentType,
                     "purchase-requests/" + purchaseRequestId);
-                _purchaseRequestService.SaveAttachment(purchaseRequestId, new PurchaseRequestAttachmentInfo
+                var info = new PurchaseRequestAttachmentInfo
                 {
                     FileName = Path.GetFileName(attachment.FileName),
                     FilePath = relativePath,
                     ContentType = attachment.ContentType,
                     FileSizeBytes = attachment.ContentLength
-                });
+                };
+                _purchaseRequestService.SaveAttachment(purchaseRequestId, info);
+                foreach (var siblingId in (batchRequestIds ?? new List<int>()).Where(x => x != purchaseRequestId))
+                {
+                    _purchaseRequestService.SaveAttachment(siblingId, info);
+                }
             }
         }
     }

@@ -16,7 +16,11 @@ namespace AssetManagement.Application.Contracts
 
         PurchaseRequestDetailVm GetById(int id);
 
+        /// <summary>Returns the first created requisition id (see <see cref="SubmitBatch"/> for split submits).</summary>
         int Submit(PurchaseRequestCreateVm model, string requestedByUserId);
+
+        /// <summary>Creates one requisition per distinct approval path (MixedFlowPolicy AutoSplit) or one as before.</summary>
+        PurchaseRequestSubmitResult SubmitBatch(PurchaseRequestCreateVm model, string requestedByUserId);
 
         void SaveAttachment(int purchaseRequestId, PurchaseRequestAttachmentInfo attachment);
 

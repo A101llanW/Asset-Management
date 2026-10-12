@@ -5,6 +5,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Queries;
 using AssetManagement.Application.Contracts.Security;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -160,7 +161,10 @@ namespace AssetManagement.Application.Services
                 {
                     LineNumber = x.LineNumber,
                     Description = x.Description,
-                    Quantity = x.Quantity
+                    Quantity = x.Quantity,
+                    AssetCategoryId = x.AssetCategoryId,
+                    AssetTypeId = x.AssetTypeId,
+                    AssetSubTypeId = x.AssetSubTypeId
                 })
                 .ToList();
 
@@ -198,6 +202,8 @@ namespace AssetManagement.Application.Services
                 TargetAssetId = entity.TargetAssetId,
                 TargetAssetTag = targetAsset?.AssetTag,
                 TargetAssetName = targetAsset?.AssetName,
+                PurchaseRequestGroupId = entity.PurchaseRequestGroupId,
+                ApprovalFlowSource = entity.ApprovalFlowSource,
                 LineItems = lineItems,
                 ApprovalHistory = ApprovalWorkflowHelper.MapDecisionHistory(
                     actions.Select(x => ApprovalWorkflowHelper.ToSnapshot(
@@ -207,6 +213,18 @@ namespace AssetManagement.Application.Services
         }
 
         public int Submit(PurchaseRequestCreateVm model, string requestedByUserId)
+        {
+            return SubmitBatch(model, requestedByUserId).PrimaryId;
+        }
+
+        /// <summary>
+        /// Catalog requisition flows (stage b): resolves the approval path per line (sub-type > type > category >
+        /// department chain > org matrix) and groups lines by path fingerprint. One path = one requisition exactly as
+        /// before. Several paths: MixedFlowPolicy AutoSplit (default) creates one requisition per path, linked by a
+        /// PurchaseRequestGroup and sharing department, justification, notes and (via the controller) the attachment;
+        /// Block rejects the form. Everything is created in one transaction, so a failure leaves no partial batch.
+        /// </summary>
+        public PurchaseRequestSubmitResult SubmitBatch(PurchaseRequestCreateVm model, string requestedByUserId)
         {
             if (model == null)
             {
@@ -255,47 +273,257 @@ namespace AssetManagement.Application.Services
 
             var targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
 
-            var approvalConfig = ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(_unitOfWork, department);
+            // Classification policy + normalization (server-side; never trust the client).
+            var classified = ClassifyLines(model, effectiveLines, targetAssetId);
+
+            // Resolve each line's path and partition by fingerprint (first-appearance order keeps line 1 first).
+            var partitions = new List<RequisitionPartition>();
+            foreach (var line in classified)
+            {
+                var resolved = RequisitionFlowResolver.ResolveForLine(_unitOfWork, department, line.Classification);
+                var partition = partitions.FirstOrDefault(x => x.Resolved.Fingerprint == resolved.Fingerprint);
+                if (partition == null)
+                {
+                    partition = new RequisitionPartition { Resolved = resolved };
+                    partitions.Add(partition);
+                }
+
+                partition.Lines.Add(line);
+            }
+
+            if (partitions.Count > 1
+                && RequisitionPolicySettings.GetMixedFlowPolicy(_unitOfWork) == RequisitionMixedFlowPolicy.Block)
+            {
+                throw new BusinessException(
+                    "These items use different approval paths ("
+                    + string.Join(", ", partitions.Select(x => x.Resolved.SourceLabel).Distinct().ToArray())
+                    + "). Remove lines or submit them separately.");
+            }
+
+            // Validate every path before creating anything (no partial batch on misconfiguration).
+            foreach (var partition in partitions)
+            {
+                EnsureUsableConfiguration(partition.Resolved.Configuration);
+            }
+
+            var result = new PurchaseRequestSubmitResult();
+            Action create = () =>
+            {
+                int? groupId = null;
+                if (partitions.Count > 1)
+                {
+                    var group = new PurchaseRequestGroup
+                    {
+                        OrganizationId = department.OrganizationId ?? _organizationScope.GetCurrentOrganizationId(),
+                        BatchLabel = "PENDING",
+                        CreatedByUserId = requestedByUserId.Trim(),
+                        CreatedAt = DateTime.UtcNow,
+                        IsActive = true
+                    };
+                    _unitOfWork.Repository<PurchaseRequestGroup>().Add(group);
+                    _unitOfWork.SaveChanges();
+                    group.BatchLabel = "BATCH-" + group.Id.ToString("D6");
+                    group.UpdatedAt = DateTime.UtcNow;
+                    _unitOfWork.Repository<PurchaseRequestGroup>().Update(group);
+                    _unitOfWork.SaveChanges();
+                    groupId = group.Id;
+                    result.GroupId = group.Id;
+                    result.BatchLabel = group.BatchLabel;
+                }
+
+                for (var i = 0; i < partitions.Count; i++)
+                {
+                    var partition = partitions[i];
+                    var entity = CreateRequisition(
+                        model,
+                        partition.Lines,
+                        partition.Resolved,
+                        requestedByUserId.Trim(),
+                        // The tagged asset stays with the requisition holding line 1 (it pre-fills line 1's classification).
+                        i == 0 ? targetAssetId : null,
+                        groupId);
+                    result.RequestIds.Add(entity.Id);
+                    result.RequestNumbers.Add(entity.RequestNumber);
+                    result.FlowSources.Add(partition.Resolved.SourceLabel);
+                }
+            };
+
+            if (partitions.Count > 1)
+            {
+                _unitOfWork.ExecuteInTransaction(create);
+                _auditWriter.Write(
+                    "Purchases.RequestGroup",
+                    nameof(PurchaseRequestGroup),
+                    result.GroupId.ToString(),
+                    null,
+                    "AutoSplit:" + string.Join(",", result.RequestNumbers.ToArray()));
+            }
+            else
+            {
+                create();
+            }
+
+            return result;
+        }
+
+        private sealed class ClassifiedLine
+        {
+            public PurchaseRequestLineCreateVm Line { get; set; }
+
+            public RequisitionLineClassification Classification { get; set; }
+        }
+
+        private sealed class RequisitionPartition
+        {
+            public RequisitionFlowResolveResult Resolved { get; set; }
+
+            public IList<ClassifiedLine> Lines { get; } = new List<ClassifiedLine>();
+        }
+
+        private IList<ClassifiedLine> ClassifyLines(
+            PurchaseRequestCreateVm model,
+            IList<PurchaseRequestLineCreateVm> effectiveLines,
+            int? targetAssetId)
+        {
+            var mode = RequisitionPolicySettings.GetClassificationMode(_unitOfWork);
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var header = RequisitionLineClassification.Create(
+                model.HeaderAssetCategoryId,
+                model.HeaderAssetTypeId,
+                model.HeaderAssetSubTypeId);
+
+            if (mode == RequisitionClassificationMode.RequiredHeader && !header.HasTypeOrSubType)
+            {
+                // A tagged asset may stand in for the header pick (its type/sub-type).
+                header = ClassificationFromAsset(targetAssetId) ?? header;
+                if (!header.HasTypeOrSubType)
+                {
+                    throw new BusinessException("Choose an asset type or sub-type for this requisition.");
+                }
+            }
+
+            var result = new List<ClassifiedLine>();
+            for (var i = 0; i < effectiveLines.Count; i++)
+            {
+                var line = effectiveLines[i];
+                var classification = RequisitionLineClassification.Create(line.AssetCategoryId, line.AssetTypeId, line.AssetSubTypeId);
+                if (!classification.HasAny && mode == RequisitionClassificationMode.RequiredHeader)
+                {
+                    classification = header.Clone();
+                }
+
+                if (!classification.HasAny && i == 0)
+                {
+                    // Tagged asset pre-fills the first line only; it does not satisfy RequiredPerLine for other lines.
+                    classification = ClassificationFromAsset(targetAssetId) ?? classification;
+                }
+
+                if (mode == RequisitionClassificationMode.RequiredPerLine && !classification.HasTypeOrSubType)
+                {
+                    throw new BusinessException("Line " + (i + 1) + ": choose an asset type or sub-type.");
+                }
+
+                classification = CatalogRequisitionFlowResolver.Normalize(
+                    classification,
+                    id => _unitOfWork.Repository<AssetSubType>().GetById(id),
+                    id => _unitOfWork.Repository<AssetType>().GetById(id),
+                    id => _unitOfWork.Repository<AssetCategory>().GetById(id),
+                    organizationId,
+                    "Line " + (i + 1));
+
+                result.Add(new ClassifiedLine { Line = line, Classification = classification });
+            }
+
+            return result;
+        }
+
+        private RequisitionLineClassification ClassificationFromAsset(int? targetAssetId)
+        {
+            if (!targetAssetId.HasValue)
+            {
+                return null;
+            }
+
+            var asset = _unitOfWork.Repository<Asset>().GetById(targetAssetId.Value);
+            if (asset == null || asset.AssetTypeId <= 0)
+            {
+                return null;
+            }
+
+            // Best effort: a tagged asset whose type/sub-type is inactive or otherwise unusable simply does not
+            // pre-fill (the requisition then resolves as before) instead of blocking the submit.
+            try
+            {
+                var classification = CatalogRequisitionFlowResolver.Normalize(
+                    RequisitionLineClassification.Create(null, asset.AssetTypeId, asset.AssetSubTypeId),
+                    id => _unitOfWork.Repository<AssetSubType>().GetById(id),
+                    id => _unitOfWork.Repository<AssetType>().GetById(id),
+                    id => _unitOfWork.Repository<AssetCategory>().GetById(id),
+                    _organizationScope.GetCurrentOrganizationId(),
+                    null);
+                return classification.HasAny ? classification : null;
+            }
+            catch (BusinessException)
+            {
+                return null;
+            }
+        }
+
+        private static void EnsureUsableConfiguration(ApprovalProcessConfiguration approvalConfig)
+        {
+            if (!approvalConfig.UsesApproval && approvalConfig.RequiresApproval)
+            {
+                throw new BusinessException(
+                    "Requisition approval is enabled but Stage 1 approver role is not configured. "
+                    + "Go to Settings → Approval Matrix, assign a role for Requisition (e.g. Procurement Officer), and save.");
+            }
+        }
+
+        private PurchaseRequest CreateRequisition(
+            PurchaseRequestCreateVm model,
+            IList<ClassifiedLine> lines,
+            RequisitionFlowResolveResult resolved,
+            string requestedByUserId,
+            int? targetAssetId,
+            int? groupId)
+        {
+            var approvalConfig = resolved.Configuration;
+            var summary = SummarizeLines(lines.Select(x => x.Line).ToList());
             var entity = new PurchaseRequest
             {
                 RequestNumber = "PENDING",
-                RequestedById = requestedByUserId.Trim(),
+                RequestedById = requestedByUserId,
                 DepartmentId = model.DepartmentId,
-                ItemDescription = model.ItemDescription.Trim(),
+                ItemDescription = summary.Key,
                 Justification = (model.Justification ?? string.Empty).Trim(),
                 QuantityInStock = model.QuantityInStock,
                 RequiredDate = model.RequiredDate,
                 OrderByUserId = string.IsNullOrWhiteSpace(model.OrderByUserId) ? null : model.OrderByUserId.Trim(),
-                Quantity = model.Quantity,
+                Quantity = summary.Value,
                 Currency = string.IsNullOrWhiteSpace(model.Currency)
                     ? ApprovalWorkflowSettingsHelper.GetDefaultCurrencyCode(_unitOfWork.Repository<SystemSetting>().GetAll())
                     : model.Currency.Trim().ToUpperInvariant(),
                 Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim(),
                 TargetAssetId = targetAssetId,
+                PurchaseRequestGroupId = groupId,
+                ApprovalFlowSource = Truncate(resolved.SourceLabel, 200),
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
 
             if (!approvalConfig.UsesApproval)
             {
-                if (approvalConfig.RequiresApproval)
-                {
-                    throw new BusinessException(
-                        "Requisition approval is enabled but Stage 1 approver role is not configured. "
-                        + "Go to Settings → Approval Matrix, assign a role for Requisition (e.g. Procurement Officer), and save.");
-                }
-
                 entity.ApprovalStatus = ApprovalStatus.Approved;
                 entity.CurrentApprovalStage = 0;
                 entity.ApprovalStageRoleIds = null;
                 entity.ApprovalStageUserIds = null;
-                entity.ApprovedById = requestedByUserId.Trim();
+                entity.ApprovedById = requestedByUserId;
                 entity.ApprovedAt = DateTime.UtcNow;
                 _unitOfWork.Repository<PurchaseRequest>().Add(entity);
                 _unitOfWork.SaveChanges();
                 entity.RequestNumber = "PR-" + entity.Id.ToString("D6");
                 entity.UpdatedAt = DateTime.UtcNow;
-                PersistLineItems(entity, effectiveLines);
+                PersistLineItems(entity, lines);
                 _unitOfWork.Repository<PurchaseRequest>().Update(entity);
                 _unitOfWork.SaveChanges();
                 NotificationHelper.AddNotification(
@@ -309,7 +537,7 @@ namespace AssetManagement.Application.Services
                     "/PurchaseRequests/Details/" + entity.Id);
                 _unitOfWork.SaveChanges();
                 _auditWriter.Write("Purchases.Request", nameof(PurchaseRequest), entity.Id.ToString(), null, "AutoApproved");
-                return entity.Id;
+                return entity;
             }
 
             // Snapshot guard: never copy another organisation's role/person ids onto the requisition.
@@ -336,7 +564,7 @@ namespace AssetManagement.Application.Services
             _unitOfWork.SaveChanges();
             entity.RequestNumber = "PR-" + entity.Id.ToString("D6");
             entity.UpdatedAt = DateTime.UtcNow;
-            PersistLineItems(entity, effectiveLines);
+            PersistLineItems(entity, lines);
             _unitOfWork.Repository<PurchaseRequest>().Update(entity);
             _unitOfWork.SaveChanges();
             NotificationHelper.AddNotification(
@@ -361,7 +589,26 @@ namespace AssetManagement.Application.Services
                 "/PurchaseRequests/Details/" + entity.Id);
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Purchases.Request", nameof(PurchaseRequest), entity.Id.ToString(), null, "PendingApproval");
-            return entity.Id;
+            return entity;
+        }
+
+        private static KeyValuePair<string, int> SummarizeLines(IList<PurchaseRequestLineCreateVm> lines)
+        {
+            var quantity = lines.Sum(x => x.Quantity);
+            var description = lines.Count == 1
+                ? lines[0].Description
+                : string.Join("; ", lines.Select(x => x.Description).ToArray());
+            return new KeyValuePair<string, int>(Truncate((description ?? string.Empty).Trim(), 2000), quantity);
+        }
+
+        private static string Truncate(string value, int maxLength)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+            {
+                return value;
+            }
+
+            return value.Substring(0, maxLength - 3) + "...";
         }
 
         public void SaveAttachment(int purchaseRequestId, PurchaseRequestAttachmentInfo attachment)
@@ -869,7 +1116,7 @@ namespace AssetManagement.Application.Services
             model.ItemDescription = summary;
         }
 
-        private void PersistLineItems(PurchaseRequest entity, IList<PurchaseRequestLineCreateVm> lines)
+        private void PersistLineItems(PurchaseRequest entity, IList<ClassifiedLine> lines)
         {
             if (entity == null || lines == null || lines.Count == 0)
             {
@@ -885,8 +1132,11 @@ namespace AssetManagement.Application.Services
                     OrganizationId = organizationId,
                     PurchaseRequestId = entity.Id,
                     LineNumber = lineNumber,
-                    Description = line.Description,
-                    Quantity = line.Quantity,
+                    Description = line.Line.Description,
+                    Quantity = line.Line.Quantity,
+                    AssetCategoryId = line.Classification == null ? null : line.Classification.AssetCategoryId,
+                    AssetTypeId = line.Classification == null ? null : line.Classification.AssetTypeId,
+                    AssetSubTypeId = line.Classification == null ? null : line.Classification.AssetSubTypeId,
                     CreatedAt = DateTime.UtcNow,
                     IsActive = true
                 });
