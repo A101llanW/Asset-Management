@@ -348,7 +348,7 @@ namespace AssetManagement.Web.Controllers
                     config,
                     User.GetUserId(),
                     GetCurrentUserRoleId(),
-                    Application.Services.PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), config, request == null ? (int?)null : request.DepartmentId)))
+                    Application.Services.PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), config, request == null ? (int?)null : request.DepartmentId, request != null && Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource))))
             {
                 return true;
             }

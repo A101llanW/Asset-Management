@@ -9,6 +9,16 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-12 21:10 - catalog-requisition-flows: owner decisions: identical paths from different catalog nodes stay separate; catalog paths always apply even when org approvals are off (supersede PM D1/D2) - STAGED (not published, not pushed)
+
+- **What and why:** owner decision; RequisitionFlowResolver fingerprint includes the winning source node again, so different catalog nodes never merge even with identical stages; the org approval switch no longer suppresses catalog paths. Supersedes D1 and D2 (see D1a/D2a).
+- **Commit hash:** see branch `feature/catalog-requisition-flows` (commit after `d84e7d6`).
+- **Files changed:** Application/Helpers/RequisitionFlowResolver.cs; tests/Requisitions/CatalogRequisitionUiTests.cs; docs.
+- **DB migration/script:** none. **Config keys:** none. **IIS steps:** none.
+- **Live-deploy steps:** ships with stages (c)/(d).
+- **Verify:** full unit test suite; only the 26 baseline failures.
+- **Rollback:** revert the commit.
+
 ## 2026-10-12 22:30 - catalog-requisition-flows stages (c) + (d): Asset Categories approval setup, line pickers, batch page; sub-type required at receiving (`afcfa78`, `c103684`, branch `feature/catalog-requisition-flows`) - STAGED (not published, not pushed)
 
 - **Date/time EAT:** 2026-10-12. Local worktree `CodexAsset-catalog-req` only. Nothing published, pushed or PR'd.

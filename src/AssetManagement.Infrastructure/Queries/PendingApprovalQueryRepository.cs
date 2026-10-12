@@ -78,6 +78,7 @@ SELECT
     NULL AS DisplayTag,
     NULL AS DisplayName,
     COALESCE(t.[FromDepartmentId], a.[DepartmentId]) AS DepartmentId,
+    CAST(NULL AS nvarchar(200)) AS ApprovalFlowSource,
     0 AS IsAssetRequest
 FROM [AssetTransfer] t
 INNER JOIN [Asset] a ON a.[Id] = t.[AssetId]
@@ -104,6 +105,7 @@ SELECT
     NULL AS DisplayTag,
     NULL AS DisplayName,
     a.[DepartmentId],
+    CAST(NULL AS nvarchar(200)) AS ApprovalFlowSource,
     0 AS IsAssetRequest
 FROM [DisposalRecord] d
 INNER JOIN [Asset] a ON a.[Id] = d.[AssetId]
@@ -136,6 +138,7 @@ SELECT
     p.[RequestNumber] AS DisplayTag,
     dept.[Name] AS DisplayName,
     p.[DepartmentId],
+    p.[ApprovalFlowSource],
     0 AS IsAssetRequest
 FROM [PurchaseRequest] p
 LEFT JOIN [Department] dept ON dept.[Id] = p.[DepartmentId]
@@ -165,6 +168,7 @@ SELECT
     NULL AS DisplayTag,
     NULL AS DisplayName,
     r.[DepartmentId],
+    CAST(NULL AS nvarchar(200)) AS ApprovalFlowSource,
     1 AS IsAssetRequest
 FROM [AssetRequest] r
 LEFT JOIN [Asset] ra ON ra.[Id] = r.[RequestedAssetId]
@@ -263,7 +267,8 @@ WHERE r.[OrganizationId] = @OrganizationId
                                 DisplayTag = SqlQueryHelper.GetString(reader, "DisplayTag"),
                                 DisplayName = SqlQueryHelper.GetString(reader, "DisplayName"),
                                 DepartmentId = reader["DepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["DepartmentId"]),
-                                IsAssetRequest = Convert.ToInt32(reader["IsAssetRequest"]) == 1
+                                IsAssetRequest = Convert.ToInt32(reader["IsAssetRequest"]) == 1,
+                                ApprovalFlowSource = SqlQueryHelper.GetString(reader, "ApprovalFlowSource")
                             });
                         }
                     }

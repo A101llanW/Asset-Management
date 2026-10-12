@@ -93,7 +93,7 @@ namespace AssetManagement.Application.Services
                             context.RoleId,
                             rowRoleId,
                             rowUserId,
-                            _scopeResolver.Resolve(rowRoleId, rowUserId, row.DepartmentId)))
+                            _scopeResolver.Resolve(rowRoleId, rowUserId, row.DepartmentId, Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(row.ApprovalFlowSource))))
                     {
                         extra.Add(row);
                     }
@@ -192,7 +192,7 @@ namespace AssetManagement.Application.Services
                 context.RoleId,
                 stageRoleId,
                 stageUserId,
-                _scopeResolver == null ? null : _scopeResolver.Resolve(stageRoleId, stageUserId, source.DepartmentId));
+                _scopeResolver == null ? null : _scopeResolver.Resolve(stageRoleId, stageUserId, source.DepartmentId, Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(source.ApprovalFlowSource)));
             if (!ApprovalWorkflowHelper.ShouldIncludePendingItem(context.IsSuperAdmin, canAct, isMine))
             {
                 return;

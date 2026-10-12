@@ -424,18 +424,30 @@ namespace AssetManagement.Tests.Requisitions
         // ---- PM decisions -----------------------------------------------------------------------------------------
 
         [Test]
-        public void IdenticalPaths_FromDifferentNodes_MergeIntoOneRequisition()
+        public void IdenticalPaths_FromDifferentNodes_StaySeparateRequisitions()
         {
             var uow = Seed();
-            // Desks get exactly the Laptops path (ICT Manager, no PO raiser): same fingerprint, so no split.
+            // Desks get exactly the Laptops path (ICT Manager, no PO raiser) but are a different node: owner decision = no merge.
             FlowService(uow).SaveFlow(Custom(CatalogFlowScope.Type, DeskTypeId, 7));
 
             var result = RequestService(uow).SubmitBatch(Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
 
+            Assert.IsTrue(result.IsSplit);
+            var prs = uow.Repository<PurchaseRequest>().GetAll().ToList();
+            Assert.AreEqual(2, prs.Count);
+            Assert.IsTrue(prs.All(p => p.ApprovalStageRoleIds == "7"));
+            Assert.IsTrue(prs.All(p => uow.Repository<PurchaseRequestLine>().GetAll().Count(x => x.PurchaseRequestId == p.Id) == 1));
+        }
+
+        [Test]
+        public void SameNode_TwoLines_ShareOneRequisition()
+        {
+            var uow = Seed();
+
+            var result = RequestService(uow).SubmitBatch(Form(Line("Laptop A", LaptopTypeId), Line("Laptop B", LaptopTypeId)), "requester");
+
             Assert.IsFalse(result.IsSplit);
-            var pr = uow.Repository<PurchaseRequest>().GetById(result.PrimaryId);
-            Assert.AreEqual("7", pr.ApprovalStageRoleIds);
-            Assert.AreEqual(2, uow.Repository<PurchaseRequestLine>().GetAll().Count(x => x.PurchaseRequestId == pr.Id));
+            Assert.AreEqual(2, uow.Repository<PurchaseRequestLine>().GetAll().Count(x => x.PurchaseRequestId == result.PrimaryId));
         }
 
         [Test]
@@ -451,7 +463,7 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void OrgApprovalsOff_CatalogPathHasNoStages_PoRaiserKept()
+        public void OrgApprovalsOff_CatalogPathStillApplies()
         {
             var uow = Seed();
             uow.Repository<SystemSetting>().GetById(1).SettingValue = "false";
@@ -460,10 +472,10 @@ namespace AssetManagement.Tests.Requisitions
 
             var resolved = RequisitionFlowResolver.ResolveForLine(uow, uow.Repository<Department>().GetById(5), RequisitionLineClassification.Create(null, LaptopTypeId, null));
 
-            Assert.IsFalse(resolved.Configuration.UsesApproval);
-            Assert.AreEqual(0, resolved.Configuration.StageRoleIds.Count);
+            Assert.IsTrue(resolved.Configuration.UsesApproval);
+            CollectionAssert.AreEqual(new[] { 7 }, resolved.Configuration.StageRoleIds);
             Assert.AreEqual(4, resolved.Configuration.PurchaseOrderRaiserRoleId);
-            StringAssert.Contains("approvals off", resolved.SourceLabel);
+            StringAssert.DoesNotContain("approvals off", resolved.SourceLabel);
         }
 
         [Test]

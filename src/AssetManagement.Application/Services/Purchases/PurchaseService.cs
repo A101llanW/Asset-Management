@@ -518,7 +518,7 @@ namespace AssetManagement.Application.Services
                 actingUserId,
                 actingRoleId,
                 null,
-                PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, config, request == null ? (int?)null : request.DepartmentId));
+                PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, config, request == null ? (int?)null : request.DepartmentId, request != null && Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource)));
         }
     }
 }

@@ -193,7 +193,7 @@ namespace AssetManagement.Web.Controllers
                     model.CurrentStageRoleId,
                     model.CurrentStageUserId,
                     // rel1009e: same approver resolver as the notification and the approve/reject check.
-                    StageApproverScopeResolver.ResolveFor(UnitOfWork, BuildUserService(), model.CurrentStageRoleId, model.CurrentStageUserId, model.DepartmentId));
+                    StageApproverScopeResolver.ResolveFor(UnitOfWork, BuildUserService(), model.CurrentStageRoleId, model.CurrentStageUserId, model.DepartmentId, AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(model.ApprovalFlowSource)));
 
             // "Purchase order raised by" (resolved from the unit the flow is taken from): hide the PO button for others.
             var entity = UnitOfWork.Repository<Domain.Entities.PurchaseRequest>().GetById(id);
@@ -203,7 +203,7 @@ namespace AssetManagement.Web.Controllers
                 poRaiserConfig,
                 currentUserId,
                 currentRoleId,
-                PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), poRaiserConfig, entity == null ? (int?)null : entity.DepartmentId));
+                PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), poRaiserConfig, entity == null ? (int?)null : entity.DepartmentId, entity != null && AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(entity.ApprovalFlowSource)));
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             // The path this requisition resolves to (its snapshot / unit flow), not the org default.

@@ -94,7 +94,8 @@ namespace AssetManagement.Application.Services
             IUnitOfWork unitOfWork,
             IUserService userService,
             ApprovalProcessConfiguration config,
-            int? requestDepartmentId)
+            int? requestDepartmentId,
+            bool catalogPathFirst = false)
         {
             if (!IsConfigured(config) || userService == null)
             {
@@ -106,7 +107,8 @@ namespace AssetManagement.Application.Services
                 userService,
                 config.PurchaseOrderRaiserRoleId,
                 config.PurchaseOrderRaiserUserId,
-                requestDepartmentId);
+                requestDepartmentId,
+                catalogPathFirst);
         }
 
         /// <summary>

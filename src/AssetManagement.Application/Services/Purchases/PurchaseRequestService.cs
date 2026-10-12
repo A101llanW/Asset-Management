@@ -779,7 +779,8 @@ namespace AssetManagement.Application.Services
                 entity.DepartmentId,
                 "Purchase approval required",
                 "Purchase request " + entity.RequestNumber + " is awaiting Stage 1 approval.",
-                "/PurchaseRequests/Details/" + entity.Id);
+                "/PurchaseRequests/Details/" + entity.Id,
+                Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(entity.ApprovalFlowSource));
             _unitOfWork.SaveChanges();
             _auditWriter.Write("Purchases.Request", nameof(PurchaseRequest), entity.Id.ToString(), null, "PendingApproval");
             return entity;
@@ -872,7 +873,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
-                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId, Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource)),
                 ApprovalActionEntity = new PurchaseApprovalAction
                 {
                     PurchaseRequestId = request.Id,
@@ -924,7 +925,8 @@ namespace AssetManagement.Application.Services
                             requestDepartmentId,
                             "Purchase approval stage advanced",
                             "Purchase request " + request.RequestNumber + " is now awaiting Stage " + request.CurrentApprovalStage + " approval.",
-                            "/PurchaseRequests/Details/" + request.Id);
+                            "/PurchaseRequests/Details/" + request.Id,
+                            Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource));
                     }
                 }
             });
@@ -975,7 +977,7 @@ namespace AssetManagement.Application.Services
                 StageRoleIds = stageRoleIds,
                 ExpectedRoleId = expectedRoleId,
                 ExpectedUserId = expectedUserId,
-                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId),
+                ApproverScope = StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, expectedRoleId, expectedUserId, requestDepartmentId, Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource)),
                 ApprovalActionEntity = new PurchaseApprovalAction
                 {
                     PurchaseRequestId = request.Id,
@@ -1122,7 +1124,7 @@ namespace AssetManagement.Application.Services
         private void WriteReadyForPurchaseOrderNotifications(IUnitOfWork uow, PurchaseRequest request, ApprovalProcessConfiguration poRaiserConfig)
         {
             // rel1009e: same scoped resolver as the PO-raise permission check (PurchaseService / Details button).
-            var raiserScope = PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, poRaiserConfig, request.DepartmentId);
+            var raiserScope = PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, poRaiserConfig, request.DepartmentId, Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource));
             var raiserIds = raiserScope == null
                 ? PurchaseOrderRaiserRules.ResolveNotifyUserIds(poRaiserConfig, new List<ApproverUserRecord>())
                 : raiserScope.UserIds;
@@ -1239,7 +1241,7 @@ namespace AssetManagement.Application.Services
                 user.RoleId,
                 stageRoleId,
                 stageUserId,
-                StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, stageRoleId, stageUserId, request.DepartmentId));
+                StageApproverScopeResolver.ResolveFor(_unitOfWork, _userService, stageRoleId, stageUserId, request.DepartmentId, Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource)));
         }
 
         private void EnsureCanAccessPurchaseRequest(PurchaseRequest request)

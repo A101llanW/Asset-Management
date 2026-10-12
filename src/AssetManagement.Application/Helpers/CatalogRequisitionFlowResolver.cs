@@ -45,6 +45,39 @@ namespace AssetManagement.Application.Helpers
             }
         }
 
+        /// <summary>
+        /// True when a requisition's stored ApprovalFlowSource label names a catalog node ("Custom on Type: X",
+        /// "Auto-approve on Sub-type #5", ...). Used to resolve approvers catalog-path-first (owner decision).
+        /// </summary>
+        public static bool IsCatalogSource(string approvalFlowSource)
+        {
+            if (string.IsNullOrWhiteSpace(approvalFlowSource))
+            {
+                return false;
+            }
+
+            var text = approvalFlowSource.Trim();
+            foreach (var prefix in new[] { "Custom on ", "Auto-approve on " })
+            {
+                if (!text.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var rest = text.Substring(prefix.Length);
+                foreach (var scope in new[] { CatalogFlowScope.SubType, CatalogFlowScope.Type, CatalogFlowScope.Category })
+                {
+                    var label = ScopeLabel(scope);
+                    if (rest.StartsWith(label + ": ", StringComparison.Ordinal) || rest.StartsWith(label + " #", StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public static string ScopeLabel(CatalogFlowScope scope)
         {
             switch (scope)
