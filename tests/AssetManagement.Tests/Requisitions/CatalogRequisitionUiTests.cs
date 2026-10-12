@@ -48,8 +48,8 @@ namespace AssetManagement.Tests.Requisitions
             });
             uow.Seed(new Role { Id = 4, Name = "Facilities Manager", IsActive = true });
             uow.Seed(new Role { Id = 7, Name = "ICT Manager", IsActive = true });
-            uow.Seed(new SystemSetting { Id = 1, SettingKey = "Approval.Purchase.Enabled", SettingValue = "true", IsActive = true });
-            uow.Seed(new SystemSetting { Id = 2, SettingKey = "Approval.Purchase.StageRoleIds", SettingValue = "9", IsActive = true });
+            uow.Seed(new SystemSetting { Id = 1, SettingKey = "Approval.Process.Purchase.Enabled", SettingValue = "true", IsActive = true });
+            uow.Seed(new SystemSetting { Id = 2, SettingKey = "Approval.Process.Purchase.StageRoleIds", SettingValue = "9", IsActive = true });
             uow.Seed(new AssetCategory { Id = 1, OrganizationId = 1, Name = "ICT", IsActive = true });
             uow.Seed(new AssetCategory { Id = 2, OrganizationId = 1, Name = "Furniture", IsActive = true });
             uow.Seed(new AssetCategory { Id = 3, OrganizationId = 1, Name = "Retired", IsActive = false });
@@ -420,6 +420,59 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(submitted.BatchLabel, detail.BatchLabel);
             Assert.AreEqual(submitted.RequestIds[1], detail.Siblings.Single().Id);
             Assert.AreEqual("ICT > Laptops > Latitude 5440", detail.LineItems.Single().ClassificationLabel);
+        }
+        // ---- PM decisions -----------------------------------------------------------------------------------------
+
+        [Test]
+        public void IdenticalPaths_FromDifferentNodes_MergeIntoOneRequisition()
+        {
+            var uow = Seed();
+            // Desks get exactly the Laptops path (ICT Manager, no PO raiser): same fingerprint, so no split.
+            FlowService(uow).SaveFlow(Custom(CatalogFlowScope.Type, DeskTypeId, 7));
+
+            var result = RequestService(uow).SubmitBatch(Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
+
+            Assert.IsFalse(result.IsSplit);
+            var pr = uow.Repository<PurchaseRequest>().GetById(result.PrimaryId);
+            Assert.AreEqual("7", pr.ApprovalStageRoleIds);
+            Assert.AreEqual(2, uow.Repository<PurchaseRequestLine>().GetAll().Count(x => x.PurchaseRequestId == pr.Id));
+        }
+
+        [Test]
+        public void SamePathDifferentPoRaiser_StillSplits()
+        {
+            var uow = Seed();
+            var desks = Custom(CatalogFlowScope.Type, DeskTypeId, 7);
+            desks.PurchaseOrderRaiserRoleId = 4;
+            FlowService(uow).SaveFlow(desks);
+
+            var result = RequestService(uow).SubmitBatch(Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
+            Assert.IsTrue(result.IsSplit);
+        }
+
+        [Test]
+        public void OrgApprovalsOff_CatalogPathHasNoStages_PoRaiserKept()
+        {
+            var uow = Seed();
+            uow.Repository<SystemSetting>().GetById(1).SettingValue = "false";
+            var laptops = uow.Repository<CatalogRequisitionFlow>().GetById(1);
+            laptops.PurchaseOrderRaiserRoleId = 4;
+
+            var resolved = RequisitionFlowResolver.ResolveForLine(uow, uow.Repository<Department>().GetById(5), RequisitionLineClassification.Create(null, LaptopTypeId, null));
+
+            Assert.IsFalse(resolved.Configuration.UsesApproval);
+            Assert.AreEqual(0, resolved.Configuration.StageRoleIds.Count);
+            Assert.AreEqual(4, resolved.Configuration.PurchaseOrderRaiserRoleId);
+            StringAssert.Contains("approvals off", resolved.SourceLabel);
+        }
+
+        [Test]
+        public void OrgApprovalsOff_DepartmentCustomPath_Unchanged()
+        {
+            var uow = Seed();
+            uow.Repository<SystemSetting>().GetById(1).SettingValue = "false";
+            var resolved = RequisitionFlowResolver.ResolveForLine(uow, uow.Repository<Department>().GetById(5), RequisitionLineClassification.Create(null, DeskTypeId, null));
+            CollectionAssert.AreEqual(new[] { 4 }, resolved.Configuration.StageRoleIds.ToArray(), "department custom paths keep today's behaviour");
         }
 #pragma warning restore 618
     }

@@ -37,8 +37,8 @@ namespace AssetManagement.Tests.Requisitions
             uow.Seed(new Role { Id = 4, Name = "Facilities Manager", IsActive = true });
             uow.Seed(new Role { Id = 7, Name = "ICT Manager", IsActive = true });
             uow.Seed(new Role { Id = 8, Name = "Procurement", IsActive = true });
-            uow.Seed(new SystemSetting { Id = 1, SettingKey = "Approval.Purchase.Enabled", SettingValue = "true", IsActive = true });
-            uow.Seed(new SystemSetting { Id = 2, SettingKey = "Approval.Purchase.StageRoleIds", SettingValue = "9", IsActive = true });
+            uow.Seed(new SystemSetting { Id = 1, SettingKey = "Approval.Process.Purchase.Enabled", SettingValue = "true", IsActive = true });
+            uow.Seed(new SystemSetting { Id = 2, SettingKey = "Approval.Process.Purchase.StageRoleIds", SettingValue = "9", IsActive = true });
             if (classificationMode != null)
             {
                 uow.Seed(new SystemSetting { Id = 3, SettingKey = RequisitionPolicySettings.ClassificationModeKey, SettingValue = classificationMode, IsActive = true });

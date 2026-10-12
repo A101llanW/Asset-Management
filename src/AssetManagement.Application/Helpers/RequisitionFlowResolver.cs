@@ -56,11 +56,14 @@ namespace AssetManagement.Application.Helpers
             var hit = CatalogRequisitionFlowResolver.Resolve(classification, getCatalogFlow, getCatalogName);
             if (hit != null)
             {
+                // PM decision: catalog paths obey the org Purchase approval-enabled switch (department custom paths
+                // keep their existing behaviour). Switch off = no stages; the PO raiser of the node still applies.
+                var approvalsOff = orgDefault != null && !orgDefault.RequiresApproval;
                 return Finish(new RequisitionFlowResolveResult
                 {
-                    Configuration = hit.Configuration,
+                    Configuration = approvalsOff ? WithoutStages(hit.Configuration) : hit.Configuration,
                     SourceKind = hit.SourceKind,
-                    SourceLabel = hit.SourceLabel,
+                    SourceLabel = approvalsOff ? hit.SourceLabel + " (organisation approvals off)" : hit.SourceLabel,
                     SourceKey = hit.SourceKey,
                     CatalogHit = hit
                 });
@@ -192,8 +195,26 @@ namespace AssetManagement.Application.Helpers
 
         private static RequisitionFlowResolveResult Finish(RequisitionFlowResolveResult result)
         {
-            result.Fingerprint = ComputeFingerprint(result.SourceKey, result.Configuration);
+            // PM decision (stage c/d): identical paths merge. The fingerprint covers the stages, auto-approve flag and
+            // PO raiser only, NOT the source node, so two catalog nodes (or a node and a department) with the same
+            // stages yield one requisition. SourceKey stays on the result for labelling and audit.
+            result.Fingerprint = ComputeFingerprint(null, result.Configuration);
             return result;
+        }
+
+        private static ApprovalProcessConfiguration WithoutStages(ApprovalProcessConfiguration source)
+        {
+            var config = source ?? EmptyPurchaseConfiguration();
+            return new ApprovalProcessConfiguration
+            {
+                ProcessCode = config.ProcessCode ?? ApprovalProcessCodes.Purchase,
+                DisplayName = config.DisplayName,
+                RequiresApproval = false,
+                StageRoleIds = new List<int>(),
+                StageUserIds = new List<string>(),
+                PurchaseOrderRaiserRoleId = config.PurchaseOrderRaiserRoleId,
+                PurchaseOrderRaiserUserId = config.PurchaseOrderRaiserUserId
+            };
         }
 
         private static ApprovalProcessConfiguration EmptyPurchaseConfiguration()
