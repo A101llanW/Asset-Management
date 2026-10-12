@@ -9,6 +9,19 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-12 22:30 - catalog-requisition-flows stages (c) + (d): Asset Categories approval setup, line pickers, batch page; sub-type required at receiving (`afcfa78`, `c103684`, branch `feature/catalog-requisition-flows`) - STAGED (not published, not pushed)
+
+- **Date/time EAT:** 2026-10-12. Local worktree `CodexAsset-catalog-req` only. Nothing published, pushed or PR'd.
+- **What and why:** (c) approval paths are set up on the existing Organization > Asset Categories / Types / Sub-types Edit pages; Settings page holds ClassificationMode / MixedFlowPolicy; requisition Create has cascading line pickers and a live path preview; split submits open a Batch summary. (d) every new receipt needs a sub-type (server + DB trigger); legacy NULLs untouched. PM decisions: identical paths merge; catalog paths obey the org approval switch; default policy rows seeded.
+- **Commit hash:** `afcfa78` (c), `c103684` (d + PM decisions).
+- **Files changed:** see DECISIONS-requisition.md C1-D6; main: CatalogRequisitionFlowService, PurchaseRequestService, RequisitionFlowResolver, ReceivingService, BaseController.CatalogRequisition.cs, AssetCategories/AssetTypes/AssetSubTypes/Settings/PurchaseRequests controllers, Create/Details/Batch/Receive/Settings Index views, purchase-request-classification.js, tests.
+- **DB migration/script:** `004_Migrations/101_ReceivingSubTypeRequired.sql` (trigger `TR_AssetReceiving_RequireSubType`, seeds settings rows, SchemaMigrationHistory). NOT applied to local main DB; verified only on throwaway `AssetManagementModuleDb_catreq_test`. Rollbacks (prepared, not run): `ops/101_Rollback_ReceivingSubTypeRequired_PREPARE_DO_NOT_RUN.sql`, `ops/100_Rollback_CatalogRequisitionFlow_PREPARE_DO_NOT_RUN.sql` (run 101 rollback first).
+- **Config/Web.config keys:** none.
+- **IIS/server steps (local):** none. Not published.
+- **Live-deploy steps:** backup DB; run 100 (if not yet) then 101; deploy Web. Run 101 only together with the new ReceivingService/Receive view (old receive UI could not pick a sub-type).
+- **Verify:** 770 passed, 26 failed (same 26 as baseline), 6 skipped. aspnet_compiler Razor build OK. Trigger check on throwaway DB: NULL sub-type receipt rejected, with sub-type accepted, 12 legacy rows still updatable. No browser/UI tests (held by PM).
+- **Rollback:** run 101 rollback script, revert `c103684` and `afcfa78`.
+
 ## 2026-10-12 20:06 - catalog-requisition-flows stage (b): group-and-split on submit, ClassificationMode / MixedFlowPolicy org policies (`264a225`, branch `feature/catalog-requisition-flows`) - STAGED (not published, not pushed)
 
 - **Date/time EAT:** 2026-10-12 20:00-20:06. Local worktree `CodexAsset-catalog-req` only. Nothing published, nothing pushed, no PR.
