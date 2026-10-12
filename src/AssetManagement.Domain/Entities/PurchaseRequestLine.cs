@@ -17,6 +17,13 @@ namespace AssetManagement.Domain.Entities
 
         public int Quantity { get; set; }
 
+        /// <summary>Optional catalog classification (migration 100); normalized so sub-type implies type and category.</summary>
+        public int? AssetCategoryId { get; set; }
+
+        public int? AssetTypeId { get; set; }
+
+        public int? AssetSubTypeId { get; set; }
+
         public virtual PurchaseRequest PurchaseRequest { get; set; }
     }
 }

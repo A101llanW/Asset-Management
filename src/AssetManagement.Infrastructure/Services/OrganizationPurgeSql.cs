@@ -111,6 +111,8 @@ namespace AssetManagement.Infrastructure.Services
             Delete("PurchaseApprovalAction"),
             Delete("PurchaseRequestLine"),
             Delete("PurchaseRequest"),
+            Delete("PurchaseRequestGroup"), // migration 100: after PurchaseRequest (FK)
+            Delete("CatalogRequisitionFlow"), // migration 100: no FK, catalog overrides
             Delete("AssetRequest"),
             NullColumn("SupplierCatalogItem", "TaggedAssetId"),
             Delete("SupplierCatalogItem"),

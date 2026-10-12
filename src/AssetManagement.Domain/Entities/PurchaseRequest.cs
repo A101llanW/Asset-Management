@@ -57,6 +57,12 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Optional link to an existing asset record for post-purchase assignment.</summary>
         public int? TargetAssetId { get; set; }
 
+        /// <summary>Set when this requisition was auto-split from one form with sibling requisitions (migration 100).</summary>
+        public int? PurchaseRequestGroupId { get; set; }
+
+        /// <summary>Winning approval source at submit, e.g. "Custom on Type: Laptops" (migration 100; null for older rows).</summary>
+        public string ApprovalFlowSource { get; set; }
+
         public DateTime? ApprovedAt { get; set; }
 
         public byte[] RowVersion { get; set; }
