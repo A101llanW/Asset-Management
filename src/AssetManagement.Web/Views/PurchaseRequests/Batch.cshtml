@@ -1,0 +1,80 @@
+@model AssetManagement.Application.ViewModels.PurchaseRequestBatchVm
+@{
+    ViewBag.Title = "Requisition batch " + Model.BatchLabel;
+    var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
+}
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Requisition batch " + Model.BatchLabel,
+    Subtitle = "These requisitions were submitted together on one form and split because their items use different approval paths. Each one is approved separately.",
+    BackUrl = returnUrl,
+    BackLabel = "Back",
+    Breadcrumbs = new[]
+    {
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Purchases", Url = Url.Action("Index", "Purchases") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Requisitions", Url = Url.Action("Index") },
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.BatchLabel }
+    }
+})
+
+<div class="card card-kpi mb-3">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Batch</dt>
+            <dd class="col-sm-9">@Model.BatchLabel</dd>
+            <dt class="col-sm-3">Submitted</dt>
+            <dd class="col-sm-9">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm") @if (!string.IsNullOrWhiteSpace(Model.CreatedByName)) {<span>by @Model.CreatedByName</span>}</dd>
+            <dt class="col-sm-3">Requisitions</dt>
+            <dd class="col-sm-9">@(Model.Requests.Count + Model.HiddenCount)</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="card card-kpi">
+    <div class="card-header">Requisitions in this batch</div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="purchase-request-batch-table">
+            <thead>
+                <tr class="bg-light text-secondary small">
+                    <th class="ps-3">Requisition</th>
+                    <th>Items</th>
+                    <th class="text-end">Qty</th>
+                    <th>Approval path</th>
+                    <th>Status</th>
+                    <th>Department</th>
+                    <th class="text-end pe-3"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Requests)
+                {
+                    <tr>
+                        <td class="ps-3 fw-medium">@item.RequestNumber</td>
+                        <td>@item.ItemSummary @if (item.LineCount > 1) {<span class="text-muted small">(@item.LineCount lines)</span>}</td>
+                        <td class="text-end">@item.TotalQuantity</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ApprovalFlowSource) ? "-" : item.ApprovalFlowSource)</td>
+                        <td>
+                            <span class="badge bg-secondary">@item.ApprovalStatus</span>
+                            @if (item.ApprovalStatus == "Pending" && item.StageCount > 0)
+                            {
+                                <span class="text-muted small">stage @(item.CurrentApprovalStage <= 0 ? 1 : item.CurrentApprovalStage) of @item.StageCount</span>
+                            }
+                            @if (item.HasPurchaseRecord)
+                            {
+                                <span class="badge bg-light text-dark border">PO recorded</span>
+                            }
+                        </td>
+                        <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "-" : item.DepartmentName)</td>
+                        <td class="text-end pe-3">
+                            <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.HiddenCount > 0)
+    {
+        <div class="card-body small text-muted">@Model.HiddenCount more requisition(s) in this batch are outside your access.</div>
+    }
+</div>

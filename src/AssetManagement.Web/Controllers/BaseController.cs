@@ -22,7 +22,7 @@ using System.Web.Mvc;
 namespace AssetManagement.Web.Controllers
 {
     [TenantAuthorize]
-    public abstract class BaseController : Controller
+    public abstract partial class BaseController : Controller
     {
         protected readonly IUnitOfWork UnitOfWork;
         protected readonly ICurrentUserContext CurrentUserContext;
@@ -953,7 +953,7 @@ namespace AssetManagement.Web.Controllers
             return BuildApprovalConfigurationSummary(config);
         }
 
-        private string BuildApprovalConfigurationSummary(ApprovalProcessConfiguration config)
+        protected string BuildApprovalConfigurationSummary(ApprovalProcessConfiguration config)
         {
             var roleLookup = BuildRoleNameLookup();
             if (config == null || !config.UsesApproval)

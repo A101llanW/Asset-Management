@@ -104,6 +104,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<PurchaseService>().As<IPurchaseService>().InstancePerHttpRequest();
             builder.RegisterType<ReceivingService>().As<IReceivingService>().InstancePerHttpRequest();
             builder.RegisterType<PurchaseRequestService>().As<IPurchaseRequestService>().InstancePerHttpRequest();
+            builder.RegisterType<CatalogRequisitionFlowService>().As<ICatalogRequisitionFlowService>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogService>().As<IAuditLogService>().InstancePerHttpRequest();
             builder.RegisterType<AssetMovementService>().As<IAssetMovementService>().InstancePerHttpRequest();
             builder.RegisterType<ReportService>().As<IReportService>().InstancePerHttpRequest();

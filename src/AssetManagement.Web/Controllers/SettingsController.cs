@@ -27,14 +27,16 @@ namespace AssetManagement.Web.Controllers
             var model = BuildViewModel();
             ViewBag.SmtpRouteSummary = BuildSmtpRouteSummary(ResolveCurrentOrganizationId());
             PopulateApprovalMatrixOptions();
+            PopulateRequisitionPolicies(null);
             return View(model);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Index(SettingsVm model)
+        public ActionResult Index(SettingsVm model, [Bind(Prefix = "RequisitionPolicies")] RequisitionPolicySettingsVm requisitionPolicies = null)
         {
             PopulateApprovalMatrixOptions();
+            PopulateRequisitionPolicies(Request.Form["RequisitionPolicies.ClassificationMode"] == null ? null : requisitionPolicies);
             ValidateApprovalProcesses(model);
             if (!ModelState.IsValid)
             {
@@ -68,6 +70,11 @@ namespace AssetManagement.Web.Controllers
             }
 
             UnitOfWork.SaveChanges();
+            if (Request.Form["RequisitionPolicies.ClassificationMode"] != null)
+            {
+                SaveRequisitionPolicies(requisitionPolicies);
+            }
+
             TempData["Message"] = "Settings saved successfully.";
             TempData["Guidance"] = "Approval stage changes apply to new requisitions and other requests going forward. Existing pending items keep the approval path they were submitted with.";
             return RedirectToAction("Index");

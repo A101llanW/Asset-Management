@@ -121,6 +121,7 @@ namespace AssetManagement.Web.Controllers
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id });
             ViewBag.CanManageUsefulLife = IsCurrentUserCompanyAdmin();
+            PopulateCatalogRequisitionFlowEditor(AssetManagement.Domain.Enums.CatalogFlowScope.Category, id);
             return View(new AssetCategoryVm
             {
                 Id = entity.Id,
@@ -135,12 +136,14 @@ namespace AssetManagement.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit(AssetCategoryVm model, string returnUrl = null)
+        public ActionResult Edit(AssetCategoryVm model, string returnUrl = null, [Bind(Prefix = "RequisitionFlow")] AssetManagement.Application.ViewModels.CatalogRequisitionFlowEditVm requisitionFlow = null, System.Collections.Generic.IList<AssetManagement.Application.ViewModels.ApprovalProcessSettingsVm> requisitionFlowProcesses = null)
         {
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
             ViewBag.CanManageUsefulLife = IsCurrentUserCompanyAdmin();
             ViewBag.CanManageDepreciation = IsCurrentUserCompanyAdmin();
             ValidateCategory(model);
+            var flow = ReadPostedCatalogRequisitionFlow(AssetManagement.Domain.Enums.CatalogFlowScope.Category, model.Id, requisitionFlow, requisitionFlowProcesses);
+            PopulateCatalogRequisitionFlowEditor(AssetManagement.Domain.Enums.CatalogFlowScope.Category, model.Id, flow);
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -150,6 +153,11 @@ namespace AssetManagement.Web.Controllers
             if (entity == null)
             {
                 return HttpNotFound();
+            }
+
+            if (!TrySaveCatalogRequisitionFlow(flow))
+            {
+                return View(model);
             }
 
             entity.Name = model.Name.Trim();

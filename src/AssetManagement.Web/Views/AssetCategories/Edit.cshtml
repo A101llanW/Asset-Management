@@ -39,6 +39,10 @@
     </div>
     @Html.Partial("_TaxonomyUsefulLifeFields")
     @Html.Partial("_TaxonomyDepreciationFields")
+    if (ViewBag.RequisitionFlow != null)
+    {
+        @Html.Partial("_TaxonomyRequisitionApprovalFields", (AssetManagement.Application.ViewModels.CatalogRequisitionFlowEditVm)ViewBag.RequisitionFlow)
+    }
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
         SubmitLabel = "Update Category",

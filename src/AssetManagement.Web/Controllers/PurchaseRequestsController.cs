@@ -20,7 +20,7 @@ using AssetManagement.Web.Security;
 namespace AssetManagement.Web.Controllers
 {
     [AnyPermissionAuthorize("Purchases.View", "Purchases.Create", "Purchases.Approve")]
-    public class PurchaseRequestsController : BaseController
+    public partial class PurchaseRequestsController : BaseController
     {
         private static readonly string[] AllowedAttachmentExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv" };
         private const long MaxAttachmentSizeBytes = 10 * 1024 * 1024;
@@ -146,10 +146,14 @@ namespace AssetManagement.Web.Controllers
                 SaveOptionalAttachment(id, attachment, submitted.RequestIds);
                 if (submitted.IsSplit)
                 {
-                    // Batch summary view comes with the requisition form UI (stage c); until then, list the numbers.
                     TempData["Message"] = "Submitted " + submitted.RequestIds.Count + " requisitions ("
                         + string.Join(", ", submitted.RequestNumbers.ToArray()) + ", " + submitted.BatchLabel
                         + ") because the items use different approval paths.";
+                    if (submitted.GroupId.HasValue)
+                    {
+                        return RedirectToAction("Batch", new { id = submitted.GroupId.Value, returnUrl = ViewBag.ReturnUrl });
+                    }
+
                     return RedirectToAction("Details", new { id, returnUrl = ViewBag.ReturnUrl });
                 }
 
@@ -420,6 +424,7 @@ namespace AssetManagement.Web.Controllers
                 : BuildDepartmentSelectList(departmentId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
+            PopulateCatalogPickers();
             ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
             var profile = GetCurrentUserProfile();
             ViewBag.RequestingAsDisplayName = profile == null

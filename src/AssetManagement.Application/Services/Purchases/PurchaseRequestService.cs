@@ -167,6 +167,25 @@ namespace AssetManagement.Application.Services
                     AssetSubTypeId = x.AssetSubTypeId
                 })
                 .ToList();
+            foreach (var lineItem in lineItems)
+            {
+                lineItem.ClassificationLabel = BuildClassificationLabel(lineItem.AssetCategoryId, lineItem.AssetTypeId, lineItem.AssetSubTypeId);
+            }
+
+            string batchLabel = null;
+            var siblings = new List<PurchaseRequestSiblingVm>();
+            if (entity.PurchaseRequestGroupId.HasValue)
+            {
+                var group = _unitOfWork.Repository<PurchaseRequestGroup>().GetById(entity.PurchaseRequestGroupId.Value);
+                batchLabel = group == null ? null : group.BatchLabel;
+                var groupId = entity.PurchaseRequestGroupId.Value;
+                siblings = _unitOfWork.Repository<PurchaseRequest>()
+                    .Find(x => x.PurchaseRequestGroupId == groupId && x.Id != entity.Id)
+                    .Where(CanAccessPurchaseRequest)
+                    .OrderBy(x => x.Id)
+                    .Select(x => new PurchaseRequestSiblingVm { Id = x.Id, RequestNumber = x.RequestNumber, ApprovalFlowSource = x.ApprovalFlowSource })
+                    .ToList();
+            }
 
             return new PurchaseRequestDetailVm
             {
@@ -205,6 +224,8 @@ namespace AssetManagement.Application.Services
                 PurchaseRequestGroupId = entity.PurchaseRequestGroupId,
                 ApprovalFlowSource = entity.ApprovalFlowSource,
                 LineItems = lineItems,
+                BatchLabel = batchLabel,
+                Siblings = siblings,
                 ApprovalHistory = ApprovalWorkflowHelper.MapDecisionHistory(
                     actions.Select(x => ApprovalWorkflowHelper.ToSnapshot(
                         x.StageNumber, x.RoleId, x.ApproverUserId, x.Decision, x.Notes, x.DecisionDate)),
@@ -364,6 +385,178 @@ namespace AssetManagement.Application.Services
             }
 
             return result;
+        }
+
+        public PurchaseRequestPathPreviewVm PreviewPaths(PurchaseRequestCreateVm model)
+        {
+            var result = new PurchaseRequestPathPreviewVm
+            {
+                ClassificationMode = RequisitionPolicySettings.GetClassificationMode(_unitOfWork),
+                MixedFlowPolicy = RequisitionPolicySettings.GetMixedFlowPolicy(_unitOfWork)
+            };
+            if (model == null)
+            {
+                return result;
+            }
+
+            // Keep every posted row (blank description = placeholder) so line numbers match the form rows.
+            var lines = (model.Lines ?? new List<PurchaseRequestLineCreateVm>())
+                .Select(x => new PurchaseRequestLineCreateVm
+                {
+                    Description = x == null || string.IsNullOrWhiteSpace(x.Description) ? "-" : x.Description,
+                    Quantity = x == null || x.Quantity <= 0 ? 1 : x.Quantity,
+                    AssetCategoryId = x == null ? null : x.AssetCategoryId,
+                    AssetTypeId = x == null ? null : x.AssetTypeId,
+                    AssetSubTypeId = x == null ? null : x.AssetSubTypeId
+                })
+                .ToList();
+            if (lines.Count == 0)
+            {
+                lines.Add(new PurchaseRequestLineCreateVm { Description = "-", Quantity = 1 });
+            }
+
+            try
+            {
+                Department department = null;
+                if (model.DepartmentId > 0)
+                {
+                    department = _unitOfWork.Repository<Department>().GetById(model.DepartmentId);
+                    if (department != null)
+                    {
+                        _departmentScope.EnsureCanCreateForRequisitionTarget(department);
+                    }
+                }
+
+                int? targetAssetId = null;
+                try
+                {
+                    targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
+                }
+                catch (BusinessException)
+                {
+                    targetAssetId = null; // submit reports the asset problem; the preview just ignores it
+                }
+
+                var classified = ClassifyLines(model, lines, targetAssetId);
+                for (var i = 0; i < classified.Count; i++)
+                {
+                    var resolved = RequisitionFlowResolver.ResolveForLine(_unitOfWork, department, classified[i].Classification);
+                    var group = result.Groups.FirstOrDefault(x => x.SourceKind == resolved.Fingerprint);
+                    if (group == null)
+                    {
+                        group = new PurchaseRequestPathPreviewGroupVm
+                        {
+                            GroupNumber = result.Groups.Count + 1,
+                            SourceLabel = resolved.SourceLabel,
+                            // SourceKind carries the fingerprint while grouping; replaced below.
+                            SourceKind = resolved.Fingerprint,
+                            Configuration = resolved.Configuration
+                        };
+                        result.Groups.Add(group);
+                    }
+
+                    group.LineNumbers.Add(i + 1);
+                    result.Lines.Add(new PurchaseRequestPathPreviewLineVm
+                    {
+                        LineNumber = i + 1,
+                        GroupNumber = group.GroupNumber,
+                        SourceLabel = resolved.SourceLabel
+                    });
+                }
+            }
+            catch (BusinessException ex)
+            {
+                result.Error = ex.Message;
+                result.Lines.Clear();
+                result.Groups.Clear();
+            }
+
+            foreach (var group in result.Groups)
+            {
+                group.SourceKind = null;
+            }
+
+            return result;
+        }
+
+        public PurchaseRequestBatchVm GetBatch(int groupId)
+        {
+            var group = _unitOfWork.Repository<PurchaseRequestGroup>().GetById(groupId);
+            if (group == null)
+            {
+                return null;
+            }
+
+            var all = _unitOfWork.Repository<PurchaseRequest>()
+                .Find(x => x.PurchaseRequestGroupId == groupId)
+                .OrderBy(x => x.Id)
+                .ToList();
+            var visible = all.Where(CanAccessPurchaseRequest).ToList();
+            if (visible.Count == 0)
+            {
+                return null;
+            }
+
+            var organizationId = group.OrganizationId ?? _organizationScope.GetCurrentOrganizationId();
+            var departmentNames = _unitOfWork.Repository<Department>().GetAll()
+                .Where(x => !organizationId.HasValue || x.OrganizationId == organizationId.Value)
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First().Name);
+            var result = new PurchaseRequestBatchVm
+            {
+                GroupId = group.Id,
+                BatchLabel = group.BatchLabel,
+                CreatedAt = group.CreatedAt,
+                CreatedByUserId = group.CreatedByUserId,
+                CreatedByName = ResolveApproverDisplayName(group.CreatedByUserId),
+                HiddenCount = all.Count - visible.Count
+            };
+
+            foreach (var request in visible)
+            {
+                var requestId = request.Id;
+                var lines = _unitOfWork.Repository<PurchaseRequestLine>()
+                    .Find(x => x.PurchaseRequestId == requestId && x.IsActive)
+                    .ToList();
+                result.Requests.Add(new PurchaseRequestBatchItemVm
+                {
+                    Id = request.Id,
+                    RequestNumber = request.RequestNumber,
+                    ApprovalStatus = request.ApprovalStatus.ToString(),
+                    CurrentApprovalStage = request.CurrentApprovalStage,
+                    StageCount = ResolveStageRoleIds(request, persistBackfill: false).Count,
+                    ApprovalFlowSource = request.ApprovalFlowSource,
+                    ItemSummary = request.ItemDescription,
+                    LineCount = lines.Count == 0 ? 1 : lines.Count,
+                    TotalQuantity = lines.Count == 0 ? request.Quantity : lines.Sum(x => x.Quantity),
+                    DepartmentName = departmentNames.ContainsKey(request.DepartmentId) ? departmentNames[request.DepartmentId] : null,
+                    HasPurchaseRecord = _unitOfWork.Repository<PurchaseRecord>().Find(x => x.PurchaseRequestId == requestId).Any()
+                });
+            }
+
+            return result;
+        }
+
+        private string BuildClassificationLabel(int? categoryId, int? typeId, int? subTypeId)
+        {
+            var parts = new List<string>();
+            if (categoryId.HasValue)
+            {
+                parts.Add(RequisitionFlowResolver.GetCatalogName(_unitOfWork, CatalogFlowScope.Category, categoryId.Value));
+            }
+
+            if (typeId.HasValue)
+            {
+                parts.Add(RequisitionFlowResolver.GetCatalogName(_unitOfWork, CatalogFlowScope.Type, typeId.Value));
+            }
+
+            if (subTypeId.HasValue)
+            {
+                parts.Add(RequisitionFlowResolver.GetCatalogName(_unitOfWork, CatalogFlowScope.SubType, subTypeId.Value));
+            }
+
+            var names = parts.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+            return names.Length == 0 ? null : string.Join(" > ", names);
         }
 
         private sealed class ClassifiedLine

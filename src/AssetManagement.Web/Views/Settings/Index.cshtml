@@ -149,6 +149,55 @@
             @Html.Partial("_ApprovalProcessMatrix", Model.ApprovalProcesses)
         </div>
     </div>
+    @{
+        var requisitionPolicies = ViewBag.RequisitionPolicies as AssetManagement.Application.ViewModels.RequisitionPolicySettingsVm;
+        var catalogFlows = ViewBag.CatalogRequisitionFlows as System.Collections.Generic.IList<AssetManagement.Application.ViewModels.CatalogRequisitionFlowListItemVm>;
+    }
+    @if (requisitionPolicies != null)
+    {
+        <div class="card card-kpi mb-3" id="requisition-policies-card">
+            <div class="card-header">Requisition classification &amp; approval paths</div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Requisition lines can be classified with your existing asset categories, types and sub-types. A category, type or sub-type can carry its own approval path (set it on that item's Edit page under Asset Categories); otherwise the line follows the target department's flow.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="RequisitionPolicies_ClassificationMode">Line classification</label>
+                        <select class="form-select" id="RequisitionPolicies_ClassificationMode" name="RequisitionPolicies.ClassificationMode">
+                            <option value="Optional" @(requisitionPolicies.ClassificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.Optional ? "selected=\"selected\"" : null)>Optional (description-only lines allowed)</option>
+                            <option value="RequiredPerLine" @(requisitionPolicies.ClassificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredPerLine ? "selected=\"selected\"" : null)>Required on every line (type or sub-type)</option>
+                            <option value="RequiredHeader" @(requisitionPolicies.ClassificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredHeader ? "selected=\"selected\"" : null)>Required once per requisition (applies to lines without their own pick)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="RequisitionPolicies_MixedFlowPolicy">Lines with different approval paths</label>
+                        <select class="form-select" id="RequisitionPolicies_MixedFlowPolicy" name="RequisitionPolicies.MixedFlowPolicy">
+                            <option value="AutoSplit" @(requisitionPolicies.MixedFlowPolicy == AssetManagement.Domain.Enums.RequisitionMixedFlowPolicy.AutoSplit ? "selected=\"selected\"" : null)>Split into one requisition per approval path (linked batch)</option>
+                            <option value="Block" @(requisitionPolicies.MixedFlowPolicy == AssetManagement.Domain.Enums.RequisitionMixedFlowPolicy.Block ? "selected=\"selected\"" : null)>Block: the requester must submit them separately</option>
+                        </select>
+                    </div>
+                </div>
+                @if (!requisitionPolicies.IsStored)
+                {
+                    <div class="form-text">Defaults in use (Optional, Split). They are stored the first time you save a different choice.</div>
+                }
+                @if (catalogFlows != null && catalogFlows.Count > 0)
+                {
+                    <h6 class="mt-3 mb-2">Approval paths set on categories / types / sub-types</h6>
+                    <ul class="list-unstyled small mb-0">
+                        @foreach (var flowItem in catalogFlows)
+                        {
+                            var controllerName = flowItem.Scope == AssetManagement.Domain.Enums.CatalogFlowScope.Category ? "AssetCategories"
+                                : flowItem.Scope == AssetManagement.Domain.Enums.CatalogFlowScope.Type ? "AssetTypes" : "AssetSubTypes";
+                            <li>
+                                <a href="@Url.Action("Edit", controllerName, new { id = flowItem.ScopedEntityId })">@flowItem.PathLabel</a>
+                                <span class="text-muted">&mdash; @(flowItem.FlowMode == AssetManagement.Domain.Enums.RequisitionFlowMode.AutoApprove ? "Auto-approve" : flowItem.StageRoleIds.Count + " stage(s)")</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    }
     </div>
 
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel

@@ -193,6 +193,9 @@
     <Compile Include="Controllers\RolesController.cs" />
     <Compile Include="Controllers\SettingsController.cs" />
     <Compile Include="Controllers\SettingsController.Email.cs" />
+    <Compile Include="Controllers\SettingsController.Requisition.cs" />
+    <Compile Include="Controllers\BaseController.CatalogRequisition.cs" />
+    <Compile Include="Controllers\PurchaseRequestsController.Catalog.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />
     <Compile Include="Controllers\UserInvitationsController.cs" />
@@ -337,6 +340,7 @@
     <Content Include="Scripts\app\supplier-create.js" />
     <Content Include="Scripts\app\purchase-request-details.js" />
     <Content Include="Scripts\app\purchase-request-create.js" />
+    <Content Include="Scripts\app\purchase-request-classification.js" />
     <Content Include="Scripts\app\purchase-create.js" />
     <Content Include="Scripts\app\purchase-order-lines.js" />
     <Content Include="Scripts\app\receive-order.js" />
@@ -454,6 +458,7 @@
     <Content Include="Views\Purchases\_ReceiveSerialWizardModal.cshtml" />
     <Content Include="Views\Purchases\Index.cshtml" />
     <Content Include="Views\PurchaseRequests\Create.cshtml" />
+    <Content Include="Views\PurchaseRequests\Batch.cshtml" />
     <Content Include="Views\PurchaseRequests\_TargetAssetPickerModal.cshtml" />
     <Content Include="Views\PurchaseRequests\Details.cshtml" />
     <Content Include="Views\PurchaseRequests\Index.cshtml" />
@@ -497,6 +502,7 @@
     <Content Include="Views\Shared\_AssetDepreciationFields.cshtml" />
     <Content Include="Views\Shared\_TaxonomyDepreciationFields.cshtml" />
     <Content Include="Views\Shared\_TaxonomyUsefulLifeFields.cshtml" />
+    <Content Include="Views\Shared\_TaxonomyRequisitionApprovalFields.cshtml" />
     <Content Include="Views\Shared\_FormActions.cshtml" />
     <Content Include="Views\Shared\_GlobalSearch.cshtml" />
     <Content Include="Views\Shared\_ListBulkToolbar.cshtml" />

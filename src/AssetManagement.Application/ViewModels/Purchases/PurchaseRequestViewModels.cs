@@ -24,6 +24,9 @@ namespace AssetManagement.Application.ViewModels
 
     public class PurchaseRequestLineVm
     {
+        /// <summary>Most specific catalog pick, e.g. "Laptops > Dell Latitude 5440" (null = unclassified).</summary>
+        public string ClassificationLabel { get; set; }
+
         public int LineNumber { get; set; }
 
         public string Description { get; set; }
@@ -283,6 +286,12 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>Winning approval source label at submit (null for requisitions created before migration 100).</summary>
         public string ApprovalFlowSource { get; set; }
+
+        /// <summary>BATCH-000123 when auto-split (see <see cref="PurchaseRequestGroupId"/>).</summary>
+        public string BatchLabel { get; set; }
+
+        /// <summary>Other requisitions from the same form that the current user can open.</summary>
+        public IList<PurchaseRequestSiblingVm> Siblings { get; set; } = new List<PurchaseRequestSiblingVm>();
 
         public IEnumerable<ApprovalDecisionHistoryVm> ApprovalHistory { get; set; } = new List<ApprovalDecisionHistoryVm>();
     }
