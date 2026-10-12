@@ -14,6 +14,9 @@ namespace AssetManagement.Tests.Helpers
         private const int StageRoleId = 7;
         private const int OtherRoleId = 9;
 
+        // Stale (catalog-requisition-flows, 2026-10-12): references members removed from the production code;
+        // excluded so the test project builds. Define LEGACY_ELIGIBLE_SELF_APPROVAL_API to resurrect if the API returns.
+#if LEGACY_ELIGIBLE_SELF_APPROVAL_API
         [Test]
         public void AllowsEligibleSelfApproval_IncludesPurchaseTransferDisposal()
         {
@@ -36,6 +39,7 @@ namespace AssetManagement.Tests.Helpers
             Assert.IsFalse(ApprovalWorkflowHelper.AllowsEligibleSelfApprovalForProcessName("Asset Request"));
             Assert.IsFalse(ApprovalWorkflowHelper.AllowsEligibleSelfApprovalForProcessName(null));
         }
+#endif
 
         [Test]
         public void EnsureUserCanApprove_Purchase_SelfRequesterWhoIsStageUser_Succeeds()
@@ -131,6 +135,9 @@ namespace AssetManagement.Tests.Helpers
                 ApprovalProcessCodes.Transfer));
         }
 
+        // Stale (catalog-requisition-flows, 2026-10-12): references members removed from the production code;
+        // excluded so the test project builds. Define LEGACY_ELIGIBLE_SELF_APPROVAL_API to resurrect if the API returns.
+#if LEGACY_ELIGIBLE_SELF_APPROVAL_API
         [Test]
         public void CanUserActOnStage_TransferSelf_WithoutEligibleFlag_Blocked()
         {
@@ -182,5 +189,6 @@ namespace AssetManagement.Tests.Helpers
                 null,
                 allowEligibleSelfApproval: true));
         }
+#endif
     }
 }
