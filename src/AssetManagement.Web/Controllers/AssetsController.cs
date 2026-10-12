@@ -41,7 +41,7 @@ namespace AssetManagement.Web.Controllers
             filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
                 filter,
                 GetCurrentUserProfile(),
-                CanApproveAssetRequests(),
+                CanManageDepartmentAssets(),
                 IsCurrentUserSuperAdmin());
             if (filter == null)
             {
@@ -127,7 +127,7 @@ namespace AssetManagement.Web.Controllers
             filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
                 filter,
                 GetCurrentUserProfile(),
-                CanApproveAssetRequests(),
+                CanManageDepartmentAssets(),
                 IsCurrentUserSuperAdmin());
             if (filter == null)
             {
@@ -291,7 +291,7 @@ namespace AssetManagement.Web.Controllers
             filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
                 filter,
                 GetCurrentUserProfile(),
-                CanApproveAssetRequests(),
+                CanManageDepartmentAssets(),
                 IsCurrentUserSuperAdmin());
             return filter ?? new AssetFilterVm();
         }
@@ -1169,6 +1169,20 @@ namespace AssetManagement.Web.Controllers
         private bool CanApproveAssetRequests()
         {
             return _authorizationService.HasPermission(User.GetUserId(), "Assets.Request.Approve");
+        }
+
+        /// <summary>
+        /// Asset list default: users who act on their department's assets (approve requests, assign, transfer, edit)
+        /// open the list on their department; everyone else on the assets they hold. Previously only approvers
+        /// got the department view, so a custodian-role user (e.g. a Facilities Manager) saw an empty register.
+        /// </summary>
+        private bool CanManageDepartmentAssets()
+        {
+            var userId = User.GetUserId();
+            return CanApproveAssetRequests()
+                || _authorizationService.HasPermission(userId, "Assets.Assign")
+                || _authorizationService.HasPermission(userId, "Assets.Transfer")
+                || _authorizationService.HasPermission(userId, "Assets.Edit");
         }
 
         private IList<string> BuildBulkPermissionCodes()

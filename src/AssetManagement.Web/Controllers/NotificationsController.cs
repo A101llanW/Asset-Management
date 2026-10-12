@@ -5,7 +5,7 @@ using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
 {
-    [PermissionAuthorize("Reports.View")]
+    [DashboardAccess]
     public class NotificationsController : BaseController
     {
         private readonly INotificationService _notificationService;

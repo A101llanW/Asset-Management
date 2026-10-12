@@ -18,7 +18,7 @@ namespace AssetManagement.Application.ViewModels.Platform
             get
             {
                 return OrganizationId.HasValue
-                    && string.Equals(RoleName, "Company Admin", System.StringComparison.OrdinalIgnoreCase);
+                    && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRoleName(RoleName);
             }
         }
     }

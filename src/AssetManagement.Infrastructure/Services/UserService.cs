@@ -155,6 +155,7 @@ namespace AssetManagement.Infrastructure.Services
             }
 
             EnsurePermissionCeiling(roleId);
+            EnsureCustomRoleHasDepartment(role, user.DepartmentId);
             // rel1009e: a department may have any number of Department Heads (one-head rule removed).
 
             var previousRoleId = user.RoleId;
@@ -172,6 +173,26 @@ namespace AssetManagement.Infrastructure.Services
                 roleId.ToString());
         }
 
+        /// <summary>
+        /// Custom (non-system) tenant roles need a department when the organization has active departments,
+        /// otherwise department scoping leaves the user with no assets. Same rule as CustomRoleDepartmentRule.
+        /// </summary>
+        private void EnsureCustomRoleHasDepartment(Role role, int? departmentId)
+        {
+            if (role == null || role.IsSystemRole || !role.OrganizationId.HasValue || departmentId.HasValue)
+            {
+                return;
+            }
+
+            var organizationId = role.OrganizationId.Value;
+            var hasDepartments = _unitOfWork.Repository<Department>().Query()
+                .Any(d => d.OrganizationId == organizationId && d.IsActive);
+            if (hasDepartments)
+            {
+                throw new BusinessException(AssetManagement.Infrastructure.Security.CustomRoleDepartmentRule.Message);
+            }
+        }
+
         public void AssignDepartment(string userId, int? departmentId)
         {
             var user = _unitOfWork.Writer<ApplicationUser>().GetById(userId);
@@ -187,6 +208,10 @@ namespace AssetManagement.Infrastructure.Services
                 {
                     throw new BusinessException("That department no longer exists.");
                 }
+            }
+            else if (user.RoleId.HasValue)
+            {
+                EnsureCustomRoleHasDepartment(_unitOfWork.Writer<Role>().GetById(user.RoleId.Value), null);
             }
 
 

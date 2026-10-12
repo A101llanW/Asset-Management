@@ -126,7 +126,7 @@ namespace AssetManagement.Application.Services
             var userId = _currentUser == null ? null : _currentUser.UserId;
             var profile = string.IsNullOrWhiteSpace(userId) ? null : _userService.GetById(userId);
             var roleId = profile == null ? null : profile.RoleId;
-            var isSuperAdmin = IsSuperAdmin(roleId);
+            var isSuperAdmin = AssetManagement.Application.Security.OrgCapabilities.HasOrgWideScope(_authorizationService, userId);
             var canApproveAssetRequests = !string.IsNullOrWhiteSpace(userId)
                 && _authorizationService.HasPermission(userId, "Assets.Request.Approve");
 
@@ -139,17 +139,5 @@ namespace AssetManagement.Application.Services
             };
         }
 
-        private bool IsSuperAdmin(int? roleId)
-        {
-            if (!roleId.HasValue)
-            {
-                return false;
-            }
-
-            var role = _unitOfWork.Repository<Role>().GetById(roleId.Value);
-            return role != null
-                && role.IsSystemRole
-                && string.Equals(role.Name, "Company Admin", StringComparison.OrdinalIgnoreCase);
-        }
     }
 }

@@ -27,6 +27,7 @@ namespace AssetManagement.Infrastructure.Services
         private readonly IPlatformSettingsService _platformSettings;
         private readonly IUnitOfWorkEnlistment _unitOfWorkEnlistment;
         private readonly IAuditWriter _auditWriter;
+        private readonly ISqlConnectionFactory _connectionFactory;
 
         public MembershipService(
             ISqlConnectionFactory connectionFactory,
@@ -37,6 +38,7 @@ namespace AssetManagement.Infrastructure.Services
             IUnitOfWorkEnlistment unitOfWorkEnlistment,
             IAuditWriter auditWriter = null)
         {
+            _connectionFactory = connectionFactory;
             _users = new UserAccountRepository(connectionFactory);
             _resetTokens = new PasswordResetRepository(connectionFactory);
             _organizationScope = organizationScope;
@@ -147,6 +149,12 @@ namespace AssetManagement.Infrastructure.Services
             };
 
             var errors = ValidateNewUser(user, password).ToList();
+            var departmentError = AssetManagement.Infrastructure.Security.CustomRoleDepartmentRule.Validate(_connectionFactory, user.RoleId, user.DepartmentId);
+            if (departmentError != null)
+            {
+                errors.Add(departmentError);
+            }
+
             foreach (var seatError in ValidateSeatCap(user.OrganizationId))
             {
                 errors.Add(seatError);

@@ -112,8 +112,8 @@ namespace AssetManagement.Web.Filters
                     OrganizationId = organization.Id,
                     IsImpersonating = session != null && session["ImpersonatedOrganizationId"] != null,
                     IsPlatformAdmin = filterContext.HttpContext.User.IsInRole("Platform Admin"),
-                    IsCompanyAdmin = filterContext.HttpContext.User.IsInRole("Company Admin")
-                        || IsCompanyAdminOfOrganization(filterContext, connectionFactory, organization.Id),
+                    // Forms principals carry no role names, so IsInRole("Company Admin") was always false.
+                    IsCompanyAdmin = IsCompanyAdminOfOrganization(filterContext, connectionFactory, organization.Id),
                     ImpersonationReason = session == null ? null : session["ImpersonationReason"] as string
                 });
             }
@@ -153,7 +153,7 @@ namespace AssetManagement.Web.Filters
             string roleName;
             bool isSystemRole;
             return users.TryGetRoleInfoByUserId(userId, out roleName, out isSystemRole)
-                && AssetManagement.Application.Security.SystemRoleNames.IsCompanyAdmin(roleName, isSystemRole);
+                && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRole(roleName, isSystemRole);
         }
 
         private static ActionResult BuildEmailVerificationBlock(ActionExecutingContext filterContext)

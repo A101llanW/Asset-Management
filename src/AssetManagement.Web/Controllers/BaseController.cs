@@ -796,7 +796,25 @@ namespace AssetManagement.Web.Controllers
             }
 
             var role = UnitOfWork.Repository<Role>().GetById(roleId.Value);
-            return role != null && role.IsSystemRole && string.Equals(role.Name, "Company Admin", StringComparison.OrdinalIgnoreCase);
+            return role != null && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRole(role.Name, role.IsSystemRole);
+        }
+
+        /// <summary>
+        /// Organization-wide scope (capability Assets.ViewAll). Replaces the old "is Company Admin" test for
+        /// department locks, list defaults and cross-department access. Company Admin and support
+        /// impersonation keep it (they pass every tenant permission check).
+        /// </summary>
+        protected bool HasOrgWideScope()
+        {
+            var orgScope = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Security.IOrganizationScopeService>();
+            if (orgScope != null && orgScope.IsCompanyAdmin())
+            {
+                return true;
+            }
+
+            var userId = User.GetUserId();
+            return !string.IsNullOrWhiteSpace(userId)
+                && AssetManagement.Application.Security.OrgCapabilities.HasOrgWideScope(BuildAuthorizationService(), userId);
         }
 
         protected bool IsActualPlatformAdmin()
@@ -807,7 +825,7 @@ namespace AssetManagement.Web.Controllers
 
         protected bool IsCurrentUserSuperAdmin()
         {
-            return IsCurrentUserCompanyAdmin();
+            return HasOrgWideScope();
         }
 
         protected int? ResolveCurrentOrganizationId()

@@ -39,8 +39,7 @@ FROM [Users] u
 INNER JOIN [Roles] r ON r.[Id] = u.[RoleId]
 WHERE u.[OrganizationId] = @OrganizationId
   AND u.[IsActive] = 1
-  AND r.[IsSystemRole] = 1
-  AND r.[Name] = N'Company Admin'
+  AND " + AssetManagement.Application.Security.OrgCapabilities.TenantAdministratorRoleSqlPredicate + @"
   AND (r.[OrganizationId] IS NULL OR r.[OrganizationId] = u.[OrganizationId])
   AND (@ExcludeUserId IS NULL OR u.[Id] <> @ExcludeUserId)";
 
@@ -49,7 +48,7 @@ SELECT COUNT(1)
 FROM [Users] u
 INNER JOIN [Roles] r ON r.[Id] = u.[RoleId]
 WHERE u.[Id] = @UserId AND u.[OrganizationId] = @OrganizationId
-  AND r.[IsSystemRole] = 1 AND r.[Name] = N'Company Admin'";
+  AND " + AssetManagement.Application.Security.OrgCapabilities.TenantAdministratorRoleSqlPredicate;
 
         private readonly ISqlConnectionFactory _connectionFactory;
 

@@ -36,8 +36,9 @@ namespace AssetManagement.Application.Services
 
         private static bool IsHiddenPermissionModule(string module)
         {
-            return string.Equals(module, "Depreciation", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(module, "Api", StringComparison.OrdinalIgnoreCase);
+            // Depreciation.View / Depreciation.Manage are enforced (Reports, Assets financial tab), so they must
+            // be visible in the role matrix or RoleService treats them as "outside the matrix" and never saves them.
+            return string.Equals(module, "Api", StringComparison.OrdinalIgnoreCase);
         }
 
         public IEnumerable<PermissionGroupVm> GetGroupedPermissions()

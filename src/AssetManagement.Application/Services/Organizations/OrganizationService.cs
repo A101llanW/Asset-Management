@@ -499,13 +499,13 @@ namespace AssetManagement.Application.Services.Organizations
             try
             {
                 var companyAdminRole = _unitOfWork.Repository<Role>().Query()
-                    .FirstOrDefault(r => r.OrganizationId == organization.Id && r.Name == "Company Admin");
+                    .FirstOrDefault(r => r.OrganizationId == organization.Id && r.Name == AssetManagement.Application.Security.OrgCapabilities.TenantAdministratorRoleName);
 
                 if (companyAdminRole == null)
                 {
                     companyAdminRole = new Role
                     {
-                        Name = "Company Admin",
+                        Name = AssetManagement.Application.Security.OrgCapabilities.TenantAdministratorRoleName,
                         Description = "Tenant-wide company administrator",
                         IsSystemRole = true,
                         OrganizationId = organization.Id,
