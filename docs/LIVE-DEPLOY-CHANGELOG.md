@@ -9,6 +9,41 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-12 20:06 - catalog-requisition-flows stage (b): group-and-split on submit, ClassificationMode / MixedFlowPolicy org policies (`264a225`, branch `feature/catalog-requisition-flows`) - STAGED (not published, not pushed)
+
+- **Date/time EAT:** 2026-10-12 20:00-20:06. Local worktree `CodexAsset-catalog-req` only. Nothing published, nothing pushed, no PR.
+- **What and why:** one requisition form whose lines need different approval paths can no longer silently use one path.
+  1. `PurchaseRequestService.SubmitBatch` resolves each line's path (stage a resolver), groups lines by fingerprint and creates one requisition per path. One path = one requisition exactly as before. Several paths: `AutoSplit` (default) creates a `PurchaseRequestGroup` (`BATCH-000nnn`) and N requisitions with their own PR numbers and approval snapshots, sharing department, justification, notes and the attachment; `Block` rejects the form. All in one transaction; every path is validated first.
+  2. Org settings `Purchases.Requisition.ClassificationMode` (`Optional` default, `RequiredPerLine`, `RequiredHeader`) and `Purchases.Requisition.MixedFlowPolicy` (`AutoSplit` default, `Block`), enforced server-side. Not seeded: missing = today's behaviour.
+  3. Lines store Category/Type/Sub-type (normalized, org-checked). A tagged asset pre-fills line 1 (best effort).
+  4. `Submit` keeps returning an int (first id). The Create POST uses `SubmitBatch`; a split shows "Submitted N requisitions (PR-..., BATCH-...) because the items use different approval paths." and opens the first one. No view changed (form pickers and batch summary are stage c).
+- **Commit hash:** `264a225`.
+- **Files changed:** Application: Contracts/Purchases/IPurchaseRequestService.cs, Services/Purchases/PurchaseRequestService.cs, ViewModels/Purchases/PurchaseRequestViewModels.cs. Web: Controllers/PurchaseRequestsController.cs. Tests: Requisitions/PurchaseRequestSplitSubmitTests.cs (15 tests).
+- **DB migration/script:** none beyond 100 (stage a entry below).
+- **Config/Web.config keys:** none.
+- **IIS/server steps (local):** none. Not published.
+- **Live-deploy steps:** deploy together with stage (a) after migration 100. No settings to add (defaults keep current behaviour).
+- **Verify:** `dotnet test tests/AssetManagement.Tests` (see stage a for the build flag): 739 passed, 26 failed (all 26 fail identically on the base commit), 6 skipped; new split tests 15/15. No UI/browser test in this dispatch.
+- **Rollback:** revert `264a225` (stage a can stay).
+
+## 2026-10-12 20:00 - catalog-requisition-flows stage (a): catalog requisition flow resolver + approval fingerprint, migration 100, stale test fix (`474c715`, `d341621`, branch `feature/catalog-requisition-flows`) - STAGED (not published, not pushed)
+
+- **Date/time EAT:** 2026-10-12 19:47-20:00. Worktree `C:\Users\allan\Documents\Examples\CodexAsset-catalog-req`, branch off `fix/role-access-scope` `9a908b8`. Nothing published, nothing pushed, no PR.
+- **What and why:** catalog-level approval overrides (plan `catalog_requisition_flows_c041f2a2`, owner decisions D1-D4 in `docs/DECISIONS-requisition.md`).
+  1. `CatalogRequisitionFlowResolver` + `RequisitionFlowResolver.ResolveForLine`: per line, sub-type > type > category override, else the unchanged department inherit chain, else org matrix. The PO raiser comes from the winning source.
+  2. Approval fingerprint (source key + ordered stages + users + auto flag + PO raiser) used to group lines on submit.
+  3. `PurchaseOrderRaiserRules.ResolveForRequest` resolves through the requisition's classified line, so a catalog-routed requisition's PO raiser is the catalog node's. Unclassified requisitions are unchanged.
+  4. New entities `CatalogRequisitionFlow`, `PurchaseRequestGroup`; `PurchaseRequest.PurchaseRequestGroupId`, `ApprovalFlowSource`; `PurchaseRequestLine.AssetCategoryId/AssetTypeId/AssetSubTypeId`. Registered in `EntityMapRegistry`; added to `OrganizationPurgeSql`.
+  5. `474c715`: the test project did not build (43 errors, tests using removed APIs). Those tests are `#if`-excluded, 3 ported; no production change.
+- **Commit hash:** `474c715` (tests build fix), `d341621` (stage a).
+- **Files changed:** Domain: Entities/CatalogRequisitionFlow.cs (new), Entities/PurchaseRequestGroup.cs (new), Enums/CatalogFlowScope.cs (new), Enums/RequisitionPolicies.cs (new), Entities/PurchaseRequest.cs, Entities/PurchaseRequestLine.cs. Application: Helpers/CatalogRequisitionFlowResolver.cs, RequisitionFlowResolver.cs, RequisitionLineClassification.cs, RequisitionPolicySettings.cs (all new), Services/Approvals/PurchaseOrderRaiserRules.cs. Infrastructure: Persistence/EntityMapRegistry.cs, Services/OrganizationPurgeSql.cs. DB: database/scripts/004_Migrations/100_CatalogRequisitionFlow.sql. Tests: Requisitions/CatalogRequisitionFlowResolverTests.cs (20 tests), Helpers/ApprovalWorkflowSelfApproveTests.cs, DepartmentHierarchyRulesTests.cs, DepartmentRequisitionFlowResolverTests.cs.
+- **DB migration/script:** `database\scripts\004_Migrations\100_CatalogRequisitionFlow.sql` (additive, idempotent, rollback in header, records SchemaMigrationHistory). **Applied on local .\SQLEXPRESS AssetManagementModuleDb 2026-10-12 19:59:28 EAT** (history Id 104), run twice (second run no-op). Verify row: all objects 1, HistoryRows 1; 0 existing PurchaseRequest rows changed (45 PRs, 19 lines untouched, new columns NULL). Pre-change backup (COPY_ONLY, CHECKSUM, RESTORE VERIFYONLY valid): `C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\Backup\AssetManagementModuleDb_pre100_catreq_20261012.bak` (58,683,904 bytes, SHA256 `119878ABFC3EDB8C65CF7496FF058C061268128CF8C43153D82B3BAD8A51B27A`).
+- **Config/Web.config keys:** none.
+- **IIS/server steps (local):** none. Local IIS :8080 still runs the role-access-scope build, which does not map the new columns; the additive schema is harmless to it.
+- **Live-deploy steps:** back up, run 100 on the live DB **before** deploying a build that contains `d341621` (the ORM writes every mapped column, so PurchaseRequest/PurchaseRequestLine inserts fail without it). No catalog rows or settings needed: behaviour is unchanged until an admin configures a catalog flow (UI in stage c).
+- **Verify:** test project build flag from this worktree: `-p:NuGetPackageRoot=C:\Users\allan\Documents\Examples\CodexAsset\.nuget\packages\`. After stage a: 724 passed, 26 failed (same 26 as base), 6 skipped; resolver tests 20/20.
+- **Rollback:** revert `d341621` (and `474c715` if wanted), then run the rollback lines in the 100 header (or restore the backup above).
+
 ## 2026-10-12 19:20 - role-access-scope: Assets.ViewAll org-wide capability, custom roles need a department, dashboard/redirect alignment, Depreciation in role editor, single tenant-admin helper (`5857956`, branch `fix/role-access-scope`) - PUBLISHED (local IIS :8080 2026-10-12 19:45:22 EAT; not pushed)
 
 - **Date/time EAT:** 2026-10-12 18:59-19:20. Owner (Wambua) approved in chat 18:58 EAT. Local branch `fix/role-access-scope` (off `main` `8f6bff4`). No package built, nothing published, nothing pushed.
