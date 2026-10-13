@@ -9,6 +9,29 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-13 08:58 - Customize Reports: multi-select Departments and Categories (`cc1119d`) - STAGED (branch `feature/reports-multiselect-dept-category`, GitHub PR; not published to IIS)
+
+- **Date/time EAT:** 2026-10-13 08:58 (commit `cc1119d`). Not published to local IIS; not on live.
+- **What and why:** Allan asked that Customize Reports let users pick several departments and several categories instead of one.
+  - The Department and Category dropdowns on each report's filter panel are now scrollable checkbox lists with "Select all" and "Clear" links. Nothing ticked = all (same as the old "All departments"/"All categories").
+  - Preview, CSV and PDF/HTML export filter by every ticked id (asset register, custody movement, department summary, pending approvals, general ledger, warranty expiry, insurance coverage, depreciation). The filter summary lists all chosen names.
+  - Department scope security is unchanged: the list only shows departments the user may see, and every builder still applies `IDepartmentScope` on top of the chosen ids. Child departments are NOT auto-included (matches previous single-select exact-match behaviour).
+  - Backward compatible: the legacy single `DepartmentId`/`CategoryId` request fields are still accepted and folded into the lists (`NormalizeMultiSelectFilters`); saved templates with the old single value still load.
+- **Commit hash:** `cc1119d`
+- **Files changed:**
+  - `src/AssetManagement.Web/Views/Reports/_ReportFilters.cshtml` (checkbox lists)
+  - `src/AssetManagement.Web/Scripts/app/reports.js` (collect/apply arrays, repeated-key POST, Select all/Clear)
+  - `src/AssetManagement.Application/ViewModels/Reports/ReportViewModels.cs` (`DepartmentIds`, `CategoryIds`)
+  - `src/AssetManagement.Application/ViewModels/Assets/AssetViewModels.cs` (`AssetFilterVm.DepartmentIds/CategoryIds`)
+  - `src/AssetManagement.Infrastructure/Queries/AssetQueryService.cs` (parameterised `IN (...)` clauses)
+  - `src/AssetManagement.Application/Services/ReportDocumentService.cs` (all builders + filter summary)
+- **DB migration/script:** none.
+- **Config/Web.config keys:** none.
+- **IIS/server steps (local):** normal elevated publish when Allan approves (not done).
+- **Live-deploy steps:** copy the published site (Web.dll, Application/Infrastructure DLLs, `Views/Reports/_ReportFilters.cshtml`, `Scripts/app/reports.js`) over live; keep live Web.config. No DB step. Hard-refresh browsers (JS changed).
+- **Verify:** Reports > any report > Configure: tick 2 departments + 2 categories > Preview shows only assets in those; summary line reads "Departments: A, B"; CSV matches. Clear all > Preview = all in scope. A department-scoped user sees only their departments in the list.
+- **Rollback:** redeploy the previous Web.dll/Application/Infrastructure DLLs and the previous `_ReportFilters.cshtml` + `reports.js`; or `git revert cc1119d`.
+
 ## 2026-10-12 21:10 - catalog-requisition-flows: owner decisions: identical paths from different catalog nodes stay separate; catalog paths always apply even when org approvals are off (supersede PM D1/D2) - STAGED (not published, not pushed)
 
 - **What and why:** owner decision; RequisitionFlowResolver fingerprint includes the winning source node again, so different catalog nodes never merge even with identical stages; the org approval switch no longer suppresses catalog paths. Supersedes D1 and D2 (see D1a/D2a).
