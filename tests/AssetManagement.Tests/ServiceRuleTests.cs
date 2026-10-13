@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -171,10 +171,20 @@ namespace AssetManagement.Tests
             });
 
             var created = unitOfWork.Repository<Asset>().GetById(assetId);
-            Assert.AreEqual(AssetTagHelper.DefaultRandomTagLength, created.AssetTag.Length);
+            // rel1013a: structured tag. Department IT has no room/override, so the derived prefix is just "IT";
+            // the older IT-LTP-001 tag is a different prefix and stays untouched.
+            Assert.AreEqual("IT-001", created.AssetTag);
+            Assert.AreEqual("IT-LTP-001", unitOfWork.Repository<Asset>().GetById(3).AssetTag);
+
+            var secondId = service.Create(new AssetCreateVm { AssetName = "Second", CategoryId = 1, AssetTypeId = 1, AssetSubTypeId = 7, PurchaseDate = DateTime.UtcNow, AcquisitionCost = 10, Currency = "USD", SupplierId = 1, DepartmentId = 1, SerialNumber = "SER-2" });
+            Assert.AreEqual("IT-002", unitOfWork.Repository<Asset>().GetById(secondId).AssetTag, "next number, unique per tenant");
+
+            unitOfWork.Seed(new SystemSetting { Id = 901, SettingKey = AssetTagPrefixResolver.EnabledSettingKey, SettingValue = "false" });
+            var legacyId = service.Create(new AssetCreateVm { AssetName = "Legacy", CategoryId = 1, AssetTypeId = 1, AssetSubTypeId = 7, PurchaseDate = DateTime.UtcNow, AcquisitionCost = 10, Currency = "USD", SupplierId = 1, DepartmentId = 1, SerialNumber = "SER-3" });
+            var legacy = unitOfWork.Repository<Asset>().GetById(legacyId);
+            Assert.AreEqual(AssetTagHelper.DefaultRandomTagLength, legacy.AssetTag.Length, "structured tags switched off: legacy random tag");
             const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-            Assert.IsTrue(created.AssetTag.All(ch => alphabet.IndexOf(ch) >= 0));
-            Assert.AreNotEqual("IT-LTP-001", created.AssetTag);
+            Assert.IsTrue(legacy.AssetTag.All(ch => alphabet.IndexOf(ch) >= 0));
             Assert.IsNull(created.UsefulLifeMonths);
         }
 
