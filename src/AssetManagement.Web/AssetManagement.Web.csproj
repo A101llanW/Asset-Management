@@ -1,4 +1,4 @@
-<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -196,6 +196,7 @@
     <Compile Include="Controllers\SettingsController.Requisition.cs" />
     <Compile Include="Controllers\BaseController.CatalogRequisition.cs" />
     <Compile Include="Controllers\PurchaseRequestsController.Catalog.cs" />
+    <Compile Include="Controllers\SettingsController.AssetTags.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />
     <Compile Include="Controllers\UserInvitationsController.cs" />
@@ -281,6 +282,7 @@
     <Compile Include="ViewModels\PlatformEmailSettingsViewModel.cs" />
     <Compile Include="ViewModels\CompanySmtpSettingsViewModel.cs" />
     <Compile Include="ViewModels\AssetLabelPrintVm.cs" />
+    <Compile Include="ViewModels\AssetTagSettingsVm.cs" />
     <Compile Include="ViewModels\AssetScanViewModels.cs" />
     <Content Include="Web.config" />
     <Content Include="Web.Debug.config">
@@ -478,6 +480,7 @@
     <Content Include="Views\Settings\Index.cshtml" />
     <Content Include="Views\Settings\Email.cshtml" />
     <Content Include="Views\Settings\LabelDesigner.cshtml" />
+    <Content Include="Views\Settings\AssetTags.cshtml" />
     <Content Include="Views\Shared\_AssetSubTypePickerModal.cshtml" />
     <Content Include="Views\Shared\_CaptchaPartial.cshtml" />
     <Content Include="Views\Shared\Error.cshtml" />

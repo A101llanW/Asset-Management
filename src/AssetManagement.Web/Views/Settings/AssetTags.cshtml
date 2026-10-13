@@ -1,0 +1,107 @@
+﻿@model AssetManagement.Web.ViewModels.AssetTagSettingsVm
+@{
+    ViewBag.Title = "Asset tag prefix";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Asset tag prefix",
+    Subtitle = "Choose how new asset tags start. Existing tags never change; only assets created from now on use the prefix.",
+    BackUrl = Url.Action("Index", "Settings"),
+    BackLabel = "Back to Settings"
+})
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+@using (Html.BeginForm("AssetTags", "Settings", FormMethod.Post, new { id = "assetTagForm" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+
+    <div class="card mb-3">
+        <div class="card-header">Tenant default</div>
+        <div class="card-body">
+            <div class="form-check mb-3">
+                @Html.CheckBoxFor(m => m.Enabled, new { @class = "form-check-input", id = "tagEnabled" })
+                <label class="form-check-label" for="tagEnabled">Generate structured tags (PREFIX-001, PREFIX-002, ...). Untick to keep the old random 10-character tags.</label>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="TenantPrefix">Tenant-wide prefix (optional)</label>
+                    @Html.TextBoxFor(m => m.TenantPrefix, new { @class = "form-control text-uppercase", maxlength = "20", placeholder = "blank = DEPT-ROOM" })
+                    <div class="form-text">Letters, digits and hyphens, up to 20. Leave blank to derive it from the department code plus the room code, e.g. SCI-LAB1-001.</div>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="previewDepartment">Preview the next tag for</label>
+                    <div class="input-group">
+                        <select id="previewDepartment" class="form-select">
+                            <option value="">(no department)</option>
+                            @foreach (var row in Model.Rows)
+                            {
+                                <option value="@row.DepartmentId">@row.Label@(row.IsRoom ? " [room]" : "")</option>
+                            }
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" id="previewButton">Preview</button>
+                    </div>
+                    <div class="form-text" id="previewResult">Preview uses the saved settings and does not reserve a number.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">Overrides (most specific wins: room, then nearest sub-department, then department, then the tenant default)</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0 align-middle">
+                <thead>
+                    <tr><th>Department / room</th><th>Kind</th><th style="width:220px">Override prefix</th><th>Effective prefix (saved)</th><th>From</th></tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Rows.Count; i++)
+                    {
+                        <tr>
+                            <td style="padding-left:@(8 + Model.Rows[i].Depth * 18)px">
+                                @Html.HiddenFor(m => m.Rows[i].DepartmentId)
+                                @Model.Rows[i].Label
+                            </td>
+                            <td>@Model.Rows[i].KindLabel</td>
+                            <td>@Html.TextBoxFor(m => m.Rows[i].Override, new { @class = "form-control form-control-sm text-uppercase", maxlength = "20", placeholder = "inherit" })</td>
+                            <td><code>@Model.Rows[i].EffectivePrefix-###</code></td>
+                            <td class="small text-muted">@Model.Rows[i].EffectiveSource</td>
+                        </tr>
+                    }
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr><td colspan="5" class="text-muted">No departments yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+}
+
+@section scripts {
+    <script>
+        (function () {
+            var button = document.getElementById('previewButton');
+            var select = document.getElementById('previewDepartment');
+            var result = document.getElementById('previewResult');
+            button.addEventListener('click', function () {
+                var url = '@Url.Action("AssetTagPreview", "Settings")' + (select.value ? '?departmentId=' + encodeURIComponent(select.value) : '');
+                result.textContent = 'Loading...';
+                fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.ok) { result.textContent = data.message || 'Preview failed.'; return; }
+                        result.textContent = 'Next tag: ' + data.nextTag + ' (' + data.source + (data.sourceDepartment ? ': ' + data.sourceDepartment : '') + ')';
+                    })
+                    .catch(function () { result.textContent = 'Preview failed.'; });
+            });
+        })();
+    </script>
+}
