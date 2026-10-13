@@ -20,6 +20,7 @@ namespace AssetManagement.Application.Services
                 throw new ArgumentNullException("request");
             }
 
+            request.NormalizeMultiSelectFilters();
             var reportType = (request.ReportType ?? string.Empty).Trim().ToLowerInvariant();
             var period = request.SupportsDateRange()
                 ? ReportPeriodHelper.ResolveRange(request.PeriodPreset, request.FromDate, request.ToDate)
@@ -85,8 +86,8 @@ namespace AssetManagement.Application.Services
         {
             var filter = new AssetFilterVm
             {
-                DepartmentId = request.DepartmentId,
-                CategoryId = request.CategoryId,
+                DepartmentIds = request.DepartmentIds,
+                CategoryIds = request.CategoryIds,
                 Status = request.Status
             };
 
@@ -184,9 +185,10 @@ namespace AssetManagement.Application.Services
             var to = period.To;
             var departments = _unitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id, x => x.Name);
             var assetsQuery = _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query());
-            if (request.DepartmentId.HasValue)
+            if (request.DepartmentIds.Count > 0)
             {
-                assetsQuery = assetsQuery.Where(x => x.DepartmentId == request.DepartmentId.Value);
+                var deptIds = request.DepartmentIds;
+                assetsQuery = assetsQuery.Where(x => x.DepartmentId.HasValue && deptIds.Contains(x.DepartmentId.Value));
             }
 
             var assets = assetsQuery.ToDictionary(x => x.Id, x => x);
@@ -274,9 +276,9 @@ namespace AssetManagement.Application.Services
                 .Where(x => x.IsActive)
                 .OrderBy(x => x.Name)
                 .ToList();
-            if (request.DepartmentId.HasValue)
+            if (request.DepartmentIds.Count > 0)
             {
-                departments = departments.Where(x => x.Id == request.DepartmentId.Value).ToList();
+                departments = departments.Where(x => request.DepartmentIds.Contains(x.Id)).ToList();
             }
 
             var assets = _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query())
@@ -308,7 +310,7 @@ namespace AssetManagement.Application.Services
                 displayRows.Add(row);
             }
 
-            if (!request.DepartmentId.HasValue)
+            if (request.DepartmentIds.Count == 0)
             {
                 var unassigned = assets.Where(x => !departments.Any(d => d.Id == x.DepartmentId)).ToList();
                 if (unassigned.Any())
@@ -407,9 +409,9 @@ namespace AssetManagement.Application.Services
                     continue;
                 }
 
-                if (request.DepartmentId.HasValue
-                    && transfer.ToDepartmentId != request.DepartmentId.Value
-                    && transfer.FromDepartmentId != request.DepartmentId.Value)
+                if (request.DepartmentIds.Count > 0
+                    && !InIds(request.DepartmentIds, transfer.ToDepartmentId)
+                    && !InIds(request.DepartmentIds, transfer.FromDepartmentId))
                 {
                     continue;
                 }
@@ -434,7 +436,7 @@ namespace AssetManagement.Application.Services
 
                 Asset asset;
                 assets.TryGetValue(disposal.AssetId, out asset);
-                if (request.DepartmentId.HasValue && asset != null && asset.DepartmentId != request.DepartmentId.Value)
+                if (request.DepartmentIds.Count > 0 && asset != null && !InIds(request.DepartmentIds, asset.DepartmentId))
                 {
                     continue;
                 }
@@ -454,7 +456,7 @@ namespace AssetManagement.Application.Services
                     continue;
                 }
 
-                if (request.DepartmentId.HasValue && purchaseRequest.DepartmentId != request.DepartmentId.Value)
+                if (request.DepartmentIds.Count > 0 && !InIds(request.DepartmentIds, purchaseRequest.DepartmentId))
                 {
                     continue;
                 }
@@ -493,8 +495,7 @@ namespace AssetManagement.Application.Services
                     continue;
                 }
 
-                if (request.DepartmentId.HasValue
-                    && (!assetRequest.DepartmentId.HasValue || assetRequest.DepartmentId.Value != request.DepartmentId.Value))
+                if (request.DepartmentIds.Count > 0 && !InIds(request.DepartmentIds, assetRequest.DepartmentId))
                 {
                     continue;
                 }
@@ -633,6 +634,8 @@ namespace AssetManagement.Application.Services
 
         private ReportBuildContext BuildGeneralLedgerContext(ReportExportRequestVm request, ReportPeriodHelper.DateRange period)
         {
+            var deptFilter = request.DepartmentIds;
+            var anyDept = deptFilter.Count > 0;
             var departments = _unitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id, x => x.Name);
             var csvRows = new List<string[]>
             {
@@ -644,7 +647,7 @@ namespace AssetManagement.Application.Services
 
             foreach (var asset in _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query())
                 .Where(x => x.IsActive)
-                .Where(x => !request.DepartmentId.HasValue || x.DepartmentId == request.DepartmentId.Value)
+                .Where(x => !anyDept || (x.DepartmentId.HasValue && deptFilter.Contains(x.DepartmentId.Value)))
                 .Where(x => x.PurchaseDate.Date >= period.From && x.PurchaseDate.Date <= period.To)
                 .OrderBy(x => x.AssetTag))
             {
@@ -698,6 +701,8 @@ namespace AssetManagement.Application.Services
 
         private ReportBuildContext BuildWarrantyExpiryContext(ReportExportRequestVm request, ReportPeriodHelper.DateRange period)
         {
+            var deptFilter = request.DepartmentIds;
+            var anyDept = deptFilter.Count > 0;
             var departments = _unitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id, x => x.Name);
             var today = DateTime.UtcNow.Date;
             var csvRows = new List<string[]>
@@ -710,7 +715,7 @@ namespace AssetManagement.Application.Services
 
             foreach (var asset in _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query())
                 .Where(x => x.IsActive && x.WarrantyEndDate.HasValue)
-                .Where(x => !request.DepartmentId.HasValue || x.DepartmentId == request.DepartmentId.Value)
+                .Where(x => !anyDept || (x.DepartmentId.HasValue && deptFilter.Contains(x.DepartmentId.Value)))
                 .Where(x => x.WarrantyEndDate.Value.Date >= period.From && x.WarrantyEndDate.Value.Date <= period.To)
                 .OrderBy(x => x.WarrantyEndDate))
             {
@@ -767,10 +772,12 @@ namespace AssetManagement.Application.Services
 
         private ReportBuildContext BuildInsuranceCoverageContext(ReportExportRequestVm request, ReportPeriodHelper.DateRange period)
         {
+            var deptFilter = request.DepartmentIds;
+            var anyDept = deptFilter.Count > 0;
             var departments = _unitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id, x => x.Name);
             var scopedAssets = _departmentScope.ApplyAssetScope(_unitOfWork.Repository<Asset>().Query())
                 .Where(x => x.IsActive)
-                .Where(x => !request.DepartmentId.HasValue || x.DepartmentId == request.DepartmentId.Value)
+                .Where(x => !anyDept || (x.DepartmentId.HasValue && deptFilter.Contains(x.DepartmentId.Value)))
                 .ToDictionary(x => x.Id, x => x);
             var today = DateTime.UtcNow.Date;
             var csvRows = new List<string[]>
@@ -880,14 +887,16 @@ namespace AssetManagement.Application.Services
                 assetsQuery = assetsQuery.Where(x => x.CurrentStatus == request.Status.Value);
             }
 
-            if (request.DepartmentId.HasValue)
+            if (request.DepartmentIds.Count > 0)
             {
-                assetsQuery = assetsQuery.Where(x => x.DepartmentId == request.DepartmentId.Value);
+                var deptIds = request.DepartmentIds;
+                assetsQuery = assetsQuery.Where(x => x.DepartmentId.HasValue && deptIds.Contains(x.DepartmentId.Value));
             }
 
-            if (request.CategoryId.HasValue)
+            if (request.CategoryIds.Count > 0)
             {
-                assetsQuery = assetsQuery.Where(x => x.CategoryId == request.CategoryId.Value);
+                var catIds = request.CategoryIds;
+                assetsQuery = assetsQuery.Where(x => catIds.Contains(x.CategoryId));
             }
 
             foreach (var asset in assetsQuery.ToList())
@@ -1127,18 +1136,29 @@ namespace AssetManagement.Application.Services
             };
         }
 
+        private static bool InIds(List<int> ids, int? id)
+        {
+            return id.HasValue && ids.Contains(id.Value);
+        }
+
         private string BuildFilterSummary(ReportExportRequestVm request)
         {
             var parts = new List<string>();
-            if (request.DepartmentId.HasValue)
+            if (request.DepartmentIds != null && request.DepartmentIds.Count > 0)
             {
-                parts.Add("Department: " + ResolveDepartmentName(request.DepartmentId.Value));
+                parts.Add((request.DepartmentIds.Count == 1 ? "Department: " : "Departments: ")
+                    + string.Join(", ", request.DepartmentIds.Select(id => ResolveDepartmentName(id))));
             }
 
-            if (request.CategoryId.HasValue)
+            if (request.CategoryIds != null && request.CategoryIds.Count > 0)
             {
-                var category = _unitOfWork.Repository<AssetCategory>().GetById(request.CategoryId.Value);
-                parts.Add("Category: " + (category == null ? request.CategoryId.Value.ToString() : category.Name));
+                var categoryRepo = _unitOfWork.Repository<AssetCategory>();
+                parts.Add((request.CategoryIds.Count == 1 ? "Category: " : "Categories: ")
+                    + string.Join(", ", request.CategoryIds.Select(id =>
+                    {
+                        var category = categoryRepo.GetById(id);
+                        return category == null ? id.ToString() : category.Name;
+                    })));
             }
 
             if (request.Status.HasValue)
@@ -1206,6 +1226,31 @@ namespace AssetManagement.Application.Services
 
     internal static class ReportExportRequestExtensions
     {
+        /// <summary>
+        /// Folds the legacy single DepartmentId/CategoryId into the multi-select lists (deduped, positive ids only)
+        /// so every report builder filters on DepartmentIds/CategoryIds. Empty list = no filter (all), as before.
+        /// Department scope is still enforced separately by IDepartmentScope in each builder.
+        /// </summary>
+        public static void NormalizeMultiSelectFilters(this ReportExportRequestVm request)
+        {
+            var depts = new List<int>(request.DepartmentIds ?? new List<int>());
+            if (request.DepartmentId.HasValue)
+            {
+                depts.Add(request.DepartmentId.Value);
+            }
+
+            var cats = new List<int>(request.CategoryIds ?? new List<int>());
+            if (request.CategoryId.HasValue)
+            {
+                cats.Add(request.CategoryId.Value);
+            }
+
+            request.DepartmentIds = depts.Where(x => x > 0).Distinct().ToList();
+            request.CategoryIds = cats.Where(x => x > 0).Distinct().ToList();
+            request.DepartmentId = request.DepartmentIds.Count == 1 ? request.DepartmentIds[0] : (int?)null;
+            request.CategoryId = request.CategoryIds.Count == 1 ? request.CategoryIds[0] : (int?)null;
+        }
+
         public static bool SupportsDateRange(this ReportExportRequestVm request)
         {
             var reportType = (request.ReportType ?? string.Empty).Trim().ToLowerInvariant();

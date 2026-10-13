@@ -43,27 +43,41 @@
     @if (Model.SupportsDepartmentFilter)
     {
         <div class="col-md-4">
-            <label class="form-label small mb-1" for="dept-@key">Department</label>
-            <select class="form-select form-select-sm am-report-department" id="dept-@key" data-report-key="@key">
-                <option value="">All departments</option>
-                @foreach (var dept in departments)
+            <label class="form-label small mb-1 d-block">Departments</label>
+            <div class="border rounded px-2 py-1 am-report-department" id="dept-@key" data-report-key="@key" style="max-height: 180px; overflow-y: auto;">
+                <div class="d-flex gap-2 small mb-1 pb-1 border-bottom">
+                    <a href="#" class="am-report-check-all" data-target="am-report-department" data-report-key="@key">Select all</a>
+                    <a href="#" class="am-report-check-none" data-target="am-report-department" data-report-key="@key">Clear</a>
+                    <span class="text-muted ms-auto">None ticked = all departments</span>
+                </div>
+                @foreach (var item in departments)
                 {
-                    <option value="@dept.Id">@dept.Name</option>
+                    <div class="form-check form-check-sm mb-0">
+                        <input class="form-check-input" type="checkbox" value="@item.Id" id="dept-@key-@item.Id" />
+                        <label class="form-check-label small" for="dept-@key-@item.Id">@item.Name</label>
+                    </div>
                 }
-            </select>
+            </div>
         </div>
     }
     @if (Model.SupportsCategoryFilter)
     {
         <div class="col-md-4">
-            <label class="form-label small mb-1" for="cat-@key">Category</label>
-            <select class="form-select form-select-sm am-report-category" id="cat-@key" data-report-key="@key">
-                <option value="">All categories</option>
-                @foreach (var cat in categories)
+            <label class="form-label small mb-1 d-block">Categories</label>
+            <div class="border rounded px-2 py-1 am-report-category" id="cat-@key" data-report-key="@key" style="max-height: 180px; overflow-y: auto;">
+                <div class="d-flex gap-2 small mb-1 pb-1 border-bottom">
+                    <a href="#" class="am-report-check-all" data-target="am-report-category" data-report-key="@key">Select all</a>
+                    <a href="#" class="am-report-check-none" data-target="am-report-category" data-report-key="@key">Clear</a>
+                    <span class="text-muted ms-auto">None ticked = all categories</span>
+                </div>
+                @foreach (var item in categories)
                 {
-                    <option value="@cat.Id">@cat.Name</option>
+                    <div class="form-check form-check-sm mb-0">
+                        <input class="form-check-input" type="checkbox" value="@item.Id" id="cat-@key-@item.Id" />
+                        <label class="form-check-label small" for="cat-@key-@item.Id">@item.Name</label>
+                    </div>
                 }
-            </select>
+            </div>
         </div>
     }
     @if (Model.SupportsStatusFilter)

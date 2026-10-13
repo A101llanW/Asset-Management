@@ -71,6 +71,12 @@ namespace AssetManagement.Application.ViewModels
 
         public int? CategoryId { get; set; }
 
+        /// <summary>Multi-select department filter (Customize Reports). Empty = all departments in scope.</summary>
+        public List<int> DepartmentIds { get; set; }
+
+        /// <summary>Multi-select category filter (Customize Reports). Empty = all categories.</summary>
+        public List<int> CategoryIds { get; set; }
+
         public AssetStatus? Status { get; set; }
 
         public string SortBy { get; set; }

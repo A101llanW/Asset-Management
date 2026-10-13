@@ -1145,6 +1145,16 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     clauses.Add("a.[CategoryId] = @CategoryId");
                 }
 
+                if (filter.DepartmentIds != null && filter.DepartmentIds.Count > 0)
+                {
+                    clauses.Add("a.[DepartmentId] IN (" + string.Join(", ", filter.DepartmentIds.Select((x, i) => "@FilterDeptIds" + i)) + ")");
+                }
+
+                if (filter.CategoryIds != null && filter.CategoryIds.Count > 0)
+                {
+                    clauses.Add("a.[CategoryId] IN (" + string.Join(", ", filter.CategoryIds.Select((x, i) => "@FilterCatIds" + i)) + ")");
+                }
+
                 if (filter.AssetTypeId.HasValue)
                 {
                     clauses.Add("a.[AssetTypeId] = @AssetTypeId");
@@ -1195,6 +1205,22 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                 filter.DepartmentId.HasValue ? (object)filter.DepartmentId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@CategoryId",
                 filter.CategoryId.HasValue ? (object)filter.CategoryId.Value : DBNull.Value);
+            if (filter.DepartmentIds != null)
+            {
+                for (var i = 0; i < filter.DepartmentIds.Count; i++)
+                {
+                    SqlQueryHelper.AddParameter(command, "@FilterDeptIds" + i, filter.DepartmentIds[i]);
+                }
+            }
+
+            if (filter.CategoryIds != null)
+            {
+                for (var i = 0; i < filter.CategoryIds.Count; i++)
+                {
+                    SqlQueryHelper.AddParameter(command, "@FilterCatIds" + i, filter.CategoryIds[i]);
+                }
+            }
+
             SqlQueryHelper.AddParameter(command, "@AssetTypeId",
                 filter.AssetTypeId.HasValue ? (object)filter.AssetTypeId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@AssetSubTypeId",
