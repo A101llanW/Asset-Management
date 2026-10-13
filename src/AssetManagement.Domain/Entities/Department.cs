@@ -41,7 +41,7 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Optional Room PIC (Kind=Room). Never required; no cascade reassign.</summary>
         public string RoomCustodianUserId { get; set; }
 
-        /// <summary>Optional asset tag prefix override for this department, sub-department or room (rel1013a, migration 100). Null = inherit.</summary>
+        /// <summary>Optional asset tag prefix override for this department, sub-department or room (rel1013a, migration 102). Null = inherit.</summary>
         public string AssetTagPrefix { get; set; }
 
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
