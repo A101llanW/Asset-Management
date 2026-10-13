@@ -1,4 +1,4 @@
-﻿-- 100 (rel1013a): configurable asset tag prefix per tenant.
+﻿-- 102 (rel1013a; 100/101 are taken by catalog-requisition-flows): configurable asset tag prefix per tenant.
 -- What it does (additive only, no existing row or tag is changed):
 --   1. Department.AssetTagPrefix NVARCHAR(20) NULL - optional override on a department, sub-department or room (NULL = inherit).
 --   2. AssetTagSequence (OrganizationId, Prefix) -> LastValue - concurrency-safe counter for PREFIX-NNN tags.
@@ -11,7 +11,7 @@
 -- Rollback:
 --   DROP TABLE [dbo].[AssetTagSequence];
 --   ALTER TABLE [dbo].[Department] DROP COLUMN [AssetTagPrefix];   (only after redeploying the previous build)
---   DELETE FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'100_AssetTagPrefix.sql';
+--   DELETE FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'102_AssetTagPrefix.sql';
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
@@ -45,10 +45,10 @@ BEGIN
     END
 END
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'100_AssetTagPrefix.sql')
+IF NOT EXISTS (SELECT 1 FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'102_AssetTagPrefix.sql')
 BEGIN
     INSERT INTO [dbo].[SchemaMigrationHistory] ([ScriptName], [Checksum], [AppliedAt], [AppliedBy])
-    VALUES (N'100_AssetTagPrefix.sql', NULL, SYSUTCDATETIME(), SUSER_SNAME());
+    VALUES (N'102_AssetTagPrefix.sql', NULL, SYSUTCDATETIME(), SUSER_SNAME());
 END
 
 COMMIT TRANSACTION;
