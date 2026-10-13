@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, Page } from '@playwright/test';
 import { loginTenant } from '../fixtures/auth';
@@ -227,7 +227,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
           expected: 'Login succeeds or MFA bypass with 000000',
           actual: `MFA still required at ${result.url}`,
           evidence: [path.join(SHOTS, `MFA-STOP-${org.slug}.png`)],
-          notes: 'STOPPED - do not invent MFA codes',
+          notes: 'STOPPED — do not invent MFA codes',
         });
         writeFindings();
         test.skip(true, `MFA blocked for ${org.slug}`);
@@ -260,7 +260,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
     writeFindings();
   });
 
-  test('2) Department tree Room?Sub-unit?Admin for each org', async ({ page }) => {
+  test('2) Department tree Room→Sub-unit→Admin for each org', async ({ page }) => {
     for (const org of ORGS) {
       const login = await safeLogin(page, org.slug);
       if (!login.ok) {
@@ -376,7 +376,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
     const afterDiningShot = await shot(page, '03-media-after-dining');
     const diningOk = /Dining/i.test(afterDiningParent);
 
-    // Move to Library (different Dept - Administration)
+    // Move to Library (different Dept — Administration)
     editUrl = await openEdit(page, slug, MEDIA_ROOM.id);
     await setParentAndSave(page, LIBRARY.id, true);
     mutations.push({ id: MEDIA_ROOM.id, name: MEDIA_ROOM.name, fromParent: String(DINING.id), toParent: String(LIBRARY.id), restored: false });
@@ -397,7 +397,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
       id: '3-reparent-room',
       status: diningOk && libOk && inTree ? 'PASS' : 'FAIL',
       route: editUrl,
-      repro: `Edit Media room (${MEDIA_ROOM.id}): parent?Dining(${DINING.id}) save; parent?Library(${LIBRARY.id}) save; check Details + tree`,
+      repro: `Edit Media room (${MEDIA_ROOM.id}): parent→Dining(${DINING.id}) save; parent→Library(${LIBRARY.id}) save; check Details + tree`,
       expected: 'Parent becomes Dining then Library; Custom/Inherit radios work; tree updates',
       actual: `before=${beforeParent}; afterDining=${afterDiningParent}; afterLibrary=${afterLibParent}; flowSummary=${afterLibFlow.trim()}; flowBeforeCustom=${flowBefore.custom}; inTree=${inTree}`,
       evidence: [beforeShot, afterDiningShot, afterLibShot, treeShot],
@@ -474,13 +474,13 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
     } else {
       await page.locator('#flow-custom').check();
       await expect(itStages).toBeVisible();
-      // revert visual only - do not save mode change unless already custom
+      // revert visual only — do not save mode change unless already custom
       await page.locator('#flow-inherit').check();
     }
     // Display-only: switch to custom to screenshot stages, then leave without saving if we toggled
     await page.locator('#flow-custom').check();
     const itShot = await shot(page, '05-it-subdept-custom-stages');
-    // Do not click Update - display/edit affordance only (avoid mutating stages)
+    // Do not click Update — display/edit affordance only (avoid mutating stages)
     // Actually navigate away without save
     const itOk = itHasRadios && (await itStages.isVisible());
 
@@ -541,10 +541,10 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
         }
       }
     }
-    // Fill minimal fields but do NOT submit if we want zero leftover reqs - still try submit for smoke if form allows
+    // Fill minimal fields but do NOT submit if we want zero leftover reqs — still try submit for smoke if form allows
     const desc = page.locator('#ItemDescription, input[name="ItemDescription"]');
     if (await desc.isVisible().catch(() => false)) {
-      await desc.fill('QA hierarchy smoke - do not process');
+      await desc.fill('QA hierarchy smoke — do not process');
     }
     const qty = page.locator('#Quantity, input[name="Quantity"]');
     if (await qty.isVisible().catch(() => false)) {
@@ -552,7 +552,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
     }
     const evidence = await shot(page, '06-requisition-create-smoke');
 
-    // Smoke: verify room targets appear; cancel without save if submit risky - instruction says "if UI allows (smoke)"
+    // Smoke: verify room targets appear; cancel without save if submit risky — instruction says "if UI allows (smoke)"
     // Attempt submit only when room option found; otherwise PASS on option presence check
     let submitted = false;
     let submitResult = 'not submitted';
@@ -672,8 +672,8 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
         status: 'BLOCKED',
         route: SNAPSHOT,
         repro: 'Login then UI-restore parents',
-        expected: 'Restore Media room?IT(197), wellness?Counselling(1379)',
-        actual: 'Login failed - restore blocked',
+        expected: 'Restore Media room→IT(197), wellness→Counselling(1379)',
+        actual: 'Login failed — restore blocked',
         evidence: [],
         notes: 'HANDOFF: Debugging must restore parents from snapshot CSV',
       });
@@ -720,7 +720,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
       route: SNAPSHOT,
       repro: 'UI Edit ParentDepartmentId back to snapshot for each mutated room; confirm Details parent labels',
       expected: `Media room parent=${MEDIA_ROOM.parentName}(${MEDIA_ROOM.parentId}); wellness parent=${WELLNESS.parentName}(${WELLNESS.parentId})`,
-      actual: allOk ? 'All mutated rooms restored to snapshot parents via UI' : 'One or more restores failed - see mutations[] and screenshots',
+      actual: allOk ? 'All mutated rooms restored to snapshot parents via UI' : 'One or more restores failed — see mutations[] and screenshots',
       evidence: restoreEvidence,
       notes: allOk ? undefined : 'HANDOFF for Debugging: restore failed parents from snapshot; do not leave bad parents',
     });
