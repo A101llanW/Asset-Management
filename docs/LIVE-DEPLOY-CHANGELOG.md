@@ -11,6 +11,7 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 ## 2026-10-13 11:52 - Configurable asset tag prefix per tenant (rel1013a, `e561335` + `df327b4`) - STAGED (branch `feature/asset-tag-prefix-rel1013a` on top of live integ `592da5b`; not published; UAC not fired)
 
+- **Publish attempt:** 2026-10-13 12:36 EAT, Allan approved in chat; launcher fired once; UAC declined at 12:38:38 EAT (1223). Nothing changed: live Web.dll still E7887D1E...477C (base 592da5b), Web.config 27426D6E...D4D3, 102 not applied. Still STAGED; not re-fired.
 - **Date/time EAT:** 2026-10-13 11:52. Built, unit-tested and proven end-to-end on IIS Express (:8095) against a throw-away COPY of the local DB (Test-WF A46138179). Not on :8080, not on live.
 - **What and why:** Allan asked that admins can choose how new asset tags start.
   - New tags are `PREFIX-NNN` (3+ digits, same `-NNN` suffix as the old DEPT-TYPE-NNN generator). The old random 10-character tag stays available (untick "Generate structured tags").
