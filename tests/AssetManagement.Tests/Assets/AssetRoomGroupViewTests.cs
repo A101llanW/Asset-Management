@@ -113,7 +113,8 @@ namespace AssetManagement.Tests.Assets
         public void FormatKind_LabelsUnits()
         {
             Assert.AreEqual("Room", AssetRoomGroupView.FormatKind((int)DepartmentKind.Room));
-            Assert.AreEqual("Class", AssetRoomGroupView.FormatKind((int)DepartmentKind.Class));
+            Assert.AreEqual("Classroom", AssetRoomGroupView.FormatKind((int)DepartmentKind.Class));
+            Assert.AreEqual("Year", AssetRoomGroupView.FormatKind((int)DepartmentKind.Grade));
             Assert.AreEqual("Sub-department", AssetRoomGroupView.FormatKind((int)DepartmentKind.SubDepartment));
             Assert.AreEqual("Department", AssetRoomGroupView.FormatKind((int)DepartmentKind.Administrative));
             Assert.IsNull(AssetRoomGroupView.FormatKind(null));

@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, Page } from '@playwright/test';
 
@@ -88,17 +88,17 @@ function writeOutputs(probed: string[], inferred: string[]) {
   fs.writeFileSync(FINDINGS_JSON, JSON.stringify(payload, null, 2), 'utf8');
 
   const lines: string[] = [];
-  lines.push('# Nanosoft Asset Management — Product/UX/Process Gaps Audit');
+  lines.push('# Nanosoft Asset Management - Product/UX/Process Gaps Audit');
   lines.push('');
   lines.push(`Generated: ${new Date().toISOString()} (Africa/Nairobi)`);
   lines.push('App: http://127.0.0.1:8080/');
   lines.push('Orgs: E93491564, Y10504930, K53262685, L35160674');
   lines.push('Complement to: `artifacts/qa-hierarchy-2026-09-29` (architecture/hierarchy matrix).');
   lines.push('');
-  lines.push('## Executive summary — top 5 by severity');
+  lines.push('## Executive summary - top 5 by severity');
   lines.push('');
   top5.forEach((f, i) => {
-    lines.push(`${i + 1}. **[${f.severity}] ${f.id}** (${f.area}) — ${f.actual}`);
+    lines.push(`${i + 1}. **[${f.severity}] ${f.id}** (${f.area}) - ${f.actual}`);
   });
   lines.push('');
   lines.push('## Findings table');
@@ -106,7 +106,7 @@ function writeOutputs(probed: string[], inferred: string[]) {
   lines.push('| id | area | sev | org/route | evidence | expected | actual | recommendation | source |');
   lines.push('|----|------|-----|-----------|----------|----------|--------|----------------|--------|');
   for (const f of findings) {
-    const ev = f.evidence.map((e) => path.basename(e)).join('; ') || '—';
+    const ev = f.evidence.map((e) => path.basename(e)).join('; ') || '-';
     const esc = (s: string) => s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
     lines.push(
       `| ${f.id} | ${esc(f.area)} | ${f.severity} | ${esc(f.orgRoute)} | ${esc(ev)} | ${esc(f.expected)} | ${esc(f.actual)} | ${esc(f.recommendation)} | ${f.source}/${f.status} |`
@@ -130,7 +130,7 @@ function writeOutputs(probed: string[], inferred: string[]) {
 
 const probed: string[] = [];
 const inferred: string[] = [
-  'Prior qa-hierarchy: requisition submit left user on Create (url stayed Create) — screenshot 06-requisition-after-submit.png',
+  'Prior qa-hierarchy: requisition submit left user on Create (url stayed Create) - screenshot 06-requisition-after-submit.png',
   'Prior qa-hierarchy: Boarding Details description "Hostel department" (nameOk fail on Details page title probe; tree shows Boarding)',
   'Prior qa-hierarchy: Kind badges Room/Sub-unit/Admin present; classes domain reachable via tabs',
   'Prior qa-hierarchy: Custom/Inherit radios + stage panel on SubDept/Dept; classes hide flow UI',
@@ -148,7 +148,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     writeOutputs(probed, inferred);
   });
 
-  test('1) Requisition submit clarity — silent Justification fail', async ({ page }) => {
+  test('1) Requisition submit clarity - silent Justification fail', async ({ page }) => {
     const slug = 'E93491564';
     expect(await safeLogin(page, slug)).toBeTruthy();
     probed.push('Login E93491564; PurchaseRequests/Create submit without Justification');
@@ -164,7 +164,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     const value = await dept.locator('option', { hasText: hit! }).first().getAttribute('value');
     await dept.selectOption(value!);
 
-    await page.locator('#ItemDescription, input[name="ItemDescription"]').fill('UX gaps probe — expect validation fail');
+    await page.locator('#ItemDescription, input[name="ItemDescription"]').fill('UX gaps probe - expect validation fail');
     await page.locator('#Quantity, input[name="Quantity"]').fill('1');
     // Intentionally leave Justification empty
     const just = page.locator('#Justification, textarea[name="Justification"]');
@@ -224,19 +224,19 @@ test.describe('UX gaps probe 2026-09-29', () => {
       orgRoute: `/${slug}/PurchaseRequests/Create`,
       evidence: [afterShot],
       expected: 'Helper copy matches org domain (department / unit contact) when target is admin Room/Sub-unit',
-      actual: `academicWordingPresent=${academicWording}; helpers mention class/Teacher even for Support → Green Area`,
-      recommendation: 'Domain-aware helper text: org → unit/department contact; classes → teacher/class contact',
+      actual: `academicWordingPresent=${academicWording}; helpers mention class/Teacher even for Support ? Green Area`,
+      recommendation: 'Domain-aware helper text: org ? unit/department contact; classes ? teacher/class contact',
       source: 'probed',
       status: academicWording ? 'CONFIRMED' : 'ABSENT',
     });
   });
 
-  test('2) Empty states — users search, requisitions, dept filter miss', async ({ page }) => {
+  test('2) Empty states - users search, requisitions, dept filter miss', async ({ page }) => {
     const slug = 'E93491564';
     expect(await safeLogin(page, slug)).toBeTruthy();
     probed.push('Users Index empty search; PurchaseRequests Index empty row; Departments nonsense search');
 
-    // Users — empty search
+    // Users - empty search
     await page.goto(`/${slug}/Users`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
     const search = page.locator('input[name="search"], #search, input[placeholder*="Search"]').first();
@@ -285,7 +285,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
       evidence: [shot1, 'C:\\Users\\allan\\Documents\\Examples\\CodexAsset\\artifacts\\qa-hierarchy-2026-09-29\\screenshots\\07-boarding-details.png'],
       expected: 'Description matches renamed Boarding Sub-unit (no Hostel leftover)',
       actual: `hostelLeftover=${hostelLeftover}; usersZero=${usersZero}; title/code show Boarding but description still "Hostel department"`,
-      recommendation: 'Update Description text (and any seed/docs) from Hostel → Boarding; add empty-users CTA on Details when Users=0',
+      recommendation: 'Update Description text (and any seed/docs) from Hostel ? Boarding; add empty-users CTA on Details when Users=0',
       source: 'probed',
       status: hostelLeftover ? 'CONFIRMED' : 'ABSENT',
     });
@@ -296,7 +296,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     const treeBody = await page.locator('body').innerText();
     const treeShot = await shot(page, '02b-boarding-org-tree-tabs');
     const hasDeptTab = /Departments/i.test(treeBody);
-    const hasGradesTab = /Grades\s*&\s*Streams/i.test(treeBody);
+    const hasGradesTab = /Years\s*&\s*Streams/i.test(treeBody);
     const academicsInOrg = /\bAcademics\b/i.test(treeBody.split('\n').slice(0, 80).join('\n'));
     add({
       id: 'UX-TREE-DOMAIN-TABS-BOARDING',
@@ -350,7 +350,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     });
   });
 
-  test('3) Flow editor usability — radios, blank stages, Sub-unit vs Sub-department', async ({ page }) => {
+  test('3) Flow editor usability - radios, blank stages, Sub-unit vs Sub-department', async ({ page }) => {
     const slug = 'E93491564';
     expect(await safeLogin(page, slug)).toBeTruthy();
     probed.push('Edit IT(197) flow radios/panel/blank-stages copy; Sub-unit vs Sub-department labels');
@@ -367,7 +367,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
       ? await stages.isVisible().catch(() => false)
       : true;
 
-    // Toggle inherit → panel hide
+    // Toggle inherit ? panel hide
     if (hasInherit) {
       await page.locator('#flow-inherit').check();
       await page.waitForTimeout(300);
@@ -404,15 +404,15 @@ test.describe('UX gaps probe 2026-09-29', () => {
       evidence: [shotEdit, 'C:\\Users\\allan\\Documents\\Examples\\CodexAsset\\artifacts\\qa-hierarchy-2026-09-29\\screenshots\\05-it-subdept-custom-stages.png'],
       expected: 'Single term everywhere (prefer Sub-unit to match Kind badge / Add sub-unit CTA)',
       actual: `kindBadgeSubUnit=${subUnitBadge}; flowCopySubDepartment=${subDeptLabel}; clash=${labelClash}`,
-      recommendation: 'Rename flow radio/panel strings Sub-department → Sub-unit (and resolution-order help text)',
+      recommendation: 'Rename flow radio/panel strings Sub-department ? Sub-unit (and resolution-order help text)',
       source: 'probed',
       status: labelClash ? 'CONFIRMED' : 'ABSENT',
     });
 
-    // Do NOT save — restore radio if needed (we only toggled client-side; navigating away is fine)
+    // Do NOT save - restore radio if needed (we only toggled client-side; navigating away is fine)
   });
 
-  test('4) Tree discoverability org↔classes on Template 3', async ({ page }) => {
+  test('4) Tree discoverability org?classes on Template 3', async ({ page }) => {
     const slug = 'E93491564';
     expect(await safeLogin(page, slug)).toBeTruthy();
     probed.push('E93491564 Departments tabs + view=tree vs flat; Kind filter');
@@ -436,10 +436,10 @@ test.describe('UX gaps probe 2026-09-29', () => {
       actual: `tabs=${JSON.stringify(tabs)}; viewOptions=${JSON.stringify(viewOptions)}; multiKindFilterCount=${kindFilterUgly}`,
       recommendation: 'Tabs are OK; upgrade Kind multi-select listbox to checkbox chips; clarify Flat list vs Tree in view control',
       source: 'probed',
-      status: tabs.some((t) => /Grades/i.test(t)) ? 'CONFIRMED' : 'ABSENT',
+      status: tabs.some((t) => /Years/i.test(t)) ? 'CONFIRMED' : 'ABSENT',
     });
 
-    // ICT kind missing noted in prior flat screenshot — check tree/list for empty Kind
+    // ICT kind missing noted in prior flat screenshot - check tree/list for empty Kind
     const emptyKindRow = /ICT/i.test(orgBody);
     add({
       id: 'UX-KIND-BADGE-MISSING-ICT',
@@ -455,7 +455,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     });
   });
 
-  test('5) Import feedback — template download + page copy', async ({ page }) => {
+  test('5) Import feedback - template download + page copy', async ({ page }) => {
     const slug = 'E93491564';
     expect(await safeLogin(page, slug)).toBeTruthy();
     probed.push('Assets/Import page + DownloadImportTemplate (no upload)');
@@ -496,7 +496,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
       status: hasDownload && downloadOk ? 'CONFIRMED' : 'CONFIRMED',
     });
 
-    // No validation upload to avoid mutating assets — note as inferred gap
+    // No validation upload to avoid mutating assets - note as inferred gap
     add({
       id: 'UX-IMPORT-VALIDATION-FEEDBACK',
       area: 'Import feedback',
@@ -511,7 +511,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     });
   });
 
-  test('6) Admin footguns — wrong-org cues, MFA, publish/demo', async ({ page }) => {
+  test('6) Admin footguns - wrong-org cues, MFA, publish/demo', async ({ page }) => {
     probed.push('Login chrome org cues across two orgs; Profile/org indicator');
 
     // Org A
