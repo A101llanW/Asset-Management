@@ -32,6 +32,21 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>flat (default) or grouped.</summary>
         public string ListViewMode { get; set; }
 
+        /// <summary>Entry date (Asset.CreatedAt) lower bound, UTC inclusive.</summary>
+        public DateTime? CreatedFromUtc { get; set; }
+
+        /// <summary>Entry date (Asset.CreatedAt) upper bound, UTC exclusive.</summary>
+        public DateTime? CreatedToUtcExclusive { get; set; }
+
+        /// <summary>Keeps assets with at least one AssetAssignment.AssignedDate at or after this UTC instant.</summary>
+        public DateTime? AssignedFromUtc { get; set; }
+
+        /// <summary>Keeps assets with at least one AssetAssignment.AssignedDate before this UTC instant.</summary>
+        public DateTime? AssignedToUtcExclusive { get; set; }
+
+        /// <summary>When true, list rows also carry CreatedAt, LastAssignedAt and LastActivityAt (print candidates).</summary>
+        public bool IncludeActivityDates { get; set; }
+
         /// <summary>product, department, category, type, subtype, or status — used when ListViewMode is grouped.</summary>
         public string GroupBy { get; set; }
     }
@@ -74,6 +89,15 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>The asset's own price; null = "Not set".</summary>
         public decimal? AcquisitionCost { get; set; }
+
+        /// <summary>Asset.CreatedAt (UTC); only filled when AssetFilterVm.IncludeActivityDates.</summary>
+        public DateTime? CreatedAt { get; set; }
+
+        /// <summary>Latest AssetAssignment.AssignedDate (UTC); only filled when AssetFilterVm.IncludeActivityDates.</summary>
+        public DateTime? LastAssignedAt { get; set; }
+
+        /// <summary>Latest of CreatedAt, UpdatedAt and AssetCustodyEvent.ActionDate (UTC); only filled when AssetFilterVm.IncludeActivityDates.</summary>
+        public DateTime? LastActivityAt { get; set; }
     }
 
     public class AssetCreateVm

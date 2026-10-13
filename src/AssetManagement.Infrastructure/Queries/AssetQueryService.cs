@@ -64,6 +64,20 @@ LEFT JOIN [AssetType] at ON at.[Id] = a.[AssetTypeId]
 LEFT JOIN [Department] d ON d.[Id] = a.[DepartmentId]
 LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
 
+        /// <summary>Latest assignment date for asset "a". Child rows are reached through the asset, which is already org-scoped.</summary>
+        internal const string LastAssignedSql =
+            "(SELECT MAX(aas.[AssignedDate]) FROM [AssetAssignment] aas WHERE aas.[AssetId] = a.[Id])";
+
+        /// <summary>Latest activity for asset "a": max of CreatedAt, UpdatedAt and the newest custody event ActionDate.</summary>
+        internal const string LastActivitySql =
+            "(SELECT MAX(v.[At]) FROM (VALUES (a.[CreatedAt]), (a.[UpdatedAt]), "
+            + "((SELECT MAX(ce.[ActionDate]) FROM [AssetCustodyEvent] ce WHERE ce.[AssetId] = a.[Id]))) v([At]))";
+
+        private const string ActivitySelectColumns = @",
+    a.[CreatedAt],
+    " + LastAssignedSql + @" AS LastAssignedAt,
+    " + LastActivitySql + @" AS LastActivityAt";
+
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IDepartmentScopeService _departmentScope;
@@ -97,7 +111,9 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
             // RESOURCE_SEMAPHORE when SQL Express is memory-starved.
             var sql = "WITH paged AS (SELECT a.[Id]" + FromClause + whereClause
                 + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY)"
-                + SelectColumns + PagedFromClause
+                + SelectColumns
+                + (filter != null && filter.IncludeActivityDates ? ActivitySelectColumns : string.Empty)
+                + PagedFromClause
                 + " ORDER BY " + orderBy + " OPTION (LOOP JOIN)";
 
             using (var connection = _connectionFactory.CreateConnection())
@@ -115,7 +131,15 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]";
                     {
                         while (reader.Read())
                         {
-                            items.Add(MapAssetListItem(reader));
+                            var item = MapAssetListItem(reader);
+                            if (filter != null && filter.IncludeActivityDates)
+                            {
+                                item.CreatedAt = SqlQueryHelper.GetDateTimeNullable(reader, "CreatedAt");
+                                item.LastAssignedAt = SqlQueryHelper.GetDateTimeNullable(reader, "LastAssignedAt");
+                                item.LastActivityAt = SqlQueryHelper.GetDateTimeNullable(reader, "LastActivityAt");
+                            }
+
+                            items.Add(item);
                         }
                     }
                 }
@@ -1140,6 +1164,25 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     clauses.Add("a.[DepartmentId] = @FilterDepartmentId");
                 }
 
+                if (filter.CreatedFromUtc.HasValue)
+                {
+                    clauses.Add("a.[CreatedAt] >= @CreatedFromUtc");
+                }
+
+                if (filter.CreatedToUtcExclusive.HasValue)
+                {
+                    clauses.Add("a.[CreatedAt] < @CreatedToUtc");
+                }
+
+                if (filter.AssignedFromUtc.HasValue || filter.AssignedToUtcExclusive.HasValue)
+                {
+                    // Any assignment of this asset inside the window (not only the latest one).
+                    clauses.Add("EXISTS (SELECT 1 FROM [AssetAssignment] aaf WHERE aaf.[AssetId] = a.[Id]"
+                        + (filter.AssignedFromUtc.HasValue ? " AND aaf.[AssignedDate] >= @AssignedFromUtc" : string.Empty)
+                        + (filter.AssignedToUtcExclusive.HasValue ? " AND aaf.[AssignedDate] < @AssignedToUtc" : string.Empty)
+                        + ")");
+                }
+
                 if (filter.CategoryId.HasValue)
                 {
                     clauses.Add("a.[CategoryId] = @CategoryId");
@@ -1205,9 +1248,17 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                 filter.Status.HasValue ? (object)(int)filter.Status.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@CustodianUserId",
                 string.IsNullOrWhiteSpace(filter.CustodianUserId) ? (object)DBNull.Value : filter.CustodianUserId.Trim());
+            SqlQueryHelper.AddParameter(command, "@CreatedFromUtc",
+                filter.CreatedFromUtc.HasValue ? (object)filter.CreatedFromUtc.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@CreatedToUtc",
+                filter.CreatedToUtcExclusive.HasValue ? (object)filter.CreatedToUtcExclusive.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@AssignedFromUtc",
+                filter.AssignedFromUtc.HasValue ? (object)filter.AssignedFromUtc.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@AssignedToUtc",
+                filter.AssignedToUtcExclusive.HasValue ? (object)filter.AssignedToUtcExclusive.Value : DBNull.Value);
         }
 
-        private static string BuildOrderBy(string sort, string direction)
+        internal static string BuildOrderBy(string sort, string direction)
         {
             var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
             switch ((sort ?? string.Empty).Trim().ToLowerInvariant())
@@ -1225,6 +1276,12 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     return desc ? "a.[AcquisitionCost] DESC, a.[Id] DESC" : "a.[AcquisitionCost] ASC, a.[Id] ASC";
                 case "created":
                     return desc ? "a.[CreatedAt] DESC, a.[Id] DESC" : "a.[CreatedAt] ASC, a.[Id] ASC";
+                case "assigned":
+                    // Never-assigned assets sort last in both directions.
+                    return "CASE WHEN " + LastAssignedSql + " IS NULL THEN 1 ELSE 0 END ASC, "
+                        + LastAssignedSql + (desc ? " DESC, a.[Id] DESC" : " ASC, a.[Id] ASC");
+                case "activity":
+                    return LastActivitySql + (desc ? " DESC, a.[Id] DESC" : " ASC, a.[Id] ASC");
                 default:
                     return desc ? "a.[AssetTag] DESC, a.[Id] DESC" : "a.[AssetTag] ASC, a.[Id] ASC";
             }

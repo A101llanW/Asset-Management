@@ -22,8 +22,6 @@ namespace AssetManagement.Web.Controllers
         private const string ScanRateLimitMessage = "Too many scan requests. Please wait and try again.";
         private const int MaxSearchResults = 50;
 
-        private const int MaxPrintCandidates = 100;
-
         private readonly IAssetService _assetService;
         private readonly IAuthorizationService _authorizationService;
         private readonly ISearchService _searchService;
@@ -76,27 +74,55 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Candidate assets for bulk label printing. Used by AssetLabels/BulkPrint; URL kept here unchanged.
+        /// Candidate assets for label printing (Scan &amp; Search print queue and AssetLabels/BulkPrint).
+        /// Query params are validated by <see cref="PrintCandidateQuery"/>: sort in (tag, created, assigned, activity),
+        /// direction asc|desc, createdFrom/createdTo/assignedFrom/assignedTo as yyyy-MM-dd (EAT days), take 1..100.
+        /// Invalid input returns HTTP 400 with { Error }.
         /// </summary>
         [HttpGet]
         [Authorize]
         [TenantAuthorize]
         [PermissionAuthorize("Assets.View")]
-        public JsonResult PrintCandidates(int? departmentId, AssetStatus? status, string search, int take = 50)
+        public JsonResult PrintCandidates(
+            int? departmentId,
+            AssetStatus? status,
+            string search,
+            string sort = null,
+            string direction = null,
+            string createdFrom = null,
+            string createdTo = null,
+            string assignedFrom = null,
+            string assignedTo = null,
+            int take = PrintCandidateQuery.DefaultTake)
         {
-            var pageSize = Math.Min(Math.Max(take, 1), MaxPrintCandidates);
+            var query = PrintCandidateQuery.Parse(sort, direction, createdFrom, createdTo, assignedFrom, assignedTo, take);
+            if (!query.IsValid)
+            {
+                Response.StatusCode = 400;
+                Response.TrySkipIisCustomErrors = true;
+                return Json(new { Error = query.Error }, JsonRequestBehavior.AllowGet);
+            }
+
             var filter = new AssetFilterVm
             {
                 DepartmentId = departmentId,
                 Status = status,
                 Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-                OrganizationWide = true
+                OrganizationWide = true,
+                CreatedFromUtc = query.CreatedFromUtc,
+                CreatedToUtcExclusive = query.CreatedToUtcExclusive,
+                AssignedFromUtc = query.AssignedFromUtc,
+                AssignedToUtcExclusive = query.AssignedToUtcExclusive,
+                IncludeActivityDates = true
             };
 
-            var page = _assetService.GetAssetListPage(filter, "tag", "asc", 1, pageSize);
+            var page = _assetService.GetAssetListPage(filter, query.Sort, query.Direction, 1, query.Take);
             return Json(new
             {
                 TotalCount = page.TotalCount,
+                Sort = query.Sort,
+                Direction = query.Direction,
+                Take = query.Take,
                 Assets = page.Items.Select(asset => new
                 {
                     asset.Id,
@@ -105,10 +131,18 @@ namespace AssetManagement.Web.Controllers
                     asset.SerialNumber,
                     asset.DepartmentName,
                     Status = asset.CurrentStatus.ToString(),
+                    EnteredAt = FormatEat(asset.CreatedAt),
+                    LastAssignedAt = FormatEat(asset.LastAssignedAt),
+                    LastActivityAt = FormatEat(asset.LastActivityAt),
                     LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = asset.Id }),
                     DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = asset.Id })
                 }).ToArray()
             }, JsonRequestBehavior.AllowGet);
+        }
+
+        private static string FormatEat(DateTime? utc)
+        {
+            return utc.HasValue ? KenyaTimeHelper.FormatUtc(utc.Value, KenyaTimeHelper.ShortTimestampFormat) : null;
         }
 
         [Authorize]
@@ -295,11 +329,23 @@ namespace AssetManagement.Web.Controllers
                         canTransfer,
                         canReturn,
                         canReportIncident),
+                CanBatchPrintLabels = canViewDetails,
                 InitialCode = term,
                 LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan"),
                 BulkPrintUrl = canViewDetails
                     ? TenantUrlHelper.TenantRouteUrl(Url, "BulkPrint", "AssetLabels")
-                    : null
+                    : null,
+                PrintCandidatesUrl = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "PrintCandidates", "AssetScan")
+                    : null,
+                LabelPrintConfigUrl = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelPrintConfig", "Assets", new { id = "__id__" })
+                    : null,
+                LabelZplUrlTemplate = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = "__id__" })
+                    : null,
+                DepartmentOptions = canViewDetails ? BuildDepartmentOptions(_departmentService) : null,
+                StatusOptions = canViewDetails ? BuildStatusOptions() : null
             };
 
             if (pageModel.CanViewAssetDetails)
@@ -350,6 +396,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     Found = false,
                     Message = (string)null,
+                    CanBatchPrintLabels = page.CanBatchPrintLabels,
                     SearchResults = new
                     {
                         Query = page.SearchResults.Query,
@@ -364,7 +411,8 @@ namespace AssetManagement.Web.Controllers
                             hit.CustodianName,
                             hit.Status,
                             hit.MatchReason,
-                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId })
+                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId }),
+                            LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = hit.AssetId })
                         }).ToArray()
                     },
                     EmptyDisplay = DisplayText.Empty
@@ -389,6 +437,10 @@ namespace AssetManagement.Web.Controllers
                 CustodianName = lookup.CustodianName,
                 CanViewAssetDetails = page.CanViewAssetDetails,
                 CanOpenQuickActions = page.CanOpenQuickActions,
+                CanBatchPrintLabels = page.CanBatchPrintLabels,
+                LabelZplUrl = lookup.Found && lookup.AssetId.HasValue
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = lookup.AssetId.Value })
+                    : null,
                 DetailsUrl = page.DetailsUrl,
                 QuickActionsUrl = page.QuickActionsUrl,
                 EmptyDisplay = DisplayText.Empty
