@@ -316,6 +316,7 @@ namespace AssetManagement.Tests.Purchases
             // The printer line has no classification: refused without an override, accepted with one; to a room.
             Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(lineIds[1], 1) } }, "receiver-1"));
             var printer = Line(lineIds[1], 1, overrideType: 2);
+            printer.OverrideAssetSubTypeId = 20; // sub-type is required at receiving
             printer.DestinationKind = ReceiveOrderLineVm.DestinationDepartment;
             printer.DestinationDepartmentId = 4;
             printer.Condition = "Good";
@@ -377,7 +378,9 @@ namespace AssetManagement.Tests.Purchases
             Assert.IsTrue(screen.IsLegacy);
             Assert.AreEqual(0, screen.Lines.Single().PurchaseOrderLineId);
             Assert.IsTrue(screen.Lines[0].NeedsClassification);
-            receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(0, 2, overrideType: 1) } }, "r");
+            var legacyLine = Line(0, 2, overrideType: 1);
+            legacyLine.OverrideAssetSubTypeId = 10; // sub-type is required at receiving
+            receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { legacyLine } }, "r");
             Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(0, 1, overrideType: 1) } }, "r"));
 
             var linedPo = TestServiceFactory.CreatePurchaseService(uow).Create(new PurchaseRecordVm { PurchaseRequestId = 100, SupplierId = 1, Quantity = 1, UnitCost = 1m, PurchaseDate = DateTime.UtcNow });
