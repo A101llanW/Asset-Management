@@ -1,4 +1,4 @@
-# LIVE DEPLOY CHANGELOG
+﻿# LIVE DEPLOY CHANGELOG
 
 ## Standing rule
 
