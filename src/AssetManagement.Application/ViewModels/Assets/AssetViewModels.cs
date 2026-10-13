@@ -26,6 +26,7 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>When true, limits results to assets with no current custodian.</summary>
         public bool UnassignedOnly { get; set; }
 
+
         /// <summary>When true, returns all organization assets regardless of the user's department scope.</summary>
         public bool OrganizationWide { get; set; }
 
@@ -95,9 +96,6 @@ namespace AssetManagement.Application.ViewModels
         public int? AssetSubTypeId { get; set; }
 
         public string AssetSubTypeName { get; set; }
-
-        /// <summary>When true, Create may omit AssetSubTypeId (e.g. Purchases Receive — classify after create).</summary>
-        public bool AllowDeferredSubTypeClassification { get; set; }
 
         [StringLength(120)]
         public string Brand { get; set; }

@@ -35,6 +35,12 @@ namespace AssetManagement.Application.Contracts
 
         int Create(AssetCreateVm model);
 
+        /// <summary>
+        /// Receiving only (ReceivingService): same as Create, except a blank sub-type is accepted when, and only when, the
+        /// asset type has no active sub-types defined. There is no view-model flag for this, so model binding cannot reach it.
+        /// </summary>
+        int CreateReceived(AssetCreateVm model);
+
         void Update(AssetEditVm model);
 
         int CountAcquisitionCostApplyCandidates(int sourceAssetId, string scope, AssetFilterVm filter);

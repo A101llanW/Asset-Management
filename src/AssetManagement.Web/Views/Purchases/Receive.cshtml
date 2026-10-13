@@ -45,6 +45,15 @@
     @Html.HiddenFor(m => m.PurchaseRecordId)
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "alert alert-danger", id = "receive-errors" })
+    if (Model.IsRequisitionOverOrdered)
+    {
+        <div class="alert alert-warning" id="receive-over-ordered">
+            <strong>Over-ordered requisition.</strong>
+            @(string.IsNullOrWhiteSpace(Model.PurchaseRequestNumber) ? ("#" + Model.PurchaseRequestId) : Model.PurchaseRequestNumber)
+            requested @Model.RequisitionQuantity but @Model.RequisitionOrderedQuantity are on order
+            (@(Model.RequisitionOrderedQuantity - Model.RequisitionQuantity) more than requested). Check with purchasing before receiving the extra units.
+        </div>
+    }
 
     for (var i = 0; i < Model.Lines.Count; i++)
     {
@@ -61,17 +70,37 @@
                 <input type="hidden" name="Lines[@i].LineNumber" value="@line.LineNumber" />
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label mb-1">Category / type / sub-type</label>
+                        <label class="form-label mb-1">Category / type / sub-type <span class="text-danger" title="Required">*</span></label>
                         @if (!line.NeedsClassification)
                         {
                             <div class="form-control-plaintext py-0 fw-medium am-classification-readonly">
                                 @(string.Join(" > ", new[] { line.AssetCategoryName, line.AssetTypeName, line.AssetSubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x))))
-                                @if (string.IsNullOrWhiteSpace(line.AssetSubTypeName))
+                                @if (line.TypeHasNoSubTypes)
                                 {
-                                    <span class="text-muted small">(no sub-type; refine on the asset later)</span>
+                                    <span class="text-muted small am-subtype-none-defined">(this asset type has no sub-types defined; received without one)</span>
                                 }
                                 <span class="text-muted small d-block">From: @(line.ClassificationSourceLabel ?? "purchase order")</span>
                             </div>
+                            if (line.NeedsSubType)
+                            {
+                                <label class="form-label mt-2 mb-1" for="receive-subtype-@i">Sub-type <span class="text-danger" title="Required">*</span></label>
+                                <select class="form-select am-po-subtype" id="receive-subtype-@i" name="Lines[@i].OverrideAssetSubTypeId" data-am-type-id="@line.AssetTypeId" data-am-subtype-required="true" required="required">
+                                    <option value="">-- Sub-type (required) --</option>
+                                    @foreach (var st in subTypeOptions.Where(s => s.ParentId == line.AssetTypeId))
+                                    {
+                                        if (line.OverrideAssetSubTypeId == st.Id)
+                                        {
+                                            <option value="@st.Id" data-type-id="@st.ParentId" selected="selected">@st.Name</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@st.Id" data-type-id="@st.ParentId">@st.Name</option>
+                                        }
+                                    }
+                                </select>
+                                <div class="invalid-feedback">Choose a sub-type: it is required to receive goods.</div>
+                                <div class="form-text">The source sets the type only; choose the sub-type.</div>
+                            }
                         }
                         else
                         {
@@ -99,8 +128,8 @@
                                     </select>
                                 </div>
                                 <div class="col-md-6">
-                                    <select class="form-select am-po-subtype" name="Lines[@i].OverrideAssetSubTypeId">
-                                        <option value="">-- Sub-type (optional) --</option>
+                                    <select class="form-select am-po-subtype" name="Lines[@i].OverrideAssetSubTypeId" data-am-subtype-required="true" aria-label="Sub-type (required)">
+                                        <option value="">-- Sub-type (required) --</option>
                                         @foreach (var st in subTypeOptions)
                                         {
                                             if (line.OverrideAssetSubTypeId == st.Id)
@@ -113,6 +142,8 @@
                                             }
                                         }
                                     </select>
+                                    <div class="invalid-feedback">Choose a sub-type: it is required to receive goods.</div>
+                                    <div class="form-text am-subtype-none d-none">This asset type has no sub-types defined; it will be received without one.</div>
                                 </div>
                             </div>
                         }

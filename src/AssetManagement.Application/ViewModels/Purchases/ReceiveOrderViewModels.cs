@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using AssetManagement.Application.Helpers;
 
 namespace AssetManagement.Application.ViewModels
 {
@@ -30,6 +31,18 @@ namespace AssetManagement.Application.ViewModels
         public int Received { get; set; }
 
         public int Outstanding { get; set; }
+
+        /// <summary>Quantity on the linked requisition (0 when not linked).</summary>
+        public int RequisitionQuantity { get; set; }
+
+        /// <summary>Quantity on all POs of the linked requisition.</summary>
+        public int RequisitionOrderedQuantity { get; set; }
+
+        /// <summary>The linked requisition has more on order than was requested (ordered &gt; requested).</summary>
+        public bool IsRequisitionOverOrdered
+        {
+            get { return PurchaseRequestId.HasValue && PurchaseOrderQuantityRules.IsOverOrdered(RequisitionQuantity, RequisitionOrderedQuantity); }
+        }
 
         [Required]
         public DateTime ReceivedDate { get; set; }
@@ -76,6 +89,12 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>No source has a classification: the receiver must choose the type (override).</summary>
         public bool NeedsClassification { get; set; }
+
+        /// <summary>A source set the type but not the sub-type, and the type has sub-types: the receiver must choose one.</summary>
+        public bool NeedsSubType { get; set; }
+
+        /// <summary>A source set the type, which has no active sub-types defined: received without one.</summary>
+        public bool TypeHasNoSubTypes { get; set; }
 
         // ---- posted per line ----
 

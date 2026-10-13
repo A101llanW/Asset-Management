@@ -196,6 +196,15 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Asset type was not found.");
             }
+            if (resolvedSubType != null && resolvedSubType.AssetTypeId != assetType.Id)
+            {
+                throw new BusinessException("The selected sub-type does not belong to the selected asset type.");
+            }
+            if (resolvedSubType == null && new PurchaseOrderLedger(_unitOfWork).TypeHasActiveSubTypes(assetType.Id))
+            {
+                // Sub-type is required at receiving; only a type with no sub-types defined may be received without one.
+                throw new BusinessException(SubTypeRequiredMessage);
+            }
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
             var assetName = ResolveSuggestedAssetName(itemDescription, context);
@@ -233,10 +242,10 @@ namespace AssetManagement.Application.Services
                         SupplierId = purchase.SupplierId > 0 ? purchase.SupplierId : (int?)null,
                         DepartmentId = receiveDepartmentId,
                         ConditionOnReceipt = model.ConditionOnReceipt,
-                        CurrentStatus = AssetStatus.InStore,
-                        AllowDeferredSubTypeClassification = resolvedSubType == null
+                        CurrentStatus = AssetStatus.InStore
                     };
-                    var assetId = _assetService.Create(createModel);
+                    // CreateReceived: a blank sub-type is accepted only when the type has no sub-types (re-checked there).
+                    var assetId = _assetService.CreateReceived(createModel);
                     var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
                     var receiving = new AssetReceiving
                     {
@@ -259,6 +268,14 @@ namespace AssetManagement.Application.Services
                         AssetTag = asset?.AssetTag,
                         SerialNumber = unit.SerialNumber
                     });
+                }
+                // Same rule as ReceiveOrder: the PO is stamped received (ReceivedDate) once nothing is outstanding.
+                if (remaining - model.QuantityReceived <= 0)
+                {
+                    purchase.ReceivedDate = model.ReceivedDate;
+                    purchase.UpdatedAt = now;
+                    _unitOfWork.Repository<PurchaseRecord>().Update(purchase);
+                    _unitOfWork.SaveChanges();
                 }
             });
             if (_auditWriter != null && createdAssets.Count > 0)
@@ -291,7 +308,9 @@ namespace AssetManagement.Application.Services
             var request = purchase.PurchaseRequestId.HasValue
                 ? _unitOfWork.Repository<PurchaseRequest>().GetById(purchase.PurchaseRequestId.Value)
                 : null;
-            var status = new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var status = ledger.BuildStatus(purchase);
+            var requisitionSummary = request == null ? null : ledger.BuildRequisitionSummary(request);
             var model = new ReceiveOrderVm
             {
                 PurchaseRecordId = purchase.Id,
@@ -306,11 +325,15 @@ namespace AssetManagement.Application.Services
                 Ordered = status.Ordered,
                 Received = status.Received,
                 Outstanding = status.Outstanding,
+                RequisitionQuantity = requisitionSummary == null ? 0 : requisitionSummary.RequisitionQuantity,
+                RequisitionOrderedQuantity = requisitionSummary == null ? 0 : requisitionSummary.OrderedQuantity,
                 ReceivedDate = DateTime.UtcNow
             };
 
             foreach (var line in status.Lines)
             {
+                var sourceTypeOnly = line.HasClassification && !line.AssetSubTypeId.HasValue;
+                var typeHasSubTypes = sourceTypeOnly && ledger.TypeHasActiveSubTypes(line.AssetTypeId.Value);
                 model.Lines.Add(new ReceiveOrderLineVm
                 {
                     PurchaseOrderLineId = line.Id,
@@ -327,6 +350,8 @@ namespace AssetManagement.Application.Services
                     AssetSubTypeName = line.AssetSubTypeName,
                     ClassificationSourceLabel = PurchaseOrderLedger.DescribeSource(line.ClassificationSource),
                     NeedsClassification = !line.HasClassification,
+                    NeedsSubType = sourceTypeOnly && typeHasSubTypes,
+                    TypeHasNoSubTypes = sourceTypeOnly && !typeHasSubTypes,
                     QuantityReceived = line.Outstanding,
                     Condition = AssetCondition.New.ToString(),
                     TagMode = ReceiveOrderLineVm.TagModeGenerate,
@@ -506,7 +531,7 @@ namespace AssetManagement.Application.Services
                         for (var i = 0; i < plan.Input.QuantityReceived; i++)
                         {
                             var serial = plan.Serials.Count > 0 ? plan.Serials[i] : null;
-                            var assetId = _assetService.Create(new AssetCreateVm
+                            var assetId = _assetService.CreateReceived(new AssetCreateVm
                             {
                                 AssetName = ResolveLineAssetName(plan),
                                 AssetTag = plan.Tags == null ? null : plan.Tags[i], // null = the existing tag-number scheme
@@ -523,8 +548,7 @@ namespace AssetManagement.Application.Services
                                 SupplierId = purchase.SupplierId > 0 ? purchase.SupplierId : (int?)null,
                                 DepartmentId = plan.Destination == null ? (int?)null : plan.Destination.Id,
                                 ConditionOnReceipt = plan.Condition,
-                                CurrentStatus = AssetStatus.InStore,
-                                AllowDeferredSubTypeClassification = !plan.Classification.AssetSubTypeId.HasValue
+                                CurrentStatus = AssetStatus.InStore
                             });
                             var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
                             // AssetService.Create always starts at Condition=New; the receiver's per-line condition wins.
@@ -574,7 +598,8 @@ namespace AssetManagement.Application.Services
 
                         summary.Add(plan.Label + " x" + plan.Input.QuantityReceived + " -> "
                             + (plan.Destination == null ? "store (company custody)" : plan.Destination.Name)
-                            + " [" + plan.Condition + "]");
+                            + " [" + plan.Condition + "]"
+                            + (plan.NoSubTypesDefined ? " [no sub-type: type has none defined]" : string.Empty));
                     }
 
                     // PO status: Received once nothing is outstanding (ReceivedDate stamped); otherwise Partially Received.
@@ -648,12 +673,13 @@ namespace AssetManagement.Application.Services
         private PurchaseLineClassification ResolvePlanClassification(PurchaseOrderLedger ledger, PurchaseRecord purchase, PurchaseRequest request, ReceiveLinePlan plan)
         {
             var classification = ledger.ResolveClassification(purchase, request, plan.Line, plan.Description);
+            var input = plan.Input;
             if (classification != null && classification.HasType)
             {
-                return classification; // Source wins: posted type / sub-type are ignored.
+                // Source wins for the type (posted type is ignored) and for the sub-type when it has one.
+                return RequireSubType(ledger, classification, input.OverrideAssetSubTypeId, plan);
             }
 
-            var input = plan.Input;
             if (!input.OverrideAssetTypeId.HasValue || input.OverrideAssetTypeId.Value <= 0)
             {
                 throw new BusinessException("Choose the asset type (" + plan.Label + "): neither the purchase order line, the requisition nor the supplier catalog has one.");
@@ -665,19 +691,43 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("The selected asset type was not found (" + plan.Label + ").");
             }
 
-            int? subTypeId = null;
-            if (input.OverrideAssetSubTypeId.HasValue && input.OverrideAssetSubTypeId.Value > 0)
-            {
-                var subType = _unitOfWork.Repository<AssetSubType>().GetById(input.OverrideAssetSubTypeId.Value);
-                if (subType == null || subType.AssetTypeId != type.Id)
-                {
-                    throw new BusinessException("The selected sub-type does not belong to the selected asset type (" + plan.Label + ").");
-                }
+            var chosen = ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, Source = "ReceiverOverride" });
+            return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan);
+        }
 
-                subTypeId = subType.Id;
+        public const string SubTypeRequiredMessage = "Choose the sub-type: a sub-type is required to receive goods.";
+
+        /// <summary>
+        /// Sub-type is required at receiving. A source sub-type wins; otherwise the receiver's posted sub-type must belong to
+        /// the line's type. The only exception is a type with no active sub-types defined: nothing can be chosen, so the unit
+        /// is received without one (recorded on the plan / audit) and shows up under the asset list's "Missing sub-type" filter.
+        /// </summary>
+        private PurchaseLineClassification RequireSubType(PurchaseOrderLedger ledger, PurchaseLineClassification classification, int? postedSubTypeId, ReceiveLinePlan plan)
+        {
+            if (classification.AssetSubTypeId.HasValue && classification.AssetSubTypeId.Value > 0)
+            {
+                return classification;
             }
 
-            return ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, AssetSubTypeId = subTypeId, Source = "ReceiverOverride" });
+            if (!ledger.TypeHasActiveSubTypes(classification.AssetTypeId.Value))
+            {
+                plan.NoSubTypesDefined = true;
+                return classification;
+            }
+
+            if (!postedSubTypeId.HasValue || postedSubTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the sub-type (" + plan.Label + "): a sub-type is required to receive goods.");
+            }
+
+            var subType = _unitOfWork.Repository<AssetSubType>().GetById(postedSubTypeId.Value);
+            if (subType == null || !subType.IsActive || subType.AssetTypeId != classification.AssetTypeId.Value)
+            {
+                throw new BusinessException("The selected sub-type does not belong to the selected asset type (" + plan.Label + ").");
+            }
+
+            classification.AssetSubTypeId = subType.Id;
+            return ledger.Complete(classification);
         }
 
         private string ResolveLineAssetName(ReceiveLinePlan plan)
@@ -748,6 +798,9 @@ namespace AssetManagement.Application.Services
             public decimal UnitCost { get; set; }
 
             public PurchaseLineClassification Classification { get; set; }
+
+            /// <summary>The line's type has no active sub-types, so the unit is received without one.</summary>
+            public bool NoSubTypesDefined { get; set; }
         }
 
         private static IList<ReceiveAssetUnitVm> BuildReceiveUnits(AssetReceiveVm model)
@@ -814,7 +867,7 @@ namespace AssetManagement.Application.Services
                     return inferred;
                 }
             }
-            // Classification Assign during receive removed — allow blank subtype; classify after create when type context exists.
+            // No sub-type chosen and none inferred: the caller enforces "sub-type required" once the type is known.
             return null;
         }
         private static void ApplyReceivePlacementChoice(AssetReceiveVm model)
