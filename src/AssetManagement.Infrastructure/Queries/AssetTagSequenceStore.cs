@@ -13,12 +13,15 @@ namespace AssetManagement.Infrastructure.Queries
     {
         // Highest numeric suffix already used with PREFIX- (any asset of the tenant, active or not).
         private const string MaxExistingSql = @"
-SELECT @max = ISNULL(MAX(TRY_CONVERT(INT, SUBSTRING(a.[AssetTag], LEN(@Prefix) + 2, 20))), 0)
-FROM [dbo].[Asset] a WITH (READUNCOMMITTED)
-WHERE a.[OrganizationId] = @OrganizationId
-  AND a.[AssetTag] LIKE @Prefix + N'-%'
-  AND LEN(a.[AssetTag]) > LEN(@Prefix) + 1
-  AND SUBSTRING(a.[AssetTag], LEN(@Prefix) + 2, 20) NOT LIKE N'%[^0-9]%';";
+SELECT @max = ISNULL(MAX(TRY_CONVERT(INT, SUBSTRING(t.[Tag], LEN(@Prefix) + 2, 20))), 0)
+FROM (SELECT a.[AssetTag] AS [Tag] FROM [dbo].[Asset] a WITH (READUNCOMMITTED)
+      WHERE a.[OrganizationId] = @OrganizationId AND a.[AssetTag] LIKE @Prefix + N'-%'
+      UNION ALL
+      -- rel1013b: active old-tag aliases also hold their number, so a retired tag is never handed out again.
+      SELECT al.[AliasTag] FROM [dbo].[AssetTagAlias] al WITH (READUNCOMMITTED)
+      WHERE al.[OrganizationId] = @OrganizationId AND al.[IsActive] = 1 AND al.[AliasTag] LIKE @Prefix + N'-%') t
+WHERE LEN(t.[Tag]) > LEN(@Prefix) + 1
+  AND SUBSTRING(t.[Tag], LEN(@Prefix) + 2, 20) NOT LIKE N'%[^0-9]%';";
 
         private const string AllocateSql = @"
 SET NOCOUNT ON;

@@ -6,10 +6,12 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Asset tag prefix",
-    Subtitle = "Choose how new asset tags start. Existing tags never change; only assets created from now on use the prefix.",
+    Subtitle = "Choose how new asset tags start. Existing tags stay as they are unless you rename them with the tool below; new assets use the prefix.",
     BackUrl = Url.Action("Index", "Settings"),
     BackLabel = "Back to Settings"
 })
+
+<p><a href="@Url.Action("AssetTagRename", "Settings")" class="btn btn-sm btn-outline-secondary">Rename existing tags to this format</a></p>
 
 @if (TempData["SuccessMessage"] != null)
 {

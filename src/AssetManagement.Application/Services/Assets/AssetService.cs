@@ -32,6 +32,7 @@ namespace AssetManagement.Application.Services
         private readonly IAuthorizationService _authorizationService;
 
         private readonly IAssetTagSequenceStore _tagSequenceStore;
+        private readonly IAssetTagRenameStore _tagRenameStore;
 
         public AssetService(
             IUnitOfWork unitOfWork,
@@ -50,9 +51,11 @@ namespace AssetManagement.Application.Services
             IAssetSubTypeService assetSubTypeService,
             IOperationsQueryRepository operationsQueryRepository,
             IAuthorizationService authorizationService,
-            IAssetTagSequenceStore tagSequenceStore = null)
+            IAssetTagSequenceStore tagSequenceStore = null,
+            IAssetTagRenameStore tagRenameStore = null)
         {
             _tagSequenceStore = tagSequenceStore;
+            _tagRenameStore = tagRenameStore;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _departmentScope = departmentScope;
@@ -1601,6 +1604,17 @@ namespace AssetManagement.Application.Services
             if (tagQuery.Any())
             {
                 throw new BusinessException("AssetTag must be unique.");
+            }
+
+            // rel1013b: an old tag kept as an alias by the rename tool still identifies its asset (scans, search),
+            // so it cannot be given to an asset again while the alias is active.
+            if (_tagRenameStore != null && !string.IsNullOrWhiteSpace(assetTag))
+            {
+                var aliasOrgId = _organizationScope.GetCurrentOrganizationId();
+                if (aliasOrgId.HasValue && _tagRenameStore.AliasExists(aliasOrgId.Value, assetTag.Trim()))
+                {
+                    throw new BusinessException("AssetTag '" + assetTag.Trim() + "' is an old tag that still points to a renamed asset. Choose another tag.");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(serialNumber))

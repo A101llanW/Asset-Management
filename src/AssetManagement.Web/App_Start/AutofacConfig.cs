@@ -60,6 +60,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<UserAccountQueryRepository>().As<IUserAccountQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetTagSequenceStore>().As<IAssetTagSequenceStore>().InstancePerHttpRequest();
+            builder.RegisterType<AssetTagRenameStore>().As<IAssetTagRenameStore>().InstancePerHttpRequest();
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetMovementQueryRepository>().As<IAssetMovementQueryRepository>().InstancePerHttpRequest();

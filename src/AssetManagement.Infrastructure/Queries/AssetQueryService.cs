@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -1120,6 +1120,7 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     // on first name, last name, "First Last" and email, evaluated in SQL as a correlated EXISTS.
                     clauses.Add(@"(
     a.[AssetTag] LIKE @SearchPrefix
+    OR EXISTS (SELECT 1 FROM [AssetTagAlias] al WHERE al.[AssetId] = a.[Id] AND al.[OrganizationId] = a.[OrganizationId] AND al.[IsActive] = 1 AND al.[AliasTag] LIKE @SearchPrefix)
     OR a.[AssetName] LIKE @SearchPrefix
     OR a.[SerialNumber] LIKE @SearchPrefix
     OR a.[BarcodeOrQRCode] LIKE @SearchPrefix

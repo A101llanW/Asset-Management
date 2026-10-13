@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using AssetManagement.Application;
@@ -26,7 +26,7 @@ SELECT TOP (@MaxResults)
         THEN LTRIM(RTRIM(ISNULL(u.[FirstName], '') + ' ' + ISNULL(u.[LastName], '')))
         ELSE u.[Email]
     END AS CustodianName,
-    CASE WHEN a.[AssetTag] LIKE @Prefix THEN 1 ELSE 0 END AS MatchTag,
+    CASE WHEN a.[AssetTag] LIKE @Prefix OR EXISTS (SELECT 1 FROM [AssetTagAlias] al WHERE al.[AssetId] = a.[Id] AND al.[OrganizationId] = a.[OrganizationId] AND al.[IsActive] = 1 AND al.[AliasTag] LIKE @Prefix) THEN 1 ELSE 0 END AS MatchTag,
     CASE WHEN a.[SerialNumber] LIKE @Prefix THEN 1 ELSE 0 END AS MatchSerial,
     CASE WHEN a.[AssetName] LIKE @Prefix THEN 1 ELSE 0 END AS MatchName,
     CASE WHEN d.[Name] LIKE @Prefix THEN 1 ELSE 0 END AS MatchDepartment,
@@ -45,6 +45,7 @@ WHERE a.[OrganizationId] = @OrganizationId
   AND " + SqlQueryHelper.FormatAssetDepartmentScopeSql("a") + @"
   AND (
     a.[AssetTag] LIKE @Prefix
+    OR EXISTS (SELECT 1 FROM [AssetTagAlias] al WHERE al.[AssetId] = a.[Id] AND al.[OrganizationId] = a.[OrganizationId] AND al.[IsActive] = 1 AND al.[AliasTag] LIKE @Prefix)
     OR a.[SerialNumber] LIKE @Prefix
     OR a.[AssetName] LIKE @Prefix
     OR d.[Name] LIKE @Prefix
