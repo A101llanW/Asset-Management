@@ -9,9 +9,9 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
-## 2026-10-13 08:58 - Customize Reports: multi-select Departments and Categories (`cc1119d`) - STAGED (branch `feature/reports-multiselect-dept-category`, GitHub PR; not published to IIS)
+## 2026-10-13 08:58 - Customize Reports: multi-select Departments and Categories (`cc1119d`) - PUBLISHED-LOCAL (integration branch `integ/catreq-reports-multiselect` 592da5b = catalog-requisition-flows 8d2aa2c + this; local IIS :8080 2026-10-13 11:11:13 EAT, Web.dll E7887D1E...477C; PR #18)
 
-- **Date/time EAT:** 2026-10-13 08:58 (commit `cc1119d`). Not published to local IIS; not on live.
+- **Date/time EAT:** 2026-10-13 08:58 (commit `cc1119d`). **PUBLISHED_AT 2026-10-13 11:11:13 EAT** to local IIS :8080 from integration merge `592da5b` (package `artifacts\integ-reports\web-publish-integ-20261013_110900`, no Web.config). Web.dll `E7887D1ED620330F66A4A77446BF9F7A73D25F28DF2E540ACC66ABF8A8A5477C` (was catreq `ACC0F6F8...5BAE`). Backup `C:\inetpub\_backups\AssetManagement_root_pre_integreports_20261013_111050`; DB COPY_ONLY backup `AssetManagementModuleDb_pre_integreports_publish_20261013_111050.bak`. No migrations run (097-101 already applied). Headed QA from DESKTOP-BUGKGO7 on Test-WF A461: all checks PASS. Not on live.
 - **What and why:** Allan asked that Customize Reports let users pick several departments and several categories instead of one.
   - The Department and Category dropdowns on each report's filter panel are now scrollable checkbox lists with "Select all" and "Clear" links. Nothing ticked = all (same as the old "All departments"/"All categories").
   - Preview, CSV and PDF/HTML export filter by every ticked id (asset register, custody movement, department summary, pending approvals, general ledger, warranty expiry, insurance coverage, depreciation). The filter summary lists all chosen names.
