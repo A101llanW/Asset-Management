@@ -34,7 +34,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Departments",
-    Subtitle = "Maintain administrative departments, sub-departments, rooms, and class streams. Mode and Flow stay; Requisitions-by shows optional Class teacher / Room custodian when set. Showing " + statusLabel + ".",
+    Subtitle = "Maintain administrative departments, sub-departments, rooms, and classroom streams. Mode and Flow stay; Requisitions-by shows optional Classroom teacher / Room custodian when set. Showing " + statusLabel + ".",
     PrimaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeNormal }) : null,
     PrimaryActionLabel = canCreateDepartment ? "Create department" : null,
     SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom }) : null,
@@ -54,8 +54,8 @@
                 <span><strong class="text-dark">@kindCountOf(DepartmentKind.Administrative)</strong> Admin</span>
                 <span><strong class="text-dark">@kindCountOf(DepartmentKind.SubDepartment)</strong> Sub</span>
                 <span><strong class="text-dark">@kindCountOf(DepartmentKind.Room)</strong> Room</span>
-                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Grade)</strong> Grade</span>
-                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Class)</strong> Class</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Grade)</strong> Year</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Class)</strong> Classroom</span>
             </div>
         </div>
     </div>
@@ -108,7 +108,7 @@ else if (viewMode == "tree")
     foreach (var section in treeSections)
     {
         <div class="card card-kpi mb-3" data-am-dept-section>
-            <div class="card-header bg-light fw-semibold">@(section.Title)</div>
+            <div class="card-header bg-light fw-semibold">@(GradeDisplay.ToYear(section.Title))</div>
             <div class="card-body p-0">
                 <table class="table mb-0 am-dept-tree-table">
                     <thead class="table-light">
@@ -138,7 +138,7 @@ else if (viewMode == "tree")
                                     <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@parent.Id" aria-expanded="false" title="Expand">&#9656;</button>
                                 }
                             </td>
-                            <td class="am-dept-name am-dept-indent-0">@parent.Name@(childCountOf(parent) > 0 ? (" (" + childCountOf(parent) + ")") : "")</td>
+                            <td class="am-dept-name am-dept-indent-0">@GradeDisplay.ToYear(parent.Name)@(childCountOf(parent) > 0 ? (" (" + childCountOf(parent) + ")") : "")</td>
                             <td>@Html.DepartmentKindBadge(parent.DepartmentKind)</td>
                             @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(parent.DepartmentKind))
                             {
@@ -168,7 +168,7 @@ else if (viewMode == "tree")
                                         <button type="button" class="btn btn-sm btn-link p-0 am-dept-row-toggle" data-am-dept-toggle="@child.Id" aria-expanded="false" title="Expand rooms">&#9656;</button>
                                     }
                                 </td>
-                                <td class="am-dept-name am-dept-indent-1">@child.Name</td>
+                                <td class="am-dept-name am-dept-indent-1">@GradeDisplay.ToYear(child.Name)</td>
                                 <td>@Html.DepartmentKindBadge(child.DepartmentKind)</td>
                                 @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(child.DepartmentKind))
                                 {
@@ -237,9 +237,9 @@ else
                 @foreach (var item in Model)
                 {
                     <tr>
-                        <td>@item.Name</td>
+                        <td>@GradeDisplay.ToYear(item.Name)</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
-                        <td>@(string.IsNullOrWhiteSpace(item.ParentDepartmentName) ? "—" : item.ParentDepartmentName)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ParentDepartmentName) ? "—" : GradeDisplay.ToYear(item.ParentDepartmentName))</td>
                         @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>

@@ -82,7 +82,7 @@
             .then(function (response) { return response.json(); })
             .then(function (items) {
                 items = items || [];
-                setSelectOptions(roomSelect, items, items.length ? "-- Select room or class --" : "No rooms or classes in this department", current);
+                setSelectOptions(roomSelect, items, items.length ? "-- Select room or classroom --" : "No rooms or classrooms in this department", current);
             })
             .catch(function () {
                 setSelectOptions(roomSelect, [], "Unable to load rooms", null);

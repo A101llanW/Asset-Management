@@ -34,7 +34,7 @@ else
                 {
                     <tr>
                         <td>@item.Code</td>
-                        <td>@item.Name</td>
+                        <td>@GradeDisplay.ToYear(item.Name)</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                         <td class="text-end">
@@ -50,7 +50,7 @@ else
                 {
                     <tr class="d-none am-dept-child-extra" data-am-dept-child-extra="@listId">
                         <td>@item.Code</td>
-                        <td>@item.Name</td>
+                        <td>@GradeDisplay.ToYear(item.Name)</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(item.IsActive) badge-status">@(item.IsActive ? "Active" : "Inactive")</span></td>
                         <td class="text-end">

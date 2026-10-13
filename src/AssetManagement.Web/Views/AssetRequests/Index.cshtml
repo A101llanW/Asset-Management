@@ -56,7 +56,7 @@
                         <tr>
                             <td>@item.Id</td>
                             <td>@item.RequestedByName</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? DisplayText.Empty : item.DepartmentName)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? DisplayText.Empty : GradeDisplay.ToYear(item.DepartmentName))</td>
                             <td>@(string.IsNullOrWhiteSpace(item.RequestedAssetName) ? (item.CategoryName ?? DisplayText.Empty) : item.RequestedAssetName)</td>
                             <td><span class="badge bg-secondary">@item.Status</span></td>
                             <td>@KenyaTimeHelper.FormatUtc(item.CreatedAt, KenyaTimeHelper.ShortTimestampFormat)</td>

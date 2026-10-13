@@ -43,7 +43,7 @@ namespace AssetManagement.Web.Helpers
                     }
 
                     body.Append("<optgroup label=\"");
-                    body.Append(HttpUtility.HtmlEncode(group.Label ?? string.Empty));
+                    body.Append(HttpUtility.HtmlEncode(AssetManagement.Application.Helpers.GradeDisplay.ToYear(group.Label ?? string.Empty)));
                     body.Append("\">");
                     foreach (var item in group.Items)
                     {
@@ -56,7 +56,7 @@ namespace AssetManagement.Web.Helpers
                         }
 
                         body.Append(">");
-                        body.Append(HttpUtility.HtmlEncode(item.Text ?? string.Empty));
+                        body.Append(HttpUtility.HtmlEncode(AssetManagement.Application.Helpers.GradeDisplay.ToYear(item.Text ?? string.Empty)));
                         body.Append("</option>");
                     }
 

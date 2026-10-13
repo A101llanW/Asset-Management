@@ -105,7 +105,7 @@ namespace AssetManagement.Application.Helpers
             {
                 case AssetMovementType.Edit: return "Edit (department change)";
                 case AssetMovementType.BulkDepartment: return "Bulk move to department";
-                case AssetMovementType.RelocateClass: return "Move to class";
+                case AssetMovementType.RelocateClass: return "Move to classroom";
                 case AssetMovementType.RelocateRoom: return "Move to room";
                 case AssetMovementType.Transfer: return "Transfer";
                 case AssetMovementType.Assign: return "Assign";

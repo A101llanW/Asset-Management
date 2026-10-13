@@ -214,7 +214,7 @@ else if (isGrouped && groupedPage != null)
                             {
                                 <td class="ps-3 fw-bold">@group.AssetName</td>
                                 <td>@group.CategoryName</td>
-                                <td>@(string.IsNullOrWhiteSpace(group.DepartmentName) ? "Company custody" : group.DepartmentName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(group.DepartmentName) ? "Company custody" : GradeDisplay.ToYear(group.DepartmentName))</td>
                                 <td>@(string.IsNullOrWhiteSpace(group.AssetSubTypeName) ? DisplayText.Empty : group.AssetSubTypeName)</td>
                                 <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(group.CurrentStatus) badge-status">@group.CurrentStatus</span></td>
                                 <td>@group.Count</td>
@@ -324,13 +324,13 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("view", "grouped")
                         @Html.Hidden("groupBy", groupBy)
                         <div class="modal-header">
-                            <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to class</h5>
+                            <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to classroom</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another class.</p>
-                            <label class="form-label" for="targetDepartmentId">Target class</label>
-                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select class --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
+                            <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another classroom.</p>
+                            <label class="form-label" for="targetDepartmentId">Target classroom</label>
+                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select classroom --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -360,13 +360,13 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("view", "grouped")
                         @Html.Hidden("groupBy", groupBy)
                         <div class="modal-header">
-                            <h5 class="modal-title" id="amRelocateGroupModalLabel">Move group to class</h5>
+                            <h5 class="modal-title" id="amRelocateGroupModalLabel">Move group to classroom</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="mb-3">Move all eligible in-store units in <strong id="amRelocateGroupLabel"></strong> to another class. Assigned or non-eligible units are skipped.</p>
-                            <label class="form-label" for="amRelocateGroupTargetDepartmentId">Target class</label>
-                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select class --", new { @class = "form-select", id = "amRelocateGroupTargetDepartmentId", required = "required" })
+                            <p class="mb-3">Move all eligible in-store units in <strong id="amRelocateGroupLabel"></strong> to another classroom. Assigned or non-eligible units are skipped.</p>
+                            <label class="form-label" for="amRelocateGroupTargetDepartmentId">Target classroom</label>
+                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select classroom --", new { @class = "form-select", id = "amRelocateGroupTargetDepartmentId", required = "required" })
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -411,7 +411,7 @@ else
                             <td class="@(canBulkEdit ? "" : "ps-3")"><span class="am-tag-pill">@item.AssetTag</span></td>
                             <td class="fw-bold text-dark">@item.AssetName</td>
                             <td>@item.CategoryName</td>
-                            <td><span class="text-secondary small fw-medium">@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Company custody" : item.DepartmentName)</span></td>
+                            <td><span class="text-secondary small fw-medium">@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "Company custody" : GradeDisplay.ToYear(item.DepartmentName))</span></td>
                             <td class="text-muted" style="font-size: 0.85rem;">
                                 <span class="@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) ? "am-empty-custodian" : null)" title="@(string.IsNullOrWhiteSpace(item.CurrentCustodianName) && item.CurrentStatus == AssetStatus.Assigned ? "Held in department pool (no person custodian)" : null)">
                                     @DisplayText.FormatCustodian(item.CurrentCustodianName, item.CurrentStatus)

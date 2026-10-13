@@ -18,7 +18,7 @@ namespace AssetManagement.Application.Helpers
 
             if (department.DepartmentKind == DepartmentKind.Class)
             {
-                return FormatName(department.ClassTeacherName, department.ClassTeacherUserId, "Class teacher");
+                return FormatName(department.ClassTeacherName, department.ClassTeacherUserId, "Classroom teacher");
             }
 
             if (department.DepartmentKind == DepartmentKind.Room)

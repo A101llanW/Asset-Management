@@ -530,8 +530,8 @@ namespace AssetManagement.Application.Services
 
         private void RelocateToDepartmentOfKind(int assetId, int targetDepartmentId, string actorUserId, DepartmentKind targetKind, string batchId = null)
         {
-            var label = targetKind == DepartmentKind.Room ? "room" : "class";
-            var plural = targetKind == DepartmentKind.Room ? "rooms" : "classes";
+            var label = targetKind == DepartmentKind.Room ? "room" : "classroom";
+            var plural = targetKind == DepartmentKind.Room ? "rooms" : "classrooms";
             if (string.IsNullOrWhiteSpace(actorUserId))
             {
                 throw new BusinessException("Current user is required to relocate an asset.");

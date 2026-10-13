@@ -21,9 +21,9 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Administrative:
                     return "Administrative";
                 case DepartmentKind.Grade:
-                    return "Grade";
+                    return "Year";
                 case DepartmentKind.Class:
-                    return "Class";
+                    return "Classroom";
                 default:
                     return kind.ToString();
             }

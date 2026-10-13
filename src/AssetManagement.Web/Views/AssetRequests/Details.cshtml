@@ -27,7 +27,7 @@
             <div class="card-body">
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Requester</dt><dd class="col-sm-8">@Model.RequestedByName</dd>
-                    <dt class="col-sm-4">Department</dt><dd class="col-sm-8">@(Model.DepartmentName ?? DisplayText.Empty)</dd>
+                    <dt class="col-sm-4">Department</dt><dd class="col-sm-8">@(GradeDisplay.ToYear(Model.DepartmentName) ?? DisplayText.Empty)</dd>
                     <dt class="col-sm-4">Deliver to</dt><dd class="col-sm-8" id="asset-request-target">@(isRoomTarget ? ("Room: " + Model.TargetDepartmentName) : Model.RequestedByName)</dd>
                     <dt class="col-sm-4">Category</dt><dd class="col-sm-8">@(Model.CategoryName ?? "Any")</dd>
                     <dt class="col-sm-4">Requested asset</dt>
@@ -151,11 +151,11 @@
                                         <input class="form-check-input" type="radio" name="PicPlacementChoice" id="PicPlacementPool" value="Pool" />
                                         <label class="form-check-label" for="PicPlacementPool">Room pool (no person)</label>
                                     </div>
-                                    <div class="form-text" id="fulfil-pool-hint" style="display:none">The room pool moves the asset into the room (assignment rules: from a top-level department, another room, a sub-department or a class).</div>
+                                    <div class="form-text" id="fulfil-pool-hint" style="display:none">The room pool moves the asset into the room (assignment rules: from a top-level department, another room, a sub-department or a classroom).</div>
                                 }
                                 else
                                 {
-                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool. The pool moves the asset into the room (assignment rules: from a top-level department, another room, a sub-department or a class).</div>
+                                    <div class="form-text">This room has no person in charge; the asset goes to the room pool. The pool moves the asset into the room (assignment rules: from a top-level department, another room, a sub-department or a classroom).</div>
                                 }
                             </div>
                         }

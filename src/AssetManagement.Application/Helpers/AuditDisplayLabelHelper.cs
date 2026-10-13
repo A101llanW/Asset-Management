@@ -52,7 +52,7 @@ namespace AssetManagement.Application.Helpers
 
                 { "Assets.UpdateStatus", "Asset status changed" },
 
-                { "Assets.RelocateClass", "Asset class relocated" },
+                { "Assets.RelocateClass", "Asset classroom relocated" },
                 { "Assets.RelocateRoom", "Asset room relocated" },
                 { "Assets.Edit.Department", "Asset department changed" },
 

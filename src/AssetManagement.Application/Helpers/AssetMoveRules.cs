@@ -12,7 +12,7 @@ namespace AssetManagement.Application.Helpers
     public static class AssetMoveRules
     {
         public const string RefusedMessage =
-            "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, or from a class to a room.";
+            "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, or from a classroom to a room.";
 
         public static bool IsAllowed(DepartmentKind? fromKind, DepartmentKind toKind)
         {
@@ -42,7 +42,7 @@ namespace AssetManagement.Application.Helpers
         }
 
         public const string AssignmentRefusedMessage =
-            "This assignment is not allowed. Assets can be assigned into or out of a top-level department, or moved room to room, between a room and a sub-department, or from a class to a room.";
+            "This assignment is not allowed. Assets can be assigned into or out of a top-level department, or moved room to room, between a room and a sub-department, or from a classroom to a room.";
 
         /// <summary>
         /// rel1009h (Allan, 2026-10-09): rule for assignment and transfer targets (Assign, Batch assign, Asset request

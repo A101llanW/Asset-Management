@@ -24,7 +24,7 @@ namespace AssetManagement.Application.Helpers
         public static string FormatCodeName(string code, string name)
         {
             var safeCode = (code ?? string.Empty).Trim();
-            var safeName = (name ?? string.Empty).Trim();
+            var safeName = GradeDisplay.ToYear((name ?? string.Empty).Trim());
             if (safeCode.Length == 0)
             {
                 return safeName;

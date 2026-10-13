@@ -42,7 +42,7 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Administrative:
                     return "Admin";
                 case DepartmentKind.Grade:
-                    return "Grade";
+                    return "Year";
                 case DepartmentKind.Class:
                     return "Stream";
                 case DepartmentKind.Room:
@@ -162,7 +162,7 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Grade:
                     if (parentDepartmentId.HasValue)
                     {
-                        throw new BusinessException("Grade departments cannot have a parent department.");
+                        throw new BusinessException("Year departments cannot have a parent department.");
                     }
 
                     break;
@@ -192,7 +192,7 @@ namespace AssetManagement.Application.Helpers
 
             if (parent.DepartmentKind == DepartmentKind.Grade || parent.DepartmentKind == DepartmentKind.Class)
             {
-                throw new BusinessException("A room cannot be placed under a grade or class department.");
+                throw new BusinessException("A room cannot be placed under a year or classroom department.");
             }
 
             if (parent.DepartmentKind == DepartmentKind.SubDepartment)
@@ -248,13 +248,13 @@ namespace AssetManagement.Application.Helpers
         {
             if (!parentDepartmentId.HasValue)
             {
-                throw new BusinessException("Class departments require a grade parent department.");
+                throw new BusinessException("Classroom departments require a year parent department.");
             }
 
             Department parent;
             if (!byId.TryGetValue(parentDepartmentId.Value, out parent) || parent.DepartmentKind != DepartmentKind.Grade)
             {
-                throw new BusinessException("Class departments must belong to a grade department.");
+                throw new BusinessException("Classroom departments must belong to a year department.");
             }
         }
 

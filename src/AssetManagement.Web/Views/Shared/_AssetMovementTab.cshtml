@@ -31,8 +31,8 @@
                         <tr>
                             <td class="text-nowrap">@KenyaTimeHelper.FormatUtc(r.OccurredAtUtc, KenyaTimeHelper.ShortTimestampFormat)</td>
                             <td>@r.MovementTypeLabel</td>
-                            <td>@(r.FromDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.FromCustodianUserId)) {<div class="small text-muted">@(r.FromCustodianName ?? r.FromCustodianUserId)</div>}</td>
-                            <td>@(r.ToDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.ToCustodianUserId)) {<div class="small text-muted">@(r.ToCustodianName ?? r.ToCustodianUserId)</div>}</td>
+                            <td>@(GradeDisplay.ToYear(r.FromDepartmentName) ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.FromCustodianUserId)) {<div class="small text-muted">@(r.FromCustodianName ?? r.FromCustodianUserId)</div>}</td>
+                            <td>@(GradeDisplay.ToYear(r.ToDepartmentName) ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.ToCustodianUserId)) {<div class="small text-muted">@(r.ToCustodianName ?? r.ToCustodianUserId)</div>}</td>
                             <td>@(r.PerformedByName ?? r.PerformedByUserId)</td>
                             <td class="small">@r.Notes</td>
                         </tr>

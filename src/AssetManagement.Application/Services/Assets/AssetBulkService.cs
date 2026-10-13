@@ -65,7 +65,7 @@ namespace AssetManagement.Application.Services
                 targetDepartment = _unitOfWork.Repository<Department>().GetById(request.TargetDepartmentId.Value);
                 if (targetDepartment == null || !targetDepartment.IsActive || targetDepartment.DepartmentKind == DepartmentKind.Grade)
                 {
-                    throw new BusinessException("Target department was not found, is inactive, or is a grade. Choose an active department, sub-department, class or room.");
+                    throw new BusinessException("Target department was not found, is inactive, or is a year. Choose an active department, sub-department, classroom or room.");
                 }
             }
 
