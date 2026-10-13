@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -31,6 +31,8 @@ namespace AssetManagement.Application.Services
         private readonly IOperationsQueryRepository _operationsQueryRepository;
         private readonly IAuthorizationService _authorizationService;
 
+        private readonly IAssetTagSequenceStore _tagSequenceStore;
+
         public AssetService(
             IUnitOfWork unitOfWork,
             IAuditWriter auditWriter,
@@ -47,8 +49,10 @@ namespace AssetManagement.Application.Services
             IReferenceDataCache referenceDataCache,
             IAssetSubTypeService assetSubTypeService,
             IOperationsQueryRepository operationsQueryRepository,
-            IAuthorizationService authorizationService)
+            IAuthorizationService authorizationService,
+            IAssetTagSequenceStore tagSequenceStore = null)
         {
+            _tagSequenceStore = tagSequenceStore;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _departmentScope = departmentScope;
@@ -1541,6 +1545,17 @@ namespace AssetManagement.Application.Services
             if (!string.IsNullOrWhiteSpace(model.AssetTag))
             {
                 return model.AssetTag;
+            }
+
+            // rel1013a: structured PREFIX-NNN tag (room/sub-department/department override, tenant prefix, or derived default).
+            var tagOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (tagOrganizationId.HasValue)
+            {
+                var structured = AssetTagPrefixGenerator.TryGenerate(_unitOfWork, _tagSequenceStore, tagOrganizationId.Value, NormalizeOptionalId(model.DepartmentId), null);
+                if (structured != null)
+                {
+                    return structured;
+                }
             }
 
             // Random 10-char tag (32^10 space); check only the candidate instead of reading every

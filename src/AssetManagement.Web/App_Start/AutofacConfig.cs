@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Web.Mvc;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Platform;
@@ -59,6 +59,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<ReferenceDataCache>().As<IReferenceDataCache>().InstancePerHttpRequest();
             builder.RegisterType<UserAccountQueryRepository>().As<IUserAccountQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
+            builder.RegisterType<AssetTagSequenceStore>().As<IAssetTagSequenceStore>().InstancePerHttpRequest();
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetMovementQueryRepository>().As<IAssetMovementQueryRepository>().InstancePerHttpRequest();
