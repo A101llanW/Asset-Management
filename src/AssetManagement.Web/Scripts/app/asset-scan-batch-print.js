@@ -111,6 +111,7 @@
         var selectAllBtn = panel.querySelector("[data-am-scan-batch-select-all]");
         var addAllBtn = panel.querySelector("[data-am-scan-batch-add-all]");
         var addSelectedBtn = panel.querySelector("[data-am-scan-batch-add-selected]");
+        var printSelectedQrBtn = panel.querySelector("[data-am-scan-batch-print-selected-qr]");
         var printBtn = panel.querySelector("[data-am-scan-batch-run-print]");
         var clearBtn = panel.querySelector("[data-am-scan-batch-clear]");
 
@@ -122,6 +123,9 @@
         }
         if (addSelectedBtn) {
             addSelectedBtn.disabled = !hasCandidates || isPrinting;
+        }
+        if (printSelectedQrBtn) {
+            printSelectedQrBtn.disabled = !hasCandidates || isPrinting;
         }
         if (printBtn) {
             printBtn.disabled = !hasQueue || isPrinting;
@@ -182,6 +186,9 @@
                 '<td class="fw-semibold text-dark">' + escapeHtml(asset.name) + "</td>" +
                 '<td class="text-muted small">' + escapeHtml(asset.department || "") + "</td>" +
                 '<td><span class="badge rounded-pill bg-light border text-secondary">' + escapeHtml(asset.status || "") + "</span></td>" +
+                '<td class="text-muted small text-nowrap">' + escapeHtml(asset.enteredAt || "-") + "</td>" +
+                '<td class="text-muted small text-nowrap">' + escapeHtml(asset.lastAssignedAt || "-") + "</td>" +
+                '<td class="text-muted small text-nowrap">' + escapeHtml(asset.lastActivityAt || "-") + "</td>" +
                 '<td class="text-end pe-3">' +
                 (inQueue
                     ? '<span class="small text-success">Queued</span>'
@@ -194,7 +201,7 @@
             '<div class="table-responsive"><table class="table table-hover align-middle mb-0">' +
             '<thead><tr class="bg-light" style="font-size:0.82rem;">' +
             '<th class="ps-3"><input type="checkbox" class="form-check-input" data-am-scan-batch-candidate-master /></th>' +
-            "<th>Tag</th><th>Name</th><th>Department</th><th>Status</th><th class=\"pe-3 text-end\">Action</th>" +
+            "<th>Tag</th><th>Name</th><th>Department</th><th>Status</th><th>Entered</th><th>Last assigned</th><th>Last activity</th><th class=\"pe-3 text-end\">Action</th>" +
             "</tr></thead><tbody>" + rows + "</tbody></table></div>";
 
         syncActionButtons();
@@ -208,6 +215,9 @@
             name: raw.AssetName || raw.assetName || raw.name,
             department: raw.DepartmentName || raw.departmentName || raw.department || "",
             status: raw.Status || raw.status || "",
+            enteredAt: raw.EnteredAt || raw.enteredAt || "",
+            lastAssignedAt: raw.LastAssignedAt || raw.lastAssignedAt || "",
+            lastActivityAt: raw.LastActivityAt || raw.lastActivityAt || "",
             labelZplUrl: raw.LabelZplUrl || raw.labelZplUrl || resolveUrlTemplate(config.labelZplUrlTemplate, id)
         };
     }
@@ -281,6 +291,49 @@
         return ids;
     }
 
+    function formatInputDate(date) {
+        var month = String(date.getMonth() + 1);
+        var day = String(date.getDate());
+        return date.getFullYear() + "-" + (month.length < 2 ? "0" + month : month) + "-" + (day.length < 2 ? "0" + day : day);
+    }
+
+    // Presets use the browser's calendar day; the server reads the dates as EAT days.
+    function applyDatePreset(preset) {
+        var fromInput = document.querySelector("[data-am-scan-batch-from]");
+        var toInput = document.querySelector("[data-am-scan-batch-to]");
+        if (!fromInput || !toInput) {
+            return;
+        }
+
+        if (preset === "clear") {
+            fromInput.value = "";
+            toInput.value = "";
+            return;
+        }
+
+        var today = new Date();
+        var from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        var days = preset === "today" ? 1 : parseInt(preset, 10);
+        if (days > 1) {
+            from.setDate(from.getDate() - (days - 1));
+        }
+        fromInput.value = formatInputDate(from);
+        toInput.value = formatInputDate(today);
+    }
+
+    function queueSelectedCandidates() {
+        var ids = getSelectedCandidateIds();
+        for (var j = 0; j < ids.length; j++) {
+            for (var k = 0; k < candidates.length; k++) {
+                if (String(candidates[k].id) === String(ids[j])) {
+                    addToQueue(candidates[k]);
+                    break;
+                }
+            }
+        }
+        return ids.length;
+    }
+
     function loadCandidates() {
         if (!config.printCandidatesUrl) {
             var host = document.querySelector("[data-am-scan-batch-candidates]");
@@ -304,7 +357,33 @@
         if (search && search.value.trim()) {
             params.push("search=" + encodeURIComponent(search.value.trim()));
         }
-        params.push("take=100");
+
+        var sortSelect = document.querySelector("[data-am-scan-batch-sort]");
+        if (sortSelect && sortSelect.value) {
+            var sortParts = sortSelect.value.split("|");
+            params.push("sort=" + encodeURIComponent(sortParts[0]));
+            if (sortParts[1]) {
+                params.push("direction=" + encodeURIComponent(sortParts[1]));
+            }
+        }
+
+        var dateField = document.querySelector("[data-am-scan-batch-date-field]");
+        var fromInput = document.querySelector("[data-am-scan-batch-from]");
+        var toInput = document.querySelector("[data-am-scan-batch-to]");
+        var datePrefix = dateField && dateField.value === "assigned" ? "assigned" : "created";
+        if (fromInput && fromInput.value) {
+            params.push(datePrefix + "From=" + encodeURIComponent(fromInput.value));
+        }
+        if (toInput && toInput.value) {
+            params.push(datePrefix + "To=" + encodeURIComponent(toInput.value));
+        }
+
+        var takeInput = document.querySelector("[data-am-scan-batch-take]");
+        var take = takeInput ? parseInt(takeInput.value, 10) : 100;
+        if (!take || take < 1) {
+            take = 50;
+        }
+        params.push("take=" + Math.min(take, 100));
 
         var url = config.printCandidatesUrl + (params.length ? "?" + params.join("&") : "");
         var host = document.querySelector("[data-am-scan-batch-candidates]");
@@ -322,6 +401,11 @@
             .then(function (response) {
                 var contentType = response.headers.get("content-type") || "";
                 if (!response.ok) {
+                    if (response.status === 400 && contentType.indexOf("application/json") >= 0) {
+                        return response.json().then(function (body) {
+                            throw new Error(body && body.Error ? body.Error : "Invalid filter.");
+                        });
+                    }
                     throw new Error("Unable to load assets (HTTP " + response.status + ").");
                 }
                 if (contentType.indexOf("application/json") === -1) {
@@ -592,7 +676,7 @@
             return;
         }
 
-        var clickTarget = target.closest("[data-am-scan-batch-load], [data-am-scan-batch-select-all], [data-am-scan-batch-add-all], [data-am-scan-batch-add-selected], [data-am-scan-batch-run-print], [data-am-scan-batch-pause], [data-am-scan-batch-resume], [data-am-scan-batch-stop], [data-am-scan-batch-clear], [data-am-scan-batch-add-one], [data-am-scan-batch-remove]");
+        var clickTarget = target.closest("[data-am-scan-batch-load], [data-am-scan-batch-select-all], [data-am-scan-batch-add-all], [data-am-scan-batch-add-selected], [data-am-scan-batch-print-selected-qr], [data-am-scan-batch-preset], [data-am-scan-batch-run-print], [data-am-scan-batch-pause], [data-am-scan-batch-resume], [data-am-scan-batch-stop], [data-am-scan-batch-clear], [data-am-scan-batch-add-one], [data-am-scan-batch-remove]");
         if (!clickTarget) {
             return;
         }
@@ -624,15 +708,27 @@
         }
 
         if (clickTarget.matches("[data-am-scan-batch-add-selected]")) {
-            var ids = getSelectedCandidateIds();
-            for (var j = 0; j < ids.length; j++) {
-                for (var k = 0; k < candidates.length; k++) {
-                    if (String(candidates[k].id) === String(ids[j])) {
-                        addToQueue(candidates[k]);
-                        break;
-                    }
-                }
+            queueSelectedCandidates();
+            return;
+        }
+
+        if (clickTarget.matches("[data-am-scan-batch-print-selected-qr]")) {
+            if (!queueSelectedCandidates() && !queue.length) {
+                window.alert("Select at least one asset first.");
+                return;
             }
+            var codeType = panel.querySelector("[data-am-scan-batch-code-type]");
+            if (codeType && codeType.options.length) {
+                codeType.value = codeType.options[0].value; // first option is QR code
+            }
+            printQueue();
+            return;
+        }
+
+        var preset = clickTarget.getAttribute("data-am-scan-batch-preset");
+        if (preset) {
+            applyDatePreset(preset);
+            loadCandidates();
             return;
         }
 

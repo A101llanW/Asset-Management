@@ -12,7 +12,7 @@
         <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div>
                 <h5 class="mb-0">Bulk label print</h5>
-                <p class="text-muted small mb-0 mt-1">Filter assets, select a group, and queue labels for printing.</p>
+                <p class="text-muted small mb-0 mt-1">Filter and sort assets by entry date, assignment date or recent activity, select them, and queue or print their labels.</p>
             </div>
             <span class="badge bg-primary am-scan-batch-queue-count" data-am-scan-batch-count>0 queued</span>
         </div>
@@ -46,6 +46,46 @@
                 </div>
             </div>
 
+            <div class="row g-3 align-items-end mb-3" data-am-scan-batch-date-filters>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchSort">Sort by</label>
+                    <select class="form-select form-select-sm" id="amScanBatchSort" data-am-scan-batch-sort>
+                        <option value="activity|desc">Recent activity (newest first)</option>
+                        <option value="activity|asc">Recent activity (oldest first)</option>
+                        <option value="created|desc">Date of entry (newest first)</option>
+                        <option value="created|asc">Date of entry (oldest first)</option>
+                        <option value="assigned|desc">Assignment date (newest first)</option>
+                        <option value="assigned|asc">Assignment date (oldest first)</option>
+                        <option value="tag|asc">Asset tag (A-Z)</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1" for="amScanBatchDateField">Date range on</label>
+                    <select class="form-select form-select-sm" id="amScanBatchDateField" data-am-scan-batch-date-field>
+                        <option value="created">Date of entry</option>
+                        <option value="assigned">Assignment date</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1" for="amScanBatchFrom">From</label>
+                    <input type="date" class="form-control form-control-sm" id="amScanBatchFrom" data-am-scan-batch-from />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1" for="amScanBatchTo">To</label>
+                    <input type="date" class="form-control form-control-sm" id="amScanBatchTo" data-am-scan-batch-to />
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label small mb-1" for="amScanBatchTake" title="Most recent N (max 100)">Max</label>
+                    <input type="number" class="form-control form-control-sm" id="amScanBatchTake" data-am-scan-batch-take min="1" max="100" value="50" />
+                </div>
+                <div class="col-md-2 d-flex flex-wrap gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-preset="today">Today</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-preset="7">7 days</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-preset="30">30 days</button>
+                    <button type="button" class="btn btn-sm btn-link p-0" data-am-scan-batch-preset="clear">Clear dates</button>
+                </div>
+            </div>
+
             <div class="row g-3 align-items-end mb-3">
                 <div class="col-md-3">
                     <label class="form-label small mb-1" for="amScanBatchCodeType">Code type</label>
@@ -57,7 +97,8 @@
                 <div class="col-md-9 d-flex flex-wrap gap-2 align-items-center">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-select-all disabled>Select all loaded</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-all disabled>Add all loaded to queue</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-selected disabled>Add selected to queue</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-selected disabled>Queue selected</button>
+                    <button type="button" class="btn btn-sm btn-primary" data-am-scan-batch-print-selected-qr disabled title="Adds the selected assets to the queue and prints the queue as QR labels">Print selected QR codes</button>
                     <button type="button" class="btn btn-sm btn-success" data-am-scan-batch-run-print disabled>Print queue to Zebra</button>
                     <button type="button" class="btn btn-sm btn-outline-danger" data-am-scan-batch-clear disabled>Clear queue</button>
                 </div>
@@ -83,7 +124,7 @@
             <div class="row g-3">
                 <div class="col-lg-7">
                     <div class="am-scan-batch-candidates" data-am-scan-batch-candidates>
-                        <p class="text-muted small mb-0">Use the filters above to load assets.</p>
+                        <p class="text-muted small mb-0">Use the filters above to load assets, or queue items from scan and search results.</p>
                     </div>
                 </div>
                 <div class="col-lg-5">

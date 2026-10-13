@@ -74,6 +74,17 @@
                             Full details
                         </a>
                     }
+                    @if (Model.CanBatchPrintLabels && lookup.AssetId.HasValue)
+                    {
+                        var zplUrl = Url.Action("LabelZpl", "Assets", new { id = lookup.AssetId.Value });
+                        <button type="button" class="btn btn-outline-primary w-100 mt-2"
+                                data-am-scan-search-add="@lookup.AssetId.Value"
+                                data-am-scan-search-tag="@lookup.AssetTag"
+                                data-am-scan-search-name="@lookup.AssetName"
+                                data-am-scan-search-zpl="@zplUrl">
+                            Queue label for printing
+                        </button>
+                    }
                 </div>
             }
         </div>
