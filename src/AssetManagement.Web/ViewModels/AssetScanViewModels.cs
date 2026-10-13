@@ -26,6 +26,9 @@ namespace AssetManagement.Web.ViewModels
 
         public string LookupJsonUrl { get; set; }
 
+        /// <summary>Link to the separate bulk label print page; null when the user cannot print labels.</summary>
+        public string BulkPrintUrl { get; set; }
+
         public string PrintCandidatesUrl { get; set; }
 
         public string LabelPrintConfigUrl { get; set; }

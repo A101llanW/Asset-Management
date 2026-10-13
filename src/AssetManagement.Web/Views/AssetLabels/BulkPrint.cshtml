@@ -1,0 +1,24 @@
+@model AssetManagement.Web.ViewModels.AssetScanLookupPageVm
+@using AssetManagement.Web.Helpers
+
+@{
+    ViewBag.Title = "Bulk Label Print";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Bulk Label Print",
+    Subtitle = "Filter assets by department, status, or search, queue them, and print QR or barcode labels to the Zebra printer."
+})
+
+@Html.Partial("_BulkPrintPanel", Model)
+
+@section scripts
+{
+    <script>
+        window.AssetLabelZebraScriptUrl = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Content("~/Scripts/app/asset-label-zebra.js") + "?v=" + System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks));
+    </script>
+    <script src="@Url.Content("~/Scripts/app/asset-label-zebra-loader.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra-loader.js")).Ticks" data-am-zebra-loader="true" data-zebra-src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/asset-scan-batch-print.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-scan-batch-print.js")).Ticks"></script>
+}

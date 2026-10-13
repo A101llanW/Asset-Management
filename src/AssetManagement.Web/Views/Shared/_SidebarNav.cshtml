@@ -3,6 +3,7 @@
     const string ctrlDashboard = "Dashboard";
     const string ctrlAssetScan = "AssetScan";
     const string ctrlAssets = "Assets";
+    const string ctrlAssetLabels = "AssetLabels";
     const string ctrlAssignments = "Assignments";
     const string ctrlAssetRequests = "AssetRequests";
     const string ctrlPendingApprovals = "PendingApprovals";
@@ -24,6 +25,7 @@
     const string ctrlSettings = "Settings";
     const string actIndex = "Index";
     const string actLookup = "Lookup";
+    const string actBulkPrint = "BulkPrint";
     const string actList = "List";
     const string actMyAssets = "MyAssets";
     const string actDepartmentAssets = "DepartmentAssets";
@@ -77,6 +79,7 @@
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actMyAssets)" href="@TenantUrlHelper.TenantRouteUrl(Url, actMyAssets, ctrlAssets)">My Assets</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssets, actDepartmentAssets)" href="@TenantUrlHelper.TenantRouteUrl(Url, actDepartmentAssets, ctrlAssets)">Department Assets</a></li>
                 <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass(ctrlAssignments)" href="@TenantUrlHelper.TenantRouteUrl(Url, actList, ctrlAssignments)">Assignments</a></li>
+                <li class="nav-item"><a class="nav-link @Html.SidebarLinkClassForAction(ctrlAssetLabels, actBulkPrint)" href="@TenantUrlHelper.TenantRouteUrl(Url, actBulkPrint, ctrlAssetLabels)">Bulk Label Print</a></li>
                 @if (Html.HasPermission("Assets.Movements.View"))
                 {
                     <li class="nav-item"><a class="nav-link @Html.SidebarLinkClass("AssetMovements")" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, "AssetMovements")">Movements</a></li>

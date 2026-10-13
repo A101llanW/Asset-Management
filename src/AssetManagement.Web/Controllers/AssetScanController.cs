@@ -75,6 +75,9 @@ namespace AssetManagement.Web.Controllers
             return Json(ToJsonPayload(pageModel), JsonRequestBehavior.AllowGet);
         }
 
+        /// <summary>
+        /// Candidate assets for bulk label printing. Used by AssetLabels/BulkPrint; URL kept here unchanged.
+        /// </summary>
         [HttpGet]
         [Authorize]
         [TenantAuthorize]
@@ -292,20 +295,11 @@ namespace AssetManagement.Web.Controllers
                         canTransfer,
                         canReturn,
                         canReportIncident),
-                CanBatchPrintLabels = canViewDetails,
                 InitialCode = term,
                 LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan"),
-                PrintCandidatesUrl = canViewDetails
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "PrintCandidates", "AssetScan")
-                    : null,
-                LabelPrintConfigUrl = canViewDetails
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelPrintConfig", "Assets", new { id = "__id__" })
-                    : null,
-                LabelZplUrlTemplate = canViewDetails
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = "__id__" })
-                    : null,
-                DepartmentOptions = canViewDetails ? BuildDepartmentOptions() : null,
-                StatusOptions = canViewDetails ? BuildStatusOptions() : null
+                BulkPrintUrl = canViewDetails
+                    ? TenantUrlHelper.TenantRouteUrl(Url, "BulkPrint", "AssetLabels")
+                    : null
             };
 
             if (pageModel.CanViewAssetDetails)
@@ -356,7 +350,6 @@ namespace AssetManagement.Web.Controllers
                 {
                     Found = false,
                     Message = (string)null,
-                    CanBatchPrintLabels = page.CanBatchPrintLabels,
                     SearchResults = new
                     {
                         Query = page.SearchResults.Query,
@@ -371,8 +364,7 @@ namespace AssetManagement.Web.Controllers
                             hit.CustodianName,
                             hit.Status,
                             hit.MatchReason,
-                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId }),
-                            LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = hit.AssetId })
+                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId })
                         }).ToArray()
                     },
                     EmptyDisplay = DisplayText.Empty
@@ -397,24 +389,21 @@ namespace AssetManagement.Web.Controllers
                 CustodianName = lookup.CustodianName,
                 CanViewAssetDetails = page.CanViewAssetDetails,
                 CanOpenQuickActions = page.CanOpenQuickActions,
-                CanBatchPrintLabels = page.CanBatchPrintLabels,
-                LabelZplUrl = lookup.Found && lookup.AssetId.HasValue
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = lookup.AssetId.Value })
-                    : null,
                 DetailsUrl = page.DetailsUrl,
                 QuickActionsUrl = page.QuickActionsUrl,
                 EmptyDisplay = DisplayText.Empty
             };
         }
 
-        private System.Collections.Generic.IEnumerable<SelectListItem> BuildDepartmentOptions()
+        /// <summary>Department filter options for the bulk label print page (AssetLabels/BulkPrint).</summary>
+        public static System.Collections.Generic.IEnumerable<SelectListItem> BuildDepartmentOptions(IDepartmentService departmentService)
         {
-            if (_departmentService == null)
+            if (departmentService == null)
             {
                 return new SelectListItem[0];
             }
 
-            var departments = _departmentService.GetAll()
+            var departments = departmentService.GetAll()
                 .Where(x => x.IsActive)
                 .OrderBy(x => x.Name)
                 .Select(x => new SelectListItem
@@ -428,7 +417,8 @@ namespace AssetManagement.Web.Controllers
             return departments;
         }
 
-        private static System.Collections.Generic.IEnumerable<SelectListItem> BuildStatusOptions()
+        /// <summary>Status filter options for the bulk label print page (AssetLabels/BulkPrint).</summary>
+        public static System.Collections.Generic.IEnumerable<SelectListItem> BuildStatusOptions()
         {
             var statuses = System.Enum.GetValues(typeof(AssetStatus))
                 .Cast<AssetStatus>()

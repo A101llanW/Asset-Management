@@ -10,6 +10,7 @@ namespace AssetManagement.Web.Helpers
             "Account",
             "api",
             "AssetCategories",
+            "AssetLabels",
             "AssetRequests",
             "AssetScan",
             "Assets",

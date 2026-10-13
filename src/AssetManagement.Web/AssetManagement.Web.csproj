@@ -165,6 +165,7 @@
     <Compile Include="Controllers\AssetSubTypesController.cs" />
     <Compile Include="Controllers\AssetTypesController.cs" />
     <Compile Include="Controllers\AssetRequestsController.cs" />
+    <Compile Include="Controllers\AssetLabelsController.cs" />
     <Compile Include="Controllers\AssetScanController.cs" />
     <Compile Include="Controllers\AssetsController.cs" />
     <Compile Include="Controllers\InsurancePoliciesController.cs" />
@@ -402,11 +403,12 @@
     <Content Include="Views\Assets\Index.cshtml" />
     <Content Include="Views\Assets\_AssetRoomGroups.cshtml" />
     <Content Include="Views\Assets\_AssetLabelCodeTypeSelector.cshtml" />
+    <Content Include="Views\AssetLabels\BulkPrint.cshtml" />
+    <Content Include="Views\AssetLabels\_BulkPrintPanel.cshtml" />
     <Content Include="Views\AssetScan\Lookup.cshtml" />
     <Content Include="Views\AssetScan\_ScanLookupResult.cshtml" />
     <Content Include="Views\AssetScan\_ScanSearchResults.cshtml" />
     <Content Include="Views\AssetScan\QuickActions.cshtml" />
-    <Content Include="Views\AssetScan\_ScanBatchPrintPanel.cshtml" />
     <Content Include="Views\InsurancePolicies\Create.cshtml" />
     <Content Include="Views\InsurancePolicies\Edit.cshtml" />
     <Content Include="Views\AssetRequests\Create.cshtml" />

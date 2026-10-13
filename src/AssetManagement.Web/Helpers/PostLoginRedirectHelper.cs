@@ -42,6 +42,7 @@ namespace AssetManagement.Web.Helpers
                 { "Notifications", "Reports.View" },
                 { "Custodian", "Assets.View" },
                 { "AssetScan", "Assets.View" },
+                { "AssetLabels", "Assets.View" },
                 { "AssetRequests", "Assets.Request" },
                 { "PendingApprovals", "Assets.View" },
                 { "Search", "Assets.View" },
