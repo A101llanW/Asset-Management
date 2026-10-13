@@ -9,6 +9,32 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-13 11:52 - Configurable asset tag prefix per tenant (rel1013a, `e561335` + `df327b4`) - STAGED (branch `feature/asset-tag-prefix-rel1013a` on top of live integ `592da5b`; not published; UAC not fired)
+
+- **Date/time EAT:** 2026-10-13 11:52. Built, unit-tested and proven end-to-end on IIS Express (:8095) against a throw-away COPY of the local DB (Test-WF A46138179). Not on :8080, not on live.
+- **What and why:** Allan asked that admins can choose how new asset tags start.
+  - New tags are `PREFIX-NNN` (3+ digits, same `-NNN` suffix as the old DEPT-TYPE-NNN generator). The old random 10-character tag stays available (untick "Generate structured tags").
+  - Default prefix (no override): top department code (max 6) + `-` + room code (max 8), e.g. `SCI-LAB1-001`. Asset not in a room: top department + its own sub-unit (`SCI-PHY-001`), or just the department (`SCI-001`). No code: acronym of the name. No department: `GEN-001`.
+  - Overrides (`Department.AssetTagPrefix`) on any department, sub-department or room. Most specific wins: walk up from the asset's department/room; the first node with an override wins (room, then nearest sub-department, then department), then the optional tenant-wide prefix, then the derived default.
+  - Existing tags are never changed. Manual tags are kept as typed.
+  - Uniqueness per tenant: new table `AssetTagSequence` (OrganizationId, Prefix) hands out numbers atomically on its own short connection (UPDLOCK/HOLDLOCK), never below the highest existing tag for that prefix; every candidate is checked against all tenant assets; the unique index `IX_Asset_Org_AssetTag` is the last guard.
+  - Applies to manual Create, receiving (it goes through Create) and Excel import.
+  - Settings > Asset tag prefix (`/Settings/AssetTags`, Settings.Manage only): enable/disable, tenant prefix, override per department/room in a tree with the effective prefix and its source, and a "Preview the next tag" button (read-only, does not reserve a number). Only the current tenant's departments are listed or saved; preview refuses other tenants' ids. Saves write an audit row `Settings.AssetTagPrefix`.
+- **Commit hash:** `e561335` (feature) + `df327b4` (migration renumbered 100 -> 102; 100/101 are catalog-requisition-flows). Same changes on `fix/role-access-scope` as `69dbab6` + `ba6fa43`.
+- **Files changed:**
+  - `src/AssetManagement.Application/Helpers/AssetTagPrefixResolver.cs` (new: precedence, default format, normalisation)
+  - `src/AssetManagement.Application/Helpers/AssetTagPrefixGenerator.cs` (new: shared generator)
+  - `src/AssetManagement.Application/Contracts/IAssetTagSequenceStore.cs` (new), `src/AssetManagement.Infrastructure/Queries/AssetTagSequenceStore.cs` (new: SQL counter)
+  - `src/AssetManagement.Application/Services/Assets/AssetService.cs`, `AssetImportService.cs` (use the generator; optional ctor param)
+  - `src/AssetManagement.Domain/Entities/Department.cs` (`AssetTagPrefix`)
+  - `src/AssetManagement.Web/Controllers/SettingsController.AssetTags.cs`, `ViewModels/AssetTagSettingsVm.cs`, `Views/Settings/AssetTags.cshtml` (new), `Views/Settings/Index.cshtml` (link), `App_Start/AutofacConfig.cs`, `AssetManagement.Web.csproj`
+  - `tests/AssetManagement.Tests/AssetTagPrefixResolverTests.cs` (new, 8 tests), `tests/AssetManagement.Tests/ServiceRuleTests.cs` (create-tag test now checks IT-001, IT-002, and legacy random when disabled)
+- **DB migration/script:** `database/scripts/004_Migrations/102_AssetTagPrefix.sql` - adds `Department.AssetTagPrefix NVARCHAR(20) NULL`, creates `AssetTagSequence`, ensures `IX_Asset_Org_AssetTag` exists (only if no duplicates). Idempotent (re-run = no-op, proven). **Must run before the code** (the Department entity map reads the new column). Needs 100/101 applied first on this line.
+- **Config/Web.config keys:** none. Tenant settings are SystemSetting rows `AssetTag.Prefix.Enabled` (missing = true) and `AssetTag.Prefix.TenantDefault` (blank = derived), written by the settings page.
+- **IIS/server steps (local):** `artifacts\rel1013a-launch-elevated.ps1` -> `rel1013a-iis-publish.ps1` (pre-checks live Web.dll `E7887D1E...477C`, Web.config `27426D6E...D4D3`, package Web.dll `08417DAA...5D55`; site backup; DB COPY_ONLY backup; 102 + verify; copy skipping Web.config/secrets; hash check; login smoke; rollback on failure). Expected hashes in `artifacts\rel1013a-expected.txt`. **Not fired.**
+- **Live-deploy steps:** run 102 in SSMS on the live DB (after 100/101), then deploy the site files (keep live Web.config). Behaviour changes for every tenant on deploy: new assets get structured tags by default; a tenant can switch back to random tags on the settings page.
+- **Verify:** unit tests 56/57 (8 new resolver tests + updated create-tag test pass; the 1 failure `AssignmentService_CustodyEventIncludesPreviousCustodian` fails identically at HEAD before this change). E2E 19/19 on the copy: default `ZSCI-ZLAB1-001/002`, manual `-003` kept and skipped (`-004` next), sub-dept default `ZSCI-ZPHY-001`, dept `ZSCI-001`, dept override `ZSC-001`, sub-dept override `ZPH-001`, room override `ZL1-001`, preview matches each time, other-tenant preview refused, invalid prefix rejected, 0 duplicate tags, existing org-13 tags hash unchanged. Concurrency: 60 parallel allocations, 0 errors, no repeats. Duplicate insert refused by the unique index (2601).
+- **Rollback:** redeploy the previous site backup; then optionally `DROP TABLE dbo.AssetTagSequence; ALTER TABLE dbo.Department DROP COLUMN AssetTagPrefix;` and delete the 102 history row (the column must stay while the rel1013a code is live). Tags already issued stay valid.
 ## 2026-10-13 08:58 - Customize Reports: multi-select Departments and Categories (`cc1119d`) - STAGED (branch `feature/reports-multiselect-dept-category`, GitHub PR; not published to IIS)
 
 - **Date/time EAT:** 2026-10-13 08:58 (commit `cc1119d`). Not published to local IIS; not on live.
