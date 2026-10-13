@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Globalization;
@@ -50,6 +50,8 @@ namespace AssetManagement.Application.Services
         private readonly IAssetSubTypeService _assetSubTypeService;
         private HashSet<string> _reservedImportTags;
 
+        private readonly IAssetTagSequenceStore _tagSequenceStore;
+
         public AssetImportService(
             IUnitOfWork unitOfWork,
             IAssignmentService assignmentService,
@@ -59,8 +61,10 @@ namespace AssetManagement.Application.Services
             IOperationsQueryRepository operationsQueryRepository,
             IOrganizationScopeService organizationScope,
             IReferenceDataCache referenceDataCache,
-            IAssetSubTypeService assetSubTypeService)
+            IAssetSubTypeService assetSubTypeService,
+            IAssetTagSequenceStore tagSequenceStore = null)
         {
+            _tagSequenceStore = tagSequenceStore;
             _unitOfWork = unitOfWork;
             _assignmentService = assignmentService;
             _departmentScope = departmentScope;
@@ -557,6 +561,15 @@ namespace AssetManagement.Application.Services
 
         private string ResolveAssetTagForImport(AssetCreateVm model)
         {
+            var importOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (importOrganizationId.HasValue)
+            {
+                var structured = AssetTagPrefixGenerator.TryGenerate(_unitOfWork, _tagSequenceStore, importOrganizationId.Value, NormalizeOptionalId(model.DepartmentId), _reservedImportTags);
+                if (structured != null)
+                {
+                    return structured;
+                }
+            }
             var takenTags = _unitOfWork.Repository<Asset>().Query()
                 .Where(x => x.IsActive && x.AssetTag != null)
                 .Select(x => x.AssetTag);

@@ -189,6 +189,7 @@
     <Compile Include="Controllers\ReturnsController.cs" />
     <Compile Include="Controllers\RolesController.cs" />
     <Compile Include="Controllers\SettingsController.cs" />
+    <Compile Include="Controllers\SettingsController.AssetTags.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />
     <Compile Include="Controllers\UserInvitationsController.cs" />
@@ -266,6 +267,7 @@
     <Compile Include="ViewModels\PlatformUserCreateViewModel.cs" />
     <Compile Include="ViewModels\PlatformEmailSettingsViewModel.cs" />
     <Compile Include="ViewModels\AssetLabelPrintVm.cs" />
+    <Compile Include="ViewModels\AssetTagSettingsVm.cs" />
     <Compile Include="ViewModels\AssetScanViewModels.cs" />
     <Content Include="Web.config" />
     <Content Include="Web.Debug.config">
@@ -421,6 +423,7 @@
     <Content Include="Views\Roles\Edit.cshtml" />
     <Content Include="Views\Roles\Index.cshtml" />
     <Content Include="Views\Settings\Index.cshtml" />
+    <Content Include="Views\Settings\AssetTags.cshtml" />
     <Content Include="Views\Shared\_AssetSubTypePickerModal.cshtml" />
     <Content Include="Views\Shared\_CaptchaPartial.cshtml" />
     <Content Include="Views\Shared\Error.cshtml" />

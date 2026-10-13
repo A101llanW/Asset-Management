@@ -51,6 +51,7 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<ReferenceDataCache>().As<IReferenceDataCache>().InstancePerHttpRequest();
             builder.RegisterType<UserAccountQueryRepository>().As<IUserAccountQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
+            builder.RegisterType<AssetTagSequenceStore>().As<IAssetTagSequenceStore>().InstancePerHttpRequest();
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<MembershipService>().As<IUserAccountService>().InstancePerHttpRequest();
