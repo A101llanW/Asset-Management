@@ -3821,3 +3821,41 @@ body.am-login-page .am-shell-header .am-brand-title {
     }
 }
 
+/* New requisition: grouped target picker (department headers + room/class options) */
+.am-requisition-target-select optgroup.am-req-target-g {
+    font-weight: 700;
+    font-style: normal;
+}
+
+.am-requisition-target-select optgroup.am-req-target-g-0 {
+    color: #0d47a1;
+    background-color: #e3f2fd;
+}
+
+.am-requisition-target-select optgroup.am-req-target-g-1 {
+    color: #1b5e20;
+    background-color: #e8f5e9;
+}
+
+.am-requisition-target-select optgroup.am-req-target-g-2 {
+    color: #4a148c;
+    background-color: #f3e5f5;
+}
+
+.am-requisition-target-select optgroup.am-req-target-g-3 {
+    color: #e65100;
+    background-color: #fff3e0;
+}
+
+.am-requisition-target-select optgroup.am-req-target-g-4 {
+    color: #006064;
+    background-color: #e0f7fa;
+}
+
+.am-requisition-target-select optgroup.am-req-target-g option {
+    font-weight: 400;
+    color: #212529;
+    background-color: #fff;
+    padding-left: 0.35rem;
+}
+

@@ -2,6 +2,7 @@
 @{
     ViewBag.Title = "New requisition";
     var departments = ViewBag.Departments as SelectList;
+    var departmentGroups = ViewBag.DepartmentGroups as IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var approvalSummary = ViewBag.PurchaseApprovalSummary as string;
     var lockDepartment = ViewBag.LockDepartment == true;
@@ -60,6 +61,11 @@
             {
                 @Html.HiddenFor(m => m.DepartmentId)
                 <input type="text" class="form-control" id="department-display" readonly="readonly" value="@(string.IsNullOrWhiteSpace(departmentName) ? "Your department" : departmentName)" />
+            }
+            else if (departmentGroups != null && departmentGroups.Count > 0)
+            {
+                @Html.GroupedDepartmentDropDown("DepartmentId", departmentGroups, "-- Select target department --", new { @class = "form-select am-requisition-target-select", required = "required", id = "DepartmentId" })
+                @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
             }
             else
             {
