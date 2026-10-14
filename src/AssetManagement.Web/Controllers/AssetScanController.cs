@@ -93,7 +93,8 @@ namespace AssetManagement.Web.Controllers
             string createdTo = null,
             string assignedFrom = null,
             string assignedTo = null,
-            int take = PrintCandidateQuery.DefaultTake)
+            int take = PrintCandidateQuery.DefaultTake,
+            int? purchaseId = null)
         {
             var query = PrintCandidateQuery.Parse(sort, direction, createdFrom, createdTo, assignedFrom, assignedTo, take);
             if (!query.IsValid)
@@ -113,7 +114,9 @@ namespace AssetManagement.Web.Controllers
                 CreatedToUtcExclusive = query.CreatedToUtcExclusive,
                 AssignedFromUtc = query.AssignedFromUtc,
                 AssignedToUtcExclusive = query.AssignedToUtcExclusive,
-                IncludeActivityDates = true
+                IncludeActivityDates = true,
+                // rel1014a: PO filter. The EXISTS clause also matches the asset's tenant, so another tenant's id returns nothing.
+                PurchaseRecordId = purchaseId.HasValue && purchaseId.Value > 0 ? purchaseId : null
             };
 
             var page = _assetService.GetAssetListPage(filter, query.Sort, query.Direction, 1, query.Take);
@@ -132,12 +135,21 @@ namespace AssetManagement.Web.Controllers
                     asset.DepartmentName,
                     Status = asset.CurrentStatus.ToString(),
                     EnteredAt = FormatEat(asset.CreatedAt),
+                    EntryDay = PrintCandidateQuery.EntryDayKey(asset.CreatedAt),
+                    EntryDayLabel = FormatEntryDayLabel(asset.CreatedAt),
                     LastAssignedAt = FormatEat(asset.LastAssignedAt),
                     LastActivityAt = FormatEat(asset.LastActivityAt),
                     LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = asset.Id }),
                     DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = asset.Id })
                 }).ToArray()
             }, JsonRequestBehavior.AllowGet);
+        }
+
+        private static string FormatEntryDayLabel(DateTime? utc)
+        {
+            return utc.HasValue
+                ? KenyaTimeHelper.FormatUtc(utc.Value, "ddd d MMM yyyy")
+                : "Entry date unknown";
         }
 
         private static string FormatEat(DateTime? utc)
@@ -329,23 +341,11 @@ namespace AssetManagement.Web.Controllers
                         canTransfer,
                         canReturn,
                         canReportIncident),
-                CanBatchPrintLabels = canViewDetails,
                 InitialCode = term,
                 LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan"),
                 BulkPrintUrl = canViewDetails
                     ? TenantUrlHelper.TenantRouteUrl(Url, "BulkPrint", "AssetLabels")
                     : null,
-                PrintCandidatesUrl = canViewDetails
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "PrintCandidates", "AssetScan")
-                    : null,
-                LabelPrintConfigUrl = canViewDetails
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelPrintConfig", "Assets", new { id = "__id__" })
-                    : null,
-                LabelZplUrlTemplate = canViewDetails
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = "__id__" })
-                    : null,
-                DepartmentOptions = canViewDetails ? BuildDepartmentOptions(_departmentService) : null,
-                StatusOptions = canViewDetails ? BuildStatusOptions() : null
             };
 
             if (pageModel.CanViewAssetDetails)
@@ -396,7 +396,6 @@ namespace AssetManagement.Web.Controllers
                 {
                     Found = false,
                     Message = (string)null,
-                    CanBatchPrintLabels = page.CanBatchPrintLabels,
                     SearchResults = new
                     {
                         Query = page.SearchResults.Query,
@@ -411,8 +410,7 @@ namespace AssetManagement.Web.Controllers
                             hit.CustodianName,
                             hit.Status,
                             hit.MatchReason,
-                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId }),
-                            LabelZplUrl = TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = hit.AssetId })
+                            DetailsUrl = TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = hit.AssetId })
                         }).ToArray()
                     },
                     EmptyDisplay = DisplayText.Empty
@@ -437,10 +435,6 @@ namespace AssetManagement.Web.Controllers
                 CustodianName = lookup.CustodianName,
                 CanViewAssetDetails = page.CanViewAssetDetails,
                 CanOpenQuickActions = page.CanOpenQuickActions,
-                CanBatchPrintLabels = page.CanBatchPrintLabels,
-                LabelZplUrl = lookup.Found && lookup.AssetId.HasValue
-                    ? TenantUrlHelper.TenantRouteUrl(Url, "LabelZpl", "Assets", new { id = lookup.AssetId.Value })
-                    : null,
                 DetailsUrl = page.DetailsUrl,
                 QuickActionsUrl = page.QuickActionsUrl,
                 EmptyDisplay = DisplayText.Empty

@@ -8,17 +8,33 @@
     <div class="card card-kpi border-0 shadow-sm am-scan-batch-print" data-am-scan-batch-panel
          data-print-candidates-url="@Model.PrintCandidatesUrl"
          data-label-print-config-url-template="@Model.LabelPrintConfigUrl"
-         data-label-zpl-url-template="@Model.LabelZplUrlTemplate">
+         data-label-zpl-url-template="@Model.LabelZplUrlTemplate"
+         data-am-scan-batch-autoload="@(Model.InitialPurchaseId.HasValue ? "true" : "false")">
         <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div>
                 <h5 class="mb-0">Bulk label print</h5>
-                <p class="text-muted small mb-0 mt-1">Filter and sort assets by entry date, assignment date or recent activity, select them, and queue or print their labels.</p>
+                <p class="text-muted small mb-0 mt-1">Filter by purchase order, department, status or search, sort by entry date, assignment date or recent activity, then select assets by registration day and queue or print their labels.</p>
             </div>
             <span class="badge bg-primary am-scan-batch-queue-count" data-am-scan-batch-count>0 queued</span>
         </div>
         <div class="card-body">
+            @if (Model.InitialPurchaseId.HasValue)
+            {
+                <div class="alert alert-info py-2 small mb-3" role="status" data-am-scan-batch-po-notice>
+                    Showing every asset received on <strong>@Model.InitialPurchaseLabel</strong>, assigned or not. Change the purchase order filter to see other assets.
+                </div>
+            }
             <div class="row g-3 align-items-end mb-3">
                 <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchPurchase">Purchase order</label>
+                    <select class="form-select form-select-sm" id="amScanBatchPurchase" data-am-scan-batch-po>
+                        @foreach (var option in Model.PurchaseOptions ?? new List<SelectListItem>())
+                        {
+                            <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label small mb-1" for="amScanBatchDepartment">Department</label>
                     <select class="form-select form-select-sm" id="amScanBatchDepartment" data-am-scan-batch-dept>
                         @foreach (var option in Model.DepartmentOptions ?? new List<SelectListItem>())
@@ -27,7 +43,7 @@
                         }
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label small mb-1" for="amScanBatchStatus">Status</label>
                     <select class="form-select form-select-sm" id="amScanBatchStatus" data-am-scan-batch-status>
                         @foreach (var option in Model.StatusOptions ?? new List<SelectListItem>())
@@ -36,7 +52,7 @@
                         }
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label small mb-1" for="amScanBatchSearch">Search</label>
                     <input type="text" class="form-control form-control-sm" id="amScanBatchSearch" data-am-scan-batch-search
                            placeholder="Tag, name, serial..." autocomplete="off" />
@@ -50,10 +66,10 @@
                 <div class="col-md-3">
                     <label class="form-label small mb-1" for="amScanBatchSort">Sort by</label>
                     <select class="form-select form-select-sm" id="amScanBatchSort" data-am-scan-batch-sort>
+                        <option value="created|desc" selected>Date of entry (newest first)</option>
+                        <option value="created|asc">Date of entry (oldest first)</option>
                         <option value="activity|desc">Recent activity (newest first)</option>
                         <option value="activity|asc">Recent activity (oldest first)</option>
-                        <option value="created|desc">Date of entry (newest first)</option>
-                        <option value="created|asc">Date of entry (oldest first)</option>
                         <option value="assigned|desc">Assignment date (newest first)</option>
                         <option value="assigned|asc">Assignment date (oldest first)</option>
                         <option value="tag|asc">Asset tag (A-Z)</option>
@@ -76,7 +92,7 @@
                 </div>
                 <div class="col-md-1">
                     <label class="form-label small mb-1" for="amScanBatchTake" title="Most recent N (max 100)">Max</label>
-                    <input type="number" class="form-control form-control-sm" id="amScanBatchTake" data-am-scan-batch-take min="1" max="100" value="50" />
+                    <input type="number" class="form-control form-control-sm" id="amScanBatchTake" data-am-scan-batch-take min="1" max="100" value="@(Model.InitialPurchaseId.HasValue ? 100 : 50)" />
                 </div>
                 <div class="col-md-2 d-flex flex-wrap gap-1">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-preset="today">Today</button>
@@ -124,7 +140,7 @@
             <div class="row g-3">
                 <div class="col-lg-7">
                     <div class="am-scan-batch-candidates" data-am-scan-batch-candidates>
-                        <p class="text-muted small mb-0">Use the filters above to load assets, or queue items from scan and search results.</p>
+                        <p class="text-muted small mb-0">Use the filters above and select Load assets.</p>
                     </div>
                 </div>
                 <div class="col-lg-5">

@@ -4,6 +4,7 @@
     var config = {};
     var queue = [];
     var candidates = [];
+    var collapsedDays = {};
     var isPrinting = false;
     var printSession = null;
     var panelEventsBound = false;
@@ -176,11 +177,46 @@
             return;
         }
 
-        var rows = candidates.map(function (asset) {
+        // rel1014a: group by registration day (EAT), keeping the server order (newest first by default).
+        var groups = [];
+        var groupIndex = {};
+        candidates.forEach(function (asset) {
+            var key = asset.dayKey || "unknown";
+            if (!Object.prototype.hasOwnProperty.call(groupIndex, key)) {
+                groupIndex[key] = groups.length;
+                groups.push({ key: key, label: asset.dayLabel || (key === "unknown" ? "Entry date unknown" : key), items: [] });
+            }
+            groups[groupIndex[key]].items.push(asset);
+        });
+
+        var bodies = groups.map(function (group) {
+            var collapsed = !!collapsedDays[group.key];
+            var safeKey = escapeHtml(group.key);
+            var header =
+                '<tr class="am-scan-batch-day-header bg-light" data-am-scan-batch-day-header="' + safeKey + '">' +
+                '<td class="ps-3"><input type="checkbox" class="form-check-input" data-am-scan-batch-day-select="' + safeKey + '" aria-label="Select all assets registered on ' + escapeHtml(group.label) + '" /></td>' +
+                '<td colspan="8"><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none fw-semibold" data-am-scan-batch-day-toggle="' + safeKey + '" aria-expanded="' + (collapsed ? "false" : "true") + '">' +
+                '<span class="am-scan-batch-day-caret" aria-hidden="true">' + (collapsed ? "&#9656;" : "&#9662;") + '</span> Registered ' + escapeHtml(group.label) +
+                '</button> <span class="text-muted small">(' + group.items.length + (group.items.length === 1 ? " asset" : " assets") + ')</span></td></tr>';
+            return '<tbody data-am-scan-batch-day-group="' + safeKey + '">' + header + group.items.map(function (asset) { return renderCandidateRow(asset, group.key, collapsed); }).join("") + "</tbody>";
+        }).join("");
+
+        host.innerHTML =
+            '<div class="table-responsive"><table class="table table-hover align-middle mb-0">' +
+            '<thead><tr class="bg-light" style="font-size:0.82rem;">' +
+            '<th class="ps-3"><input type="checkbox" class="form-check-input" data-am-scan-batch-candidate-master aria-label="Select all loaded" /></th>' +
+            "<th>Tag</th><th>Name</th><th>Department</th><th>Status</th><th>Entered</th><th>Last assigned</th><th>Last activity</th><th class=\"pe-3 text-end\">Action</th>" +
+            "</tr></thead>" + bodies + "</table></div>";
+
+        syncSelectionStates();
+        syncActionButtons();
+    }
+
+    function renderCandidateRow(asset, dayKey, collapsed) {
             var inQueue = !!findInQueue(asset.id);
             return (
-                '<tr class="border-bottom border-light">' +
-                '<td class="ps-3"><input type="checkbox" class="form-check-input" data-am-scan-batch-candidate-id="' + asset.id + '"' +
+                '<tr class="border-bottom border-light' + (collapsed ? " d-none" : "") + '" data-am-scan-batch-day-row="' + escapeHtml(dayKey) + '">' +
+                '<td class="ps-3"><input type="checkbox" class="form-check-input" data-am-scan-batch-candidate-id="' + asset.id + '" data-am-scan-batch-day="' + escapeHtml(dayKey) + '"' +
                 (inQueue ? " checked disabled" : "") + " /></td>" +
                 '<td><span class="am-tag-pill am-tag-pill--sm">' + escapeHtml(asset.tag) + "</span></td>" +
                 '<td class="fw-semibold text-dark">' + escapeHtml(asset.name) + "</td>" +
@@ -195,16 +231,76 @@
                     : '<button type="button" class="btn btn-sm btn-outline-primary" data-am-scan-batch-add-one="' + asset.id + '">Add</button>') +
                 "</td></tr>"
             );
-        }).join("");
+    }
 
-        host.innerHTML =
-            '<div class="table-responsive"><table class="table table-hover align-middle mb-0">' +
-            '<thead><tr class="bg-light" style="font-size:0.82rem;">' +
-            '<th class="ps-3"><input type="checkbox" class="form-check-input" data-am-scan-batch-candidate-master /></th>' +
-            "<th>Tag</th><th>Name</th><th>Department</th><th>Status</th><th>Entered</th><th>Last assigned</th><th>Last activity</th><th class=\"pe-3 text-end\">Action</th>" +
-            "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+    // Tri-state: a day header (and the master box) is checked when every selectable row is checked,
+    // indeterminate when some are, unchecked when none are. Rows already queued are disabled and ignored.
+    function triState(boxes) {
+        var total = 0;
+        var checked = 0;
+        for (var i = 0; i < boxes.length; i++) {
+            if (boxes[i].disabled) {
+                continue;
+            }
+            total++;
+            if (boxes[i].checked) {
+                checked++;
+            }
+        }
+        return { total: total, checked: checked };
+    }
 
-        syncActionButtons();
+    function applyTriState(box, state) {
+        if (!box) {
+            return;
+        }
+        box.indeterminate = state.checked > 0 && state.checked < state.total;
+        box.checked = state.total > 0 && state.checked === state.total;
+        box.disabled = state.total === 0;
+    }
+
+    function syncSelectionStates() {
+        var host = document.querySelector("[data-am-scan-batch-candidates]");
+        if (!host) {
+            return;
+        }
+        var dayBoxes = host.querySelectorAll("[data-am-scan-batch-day-select]");
+        for (var i = 0; i < dayBoxes.length; i++) {
+            var key = dayBoxes[i].getAttribute("data-am-scan-batch-day-select");
+            applyTriState(dayBoxes[i], triState(rowBoxesForDay(host, key)));
+        }
+        applyTriState(host.querySelector("[data-am-scan-batch-candidate-master]"), triState(host.querySelectorAll("[data-am-scan-batch-candidate-id]")));
+    }
+
+    function rowBoxesForDay(scope, key) {
+        var all = scope.querySelectorAll("[data-am-scan-batch-candidate-id]");
+        var out = [];
+        for (var i = 0; i < all.length; i++) {
+            if (all[i].getAttribute("data-am-scan-batch-day") === key) {
+                out.push(all[i]);
+            }
+        }
+        return out;
+    }
+
+    function setDayCollapsed(scope, key, collapsed) {
+        collapsedDays[key] = collapsed;
+        var rows = scope.querySelectorAll("[data-am-scan-batch-day-row]");
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].getAttribute("data-am-scan-batch-day-row") === key) {
+                rows[i].classList.toggle("d-none", collapsed);
+            }
+        }
+        var toggles = scope.querySelectorAll("[data-am-scan-batch-day-toggle]");
+        for (var j = 0; j < toggles.length; j++) {
+            if (toggles[j].getAttribute("data-am-scan-batch-day-toggle") === key) {
+                toggles[j].setAttribute("aria-expanded", collapsed ? "false" : "true");
+                var caret = toggles[j].querySelector(".am-scan-batch-day-caret");
+                if (caret) {
+                    caret.innerHTML = collapsed ? "&#9656;" : "&#9662;";
+                }
+            }
+        }
     }
 
     function normalizeAsset(raw) {
@@ -218,6 +314,8 @@
             enteredAt: raw.EnteredAt || raw.enteredAt || "",
             lastAssignedAt: raw.LastAssignedAt || raw.lastAssignedAt || "",
             lastActivityAt: raw.LastActivityAt || raw.lastActivityAt || "",
+            dayKey: raw.EntryDay || raw.entryDay || "unknown",
+            dayLabel: raw.EntryDayLabel || raw.entryDayLabel || "",
             labelZplUrl: raw.LabelZplUrl || raw.labelZplUrl || resolveUrlTemplate(config.labelZplUrlTemplate, id)
         };
     }
@@ -356,6 +454,11 @@
         }
         if (search && search.value.trim()) {
             params.push("search=" + encodeURIComponent(search.value.trim()));
+        }
+
+        var po = document.querySelector("[data-am-scan-batch-po]");
+        if (po && po.value) {
+            params.push("purchaseId=" + encodeURIComponent(po.value));
         }
 
         var sortSelect = document.querySelector("[data-am-scan-batch-sort]");
@@ -676,7 +779,7 @@
             return;
         }
 
-        var clickTarget = target.closest("[data-am-scan-batch-load], [data-am-scan-batch-select-all], [data-am-scan-batch-add-all], [data-am-scan-batch-add-selected], [data-am-scan-batch-print-selected-qr], [data-am-scan-batch-preset], [data-am-scan-batch-run-print], [data-am-scan-batch-pause], [data-am-scan-batch-resume], [data-am-scan-batch-stop], [data-am-scan-batch-clear], [data-am-scan-batch-add-one], [data-am-scan-batch-remove]");
+        var clickTarget = target.closest("[data-am-scan-batch-load], [data-am-scan-batch-select-all], [data-am-scan-batch-add-all], [data-am-scan-batch-add-selected], [data-am-scan-batch-print-selected-qr], [data-am-scan-batch-preset], [data-am-scan-batch-run-print], [data-am-scan-batch-pause], [data-am-scan-batch-resume], [data-am-scan-batch-stop], [data-am-scan-batch-clear], [data-am-scan-batch-add-one], [data-am-scan-batch-remove], [data-am-scan-batch-day-toggle]");
         if (!clickTarget) {
             return;
         }
@@ -697,6 +800,7 @@
                     boxes[i].checked = true;
                 }
             }
+            syncSelectionStates();
             return;
         }
 
@@ -722,6 +826,12 @@
                 codeType.value = codeType.options[0].value; // first option is QR code
             }
             printQueue();
+            return;
+        }
+
+        var dayToggle = clickTarget.getAttribute("data-am-scan-batch-day-toggle");
+        if (dayToggle !== null) {
+            setDayCollapsed(panel, dayToggle, !collapsedDays[dayToggle]);
             return;
         }
 
@@ -794,6 +904,23 @@
                     boxes[i].checked = target.checked;
                 }
             }
+            syncSelectionStates();
+            return;
+        }
+
+        if (target.matches("[data-am-scan-batch-day-select]")) {
+            var dayBoxes = rowBoxesForDay(panel, target.getAttribute("data-am-scan-batch-day-select"));
+            for (var d = 0; d < dayBoxes.length; d++) {
+                if (!dayBoxes[d].disabled) {
+                    dayBoxes[d].checked = target.checked;
+                }
+            }
+            syncSelectionStates();
+            return;
+        }
+
+        if (target.matches("[data-am-scan-batch-candidate-id]")) {
+            syncSelectionStates();
         }
     }
 
@@ -858,9 +985,13 @@
         }
 
         bindPanelEvents();
-        bindSearchResultEvents();
         renderQueue();
         syncActionButtons();
+
+        // rel1014a: "Send to Bulk Label Print" from a purchase receipt arrives with ?purchaseId= preselected.
+        if (panel.getAttribute("data-am-scan-batch-autoload") === "true") {
+            loadCandidates();
+        }
 
         // Do not load Zebra helper or contact BrowserPrint on Lookup page load.
         // Helper loads on first Print click (printQueue -> AssetLabelZebraEnsure).

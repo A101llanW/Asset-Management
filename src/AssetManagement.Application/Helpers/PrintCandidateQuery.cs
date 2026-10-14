@@ -15,6 +15,26 @@ namespace AssetManagement.Application.Helpers
         public const int DefaultTake = 50;
         public const string DateFormat = "yyyy-MM-dd";
 
+        /// <summary>rel1014a: default sort is date of entry, newest first.</summary>
+        public const string DefaultSort = "created";
+
+        /// <summary>
+        /// rel1014a: registration-day key (yyyy-MM-dd, Kenya time) for the collapsible day headers on
+        /// Bulk Label Print. A missing entry date maps to "unknown".
+        /// </summary>
+        public static string EntryDayKey(DateTime? createdUtc)
+        {
+            if (!createdUtc.HasValue)
+            {
+                return "unknown";
+            }
+
+            var utc = createdUtc.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(createdUtc.Value, DateTimeKind.Utc)
+                : createdUtc.Value.ToUniversalTime();
+            return KenyaTimeHelper.FromUtc(utc).ToString(DateFormat, CultureInfo.InvariantCulture);
+        }
+
         /// <summary>tag = asset tag; created = date of entry (Asset.CreatedAt);
         /// assigned = latest AssetAssignment.AssignedDate; activity = latest of CreatedAt, UpdatedAt and AssetCustodyEvent.ActionDate.</summary>
         public static readonly string[] SortKeys = { "tag", "created", "assigned", "activity" };
@@ -50,7 +70,7 @@ namespace AssetManagement.Application.Helpers
             int? take)
         {
             var query = new PrintCandidateQuery();
-            var sortKey = string.IsNullOrWhiteSpace(sort) ? "tag" : sort.Trim().ToLowerInvariant();
+            var sortKey = string.IsNullOrWhiteSpace(sort) ? DefaultSort : sort.Trim().ToLowerInvariant();
             if (!SortKeys.Contains(sortKey))
             {
                 return Fail(query, "Unknown sort '" + sort + "'. Use one of: " + string.Join(", ", SortKeys) + ".");

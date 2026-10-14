@@ -19,6 +19,7 @@
     if (listFilter.AssetTypeId.HasValue) { filterQuery["AssetTypeId"] = listFilter.AssetTypeId.Value.ToString(); }
     if (listFilter.AssetSubTypeId.HasValue) { filterQuery["AssetSubTypeId"] = listFilter.AssetSubTypeId.Value.ToString(); }
     if (listFilter.SupplierId.HasValue) { filterQuery["SupplierId"] = listFilter.SupplierId.Value.ToString(); }
+    if (listFilter.PurchaseRecordId.HasValue) { filterQuery["PurchaseRecordId"] = listFilter.PurchaseRecordId.Value.ToString(); }
     if (listFilter.Status.HasValue) { filterQuery["Status"] = ((int)listFilter.Status.Value).ToString(); }
     if (!string.IsNullOrWhiteSpace(listFilter.CustodianUserId)) { filterQuery["CustodianUserId"] = listFilter.CustodianUserId; }
     if (listFilter.UnassignedOnly) { filterQuery["UnassignedOnly"] = "true"; }

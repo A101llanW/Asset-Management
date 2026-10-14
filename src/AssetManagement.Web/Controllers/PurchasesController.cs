@@ -52,6 +52,10 @@ namespace AssetManagement.Web.Controllers
             var receiveDetail = _receivingService.GetReceiveDetail(id);
             ViewBag.ReceiveDetail = receiveDetail;
             ViewBag.AssignableAssetIds = ResolveAssignableAssetIdsForPurchase(receiveDetail);
+            // rel1014a: every asset received on this purchase (assigned or not) for "Send to Bulk Label Print".
+            ViewBag.ReceivedAssetCount = receiveDetail == null || receiveDetail.Receivings == null
+                ? 0
+                : receiveDetail.Receivings.Where(x => x != null && x.AssetId > 0).Select(x => x.AssetId).Distinct().Count();
             ViewBag.OrderStatus = _purchaseService.GetOrderStatus(id);
             return View(model);
         }

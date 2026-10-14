@@ -230,6 +230,7 @@
     <Compile Include="Helpers\EncryptionHelper.cs" />
     <Compile Include="Helpers\EncryptionHelperSecretProtector.cs" />
     <Compile Include="Helpers\FeatureFlags.cs" />
+    <Compile Include="Helpers\PurchaseFilterOptions.cs" />
     <Compile Include="Helpers\ExternalUrlHelper.cs" />
     <Compile Include="Helpers\GrantableRoleResolver.cs" />
     <Compile Include="Helpers\UserAgentFingerprint.cs" />

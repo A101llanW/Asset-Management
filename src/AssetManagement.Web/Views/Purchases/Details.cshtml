@@ -33,6 +33,10 @@
         ? tempCreatedIds
         : persistentIds.Select(x => x.ToString()).ToList();
     var showFreshReceiveBanner = tempCreatedIds.Count > 0;
+    var receivedAssetCount = ViewBag.ReceivedAssetCount is int ? (int)ViewBag.ReceivedAssetCount : 0;
+    // rel1014a: opens Bulk Label Print filtered (?purchaseId=) to ALL assets received on this purchase, assigned ones included.
+    var canSendToBulkPrint = (receivedAssetCount > 0 || tempCreatedIds.Count > 0) && Html.HasPermission("Assets.View");
+    var bulkPrintUrl = canSendToBulkPrint ? Url.Action("BulkPrint", "AssetLabels", new { purchaseId = Model.Id }) : null;
 }
 @if (assignIds.Count > 0)
 {
@@ -46,10 +50,17 @@
         {
             <p class="mb-2 small">In-store unassigned assets from this purchase can be assigned now (same grid as Assets Index).</p>
         }
-        @if (Html.HasPermission("Assets.Assign"))
+        @if (Html.HasPermission("Assets.Assign") || canSendToBulkPrint)
         {
-            <div class="mb-3">
-                <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { assetIds = string.Join(",", assignIds), returnUrl = Request.RawUrl })">Assign these units</a>
+            <div class="mb-3 d-flex flex-wrap gap-2">
+                @if (Html.HasPermission("Assets.Assign"))
+                {
+                    <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { assetIds = string.Join(",", assignIds), returnUrl = Request.RawUrl })">Assign these units</a>
+                }
+                @if (canSendToBulkPrint)
+                {
+                    <a class="btn btn-outline-primary btn-sm" href="@bulkPrintUrl" data-am-send-to-bulk-print title="Open Bulk Label Print with every asset received on this purchase (assigned ones included)">Send to Bulk Label Print</a>
+                }
             </div>
         }
         <ul class="mb-0">
@@ -66,6 +77,13 @@
                 }
             }
         </ul>
+    </div>
+}
+else if (canSendToBulkPrint)
+{
+    <div class="alert alert-light border mt-3 d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+        <div class="small"><span class="fw-semibold">Received units</span> &middot; @receivedAssetCount asset(s) received on this purchase. All are assigned or out of store.</div>
+        <a class="btn btn-outline-primary btn-sm" href="@bulkPrintUrl" data-am-send-to-bulk-print title="Open Bulk Label Print with every asset received on this purchase (assigned ones included)">Send to Bulk Label Print</a>
     </div>
 }
 

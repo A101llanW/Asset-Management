@@ -25,6 +25,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int? SupplierId { get; set; }
 
+        /// <summary>rel1014a: purchase / PO filter. Keeps assets received on this purchase record (AssetReceiving), assigned or not.</summary>
+        public int? PurchaseRecordId { get; set; }
+
         public AssetStatus? Status { get; set; }
 
         public string CustodianUserId { get; set; }
@@ -161,6 +164,9 @@ namespace AssetManagement.Application.ViewModels
         public string Currency { get; set; }
 
         public int? SupplierId { get; set; }
+
+        /// <summary>rel1014a: purchase / PO filter. Keeps assets received on this purchase record (AssetReceiving), assigned or not.</summary>
+        public int? PurchaseRecordId { get; set; }
 
         public int? DepartmentId { get; set; }
 

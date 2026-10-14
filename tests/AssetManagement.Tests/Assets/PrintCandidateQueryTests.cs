@@ -12,13 +12,30 @@ namespace AssetManagement.Tests.Assets
     public class PrintCandidateQueryTests
     {
         [Test]
-        public void Parse_Defaults_TagAscTake50()
+        public void Parse_Defaults_NewestEntryFirstTake50()
         {
             var q = PrintCandidateQuery.Parse(null, null, null, null, null, null, null);
             Assert.IsTrue(q.IsValid);
+            Assert.AreEqual("created", q.Sort);
+            Assert.AreEqual("desc", q.Direction);
+            Assert.AreEqual(50, q.Take);
+        }
+
+        [Test]
+        public void Parse_ExplicitTag_StillAscending()
+        {
+            var q = PrintCandidateQuery.Parse("tag", null, null, null, null, null, null);
             Assert.AreEqual("tag", q.Sort);
             Assert.AreEqual("asc", q.Direction);
-            Assert.AreEqual(50, q.Take);
+        }
+
+        [Test]
+        public void EntryDayKey_UsesKenyaCalendarDay()
+        {
+            // 22:30 UTC on Oct 13 is 01:30 EAT on Oct 14.
+            Assert.AreEqual("2026-10-14", PrintCandidateQuery.EntryDayKey(new DateTime(2026, 10, 13, 22, 30, 0, DateTimeKind.Utc)));
+            Assert.AreEqual("2026-10-13", PrintCandidateQuery.EntryDayKey(new DateTime(2026, 10, 13, 20, 59, 0, DateTimeKind.Unspecified)));
+            Assert.AreEqual("unknown", PrintCandidateQuery.EntryDayKey(null));
         }
 
         [TestCase("created")]

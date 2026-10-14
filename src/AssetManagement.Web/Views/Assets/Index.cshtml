@@ -70,6 +70,18 @@
                 <div class="col-6 col-sm-3 col-lg-auto">
                     @Html.DropDownList("Status", statuses, "All statuses", new { @class = "form-select", aria_label = "Status" })
                 </div>
+                @{ var purchaseOptions = ViewBag.PurchaseOptions as System.Collections.Generic.IList<SelectListItem>; }
+                @if (purchaseOptions != null && purchaseOptions.Count > 1)
+                {
+                    <div class="col-6 col-sm-3 col-lg-auto">
+                        <select class="form-select" name="PurchaseRecordId" id="amAssetFilterPurchase" aria-label="Purchase order">
+                            @foreach (var option in purchaseOptions)
+                            {
+                                <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                }
                 <div class="col-6 col-sm-3 col-lg-auto">
                     <select class="form-select" name="view" id="amAssetFilterView" aria-label="View">
                         <option value="flat" @(isGrouped || isRoomView ? null : "selected")>Flat list</option>

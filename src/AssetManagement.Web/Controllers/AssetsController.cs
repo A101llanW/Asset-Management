@@ -36,6 +36,21 @@ namespace AssetManagement.Web.Controllers
             _authorizationService = BuildAuthorizationService();
         }
 
+        /// <summary>rel1014a: PO filter on the asset list. Tenant purchases only; an unknown id is dropped from the filter.</summary>
+        private System.Collections.Generic.IList<SelectListItem> BuildPurchaseFilterOptions(AssetFilterVm filter)
+        {
+            var purchaseService = DependencyResolver.Current.GetService<IPurchaseService>();
+            var purchases = purchaseService == null
+                ? new System.Collections.Generic.List<PurchaseRecordVm>()
+                : (purchaseService.GetAll() ?? new System.Collections.Generic.List<PurchaseRecordVm>()).ToList();
+            if (filter != null)
+            {
+                filter.PurchaseRecordId = PurchaseFilterOptions.ResolveTenantPurchaseId(purchases, filter.PurchaseRecordId);
+            }
+
+            return PurchaseFilterOptions.Build(purchases, filter == null ? null : filter.PurchaseRecordId);
+        }
+
         public ActionResult Index(AssetFilterVm filter, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10, string view = "grouped", string groupBy = "product")
         {
             filter = ListRoleDefaultsHelper.ApplyAssetListDefaults(
@@ -56,6 +71,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ListViewMode = filter.ListViewMode;
             ViewBag.GroupBy = filter.GroupBy;
             ViewBag.Departments = BuildAssetFilterDepartmentSelectList(filter?.DepartmentId);
+            ViewBag.PurchaseOptions = BuildPurchaseFilterOptions(filter);
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
             ViewBag.CanRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");

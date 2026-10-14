@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -1209,6 +1209,12 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     clauses.Add("a.[AssetSubTypeId] = @AssetSubTypeId");
                 }
 
+                if (filter.PurchaseRecordId.HasValue)
+                {
+                    // rel1014a: assets received on this purchase (same tenant as the asset), whatever their custody.
+                    clauses.Add("EXISTS (SELECT 1 FROM [AssetReceiving] arf WHERE arf.[AssetId] = a.[Id] AND arf.[OrganizationId] = a.[OrganizationId] AND arf.[PurchaseRecordId] = @PurchaseRecordId)");
+                }
+
                 if (filter.SupplierId.HasValue)
                 {
                     clauses.Add("a.[SupplierId] = @SupplierId");
@@ -1271,6 +1277,8 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                 filter.AssetSubTypeId.HasValue ? (object)filter.AssetSubTypeId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@SupplierId",
                 filter.SupplierId.HasValue ? (object)filter.SupplierId.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@PurchaseRecordId",
+                filter.PurchaseRecordId.HasValue ? (object)filter.PurchaseRecordId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@Status",
                 filter.Status.HasValue ? (object)(int)filter.Status.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@CustodianUserId",

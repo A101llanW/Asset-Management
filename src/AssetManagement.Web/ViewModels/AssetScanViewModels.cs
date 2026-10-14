@@ -31,6 +31,14 @@ namespace AssetManagement.Web.ViewModels
 
         public string PrintCandidatesUrl { get; set; }
 
+        /// <summary>rel1014a: PO filter options on Bulk Label Print (tenant purchases).</summary>
+        public System.Collections.Generic.IEnumerable<System.Web.Mvc.SelectListItem> PurchaseOptions { get; set; }
+
+        /// <summary>rel1014a: purchase preselected from ?purchaseId= (Send to Bulk Label Print); the page auto-loads it.</summary>
+        public int? InitialPurchaseId { get; set; }
+
+        public string InitialPurchaseLabel { get; set; }
+
         public string LabelPrintConfigUrl { get; set; }
 
         public string LabelZplUrlTemplate { get; set; }
