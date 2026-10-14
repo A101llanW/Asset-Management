@@ -404,8 +404,11 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
                 GetActiveDepartments());
+            ViewBag.DepartmentGroups = canCreateForAnyDepartment
+                ? BuildRequisitionDepartmentGroups(departmentId)
+                : null;
             ViewBag.Departments = canCreateForAnyDepartment
-                ? BuildRequisitionDepartmentSelectList(departmentId)
+                ? null
                 : BuildDepartmentSelectList(departmentId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");

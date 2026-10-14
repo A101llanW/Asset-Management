@@ -44,7 +44,15 @@ namespace AssetManagement.Web.Helpers
 
                     body.Append("<optgroup label=\"");
                     body.Append(HttpUtility.HtmlEncode(group.Label ?? string.Empty));
-                    body.Append("\">");
+                    body.Append("\"");
+                    if (!string.IsNullOrWhiteSpace(group.CssClass))
+                    {
+                        body.Append(" class=\"");
+                        body.Append(HttpUtility.HtmlAttributeEncode(group.CssClass.Trim()));
+                        body.Append("\"");
+                    }
+
+                    body.Append(">");
                     foreach (var item in group.Items)
                     {
                         body.Append("<option value=\"");

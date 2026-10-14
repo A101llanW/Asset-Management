@@ -84,6 +84,7 @@ namespace AssetManagement.Web.ViewModels
     public class DepartmentSelectGroupVm
     {
         public string Label { get; set; }
+        public string CssClass { get; set; }
         public System.Collections.Generic.IList<DepartmentSelectOptionVm> Items { get; set; }
             = new System.Collections.Generic.List<DepartmentSelectOptionVm>();
     }

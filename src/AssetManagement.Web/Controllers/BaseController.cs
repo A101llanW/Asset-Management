@@ -458,6 +458,90 @@ namespace AssetManagement.Web.Controllers
             return new SelectList(items, "Value", "Text", selectedDepartmentId);
         }
 
+        /// <summary>
+        /// Requisition targets grouped under their parent path (optgroup = department, option = room/class/leaf).
+        /// Preserves <see cref="DepartmentTreeHelper.BuildRequisitionOptions"/> tree order within each group.
+        /// </summary>
+        protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(int? selectedDepartmentId = null)
+        {
+            var all = BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList();
+            var byId = all.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
+            var ordered = AssetManagement.Application.Helpers.DepartmentTreeHelper.BuildRequisitionOptions(all);
+            var groups = new List<DepartmentSelectGroupVm>();
+            var groupIndex = new Dictionary<string, DepartmentSelectGroupVm>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in ordered)
+            {
+                DepartmentVm dept;
+                if (!byId.TryGetValue(pair.Key, out dept))
+                {
+                    continue;
+                }
+
+                string groupLabel;
+                if (dept.ParentDepartmentId.HasValue && byId.ContainsKey(dept.ParentDepartmentId.Value))
+                {
+                    groupLabel = AssetManagement.Application.Helpers.DepartmentTreeHelper
+                        .BuildPathLabel(dept.ParentDepartmentId.Value, all);
+                }
+                else
+                {
+                    groupLabel = DescribeRequisitionRootGroupLabel(dept);
+                }
+
+                if (string.IsNullOrWhiteSpace(groupLabel))
+                {
+                    groupLabel = "Other targets";
+                }
+
+                DepartmentSelectGroupVm groupVm;
+                if (!groupIndex.TryGetValue(groupLabel, out groupVm))
+                {
+                    groupVm = new DepartmentSelectGroupVm
+                    {
+                        Label = groupLabel,
+                        CssClass = "am-req-target-g am-req-target-g-" + (groups.Count % 5)
+                    };
+                    groupIndex[groupLabel] = groupVm;
+                    groups.Add(groupVm);
+                }
+
+                var optionText = (dept.Name ?? string.Empty).Trim();
+                if (dept.DepartmentKind != DepartmentKind.Room && dept.DepartmentKind != DepartmentKind.Class)
+                {
+                    optionText += " (" + DescribeDepartmentKind(dept.DepartmentKind) + ")";
+                }
+
+                groupVm.Items.Add(new DepartmentSelectOptionVm
+                {
+                    Value = dept.Id.ToString(),
+                    Text = optionText,
+                    Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
+                });
+            }
+
+            return groups;
+        }
+
+        private static string DescribeRequisitionRootGroupLabel(DepartmentVm dept)
+        {
+            if (dept == null)
+            {
+                return "Other targets";
+            }
+
+            if (dept.DepartmentKind == DepartmentKind.Grade || dept.DepartmentKind == DepartmentKind.Class)
+            {
+                return "Academic streams";
+            }
+
+            if (dept.DepartmentKind == DepartmentKind.Administrative)
+            {
+                return "Administrative units";
+            }
+
+            return "Top level";
+        }
+
         protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)
         {
             var items = new List<SelectListItem>();
