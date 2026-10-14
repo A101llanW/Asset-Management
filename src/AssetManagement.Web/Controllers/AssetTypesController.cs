@@ -127,17 +127,20 @@ namespace AssetManagement.Web.Controllers
             PopulateCategories(entity.AssetCategoryId);
             PopulateUsefulLifeContext(entity.AssetCategoryId);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id });
+            PopulateCatalogRequisitionFlowEditor(AssetManagement.Domain.Enums.CatalogFlowScope.Type, id);
             return View(MapAssetTypeVm(entity));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit(AssetTypeVm model, string returnUrl = null)
+        public ActionResult Edit(AssetTypeVm model, string returnUrl = null, [Bind(Prefix = "RequisitionFlow")] AssetManagement.Application.ViewModels.CatalogRequisitionFlowEditVm requisitionFlow = null, System.Collections.Generic.IList<AssetManagement.Application.ViewModels.ApprovalProcessSettingsVm> requisitionFlowProcesses = null)
         {
             PopulateCategories(model.AssetCategoryId);
             PopulateUsefulLifeContext(model.AssetCategoryId);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", null, new { id = model.Id });
             ValidateAssetType(model);
+            var flow = ReadPostedCatalogRequisitionFlow(AssetManagement.Domain.Enums.CatalogFlowScope.Type, model.Id, requisitionFlow, requisitionFlowProcesses);
+            PopulateCatalogRequisitionFlowEditor(AssetManagement.Domain.Enums.CatalogFlowScope.Type, model.Id, flow);
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -147,6 +150,11 @@ namespace AssetManagement.Web.Controllers
             if (entity == null)
             {
                 return HttpNotFound();
+            }
+
+            if (!TrySaveCatalogRequisitionFlow(flow))
+            {
+                return View(model);
             }
 
             entity.AssetCategoryId = model.AssetCategoryId;

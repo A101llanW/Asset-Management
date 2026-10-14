@@ -66,12 +66,19 @@
                         {
                             <div class="form-control-plaintext py-0 fw-medium am-classification-readonly">
                                 @(string.Join(" > ", new[] { line.AssetCategoryName, line.AssetTypeName, line.AssetSubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x))))
-                                @if (string.IsNullOrWhiteSpace(line.AssetSubTypeName))
-                                {
-                                    <span class="text-muted small">(no sub-type; refine on the asset later)</span>
-                                }
                                 <span class="text-muted small d-block">From: @(line.ClassificationSourceLabel ?? "purchase order")</span>
                             </div>
+                            if (string.IsNullOrWhiteSpace(line.AssetSubTypeName))
+                            {
+                                <select class="form-select mt-1 am-required-subtype" name="Lines[@i].OverrideAssetSubTypeId" required="required" aria-label="Sub-type (required)">
+                                    <option value="">-- Sub-type (required) --</option>
+                                    @foreach (var st in subTypeOptions.Where(x => line.AssetTypeId.HasValue && x.ParentId == line.AssetTypeId.Value))
+                                    {
+                                        <option value="@st.Id" @(line.OverrideAssetSubTypeId == st.Id ? "selected=\"selected\"" : null)>@st.Name</option>
+                                    }
+                                </select>
+                                <div class="form-text">Every received asset needs a sub-type. Add missing sub-types under Asset Categories first.</div>
+                            }
                         }
                         else
                         {
@@ -99,8 +106,8 @@
                                     </select>
                                 </div>
                                 <div class="col-md-6">
-                                    <select class="form-select am-po-subtype" name="Lines[@i].OverrideAssetSubTypeId">
-                                        <option value="">-- Sub-type (optional) --</option>
+                                    <select class="form-select am-po-subtype" name="Lines[@i].OverrideAssetSubTypeId" required="required">
+                                        <option value="">-- Sub-type (required) --</option>
                                         @foreach (var st in subTypeOptions)
                                         {
                                             if (line.OverrideAssetSubTypeId == st.Id)

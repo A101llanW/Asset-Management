@@ -196,6 +196,9 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Asset type was not found.");
             }
+
+            // Sub-type is mandatory at receiving (catalog requisition flows, stage d): every received asset is fully classified.
+            EnsureReceiveSubType(resolvedSubType == null ? (int?)null : resolvedSubType.Id, resolvedSubType == null ? (int?)null : resolvedSubType.AssetTypeId, assetType.Id, null);
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
             var assetName = ResolveSuggestedAssetName(itemDescription, context);
@@ -234,7 +237,7 @@ namespace AssetManagement.Application.Services
                         DepartmentId = receiveDepartmentId,
                         ConditionOnReceipt = model.ConditionOnReceipt,
                         CurrentStatus = AssetStatus.InStore,
-                        AllowDeferredSubTypeClassification = resolvedSubType == null
+                        AllowDeferredSubTypeClassification = false
                     };
                     var assetId = _assetService.Create(createModel);
                     var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
@@ -524,7 +527,7 @@ namespace AssetManagement.Application.Services
                                 DepartmentId = plan.Destination == null ? (int?)null : plan.Destination.Id,
                                 ConditionOnReceipt = plan.Condition,
                                 CurrentStatus = AssetStatus.InStore,
-                                AllowDeferredSubTypeClassification = !plan.Classification.AssetSubTypeId.HasValue
+                                AllowDeferredSubTypeClassification = false
                             });
                             var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
                             // AssetService.Create always starts at Condition=New; the receiver's per-line condition wins.
@@ -648,12 +651,25 @@ namespace AssetManagement.Application.Services
         private PurchaseLineClassification ResolvePlanClassification(PurchaseOrderLedger ledger, PurchaseRecord purchase, PurchaseRequest request, ReceiveLinePlan plan)
         {
             var classification = ledger.ResolveClassification(purchase, request, plan.Line, plan.Description);
+            var input = plan.Input;
             if (classification != null && classification.HasType)
             {
+                // Source wins for the type. A missing sub-type must be chosen by the receiver (stage d: mandatory).
+                if (!classification.AssetSubTypeId.HasValue || classification.AssetSubTypeId.Value <= 0)
+                {
+                    var pickedSubTypeId = input.OverrideAssetSubTypeId.HasValue && input.OverrideAssetSubTypeId.Value > 0
+                        ? input.OverrideAssetSubTypeId
+                        : null;
+                    var picked = pickedSubTypeId.HasValue ? _unitOfWork.Repository<AssetSubType>().GetById(pickedSubTypeId.Value) : null;
+                    EnsureReceiveSubType(pickedSubTypeId, picked == null ? (int?)null : picked.AssetTypeId, classification.AssetTypeId.Value, plan.Label, picked == null || picked.IsActive);
+                    classification.AssetSubTypeId = picked.Id;
+                    classification.Source = string.IsNullOrWhiteSpace(classification.Source) ? "ReceiverSubType" : classification.Source + "+ReceiverSubType";
+                    return ledger.Complete(classification);
+                }
+
                 return classification; // Source wins: posted type / sub-type are ignored.
             }
 
-            var input = plan.Input;
             if (!input.OverrideAssetTypeId.HasValue || input.OverrideAssetTypeId.Value <= 0)
             {
                 throw new BusinessException("Choose the asset type (" + plan.Label + "): neither the purchase order line, the requisition nor the supplier catalog has one.");
@@ -674,10 +690,38 @@ namespace AssetManagement.Application.Services
                     throw new BusinessException("The selected sub-type does not belong to the selected asset type (" + plan.Label + ").");
                 }
 
+                EnsureReceiveSubType(subType.Id, subType.AssetTypeId, type.Id, plan.Label, subType.IsActive);
                 subTypeId = subType.Id;
+            }
+            else
+            {
+                EnsureReceiveSubType(null, null, type.Id, plan.Label);
             }
 
             return ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, AssetSubTypeId = subTypeId, Source = "ReceiverOverride" });
+        }
+
+        /// <summary>
+        /// Stage (d): a sub-type is mandatory for goods received from now on. Legacy assets/receipts without one are
+        /// untouched (DB trigger TR_AssetReceiving_RequireSubType checks only newly inserted receipts).
+        /// </summary>
+        internal static void EnsureReceiveSubType(int? subTypeId, int? subTypeAssetTypeId, int assetTypeId, string label, bool subTypeActive = true)
+        {
+            var suffix = string.IsNullOrWhiteSpace(label) ? "." : " (" + label + ").";
+            if (!subTypeId.HasValue || subTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the asset sub-type before receiving" + suffix + " Every received asset needs a sub-type.");
+            }
+
+            if (!subTypeAssetTypeId.HasValue || subTypeAssetTypeId.Value != assetTypeId)
+            {
+                throw new BusinessException("The selected sub-type does not belong to the asset type" + suffix);
+            }
+
+            if (!subTypeActive)
+            {
+                throw new BusinessException("The selected sub-type is inactive" + suffix);
+            }
         }
 
         private string ResolveLineAssetName(ReceiveLinePlan plan)

@@ -20,6 +20,7 @@ namespace AssetManagement.Application.Services
         private UserVm _profile;
         private Role _role;
         private bool? _includesClassDepartmentAssets;
+        private bool? _bypassesDepartmentScope;
 
         public DepartmentScopeService(
             IUnitOfWork unitOfWork,
@@ -39,15 +40,41 @@ namespace AssetManagement.Application.Services
         {
             get
             {
-                if (_organizationScope != null && (_organizationScope.IsImpersonating() || _organizationScope.IsCompanyAdmin()))
+                if (!_bypassesDepartmentScope.HasValue)
                 {
-                    return true;
+                    _bypassesDepartmentScope = ResolveBypassesDepartmentScope();
                 }
 
-                EnsureProfileLoaded();
-                return _role != null && _role.IsSystemRole
-                    && string.Equals(_role.Name, "Company Admin", StringComparison.OrdinalIgnoreCase);
+                return _bypassesDepartmentScope.Value;
             }
+        }
+
+        /// <summary>
+        /// Organization-wide scope is a capability (Assets.ViewAll), not a role name. Platform support
+        /// impersonation keeps its bypass. Company Admin holds every tenant permission, so it is unchanged.
+        /// </summary>
+        private bool ResolveBypassesDepartmentScope()
+        {
+            if (_organizationScope != null && _organizationScope.IsImpersonating())
+            {
+                return true;
+            }
+
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            if (_authorizationService != null)
+            {
+                return AssetManagement.Application.Security.OrgCapabilities.HasOrgWideScope(_authorizationService, userId);
+            }
+
+            // No authorization service wired (legacy construction): fall back to the tenant-admin identity.
+            if (_organizationScope != null && _organizationScope.IsCompanyAdmin())
+            {
+                return true;
+            }
+
+            EnsureProfileLoaded();
+            return _role != null
+                && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRole(_role.Name, _role.IsSystemRole);
         }
 
         public bool IncludesClassDepartmentAssets

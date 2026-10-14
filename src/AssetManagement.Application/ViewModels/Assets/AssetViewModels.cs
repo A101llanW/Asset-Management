@@ -13,6 +13,12 @@ namespace AssetManagement.Application.ViewModels
 
         public int? CategoryId { get; set; }
 
+        /// <summary>Optional multi-select department filter (reports). Applied as IN (...) when non-empty.</summary>
+        public IList<int> DepartmentIds { get; set; }
+
+        /// <summary>Optional multi-select category filter (reports). Applied as IN (...) when non-empty.</summary>
+        public IList<int> CategoryIds { get; set; }
+
         public int? AssetTypeId { get; set; }
 
         public int? AssetSubTypeId { get; set; }

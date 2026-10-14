@@ -13,15 +13,55 @@ namespace AssetManagement.Application.ViewModels
 
         [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
         public int Quantity { get; set; } = 1;
+
+        /// <summary>Optional catalog classification (catalog requisition flows); validated and normalized on submit.</summary>
+        public int? AssetCategoryId { get; set; }
+
+        public int? AssetTypeId { get; set; }
+
+        public int? AssetSubTypeId { get; set; }
     }
 
     public class PurchaseRequestLineVm
     {
+        /// <summary>Most specific catalog pick, e.g. "Laptops > Dell Latitude 5440" (null = unclassified).</summary>
+        public string ClassificationLabel { get; set; }
+
         public int LineNumber { get; set; }
 
         public string Description { get; set; }
 
         public int Quantity { get; set; }
+
+        public int? AssetCategoryId { get; set; }
+
+        public int? AssetTypeId { get; set; }
+
+        public int? AssetSubTypeId { get; set; }
+    }
+
+    /// <summary>Outcome of a requisition submit: one id, or several linked by a group when lines needed different paths.</summary>
+    public class PurchaseRequestSubmitResult
+    {
+        public int? GroupId { get; set; }
+
+        public string BatchLabel { get; set; }
+
+        public IList<int> RequestIds { get; } = new List<int>();
+
+        public IList<string> RequestNumbers { get; } = new List<string>();
+
+        public IList<string> FlowSources { get; } = new List<string>();
+
+        public int PrimaryId
+        {
+            get { return RequestIds.Count == 0 ? 0 : RequestIds[0]; }
+        }
+
+        public bool IsSplit
+        {
+            get { return RequestIds.Count > 1; }
+        }
     }
 
     public class PurchaseRequestCreateVm : IValidatableObject
@@ -60,6 +100,13 @@ namespace AssetManagement.Application.ViewModels
 
         public IList<PurchaseRequestLineCreateVm> Lines { get; set; } = new List<PurchaseRequestLineCreateVm>();
 
+        /// <summary>Header classification used when the org's ClassificationMode is RequiredHeader (lines without their own pick inherit it).</summary>
+        public int? HeaderAssetCategoryId { get; set; }
+
+        public int? HeaderAssetTypeId { get; set; }
+
+        public int? HeaderAssetSubTypeId { get; set; }
+
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (string.IsNullOrWhiteSpace(Justification))
@@ -97,7 +144,10 @@ namespace AssetManagement.Application.ViewModels
                 .Select(x => new PurchaseRequestLineCreateVm
                 {
                     Description = x.Description.Trim(),
-                    Quantity = x.Quantity > 0 ? x.Quantity : 1
+                    Quantity = x.Quantity > 0 ? x.Quantity : 1,
+                    AssetCategoryId = x.AssetCategoryId,
+                    AssetTypeId = x.AssetTypeId,
+                    AssetSubTypeId = x.AssetSubTypeId
                 })
                 .ToList();
             if (fromLines.Count > 0)
@@ -112,7 +162,10 @@ namespace AssetManagement.Application.ViewModels
                     new PurchaseRequestLineCreateVm
                     {
                         Description = ItemDescription.Trim(),
-                        Quantity = Quantity > 0 ? Quantity : 1
+                        Quantity = Quantity > 0 ? Quantity : 1,
+                        AssetCategoryId = HeaderAssetCategoryId,
+                        AssetTypeId = HeaderAssetTypeId,
+                        AssetSubTypeId = HeaderAssetSubTypeId
                     }
                 };
             }
@@ -227,6 +280,18 @@ namespace AssetManagement.Application.ViewModels
         public string TargetAssetName { get; set; }
 
         public IList<PurchaseRequestLineVm> LineItems { get; set; } = new List<PurchaseRequestLineVm>();
+
+        /// <summary>Set when this requisition was auto-split from one form with siblings.</summary>
+        public int? PurchaseRequestGroupId { get; set; }
+
+        /// <summary>Winning approval source label at submit (null for requisitions created before migration 100).</summary>
+        public string ApprovalFlowSource { get; set; }
+
+        /// <summary>BATCH-000123 when auto-split (see <see cref="PurchaseRequestGroupId"/>).</summary>
+        public string BatchLabel { get; set; }
+
+        /// <summary>Other requisitions from the same form that the current user can open.</summary>
+        public IList<PurchaseRequestSiblingVm> Siblings { get; set; } = new List<PurchaseRequestSiblingVm>();
 
         public IEnumerable<ApprovalDecisionHistoryVm> ApprovalHistory { get; set; } = new List<ApprovalDecisionHistoryVm>();
     }

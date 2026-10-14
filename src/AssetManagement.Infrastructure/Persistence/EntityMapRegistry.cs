@@ -32,6 +32,8 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(AssetDocumentRequirement));
             Register(typeof(PurchaseRequest));
             Register(typeof(PurchaseRequestLine));
+            Register(typeof(PurchaseRequestGroup)); // migration 100
+            Register(typeof(CatalogRequisitionFlow)); // migration 100
             Register(typeof(PurchaseApprovalAction));
             Register(typeof(PurchaseRecord));
             Register(typeof(AssetReceiving));

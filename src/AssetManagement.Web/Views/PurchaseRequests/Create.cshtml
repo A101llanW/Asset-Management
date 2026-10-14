@@ -11,6 +11,11 @@
     var previewApprovalUrl = ViewBag.PreviewApprovalPathUrl as string ?? string.Empty;
     var lineModels = Model.Lines ?? new List<AssetManagement.Application.ViewModels.PurchaseRequestLineCreateVm>();
     var lineCount = lineModels.Count > 0 ? lineModels.Count : 1;
+    var catalogPickerJson = ViewBag.CatalogPickerJson as string ?? "{}";
+    var previewLinePathsUrl = ViewBag.PreviewLinePathsUrl as string ?? string.Empty;
+    var requisitionPolicies = ViewBag.RequisitionPolicies as AssetManagement.Application.ViewModels.RequisitionPolicySettingsVm;
+    var classificationMode = requisitionPolicies == null ? AssetManagement.Domain.Enums.RequisitionClassificationMode.Optional : requisitionPolicies.ClassificationMode;
+    var lineClassificationRequired = classificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredPerLine;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -83,12 +88,33 @@
             <div id="target-asset-hint" class="form-text">Optional: tag an asset to pre-fill the first line and show qty in stock when available.</div>
         </div>
 
+        @if (classificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredHeader)
+        {
+            <div class="col-12 am-classification-picker" id="purchase-header-classification">
+                <label class="form-label mb-1">What kind of item is this requisition for? <span class="text-danger">*</span></label>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <select class="form-select am-pick-category" name="HeaderAssetCategoryId" aria-label="Category" data-selected="@Model.HeaderAssetCategoryId"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select am-pick-type" name="HeaderAssetTypeId" aria-label="Type" data-selected="@Model.HeaderAssetTypeId"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select am-pick-subtype" name="HeaderAssetSubTypeId" aria-label="Sub-type" data-selected="@Model.HeaderAssetSubTypeId"></select>
+                    </div>
+                </div>
+                <div class="form-text">Choose a type or sub-type from your asset categories. It applies to every line that has no pick of its own.</div>
+            </div>
+        }
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <label class="form-label mb-0">Items to order <span class="text-danger">*</span></label>
                 <button type="button" class="btn btn-sm btn-outline-primary" id="add-purchase-line-item">Add another item</button>
             </div>
-            <div id="purchase-line-items" class="vstack gap-2">
+            <div id="purchase-line-items" class="vstack gap-2"
+                 data-am-catalog="@catalogPickerJson"
+                 data-am-preview-lines-url="@previewLinePathsUrl"
+                 data-am-classification-mode="@classificationMode">
                 @for (var i = 0; i < lineCount; i++)
                 {
                     var line = i < lineModels.Count ? lineModels[i] : null;
@@ -116,10 +142,26 @@
                         <div class="col-md-2 text-end">
                             <button type="button" class="btn btn-outline-secondary btn-sm am-remove-line-item" @(i == 0 ? "disabled=\"disabled\"" : "") title="Remove line">Remove</button>
                         </div>
+                        <div class="col-12 am-line-classification am-classification-picker">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm am-pick-category" name="Lines[@i].AssetCategoryId" data-field="AssetCategoryId" aria-label="Category" data-selected="@(line == null ? null : line.AssetCategoryId)"></select>
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm am-pick-type" name="Lines[@i].AssetTypeId" data-field="AssetTypeId" aria-label="Type" data-selected="@(line == null ? null : line.AssetTypeId)"></select>
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm am-pick-subtype" name="Lines[@i].AssetSubTypeId" data-field="AssetSubTypeId" aria-label="Sub-type" data-selected="@(line == null ? null : line.AssetSubTypeId)"></select>
+                                </div>
+                            </div>
+                            <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
+                        </div>
                     </div>
                 }
             </div>
             @Html.ValidationMessage("Lines", new { @class = "text-danger" })
+            <div class="form-text">@(lineClassificationRequired ? "Each line needs a type or sub-type from your asset categories." : "Optional: pick a category, type or sub-type per line. Some items have their own approval path.")</div>
+            <div class="alert alert-light border small mt-2 d-none" id="purchase-line-paths" role="status" aria-live="polite"></div>
         </div>
 
         <div class="col-md-4 d-none" id="qty-in-stock-group">
@@ -165,5 +207,16 @@
 }
 
 @section scripts {
+    <template id="am-line-classification-template">
+        <div class="col-12 am-line-classification am-classification-picker">
+            <div class="row g-2">
+                <div class="col-md-4"><select class="form-select form-select-sm am-pick-category" aria-label="Category" data-field="AssetCategoryId"></select></div>
+                <div class="col-md-4"><select class="form-select form-select-sm am-pick-type" aria-label="Type" data-field="AssetTypeId"></select></div>
+                <div class="col-md-4"><select class="form-select form-select-sm am-pick-subtype" aria-label="Sub-type" data-field="AssetSubTypeId"></select></div>
+            </div>
+            <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
+        </div>
+    </template>
+    <script src="@Url.Content("~/Scripts/app/purchase-request-classification.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-request-classification.js")).Ticks"></script>
     <script src="@Url.Content("~/Scripts/app/purchase-request-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-request-create.js")).Ticks"></script>
 }

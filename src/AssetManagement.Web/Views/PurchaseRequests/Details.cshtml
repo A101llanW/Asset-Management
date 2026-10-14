@@ -42,6 +42,26 @@
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
                     <dt class="col-sm-4">Submitted by</dt>
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.RequestedByName) ? Model.RequestedById : Model.RequestedByName)</dd>
+                    @if (!string.IsNullOrWhiteSpace(Model.ApprovalFlowSource))
+                    {
+                        <dt class="col-sm-4">Approval path</dt>
+                        <dd class="col-sm-8">@Model.ApprovalFlowSource</dd>
+                    }
+                    @if (Model.PurchaseRequestGroupId.HasValue)
+                    {
+                        <dt class="col-sm-4">Batch</dt>
+                        <dd class="col-sm-8">
+                            <a href="@Url.Action("Batch", new { id = Model.PurchaseRequestGroupId.Value })">@(string.IsNullOrWhiteSpace(Model.BatchLabel) ? "View batch" : Model.BatchLabel)</a>
+                            @if (Model.Siblings != null && Model.Siblings.Count > 0)
+                            {
+                                <span class="text-muted">&mdash; also submitted:</span>
+                                foreach (var sibling in Model.Siblings)
+                                {
+                                    <a class="ms-1" href="@Url.Action("Details", new { id = sibling.Id })" title="@sibling.ApprovalFlowSource">@sibling.RequestNumber</a>
+                                }
+                            }
+                        </dd>
+                    }
                     @if (Model.LineItems != null && Model.LineItems.Count > 1)
                     {
                         <dt class="col-sm-4">Items</dt>
@@ -49,7 +69,7 @@
                             <ul class="mb-0 ps-3">
                                 @foreach (var line in Model.LineItems)
                                 {
-                                    <li>@line.Description <span class="text-muted">(qty @line.Quantity)</span></li>
+                                    <li>@line.Description <span class="text-muted">(qty @line.Quantity)</span>@if (!string.IsNullOrWhiteSpace(line.ClassificationLabel)) {<span class="badge bg-light text-dark border ms-1">@line.ClassificationLabel</span>}</li>
                                 }
                             </ul>
                         </dd>
@@ -58,6 +78,12 @@
                     {
                         <dt class="col-sm-4">Item</dt>
                         <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ItemDescription) ? DisplayText.Empty : Model.ItemDescription)</dd>
+                        var singleLine = Model.LineItems == null ? null : System.Linq.Enumerable.FirstOrDefault(Model.LineItems);
+                        if (singleLine != null && !string.IsNullOrWhiteSpace(singleLine.ClassificationLabel))
+                        {
+                            <dt class="col-sm-4">Classification</dt>
+                            <dd class="col-sm-8">@singleLine.ClassificationLabel</dd>
+                        }
                     }
                     @if (Model.TargetAssetId.HasValue)
                     {

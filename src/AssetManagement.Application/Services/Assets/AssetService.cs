@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
@@ -31,6 +31,9 @@ namespace AssetManagement.Application.Services
         private readonly IOperationsQueryRepository _operationsQueryRepository;
         private readonly IAuthorizationService _authorizationService;
 
+        private readonly IAssetTagSequenceStore _tagSequenceStore;
+        private readonly IAssetTagRenameStore _tagRenameStore;
+
         public AssetService(
             IUnitOfWork unitOfWork,
             IAuditWriter auditWriter,
@@ -47,8 +50,12 @@ namespace AssetManagement.Application.Services
             IReferenceDataCache referenceDataCache,
             IAssetSubTypeService assetSubTypeService,
             IOperationsQueryRepository operationsQueryRepository,
-            IAuthorizationService authorizationService)
+            IAuthorizationService authorizationService,
+            IAssetTagSequenceStore tagSequenceStore = null,
+            IAssetTagRenameStore tagRenameStore = null)
         {
+            _tagSequenceStore = tagSequenceStore;
+            _tagRenameStore = tagRenameStore;
             _unitOfWork = unitOfWork;
             _auditWriter = auditWriter;
             _departmentScope = departmentScope;
@@ -1543,6 +1550,17 @@ namespace AssetManagement.Application.Services
                 return model.AssetTag;
             }
 
+            // rel1013a: structured PREFIX-NNN tag (room/sub-department/department override, tenant prefix, or derived default).
+            var tagOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (tagOrganizationId.HasValue)
+            {
+                var structured = AssetTagPrefixGenerator.TryGenerate(_unitOfWork, _tagSequenceStore, tagOrganizationId.Value, NormalizeOptionalId(model.DepartmentId), null);
+                if (structured != null)
+                {
+                    return structured;
+                }
+            }
+
             // Random 10-char tag (32^10 space); check only the candidate instead of reading every
             // tagged asset of the organisation (SELECT * FROM Asset) on each Create.
             var repository = _unitOfWork.Repository<Asset>();
@@ -1586,6 +1604,17 @@ namespace AssetManagement.Application.Services
             if (tagQuery.Any())
             {
                 throw new BusinessException("AssetTag must be unique.");
+            }
+
+            // rel1013b: an old tag kept as an alias by the rename tool still identifies its asset (scans, search),
+            // so it cannot be given to an asset again while the alias is active.
+            if (_tagRenameStore != null && !string.IsNullOrWhiteSpace(assetTag))
+            {
+                var aliasOrgId = _organizationScope.GetCurrentOrganizationId();
+                if (aliasOrgId.HasValue && _tagRenameStore.AliasExists(aliasOrgId.Value, assetTag.Trim()))
+                {
+                    throw new BusinessException("AssetTag '" + assetTag.Trim() + "' is an old tag that still points to a renamed asset. Choose another tag.");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(serialNumber))

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using AssetManagement.Application.Security;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
 
@@ -22,35 +24,42 @@ namespace AssetManagement.Web.Helpers
             new DestinationCandidate("Settings.Manage", "Settings", "Index")
         };
 
+        // Controllers whose gate is an any-of list: must match the controller's own check.
+        private static readonly Dictionary<string, string[]> ControllerAnyOfPermissions =
+            new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Dashboard", ModulePermissionCatalog.DashboardAccessPermissionCodes },
+                { "Notifications", ModulePermissionCatalog.DashboardAccessPermissionCodes },
+                { "PendingApprovals", ModulePermissionCatalog.PendingApprovalsPermissionCodes },
+                { "PurchaseRequests", new[] { "Purchases.View", "Purchases.Create", "Purchases.Approve" } },
+                { "Users", new[] { "Users.View", "Users.ViewDepartment" } },
+                { "Documents", new[] { "Documents.View", "Documents.Download", "Documents.Upload", "Documents.Delete" } }
+            };
+
         private static readonly Dictionary<string, string> ControllerViewPermissions =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { "Dashboard", "Reports.View" },
                 { "Assets", "Assets.View" },
                 { "Purchases", "Purchases.View" },
-                { "PurchaseRequests", "Purchases.View" },
                 { "Incidents", "Incidents.View" },
                 { "Claims", "Claims.View" },
                 { "Departments", "Departments.View" },
                 { "Suppliers", "Suppliers.View" },
-                { "Users", "Users.View" },
                 { "Roles", "Roles.View" },
                 { "AuditLogs", "AuditLogs.View" },
                 { "SecurityLogs", "SecurityLogs.View" },
                 { "Settings", "Settings.Manage" },
                 { "Reports", "Reports.View" },
-                { "Notifications", "Reports.View" },
                 { "Custodian", "Assets.View" },
                 { "AssetScan", "Assets.View" },
                 { "AssetLabels", "Assets.View" },
                 { "AssetRequests", "Assets.Request" },
-                { "PendingApprovals", "Assets.View" },
                 { "Search", "Assets.View" },
                 { "Maintenance", "Assets.View" },
                 { "Assignments", "Assets.View" },
                 { "Transfers", "Assets.Transfer" },
                 { "Returns", "Assets.Return" },
-                { "Documents", "Documents.View" }
+                { "UserInvitations", "Users.Invite" }
             };
 
         public static PostLoginDestination ResolveDefaultDestination(
@@ -102,6 +111,12 @@ namespace AssetManagement.Web.Helpers
             if (string.Equals(controller, "Account", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
+            }
+
+            string[] anyOf;
+            if (ControllerAnyOfPermissions.TryGetValue(controller, out anyOf))
+            {
+                return anyOf.Any(code => authorizationService.HasPermission(userId, code));
             }
 
             string permission;

@@ -41,11 +41,11 @@ namespace AssetManagement.Application.Security
         private static readonly IList<ModulePermissionDefinition> Modules = new List<ModulePermissionDefinition>
         {
             new ModulePermissionDefinition(Assets, "Assets", "Asset inventory, custody, transfers, requests, and disposals.",
-                new[] { "Assets.View", "Assets.Create", "Assets.Edit", "Assets.Delete", "Assets.Assign", "Assets.Transfer", "Assets.Return", "Assets.Receive", "Assets.Dispose", "Assets.ApproveDisposal", "Assets.Request", "Assets.Request.Approve", "Assets.Movements.View" }),
+                new[] { "Assets.View", "Assets.ViewAll", "Assets.Create", "Assets.Edit", "Assets.Delete", "Assets.Assign", "Assets.Transfer", "Assets.Return", "Assets.Receive", "Assets.Dispose", "Assets.ApproveDisposal", "Assets.Request", "Assets.Request.Approve", "Assets.Movements.View" }),
             new ModulePermissionDefinition(Purchases, "Purchases", "Requisitions, purchase orders, and procurement approvals.",
                 new[] { "Purchases.View", "Purchases.Create", "Purchases.CreateForAnyDepartment", "Purchases.Edit", "Purchases.Approve" }),
             new ModulePermissionDefinition(Users, "User Management", "Tenant user accounts, department assignment, and role assignment from user details.",
-                new[] { "Users.View", "Users.ViewDepartment", "Users.Create", "Users.Edit", "Users.Delete" }),
+                new[] { "Users.View", "Users.ViewDepartment", "Users.Create", "Users.Edit", "Users.Delete", "Users.Invite" }),
             new ModulePermissionDefinition(Roles, "Roles & Permissions", "Role templates, permission assignment, and approval-stage role choices.",
                 new[] { "Roles.View", "Roles.Create", "Roles.Edit", "Roles.Delete", "Permissions.Assign" }),
             new ModulePermissionDefinition(Departments, "Departments", "Department structure and ownership.",
@@ -61,10 +61,27 @@ namespace AssetManagement.Application.Security
             new ModulePermissionDefinition(Settings, "Settings", "Workflow defaults, approval matrix, and organization configuration.",
                 new[] { "Settings.Manage" }),
             new ModulePermissionDefinition(Incidents, "Incidents & Claims", "Incidents, insurance policies, and claims.",
-                new[] { "Incidents.View", "Incidents.Create", "Incidents.Edit", "Claims.View", "Claims.Create", "Claims.Edit", "Insurance.Manage" }),
+                new[] { "Incidents.View", "Incidents.Create", "Incidents.Edit", "Claims.View", "Claims.Create", "Claims.Edit", "Insurance.View", "Insurance.Manage" }),
             new ModulePermissionDefinition(Financials, "Financials", "Financial records, depreciation, and cost reporting.",
                 new[] { "Financials.View", "Financials.Edit", "Depreciation.View", "Depreciation.Manage" })
         }.AsReadOnly();
+
+        /// <summary>
+        /// Dashboard and Notifications: any user holding a working tenant right. Dashboard metrics are
+        /// department-scoped (DepartmentScopeService), so this does not widen data visibility.
+        /// </summary>
+        public static readonly string[] DashboardAccessPermissionCodes =
+        {
+            "Reports.View", "Assets.View", "Assets.Request", "Assets.Request.Approve",
+            "Purchases.View", "Purchases.Create", "Purchases.Approve",
+            "Incidents.View", "Claims.View", "Suppliers.View", "Departments.View", "Users.View", "Users.ViewDepartment"
+        };
+
+        /// <summary>Same any-of list PendingApprovalsController.Index checks.</summary>
+        public static readonly string[] PendingApprovalsPermissionCodes =
+        {
+            "Purchases.Approve", "Assets.Request.Approve", "Assets.ApproveDisposal", "Purchases.Create", "Assets.Request"
+        };
 
         public static IList<ModulePermissionDefinition> All
         {

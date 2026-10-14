@@ -79,6 +79,18 @@
     function applyPayloadToForm(reportKey, payload) {
         toggleFilters(reportKey, true);
 
+        // Older saved templates stored a single DepartmentId/CategoryId; both shapes are accepted.
+        function setChecked(selector, values) {
+            var box = document.querySelector(selector + '[data-report-key="' + reportKey + '"]');
+            if (!box) {
+                return;
+            }
+            var wanted = (values || []).map(String);
+            box.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+                cb.checked = wanted.indexOf(cb.value) !== -1;
+            });
+        }
+
         function setValue(selector, value) {
             var el = document.querySelector(selector + '[data-report-key="' + reportKey + '"]');
             if (el && value !== undefined && value !== null && value !== '') {
@@ -89,8 +101,8 @@
         setValue('.am-report-period', payload.PeriodPreset);
         setValue('.am-report-from', payload.FromDate);
         setValue('.am-report-to', payload.ToDate);
-        setValue('.am-report-department', payload.DepartmentId);
-        setValue('.am-report-category', payload.CategoryId);
+        setChecked('.am-report-department', payload.DepartmentIds || (payload.DepartmentId ? [payload.DepartmentId] : []));
+        setChecked('.am-report-category', payload.CategoryIds || (payload.CategoryId ? [payload.CategoryId] : []));
         setValue('.am-report-status', payload.Status);
         setValue('.am-report-sort', payload.SortBy);
         setValue('.am-report-sort-direction', payload.SortDirection);
@@ -171,6 +183,18 @@
         return null;
     }
 
+    function checkedValues(selector, reportKey) {
+        var box = document.querySelector(selector + '[data-report-key="' + reportKey + '"]');
+        if (!box) {
+            return [];
+        }
+        var values = [];
+        box.querySelectorAll('input[type="checkbox"]:checked').forEach(function (cb) {
+            values.push(cb.value);
+        });
+        return values;
+    }
+
     function collectPayload(reportKey) {
         var def = getDefinition(reportKey) || {};
         var payload = {
@@ -192,14 +216,14 @@
             payload.ToDate = to.value;
         }
 
-        var dept = document.querySelector('.am-report-department[data-report-key="' + reportKey + '"]');
-        if (dept && dept.value) {
-            payload.DepartmentId = dept.value;
+        var deptIds = checkedValues('.am-report-department', reportKey);
+        if (deptIds.length) {
+            payload.DepartmentIds = deptIds;
         }
 
-        var cat = document.querySelector('.am-report-category[data-report-key="' + reportKey + '"]');
-        if (cat && cat.value) {
-            payload.CategoryId = cat.value;
+        var catIds = checkedValues('.am-report-category', reportKey);
+        if (catIds.length) {
+            payload.CategoryIds = catIds;
         }
 
         var status = document.querySelector('.am-report-status[data-report-key="' + reportKey + '"]');
@@ -521,8 +545,14 @@
     function postForm(url, payload) {
         var body = new URLSearchParams();
         Object.keys(payload).forEach(function (key) {
-            if (payload[key] !== undefined && payload[key] !== null && payload[key] !== '') {
-                body.append(key, payload[key]);
+            var value = payload[key];
+            if (Array.isArray(value)) {
+                // MVC binds repeated keys (DepartmentIds=1&DepartmentIds=2) to List<int>.
+                value.forEach(function (item) {
+                    body.append(key, item);
+                });
+            } else if (value !== undefined && value !== null && value !== '') {
+                body.append(key, value);
             }
         });
 
@@ -730,6 +760,20 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.am-report-period').forEach(bindPeriodToggle);
+
+        document.querySelectorAll('.am-report-check-all, .am-report-check-none').forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                var check = link.classList.contains('am-report-check-all');
+                var box = document.querySelector('.' + link.getAttribute('data-target')
+                    + '[data-report-key="' + link.getAttribute('data-report-key') + '"]');
+                if (box) {
+                    box.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+                        cb.checked = check;
+                    });
+                }
+            });
+        });
 
         document.querySelectorAll('.am-report-configure').forEach(function (btn) {
             btn.addEventListener('click', function () {

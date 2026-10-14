@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -1144,6 +1144,7 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     // on first name, last name, "First Last" and email, evaluated in SQL as a correlated EXISTS.
                     clauses.Add(@"(
     a.[AssetTag] LIKE @SearchPrefix
+    OR EXISTS (SELECT 1 FROM [AssetTagAlias] al WHERE al.[AssetId] = a.[Id] AND al.[OrganizationId] = a.[OrganizationId] AND al.[IsActive] = 1 AND al.[AliasTag] LIKE @SearchPrefix)
     OR a.[AssetName] LIKE @SearchPrefix
     OR a.[SerialNumber] LIKE @SearchPrefix
     OR a.[BarcodeOrQRCode] LIKE @SearchPrefix
@@ -1186,6 +1187,16 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                 if (filter.CategoryId.HasValue)
                 {
                     clauses.Add("a.[CategoryId] = @CategoryId");
+                }
+
+                if (filter.DepartmentIds != null && filter.DepartmentIds.Count > 0)
+                {
+                    clauses.Add("a.[DepartmentId] IN (" + string.Join(", ", filter.DepartmentIds.Select((x, i) => "@FilterDeptIds" + i)) + ")");
+                }
+
+                if (filter.CategoryIds != null && filter.CategoryIds.Count > 0)
+                {
+                    clauses.Add("a.[CategoryId] IN (" + string.Join(", ", filter.CategoryIds.Select((x, i) => "@FilterCatIds" + i)) + ")");
                 }
 
                 if (filter.AssetTypeId.HasValue)
@@ -1238,6 +1249,22 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                 filter.DepartmentId.HasValue ? (object)filter.DepartmentId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@CategoryId",
                 filter.CategoryId.HasValue ? (object)filter.CategoryId.Value : DBNull.Value);
+            if (filter.DepartmentIds != null)
+            {
+                for (var i = 0; i < filter.DepartmentIds.Count; i++)
+                {
+                    SqlQueryHelper.AddParameter(command, "@FilterDeptIds" + i, filter.DepartmentIds[i]);
+                }
+            }
+
+            if (filter.CategoryIds != null)
+            {
+                for (var i = 0; i < filter.CategoryIds.Count; i++)
+                {
+                    SqlQueryHelper.AddParameter(command, "@FilterCatIds" + i, filter.CategoryIds[i]);
+                }
+            }
+
             SqlQueryHelper.AddParameter(command, "@AssetTypeId",
                 filter.AssetTypeId.HasValue ? (object)filter.AssetTypeId.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@AssetSubTypeId",

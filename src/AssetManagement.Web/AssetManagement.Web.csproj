@@ -1,4 +1,4 @@
-<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -194,6 +194,11 @@
     <Compile Include="Controllers\RolesController.cs" />
     <Compile Include="Controllers\SettingsController.cs" />
     <Compile Include="Controllers\SettingsController.Email.cs" />
+    <Compile Include="Controllers\SettingsController.Requisition.cs" />
+    <Compile Include="Controllers\BaseController.CatalogRequisition.cs" />
+    <Compile Include="Controllers\PurchaseRequestsController.Catalog.cs" />
+    <Compile Include="Controllers\SettingsController.AssetTags.cs" />
+    <Compile Include="Controllers\SettingsController.AssetTagRename.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />
     <Compile Include="Controllers\UserInvitationsController.cs" />
@@ -214,6 +219,7 @@
     <Compile Include="Filters\PermissionAuthorizeAttribute.cs" />
     <Compile Include="Filters\ForbiddenResults.cs" />
     <Compile Include="Filters\AnyPermissionAuthorizeAttribute.cs" />
+    <Compile Include="Filters\DashboardAccessAttribute.cs" />
     <Compile Include="Filters\BusinessExceptionFilter.cs" />
     <Compile Include="Filters\AuditLogAttribute.cs" />
     <Compile Include="Filters\AntiForgeryExceptionFilterAttribute.cs" />
@@ -278,6 +284,8 @@
     <Compile Include="ViewModels\PlatformEmailSettingsViewModel.cs" />
     <Compile Include="ViewModels\CompanySmtpSettingsViewModel.cs" />
     <Compile Include="ViewModels\AssetLabelPrintVm.cs" />
+    <Compile Include="ViewModels\AssetTagSettingsVm.cs" />
+    <Compile Include="ViewModels\AssetTagRenameVm.cs" />
     <Compile Include="ViewModels\AssetScanViewModels.cs" />
     <Content Include="Web.config" />
     <Content Include="Web.Debug.config">
@@ -337,6 +345,7 @@
     <Content Include="Scripts\app\supplier-create.js" />
     <Content Include="Scripts\app\purchase-request-details.js" />
     <Content Include="Scripts\app\purchase-request-create.js" />
+    <Content Include="Scripts\app\purchase-request-classification.js" />
     <Content Include="Scripts\app\purchase-create.js" />
     <Content Include="Scripts\app\purchase-order-lines.js" />
     <Content Include="Scripts\app\receive-order.js" />
@@ -455,6 +464,7 @@
     <Content Include="Views\Purchases\_ReceiveSerialWizardModal.cshtml" />
     <Content Include="Views\Purchases\Index.cshtml" />
     <Content Include="Views\PurchaseRequests\Create.cshtml" />
+    <Content Include="Views\PurchaseRequests\Batch.cshtml" />
     <Content Include="Views\PurchaseRequests\_TargetAssetPickerModal.cshtml" />
     <Content Include="Views\PurchaseRequests\Details.cshtml" />
     <Content Include="Views\PurchaseRequests\Index.cshtml" />
@@ -474,6 +484,8 @@
     <Content Include="Views\Settings\Index.cshtml" />
     <Content Include="Views\Settings\Email.cshtml" />
     <Content Include="Views\Settings\LabelDesigner.cshtml" />
+    <Content Include="Views\Settings\AssetTags.cshtml" />
+    <Content Include="Views\Settings\AssetTagRename.cshtml" />
     <Content Include="Views\Shared\_AssetSubTypePickerModal.cshtml" />
     <Content Include="Views\Shared\_CaptchaPartial.cshtml" />
     <Content Include="Views\Shared\Error.cshtml" />
@@ -498,6 +510,7 @@
     <Content Include="Views\Shared\_AssetDepreciationFields.cshtml" />
     <Content Include="Views\Shared\_TaxonomyDepreciationFields.cshtml" />
     <Content Include="Views\Shared\_TaxonomyUsefulLifeFields.cshtml" />
+    <Content Include="Views\Shared\_TaxonomyRequisitionApprovalFields.cshtml" />
     <Content Include="Views\Shared\_FormActions.cshtml" />
     <Content Include="Views\Shared\_GlobalSearch.cshtml" />
     <Content Include="Views\Shared\_ListBulkToolbar.cshtml" />

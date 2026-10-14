@@ -549,10 +549,10 @@ LEFT JOIN [Organization] o ON o.[Id] = u.[OrganizationId]
 WHERE 1 = 1";
 
         private const string PlatformAdminPredicate =
-            " AND u.[OrganizationId] IS NOT NULL AND LOWER(ISNULL(r.[Name], N'')) = N'company admin'";
+            " AND u.[OrganizationId] IS NOT NULL AND LOWER(ISNULL(r.[Name], N'')) = LOWER(N'" + AssetManagement.Application.Security.OrgCapabilities.TenantAdministratorRoleName + "')";
 
         private const string PlatformTenantPredicate =
-            " AND u.[OrganizationId] IS NOT NULL AND LOWER(ISNULL(r.[Name], N'')) <> N'company admin'";
+            " AND u.[OrganizationId] IS NOT NULL AND LOWER(ISNULL(r.[Name], N'')) <> LOWER(N'" + AssetManagement.Application.Security.OrgCapabilities.TenantAdministratorRoleName + "')";
 
         private static string BuildUserWhereClause(UserListFilterVm filter)
         {

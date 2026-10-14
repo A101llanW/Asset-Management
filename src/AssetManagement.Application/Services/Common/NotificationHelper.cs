@@ -67,7 +67,8 @@ namespace AssetManagement.Application.Services
             int? requestDepartmentId,
             string subject,
             string message,
-            string linkUrl)
+            string linkUrl,
+            bool catalogPathFirst = false)
         {
             if (roleId <= 0 || userService == null)
             {
@@ -77,7 +78,7 @@ namespace AssetManagement.Application.Services
             var roleName = unitOfWork.Repository<Role>().GetById(roleId)?.Name ?? ("Role #" + roleId);
             // rel1009e: same resolver as approval eligibility (named person; else role holders of the request's
             // department, nearest ancestor, holders with no department, then org-wide as the last resort).
-            var scope = StageApproverScopeResolver.ResolveFor(unitOfWork, userService, roleId, approverUserId, requestDepartmentId);
+            var scope = StageApproverScopeResolver.ResolveFor(unitOfWork, userService, roleId, approverUserId, requestDepartmentId, catalogPathFirst);
             var approverUserIds = scope.UserIds.ToArray();
 
             if (approverUserIds.Length == 0)

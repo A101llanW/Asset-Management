@@ -20,7 +20,7 @@ using AssetManagement.Web.Security;
 namespace AssetManagement.Web.Controllers
 {
     [AnyPermissionAuthorize("Purchases.View", "Purchases.Create", "Purchases.Approve")]
-    public class PurchaseRequestsController : BaseController
+    public partial class PurchaseRequestsController : BaseController
     {
         private static readonly string[] AllowedAttachmentExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv" };
         private const long MaxAttachmentSizeBytes = 10 * 1024 * 1024;
@@ -140,8 +140,23 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
-                var id = _purchaseRequestService.Submit(model, User.GetUserId());
-                SaveOptionalAttachment(id, attachment);
+                var submitted = _purchaseRequestService.SubmitBatch(model, User.GetUserId());
+                var id = submitted.PrimaryId;
+                // Split submits share one upload: every requisition of the batch points at the same stored file.
+                SaveOptionalAttachment(id, attachment, submitted.RequestIds);
+                if (submitted.IsSplit)
+                {
+                    TempData["Message"] = "Submitted " + submitted.RequestIds.Count + " requisitions ("
+                        + string.Join(", ", submitted.RequestNumbers.ToArray()) + ", " + submitted.BatchLabel
+                        + ") because the items use different approval paths.";
+                    if (submitted.GroupId.HasValue)
+                    {
+                        return RedirectToAction("Batch", new { id = submitted.GroupId.Value, returnUrl = ViewBag.ReturnUrl });
+                    }
+
+                    return RedirectToAction("Details", new { id, returnUrl = ViewBag.ReturnUrl });
+                }
+
                 var created = _purchaseRequestService.GetById(id);
                 var requestNumber = created == null || string.IsNullOrWhiteSpace(created.RequestNumber)
                     ? ("#" + id)
@@ -178,7 +193,7 @@ namespace AssetManagement.Web.Controllers
                     model.CurrentStageRoleId,
                     model.CurrentStageUserId,
                     // rel1009e: same approver resolver as the notification and the approve/reject check.
-                    StageApproverScopeResolver.ResolveFor(UnitOfWork, BuildUserService(), model.CurrentStageRoleId, model.CurrentStageUserId, model.DepartmentId));
+                    StageApproverScopeResolver.ResolveFor(UnitOfWork, BuildUserService(), model.CurrentStageRoleId, model.CurrentStageUserId, model.DepartmentId, AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(model.ApprovalFlowSource)));
 
             // "Purchase order raised by" (resolved from the unit the flow is taken from): hide the PO button for others.
             var entity = UnitOfWork.Repository<Domain.Entities.PurchaseRequest>().GetById(id);
@@ -188,7 +203,7 @@ namespace AssetManagement.Web.Controllers
                 poRaiserConfig,
                 currentUserId,
                 currentRoleId,
-                PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), poRaiserConfig, entity == null ? (int?)null : entity.DepartmentId));
+                PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), poRaiserConfig, entity == null ? (int?)null : entity.DepartmentId, entity != null && AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(entity.ApprovalFlowSource)));
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             // The path this requisition resolves to (its snapshot / unit flow), not the org default.
@@ -409,6 +424,7 @@ namespace AssetManagement.Web.Controllers
                 : BuildDepartmentSelectList(departmentId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
+            PopulateCatalogPickers();
             ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
             var profile = GetCurrentUserProfile();
             ViewBag.RequestingAsDisplayName = profile == null
@@ -567,7 +583,7 @@ namespace AssetManagement.Web.Controllers
             model.RequestedByName = requester == null ? model.RequestedById : BuildUserLabel(requester);
         }
 
-        private void SaveOptionalAttachment(int purchaseRequestId, HttpPostedFileBase attachment)
+        private void SaveOptionalAttachment(int purchaseRequestId, HttpPostedFileBase attachment, IList<int> batchRequestIds = null)
         {
             if (attachment == null || attachment.ContentLength <= 0 || _storage == null)
             {
@@ -591,13 +607,18 @@ namespace AssetManagement.Web.Controllers
                     storedFileName,
                     attachment.ContentType,
                     "purchase-requests/" + purchaseRequestId);
-                _purchaseRequestService.SaveAttachment(purchaseRequestId, new PurchaseRequestAttachmentInfo
+                var info = new PurchaseRequestAttachmentInfo
                 {
                     FileName = Path.GetFileName(attachment.FileName),
                     FilePath = relativePath,
                     ContentType = attachment.ContentType,
                     FileSizeBytes = attachment.ContentLength
-                });
+                };
+                _purchaseRequestService.SaveAttachment(purchaseRequestId, info);
+                foreach (var siblingId in (batchRequestIds ?? new List<int>()).Where(x => x != purchaseRequestId))
+                {
+                    _purchaseRequestService.SaveAttachment(siblingId, info);
+                }
             }
         }
     }

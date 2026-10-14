@@ -18,6 +18,7 @@ namespace AssetManagement.Infrastructure.Services
         private static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
 
         private readonly UserInvitationRepository _invitations;
+        private readonly ISqlConnectionFactory _connectionFactory;
         private readonly RoleDepartmentScopeRepository _roleDepartments;
         private readonly UserAccountRepository _users;
         private readonly IUserAccountService _userAccountService;
@@ -35,6 +36,7 @@ namespace AssetManagement.Infrastructure.Services
             _invitations = new UserInvitationRepository(connectionFactory);
             _roleDepartments = new RoleDepartmentScopeRepository(connectionFactory);
             _users = new UserAccountRepository(connectionFactory);
+            _connectionFactory = connectionFactory;
             _userAccountService = userAccountService;
             _emailService = emailService;
             _platformSettings = platformSettings;
@@ -168,6 +170,23 @@ namespace AssetManagement.Infrastructure.Services
                 }
 
                 departmentId = null;
+            }
+
+            // A custom role needs a department. If the stored department is gone, register without the role
+            // (no permissions) rather than block the invitee; an administrator assigns both afterwards.
+            if (roleId.HasValue && !departmentId.HasValue
+                && AssetManagement.Infrastructure.Security.CustomRoleDepartmentRule.RoleRequiresDepartment(_connectionFactory, roleId))
+            {
+                try
+                {
+                    _auditWriter?.Write("Users.InviteRoleFallback", nameof(UserInvitation), invitation.Id.ToString(), "RoleId=" + roleId.Value + ";reason=no_department", "RoleId=none");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Invite role fallback audit failed: " + ex.Message);
+                }
+
+                roleId = null;
             }
 
             var createRequest = new UserAccountCreateRequest
@@ -320,6 +339,14 @@ namespace AssetManagement.Infrastructure.Services
             else if (request.OrganizationId > 0 && !_invitations.IsActiveTenantRole(request.RoleId.Value, request.OrganizationId))
             {
                 yield return "The selected role is not an active role of this organization.";
+            }
+            else
+            {
+                var departmentError = AssetManagement.Infrastructure.Security.CustomRoleDepartmentRule.Validate(_connectionFactory, request.RoleId, request.DepartmentId);
+                if (departmentError != null)
+                {
+                    yield return departmentError;
+                }
             }
 
             // The invitee's department is locked in too: an active department of this organization, and the role

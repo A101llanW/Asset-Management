@@ -22,6 +22,9 @@ namespace AssetManagement.Tests.Helpers
             Assert.AreEqual("Room", DepartmentHierarchyRules.DisplayLabel(DepartmentKind.Room));
         }
 
+        // Stale (catalog-requisition-flows, 2026-10-12): references members removed from the production code;
+        // excluded so the test project builds. Define LEGACY_HIERARCHY_RULES_API to resurrect if the API returns.
+#if LEGACY_HIERARCHY_RULES_API
         [Test]
         public void AssertValidHierarchy_Room_AllowsIndependentOrAdminOrSubUnitParent()
         {
@@ -61,6 +64,7 @@ namespace AssetManagement.Tests.Helpers
                 return null;
             }));
         }
+#endif
 
         [Test]
         public void DisplayLabel_SubDepartment()

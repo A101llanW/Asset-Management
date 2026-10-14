@@ -1,0 +1,139 @@
+﻿@model AssetManagement.Web.ViewModels.AssetTagRenameVm
+@{
+    ViewBag.Title = "Rename existing asset tags";
+}
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "Rename existing asset tags",
+    Subtitle = "Change existing tags to the prefix format in one batch. Old tags keep working for QR scans, lookup and search, and every batch can be undone.",
+    BackUrl = Url.Action("AssetTags", "Settings"),
+    BackLabel = "Back to Asset tag prefix"
+})
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success" id="renameSuccess">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger" id="renameError">@TempData["ErrorMessage"]</div>
+}
+@if (!Model.StructuredTagsEnabled)
+{
+    <div class="alert alert-warning">Structured tags are off for new assets. You can still rename existing tags; new assets keep getting random tags until you switch structured tags on.</div>
+}
+
+<div class="card mb-3">
+    <div class="card-header">1. Choose the scope</div>
+    <div class="card-body">
+        @using (Html.BeginForm("AssetTagRename", "Settings", FormMethod.Get, new { id = "renameScopeForm", @class = "row g-2 align-items-end" }))
+        {
+            <input type="hidden" name="preview" value="true" />
+            <div class="col-md-8">
+                <label class="form-label" for="scopeDepartmentId">Department, sub-department or room (includes everything below it)</label>
+                <select class="form-select" id="scopeDepartmentId" name="scopeDepartmentId">
+                    <option value="">Whole organisation</option>
+                    @foreach (var option in Model.ScopeOptions)
+                    {
+                        <option value="@option.Key" @(Model.ScopeDepartmentId == option.Key ? "selected" : null)>@option.Value</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-outline-primary w-100" id="renamePreviewBtn">Preview</button>
+            </div>
+        }
+    </div>
+</div>
+
+@if (Model.Previewed)
+{
+    <div class="card mb-3">
+        <div class="card-header">2. Preview: @Model.ScopeLabel</div>
+        <div class="card-body">
+            <p class="mb-2" id="renameSummary">
+                @Model.Items.Count tag(s) will change. @Model.AlreadyConformingCount of @Model.CandidateCount asset(s) already use the right format and are left alone.
+            </p>
+            @if (Model.Items.Count > 0)
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped" id="renamePreviewTable">
+                        <thead><tr><th>Asset</th><th>Old tag</th><th>New tag</th></tr></thead>
+                        <tbody>
+                            @foreach (var item in Model.Items.Take(500))
+                            {
+                                <tr data-asset-id="@item.AssetId"><td>@item.AssetName</td><td><code>@item.OldTag</code></td><td><code>@item.NewTag</code></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                if (Model.Truncated)
+                {
+                    <p class="text-muted small">Showing the first 500 rows. All @Model.Items.Count will be renamed.</p>
+                }
+                <p class="text-muted small">New numbers are reserved when you apply. If another asset takes a number first, the batch uses the next free one.</p>
+                using (Html.BeginForm("AssetTagRenameApply", "Settings", FormMethod.Post, new { id = "renameApplyForm" }))
+                {
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="scopeDepartmentId" value="@Model.ScopeDepartmentId" />
+                    <input type="hidden" name="planFingerprint" value="@Model.PlanFingerprint" />
+                    <button type="submit" class="btn btn-primary" id="renameApplyBtn" onclick="return confirm('Rename @Model.Items.Count asset tag(s) now? You can undo this batch later.');">Apply @Model.Items.Count rename(s)</button>
+                }
+            }
+        </div>
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-header">Batches</div>
+    <div class="card-body">
+        @if (Model.Batches.Count == 0)
+        {
+            <p class="text-muted mb-0">No rename batches yet.</p>
+        }
+        else
+        {
+            <table class="table table-sm" id="renameBatchTable">
+                <thead><tr><th>#</th><th>Scope</th><th>Assets</th><th>Applied (UTC)</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var batch in Model.Batches)
+                    {
+                        <tr data-batch-id="@batch.Id">
+                            <td>@batch.Id</td>
+                            <td>@batch.ScopeLabel</td>
+                            <td>@batch.AssetCount</td>
+                            <td>@batch.AppliedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@batch.Status@(batch.UndoneAt.HasValue ? " " + batch.UndoneAt.Value.ToString("yyyy-MM-dd HH:mm") : "")</td>
+                            <td class="text-end">
+                                <a href="@Url.Action("AssetTagRename", "Settings", new { batchId = batch.Id })" class="btn btn-sm btn-outline-secondary">Details</a>
+                                @if (batch.Status == "Applied")
+                                {
+                                    using (Html.BeginForm("AssetTagRenameUndo", "Settings", FormMethod.Post, new { @class = "d-inline" }))
+                                    {
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="batchId" value="@batch.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Undo batch @batch.Id and restore the old tags?');">Undo</button>
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        @if (Model.ViewBatchId.HasValue)
+        {
+            <h6 class="mt-3">Batch @Model.ViewBatchId</h6>
+            <table class="table table-sm" id="renameBatchItems">
+                <thead><tr><th>Asset</th><th>Old tag</th><th>New tag</th></tr></thead>
+                <tbody>
+                    @foreach (var item in Model.BatchItems)
+                    {
+                        <tr><td>@item.AssetName</td><td><code>@item.OldTag</code></td><td><code>@item.NewTag</code></td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

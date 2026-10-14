@@ -1,0 +1,113 @@
+@model AssetManagement.Application.ViewModels.CatalogRequisitionFlowEditVm
+@using System.Linq
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Domain.Enums
+@*
+    Requisition approval path on an existing catalog node (Organization > Asset Categories / Types / Sub-types).
+    Same building blocks as the department requisition flow (_RoomRequisitionApproval): shared
+    _ApprovalProcessMatrix stage rows (role + optional person), "Purchase order raised by" role/person pair.
+    Posted as RequisitionFlow.* + RequisitionFlowProcesses[0].Stages[n]; validated server-side with StageApproverRules.
+*@
+@{
+    var flow = Model;
+    var mode = flow.FlowMode;
+    var scopeLabel = AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.ScopeLabel(flow.Scope).ToLowerInvariant();
+    var processes = new List<ApprovalProcessSettingsVm>
+    {
+        new ApprovalProcessSettingsVm
+        {
+            ProcessCode = ApprovalProcessCodes.Purchase,
+            DisplayName = "Requisition approval stages",
+            RequiresApproval = true,
+            Stages = (flow.Stages != null && flow.Stages.Count > 0) ? flow.Stages : new List<ApprovalStageSettingsVm> { new ApprovalStageSettingsVm() }
+        }
+    };
+    var poRoleOptions = ViewBag.RoleOptions as IEnumerable<System.Web.Mvc.SelectListItem> ?? Enumerable.Empty<System.Web.Mvc.SelectListItem>();
+    var poPersonOptions = ViewBag.StagePersonOptions as IDictionary<int, IList<System.Web.Mvc.SelectListItem>>;
+    var poPersonOptionsJson = ViewBag.StagePersonOptionsJson as string ?? "[]";
+    IList<System.Web.Mvc.SelectListItem> poPersonItems = null;
+    if (flow.PurchaseOrderRaiserRoleId.HasValue && poPersonOptions != null)
+    {
+        poPersonOptions.TryGetValue(flow.PurchaseOrderRaiserRoleId.Value, out poPersonItems);
+    }
+    var poSelectedRole = flow.PurchaseOrderRaiserRoleId.HasValue ? flow.PurchaseOrderRaiserRoleId.Value.ToString() : string.Empty;
+    var poSelectedUser = flow.PurchaseOrderRaiserUserId ?? string.Empty;
+}
+<div class="card card-kpi mb-3" id="catalog-requisition-approval-panel" data-am-catalog-requisition-approval="true">
+    <div class="card-header">Requisition approval</div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Requisition lines classified under this @scopeLabel use this approval path. The most specific setting wins
+            (sub-type, then type, then category); with nothing set here the line follows the requisition target
+            department's flow. Changes apply to requisitions submitted after you save.
+        </p>
+        <input type="hidden" name="RequisitionFlow.Scope" value="@((int)flow.Scope)" />
+        <input type="hidden" name="RequisitionFlow.ScopedEntityId" value="@flow.ScopedEntityId" />
+        <div class="form-check mb-2">
+            <input class="form-check-input am-catalog-flow-mode" type="radio" name="RequisitionFlow.FlowMode" id="catalog-flow-inherit" value="@((int)RequisitionFlowMode.InheritParent)" @(mode == RequisitionFlowMode.InheritParent ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="catalog-flow-inherit">Inherit (currently: @flow.InheritedFromLabel)</label>
+        </div>
+        <div class="form-check mb-2">
+            <input class="form-check-input am-catalog-flow-mode" type="radio" name="RequisitionFlow.FlowMode" id="catalog-flow-custom" value="@((int)RequisitionFlowMode.Custom)" @(mode == RequisitionFlowMode.Custom ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="catalog-flow-custom">Custom approval stages (at least one role required)</label>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input am-catalog-flow-mode" type="radio" name="RequisitionFlow.FlowMode" id="catalog-flow-auto" value="@((int)RequisitionFlowMode.AutoApprove)" @(mode == RequisitionFlowMode.AutoApprove ? "checked=\"checked\"" : null) />
+            <label class="form-check-label" for="catalog-flow-auto">Auto-approve (no approval stages)</label>
+        </div>
+        <div id="catalog-flow-stages-panel" class="@(mode == RequisitionFlowMode.Custom ? "" : "d-none")">
+            @{
+                ViewData.TemplateInfo.HtmlFieldPrefix = "RequisitionFlowProcesses";
+            }
+            @Html.Partial("_ApprovalProcessMatrix", processes)
+            @{
+                ViewData.TemplateInfo.HtmlFieldPrefix = string.Empty;
+            }
+        </div>
+        <div id="catalog-flow-po-panel" class="border-top pt-3 mt-2 @(mode == RequisitionFlowMode.InheritParent ? "d-none" : "")" data-person-options="@poPersonOptionsJson">
+            <h6 class="mb-1">Purchase order raised by</h6>
+            <div class="form-text mb-2">After final approval, only this role (or the chosen person) can record the purchase order for requisitions using this path. Leave the role empty for today's behaviour (anyone with Purchases permission).</div>
+            <div class="row g-2 am-person-pair">
+                <div class="col-sm-6">
+                    <label class="form-label small text-muted mb-0" for="RequisitionFlow_PurchaseOrderRaiserRoleId">Role</label>
+                    <select class="form-select am-person-role" id="RequisitionFlow_PurchaseOrderRaiserRoleId" name="RequisitionFlow.PurchaseOrderRaiserRoleId">
+                        <option value="">-- Not set (anyone with Purchases permission) --</option>
+                        @foreach (var roleOption in poRoleOptions)
+                        {
+                            <option value="@roleOption.Value" @(roleOption.Value == poSelectedRole ? "selected=\"selected\"" : null)>@roleOption.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label small text-muted mb-0" for="RequisitionFlow_PurchaseOrderRaiserUserId">Person</label>
+                    <select class="form-select am-person-select" id="RequisitionFlow_PurchaseOrderRaiserUserId" name="RequisitionFlow.PurchaseOrderRaiserUserId" data-saved-user-id="@poSelectedUser">
+                        <option value="">Any user in role</option>
+                        @foreach (var personItem in poPersonItems ?? new List<System.Web.Mvc.SelectListItem>())
+                        {
+                            <option value="@personItem.Value" @(string.Equals(personItem.Value, poSelectedUser, System.StringComparison.OrdinalIgnoreCase) ? "selected=\"selected\"" : null)>@personItem.Text</option>
+                        }
+                    </select>
+                    <div class="form-text am-person-note d-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function () {
+        var panel = document.getElementById("catalog-requisition-approval-panel");
+        if (!panel) { return; }
+        var stages = document.getElementById("catalog-flow-stages-panel");
+        var po = document.getElementById("catalog-flow-po-panel");
+        function sync() {
+            var checked = panel.querySelector("input.am-catalog-flow-mode:checked");
+            var value = checked ? checked.value : "@((int)RequisitionFlowMode.InheritParent)";
+            stages.classList.toggle("d-none", value !== "@((int)RequisitionFlowMode.Custom)");
+            po.classList.toggle("d-none", value === "@((int)RequisitionFlowMode.InheritParent)");
+        }
+        Array.prototype.forEach.call(panel.querySelectorAll("input.am-catalog-flow-mode"), function (radio) {
+            radio.addEventListener("change", sync);
+        });
+        sync();
+    })();
+</script>

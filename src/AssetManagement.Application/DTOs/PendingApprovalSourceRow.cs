@@ -36,5 +36,8 @@ namespace AssetManagement.Application.DTOs
         public int? DepartmentId { get; set; }
 
         public bool IsAssetRequest { get; set; }
+
+        /// <summary>Requisitions only: stored winning approval source (catalog paths resolve approvers path-first).</summary>
+        public string ApprovalFlowSource { get; set; }
     }
 }

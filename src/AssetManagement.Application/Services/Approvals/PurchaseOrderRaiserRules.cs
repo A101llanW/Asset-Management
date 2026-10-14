@@ -94,7 +94,8 @@ namespace AssetManagement.Application.Services
             IUnitOfWork unitOfWork,
             IUserService userService,
             ApprovalProcessConfiguration config,
-            int? requestDepartmentId)
+            int? requestDepartmentId,
+            bool catalogPathFirst = false)
         {
             if (!IsConfigured(config) || userService == null)
             {
@@ -106,7 +107,8 @@ namespace AssetManagement.Application.Services
                 userService,
                 config.PurchaseOrderRaiserRoleId,
                 config.PurchaseOrderRaiserUserId,
-                requestDepartmentId);
+                requestDepartmentId,
+                catalogPathFirst);
         }
 
         /// <summary>
@@ -121,9 +123,35 @@ namespace AssetManagement.Application.Services
             }
 
             var department = unitOfWork.Repository<Department>().GetById(request.DepartmentId);
-            return department == null
+            if (department == null)
+            {
+                return null;
+            }
+
+            // Catalog flows (migration 100): the PO raiser follows the source that won for this requisition's lines.
+            // Every line of one requisition shares the same approval fingerprint (split on submit), so the first
+            // classified line is representative; unclassified requisitions resolve exactly as before.
+            var classification = FindRepresentativeClassification(unitOfWork, request.Id);
+            return classification == null
+                ? ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(unitOfWork, department)
+                : Helpers.RequisitionFlowResolver.ResolveForLine(unitOfWork, department, classification).Configuration;
+        }
+
+        private static Helpers.RequisitionLineClassification FindRepresentativeClassification(IUnitOfWork unitOfWork, int purchaseRequestId)
+        {
+            if (purchaseRequestId <= 0)
+            {
+                return null;
+            }
+
+            var line = unitOfWork.Repository<PurchaseRequestLine>()
+                .Find(x => x.PurchaseRequestId == purchaseRequestId && x.IsActive)
+                .Where(x => x.AssetCategoryId.HasValue || x.AssetTypeId.HasValue || x.AssetSubTypeId.HasValue)
+                .OrderBy(x => x.LineNumber)
+                .FirstOrDefault();
+            return line == null
                 ? null
-                : ApprovalWorkflowHelper.GetDepartmentRequisitionConfiguration(unitOfWork, department);
+                : Helpers.RequisitionLineClassification.Create(line.AssetCategoryId, line.AssetTypeId, line.AssetSubTypeId);
         }
 
         /// <summary>Org-scoped user lookup (IUserService is tenant-filtered) mapped to an approver record.</summary>

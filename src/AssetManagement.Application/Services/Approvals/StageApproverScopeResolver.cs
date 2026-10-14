@@ -26,7 +26,15 @@ namespace AssetManagement.Application.Services
         NoDepartment = 4,
 
         /// <summary>Every active role holder in the organisation (legacy behaviour; last resort).</summary>
-        Organization = 5
+        Organization = 5,
+
+        /// <summary>
+        /// Owner decision (catalog requisition flows): a stage that comes from a catalog path (category / type /
+        /// sub-type) resolves to the active holders of the stage role configured on that path FIRST, before the
+        /// requesting department chain. Catalog nodes are organisation-wide (no owning department), so the holders
+        /// scoped to the path are every active holder of that role in the organisation.
+        /// </summary>
+        CatalogPath = 6
     }
 
     /// <summary>The resolved approvers of one approval stage (or PO-raiser / review step) for one request.</summary>
@@ -111,7 +119,29 @@ namespace AssetManagement.Application.Services
             return Create(unitOfWork, userService).Resolve(stageRoleId, namedUserId, requestDepartmentId);
         }
 
+        /// <summary>As <see cref="ResolveFor(IUnitOfWork, IUserService, int?, string, int?)"/>; when
+        /// <paramref name="catalogPathFirst"/> is true the catalog path's role holders win before the department chain.</summary>
+        public static StageApproverScope ResolveFor(
+            IUnitOfWork unitOfWork,
+            IUserService userService,
+            int? stageRoleId,
+            string namedUserId,
+            int? requestDepartmentId,
+            bool catalogPathFirst)
+        {
+            return Create(unitOfWork, userService).Resolve(stageRoleId, namedUserId, requestDepartmentId, catalogPathFirst);
+        }
+
         public StageApproverScope Resolve(int? stageRoleId, string namedUserId, int? requestDepartmentId)
+        {
+            return Resolve(stageRoleId, namedUserId, requestDepartmentId, false);
+        }
+
+        /// <summary>
+        /// Order: 1. named person; 2. (catalogPathFirst only) active holders of the catalog path's stage role;
+        /// 3. requesting department; 4. nearest ancestor; 5. holders with no department; 6. org-wide.
+        /// </summary>
+        public StageApproverScope Resolve(int? stageRoleId, string namedUserId, int? requestDepartmentId, bool catalogPathFirst)
         {
             if (!string.IsNullOrWhiteSpace(namedUserId))
             {
@@ -133,6 +163,11 @@ namespace AssetManagement.Application.Services
             var holders = GetUsers()
                 .Where(x => x != null && x.IsActive && x.RoleId == roleId && !string.IsNullOrWhiteSpace(x.Id))
                 .ToList();
+
+            if (catalogPathFirst && holders.Count > 0)
+            {
+                return new StageApproverScope(StageApproverScopeKind.CatalogPath, null, holders.Select(x => x.Id));
+            }
 
             if (requestDepartmentId.HasValue && requestDepartmentId.Value > 0)
             {

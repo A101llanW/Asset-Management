@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Data;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
@@ -14,6 +14,10 @@ namespace AssetManagement.Infrastructure.Repositories
         private static readonly string AssetTagKeySql = string.Format(NormalizeScanKeySql, "a.[AssetTag]");
         private static readonly string BarcodeKeySql = string.Format(NormalizeScanKeySql, "a.[BarcodeOrQRCode]");
         private static readonly string SerialKeySql = string.Format(NormalizeScanKeySql, "a.[SerialNumber]");
+
+        // rel1013b: old tags kept by the rename tool (AssetTagAlias, active rows) still resolve to the asset.
+        private static readonly string AliasMatchSql = "EXISTS (SELECT 1 FROM [AssetTagAlias] al WHERE al.[AssetId] = a.[Id] AND al.[OrganizationId] = a.[OrganizationId] AND al.[IsActive] = 1 AND "
+            + string.Format(NormalizeScanKeySql, "al.[AliasTag]") + " = @LookupKey)";
 
         private const string LookupSql = @"
 SELECT TOP 1
@@ -39,7 +43,7 @@ LEFT JOIN [Users] u ON u.[Id] = a.[CurrentCustodianId]
 WHERE a.[IsActive] = 1
   AND a.[OrganizationId] = @OrganizationId
   AND (@DepartmentId IS NULL OR a.[DepartmentId] = @DepartmentId)
-  AND ({0} = @LookupKey OR {1} = @LookupKey OR {2} = @LookupKey)
+  AND ({0} = @LookupKey OR {1} = @LookupKey OR {2} = @LookupKey OR {3})
 ORDER BY CASE
     WHEN {0} = @LookupKey THEN 0
     WHEN {1} = @LookupKey THEN 1
@@ -52,7 +56,7 @@ SELECT TOP 1 1
 FROM [Asset] a
 WHERE a.[IsActive] = 1
   AND a.[OrganizationId] = @OrganizationId
-  AND ({0} = @LookupKey OR {1} = @LookupKey OR {2} = @LookupKey)";
+  AND ({0} = @LookupKey OR {1} = @LookupKey OR {2} = @LookupKey OR {3})";
 
         private readonly string _lookupSql;
         private readonly string _existsSql;
@@ -61,8 +65,8 @@ WHERE a.[IsActive] = 1
         public AssetScanLookupRepository(ISqlConnectionFactory connectionFactory)
         {
             _connectionFactory = connectionFactory;
-            _lookupSql = string.Format(LookupSql, AssetTagKeySql, BarcodeKeySql, SerialKeySql);
-            _existsSql = string.Format(ExistsSql, AssetTagKeySql, BarcodeKeySql, SerialKeySql);
+            _lookupSql = string.Format(LookupSql, AssetTagKeySql, BarcodeKeySql, SerialKeySql, AliasMatchSql);
+            _existsSql = string.Format(ExistsSql, AssetTagKeySql, BarcodeKeySql, SerialKeySql, AliasMatchSql);
         }
 
         public bool ExistsByScanCode(string code, int organizationId)

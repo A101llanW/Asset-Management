@@ -81,6 +81,10 @@
             </div>
         </div>
     </div>
+    if (ViewBag.RequisitionFlow != null)
+    {
+        @Html.Partial("_TaxonomyRequisitionApprovalFields", (AssetManagement.Application.ViewModels.CatalogRequisitionFlowEditVm)ViewBag.RequisitionFlow)
+    }
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
         SubmitLabel = "Save Sub-Type",

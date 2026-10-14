@@ -253,11 +253,12 @@ namespace AssetManagement.Web.Controllers
             ViewBag.StockCount = subType.StockCount;
             ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             ViewBag.SubTypeAssetCount = _assetSubTypeService.CountAssets(id);
+            PopulateCatalogRequisitionFlowEditor(AssetManagement.Domain.Enums.CatalogFlowScope.SubType, id);
             return View(MapEditVm(subType));
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit(AssetSubTypeEditVm model, string returnUrl = null)
+        public ActionResult Edit(AssetSubTypeEditVm model, string returnUrl = null, [Bind(Prefix = "RequisitionFlow")] AssetManagement.Application.ViewModels.CatalogRequisitionFlowEditVm requisitionFlow = null, System.Collections.Generic.IList<AssetManagement.Application.ViewModels.ApprovalProcessSettingsVm> requisitionFlowProcesses = null)
         {
             var assetType = model == null ? null : UnitOfWork.Repository<AssetType>().GetById(model.AssetTypeId);
             if (assetType == null)
@@ -268,12 +269,18 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Details", "AssetTypes", new { id = model.AssetTypeId });
             ViewBag.OrganizationCurrency = GetDefaultCurrencyCode();
             ViewBag.SubTypeAssetCount = _assetSubTypeService.CountAssets(model.Id);
+            var flow = ReadPostedCatalogRequisitionFlow(AssetManagement.Domain.Enums.CatalogFlowScope.SubType, model.Id, requisitionFlow, requisitionFlowProcesses);
+            PopulateCatalogRequisitionFlowEditor(AssetManagement.Domain.Enums.CatalogFlowScope.SubType, model.Id, flow);
             if (!ModelState.IsValid)
             {
                 return View(model);
             }
             try
             {
+                if (!TrySaveCatalogRequisitionFlow(flow))
+                {
+                    return View(model);
+                }
                 // The sub-type price is a reference value only: it is never copied into assets
                 // (Allan, 2026-10-08). The old "apply default price to all assets" step was removed.
                 _assetSubTypeService.Update(model);

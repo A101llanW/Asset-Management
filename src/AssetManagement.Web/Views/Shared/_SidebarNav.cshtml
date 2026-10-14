@@ -49,7 +49,7 @@
 }
 
 <ul class="nav flex-column am-sidebar-menu" id="amSidebarMenu">
-    @if (Html.HasPermission("Reports.View"))
+    @if (System.Linq.Enumerable.Any(AssetManagement.Application.Security.ModulePermissionCatalog.DashboardAccessPermissionCodes, code => Html.HasPermission(code)))
     {
         <li class="am-nav-module" data-am-module="overview">
             <div class="am-nav-module-header">

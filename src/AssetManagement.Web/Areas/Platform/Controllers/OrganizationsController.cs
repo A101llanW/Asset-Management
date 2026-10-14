@@ -124,7 +124,7 @@ namespace AssetManagement.Web.Areas.Platform.Controllers
                 var actorName = GetActorName();
                 var companyAdmins = _userAccountQuery
                     .GetUsersForOrganization(id, null, true)
-                    .Where(u => u.IsActive && string.Equals(u.RoleName, "Company Admin", StringComparison.OrdinalIgnoreCase))
+                    .Where(u => u.IsActive && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRoleName(u.RoleName))
                     .ToList();
 
                 var impersonationState = LoadImpersonationState(id, actorName);

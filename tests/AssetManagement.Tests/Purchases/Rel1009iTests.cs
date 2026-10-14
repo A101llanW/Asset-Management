@@ -251,12 +251,13 @@ namespace AssetManagement.Tests.Purchases
 
         // ---------------- item 5: receiving ----------------
 
-        private static ReceiveOrderLineVm Line(int lineId, int qty, string serials = null, int? overrideType = null)
+        private static ReceiveOrderLineVm Line(int lineId, int qty, string serials = null, int? overrideType = null, int? overrideSubType = null)
         {
             return new ReceiveOrderLineVm
             {
                 PurchaseOrderLineId = lineId, QuantityReceived = qty, Condition = "New", SerialNumbersText = serials,
-                TagMode = ReceiveOrderLineVm.TagModeGenerate, DestinationKind = ReceiveOrderLineVm.DestinationStore, OverrideAssetTypeId = overrideType
+                TagMode = ReceiveOrderLineVm.TagModeGenerate, DestinationKind = ReceiveOrderLineVm.DestinationStore, OverrideAssetTypeId = overrideType,
+                OverrideAssetSubTypeId = overrideSubType
             };
         }
 
@@ -315,7 +316,9 @@ namespace AssetManagement.Tests.Purchases
 
             // The printer line has no classification: refused without an override, accepted with one; to a room.
             Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(lineIds[1], 1) } }, "receiver-1"));
-            var printer = Line(lineIds[1], 1, overrideType: 2);
+            // Catalog requisition flows (d): a sub-type is mandatory at receiving.
+            Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(lineIds[1], 1, overrideType: 2) } }, "receiver-1"));
+            var printer = Line(lineIds[1], 1, overrideType: 2, overrideSubType: 20);
             printer.DestinationKind = ReceiveOrderLineVm.DestinationDepartment;
             printer.DestinationDepartmentId = 4;
             printer.Condition = "Good";
@@ -327,6 +330,7 @@ namespace AssetManagement.Tests.Purchases
             Assert.AreEqual(2, rest.CreatedAssets.Count);
             var printerAsset = uow.Repository<Asset>().GetById(rest.CreatedAssets[1].AssetId);
             Assert.AreEqual(2, printerAsset.AssetTypeId);
+            Assert.AreEqual(20, printerAsset.AssetSubTypeId);
             Assert.AreEqual(4, printerAsset.DepartmentId);
             Assert.AreEqual("Good", printerAsset.ConditionOnReceipt);
             Assert.AreEqual(AssetCondition.Good, printerAsset.Condition, "asset condition follows the receipt condition");
@@ -334,6 +338,39 @@ namespace AssetManagement.Tests.Purchases
             Assert.AreEqual(PurchaseOrderQuantityRules.StatusReceived, TestServiceFactory.CreatePurchaseService(uow).GetOrderStatus(poId).Status);
             Assert.IsNotNull(uow.Repository<PurchaseRecord>().GetById(poId).ReceivedDate, "PO stamped received");
             Assert.AreEqual(PurchaseOrderQuantityRules.FulfilmentPartiallyReceived, TestServiceFactory.CreatePurchaseService(uow).GetRequisitionOrderSummary(100).FulfilmentStatus, "3 of 5 received");
+        }
+
+        [Test]
+        public void Receiving_TypedLineWithoutSubType_ReceiverMustPickSubTypeOfThatType()
+        {
+            // Catalog requisition flows (d): the PO line has a type (printer) but no sub-type.
+            var uow = SeedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order(1, 1, type2: 2));
+            var printerLine = uow.Repository<PurchaseOrderLine>().GetAll().First(x => x.PurchaseRecordId == poId && x.LineNumber == 2).Id;
+            var receiving = TestServiceFactory.CreateReceivingService(uow);
+            Func<ReceiveOrderLineVm, ReceiveOrderVm> wrap = l => new ReceiveOrderVm { PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { l } };
+
+            var missing = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(wrap(Line(printerLine, 1)), "r"));
+            StringAssert.Contains("sub-type", missing.Message);
+            Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(wrap(Line(printerLine, 1, overrideSubType: 10)), "r"), "laptop sub-type on a printer line");
+            Assert.AreEqual(0, uow.Repository<Asset>().GetAll().Count(), "nothing created");
+
+            var result = receiving.ReceiveOrder(wrap(Line(printerLine, 1, overrideType: 1, overrideSubType: 20)), "r");
+            var asset = uow.Repository<Asset>().GetById(result.CreatedAssets[0].AssetId);
+            Assert.AreEqual(2, asset.AssetTypeId, "source type still wins over the posted type");
+            Assert.AreEqual(20, asset.AssetSubTypeId);
+            Assert.AreEqual("HP", asset.Brand);
+        }
+
+        [Test]
+        public void Receiving_LegacySingleReceive_RequiresSubType()
+        {
+            var uow = SeedRequisition(withLines: false);
+            uow.Seed(new PurchaseRecord { Id = 78, PurchaseRequestId = null, SupplierId = 1, Quantity = 2, UnitCost = 10m, TotalCost = 20m, PurchaseDate = DateTime.UtcNow, Currency = "KES", IsActive = true, CreatedAt = DateTime.UtcNow });
+            var receiving = TestServiceFactory.CreateReceivingService(uow);
+            var ex = Assert.Throws<BusinessException>(() => receiving.Receive(new AssetReceiveVm { PurchaseRecordId = 78, ReceivedDate = DateTime.UtcNow, QuantityReceived = 1, ConditionOnReceipt = "New", AssetTypeId = 1, ReceivePlacementChoice = ReceivingService.PlacementCompanyCustody }, "r"));
+            StringAssert.Contains("sub-type", ex.Message);
+            Assert.AreEqual(0, uow.Repository<Asset>().GetAll().Count());
         }
 
         [Test]
@@ -377,8 +414,8 @@ namespace AssetManagement.Tests.Purchases
             Assert.IsTrue(screen.IsLegacy);
             Assert.AreEqual(0, screen.Lines.Single().PurchaseOrderLineId);
             Assert.IsTrue(screen.Lines[0].NeedsClassification);
-            receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(0, 2, overrideType: 1) } }, "r");
-            Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(0, 1, overrideType: 1) } }, "r"));
+            receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(0, 2, overrideType: 1, overrideSubType: 10) } }, "r");
+            Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = 77, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { Line(0, 1, overrideType: 1, overrideSubType: 10) } }, "r"));
 
             var linedPo = TestServiceFactory.CreatePurchaseService(uow).Create(new PurchaseRecordVm { PurchaseRequestId = 100, SupplierId = 1, Quantity = 1, UnitCost = 1m, PurchaseDate = DateTime.UtcNow });
             Assert.Throws<BusinessException>(() => receiving.Receive(new AssetReceiveVm { PurchaseRecordId = linedPo, ReceivedDate = DateTime.UtcNow, QuantityReceived = 1, ConditionOnReceipt = "New", AssetTypeId = 1, ReceivePlacementChoice = ReceivingService.PlacementCompanyCustody }, "r"));
