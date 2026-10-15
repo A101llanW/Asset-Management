@@ -969,5 +969,14 @@ namespace AssetManagement.Web.Controllers
                 .ToList();
             return new SelectList(items, "Value", "Text", selectedParentDepartmentId);
         }
+
+        /// <summary>Legacy URL: class-to-room conversion now runs only via tools/database/Convert-ClassesToRooms.ps1. This action changes nothing.</summary>
+        [HttpGet]
+        public ActionResult ConvertClassesToRooms()
+        {
+            TempData["Message"] =
+                "Converting classes to rooms is no longer done from this page. An administrator runs it as a database script (tools/database/Convert-ClassesToRooms.ps1). Nothing was changed.";
+            return RedirectToAction("Index");
+        }
     }
 }
