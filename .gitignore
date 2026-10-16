@@ -63,3 +63,6 @@ src/AssetManagement.Web/smtp.secrets.config
 .cursor/plans/
 .codacy/
 
+
+# c2r per-org rollback output
+tools/database/rollback/
