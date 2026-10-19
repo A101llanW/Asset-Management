@@ -239,7 +239,7 @@ else
                     <tr>
                         <td>@item.Name</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
-                        <td>@(string.IsNullOrWhiteSpace(item.ParentDepartmentName) ? "—" : item.ParentDepartmentName)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ParentDepartmentName) ? "\u2014" : item.ParentDepartmentName)</td>
                         @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>

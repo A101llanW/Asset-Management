@@ -224,10 +224,10 @@ namespace AssetManagement.Application.Helpers
             return CreateDefaultElement(id, widthMm, heightMm, DefaultQrMagnification);
         }
 
-        /// <summary>Default top of the CustomText block: below SerialNumber (MARGIN + 24 plus a 14-dot line), inside the bottom margin.</summary>
+        /// <summary>Default top of the CustomText block: below SerialNumber (MARGIN + 24, its 14-dot box, plus about 1 mm of clearance; rel1019g), inside the bottom margin.</summary>
         public static double GetDefaultCustomTextY(int heightMm)
         {
-            return Math.Max(DefaultMarginMm, Math.Min(heightMm - DefaultMarginMm - 2, DefaultMarginMm + 28));
+            return Math.Max(DefaultMarginMm, Math.Min(heightMm - DefaultMarginMm - 2, DefaultMarginMm + 29));
         }
 
         private static LabelLayoutElement CreateDefaultElement(string id, int widthMm, int heightMm, decimal qrMagnification)

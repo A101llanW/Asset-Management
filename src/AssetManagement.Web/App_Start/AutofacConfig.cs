@@ -84,6 +84,7 @@ namespace AssetManagement.Web.App_Start
 
             builder.RegisterType<AssetStockService>().As<IAssetStockService>().InstancePerHttpRequest();
             builder.RegisterType<AssetSubTypeService>().As<IAssetSubTypeService>().InstancePerHttpRequest();
+            builder.RegisterType<AssetClassificationCreateService>().As<IAssetClassificationCreateService>().InstancePerHttpRequest();
             builder.RegisterType<AssetSubTypeResolver>().InstancePerHttpRequest();
             builder.RegisterType<AssetService>().As<IAssetService>().InstancePerHttpRequest();
             builder.RegisterType<SearchService>().As<ISearchService>().InstancePerHttpRequest();

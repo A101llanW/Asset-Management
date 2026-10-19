@@ -1,5 +1,7 @@
 using System.Linq;
 using System.Web.Mvc;
+using AssetManagement.Application.Contracts;
+using AssetManagement.Application.DTOs;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Web.Filters;
@@ -167,6 +169,62 @@ namespace AssetManagement.Web.Controllers
             UnitOfWork.SaveChanges();
             TempData["Message"] = "Asset type updated.";
             return RedirectToReturnUrl(returnUrl, "Details", null, new { id = model.Id });
+        }
+
+        /// <summary>
+        /// rel1019g: inline "new asset type + its first sub-type" from the asset classification picker
+        /// (Assets/Create and Edit). One transaction; categories are never created here. Same guards as
+        /// AssetSubTypesController.CreateFromAsset (anti-forgery, Assets.Create on top of the controller's Assets.Edit).
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize("Assets.Create")]
+        public JsonResult CreateFromAsset(int categoryId = 0, string typeName = null, string subTypeName = null)
+        {
+            var service = DependencyResolver.Current.GetService<IAssetClassificationCreateService>();
+            if (service == null)
+            {
+                return Json(new { success = false, message = "Asset type creation is not available." });
+            }
+
+            try
+            {
+                var created = service.CreateTypeWithSubType(new AssetTypeWithSubTypeCreateVm
+                {
+                    CategoryId = categoryId,
+                    TypeName = typeName,
+                    SubTypeName = subTypeName
+                });
+
+                // Cached category/type lists (ReferenceDataCache) must show the new type on the next page load.
+                var orgId = ResolveCurrentOrganizationId();
+                var cache = BuildReferenceDataCache();
+                if (orgId.HasValue && cache != null)
+                {
+                    cache.InvalidateCategories(orgId.Value);
+                }
+
+                return Json(new
+                {
+                    success = true,
+                    categoryId = created.CategoryId,
+                    categoryName = created.CategoryName,
+                    assetTypeId = created.AssetTypeId,
+                    assetTypeName = created.AssetTypeName,
+                    id = created.AssetSubTypeId,
+                    name = created.AssetSubTypeName,
+                    subTypeId = created.AssetSubTypeId,
+                    subTypeName = created.AssetSubTypeName
+                });
+            }
+            catch (BusinessException ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+            catch (System.Data.SqlClient.SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
+            {
+                return Json(new { success = false, message = "That asset type or sub-type was just created by someone else. Reopen the picker and select it." });
+            }
         }
 
         private void PopulateCategories(int? selectedCategoryId = null)
