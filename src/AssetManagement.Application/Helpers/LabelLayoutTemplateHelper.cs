@@ -123,6 +123,44 @@ namespace AssetManagement.Application.Helpers
             return template;
         }
 
+        /// <summary>Finds a saved template by id (null when the id is empty or unknown).</summary>
+        public static LabelLayoutTemplate FindTemplate(IDictionary<string, Domain.Entities.SystemSetting> settings, string templateId)
+        {
+            if (string.IsNullOrWhiteSpace(templateId))
+            {
+                return null;
+            }
+
+            var id = templateId.Trim();
+            return ListTemplates(settings).FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Print-time copy of the printer settings with the template's label size, QR magnification and layout
+        /// (preset Custom). Printer mode, device and enabled flag stay as configured. The stored settings are not changed.
+        /// </summary>
+        public static LabelPrinterSettingsVm ApplyToSettings(LabelPrinterSettingsVm settings, LabelLayoutTemplate template)
+        {
+            settings = settings ?? new LabelPrinterSettingsVm();
+            if (template == null)
+            {
+                return settings;
+            }
+
+            return new LabelPrinterSettingsVm
+            {
+                Enabled = settings.Enabled,
+                Model = settings.Model,
+                Mode = settings.Mode,
+                DeviceName = settings.DeviceName,
+                WidthMm = template.WidthMm > 0 ? template.WidthMm : settings.WidthMm,
+                HeightMm = template.HeightMm > 0 ? template.HeightMm : settings.HeightMm,
+                QrMagnification = template.QrMagnification > 0 ? template.QrMagnification : settings.QrMagnification,
+                LayoutPreset = LabelPrinterSettingsHelper.LayoutCustom,
+                LayoutDesignJson = template.LayoutDesignJson
+            };
+        }
+
         public static bool DeleteTemplate(LabelLayoutTemplateCollection collection, string templateId)
         {
             if (collection == null || collection.Templates == null || string.IsNullOrWhiteSpace(templateId))

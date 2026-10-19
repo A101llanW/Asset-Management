@@ -9,7 +9,8 @@
          data-print-candidates-url="@Model.PrintCandidatesUrl"
          data-label-print-config-url-template="@Model.LabelPrintConfigUrl"
          data-label-zpl-url-template="@Model.LabelZplUrlTemplate"
-         data-am-scan-batch-autoload="@(Model.InitialPurchaseId.HasValue ? "true" : "false")">
+         data-am-scan-batch-autoload="@(Model.InitialPurchaseId.HasValue ? "true" : "false")"
+         data-am-scan-batch-classification="@(Newtonsoft.Json.JsonConvert.SerializeObject(Model.ClassificationCatalog ?? new AssetManagement.Web.Helpers.ClassificationCatalog()))">
         <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div>
                 <h5 class="mb-0">Bulk label print</h5>
@@ -62,6 +63,33 @@
                 </div>
             </div>
 
+            <div class="row g-3 align-items-end mb-3" data-am-scan-batch-class-filters>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchCategory">Category</label>
+                    <select class="form-select form-select-sm" id="amScanBatchCategory" data-am-scan-batch-category>
+                        <option value="">All categories</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchType">Type</label>
+                    <select class="form-select form-select-sm" id="amScanBatchType" data-am-scan-batch-type>
+                        <option value="">All types</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchSubType">Sub-type</label>
+                    <select class="form-select form-select-sm" id="amScanBatchSubType" data-am-scan-batch-subtype>
+                        <option value="">All sub-types</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" id="amScanBatchIncludeSub" data-am-scan-batch-include-sub checked />
+                        <label class="form-check-label small" for="amScanBatchIncludeSub">Include sub-departments, classes and rooms under the chosen department</label>
+                    </div>
+                </div>
+            </div>
+
             <div class="row g-3 align-items-end mb-3" data-am-scan-batch-date-filters>
                 <div class="col-md-3">
                     <label class="form-label small mb-1" for="amScanBatchSort">Sort by</label>
@@ -103,14 +131,30 @@
             </div>
 
             <div class="row g-3 align-items-end mb-3">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label small mb-1" for="amScanBatchCodeType">Code type</label>
                     <select class="form-select form-select-sm" id="amScanBatchCodeType" data-am-scan-batch-code-type>
                         <option value="@LabelPrinterSettingsHelper.CodeTypeQr">QR code</option>
                         <option value="@LabelPrinterSettingsHelper.CodeTypeBarcode">Barcode</option>
                     </select>
                 </div>
-                <div class="col-md-9 d-flex flex-wrap gap-2 align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1" for="amScanBatchTemplate" title="Saved in Settings > Label designer">Label template</label>
+                    <select class="form-select form-select-sm" id="amScanBatchTemplate" data-am-scan-batch-template>
+                        @if (Model.LabelTemplateOptions == null || Model.LabelTemplateOptions.Count == 0)
+                        {
+                            <option value="" selected>@AssetManagement.Web.Helpers.LabelPrintSupport.ActiveLayoutText</option>
+                        }
+                        else
+                        {
+                            foreach (var option in Model.LabelTemplateOptions)
+                            {
+                                <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-7 d-flex flex-wrap gap-2 align-items-center">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-select-all disabled>Select all loaded</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-all disabled>Add all loaded to queue</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-am-scan-batch-add-selected disabled>Queue selected</button>

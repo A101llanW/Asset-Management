@@ -266,6 +266,7 @@
     <Compile Include="Helpers\DepartmentKindHtmlHelpers.cs" />
     <Compile Include="Helpers\AssetQrUrlHelper.cs" />
     <Compile Include="Helpers\AssetLabelPrintHelper.cs" />
+    <Compile Include="Helpers\LabelPrintSupport.cs" />
     <Compile Include="Validation\LoginIdentityAttribute.cs" />
     <Compile Include="Models\AccountViewModels.cs" />
     <Compile Include="Models\LoginPortalCandidate.cs" />
@@ -406,6 +407,7 @@
     <Content Include="Views\Assets\Details.cshtml" />
     <Content Include="Views\Assets\PrintLabel.cshtml" />
     <Content Include="Views\Assets\_AssetLabelContent.cshtml" />
+    <Content Include="Views\Assets\_AssetLabelTemplateSelector.cshtml" />
     <Content Include="Views\Assets\_AssetLabelPrinterStatus.cshtml" />
     <Content Include="Views\Assets\_AssetQrLabelModal.cshtml" />
     <Content Include="Views\Assets\Edit.cshtml" />

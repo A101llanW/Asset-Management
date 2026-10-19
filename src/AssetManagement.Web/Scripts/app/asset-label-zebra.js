@@ -23,13 +23,35 @@
         return 'Qr';
     }
 
-    function buildZplUrl(baseUrl, codeType) {
+    // templateId (optional): saved Label designer template; omitted = active layout.
+    function buildZplUrl(baseUrl, codeType, templateId) {
         if (!baseUrl) {
             return baseUrl;
         }
 
         var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
-        return baseUrl + separator + 'codeType=' + encodeURIComponent(codeType || 'Qr');
+        var url = baseUrl + separator + 'codeType=' + encodeURIComponent(codeType || 'Qr');
+        if (templateId && !/[?&]templateId=/.test(baseUrl)) {
+            url += '&templateId=' + encodeURIComponent(templateId);
+        }
+
+        return url;
+    }
+
+    function getSelectedTemplateId(root) {
+        if (window.AssetLabel && typeof window.AssetLabel.getSelectedTemplateId === 'function') {
+            return window.AssetLabel.getSelectedTemplateId(root);
+        }
+
+        return '';
+    }
+
+    function withTemplateId(url, templateId) {
+        if (!url || !templateId) {
+            return url;
+        }
+
+        return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'templateId=' + encodeURIComponent(templateId);
     }
 
     function getStatusBadges(root) {
@@ -308,7 +330,8 @@
         }
 
         button.disabled = true;
-        var zplUrl = buildZplUrl(config.zplUrl, getSelectedCodeType(root));
+        // Same template as the preview: the ZPL URL carries the template chosen in the picker right now.
+        var zplUrl = buildZplUrl(config.zplUrl, getSelectedCodeType(root), getSelectedTemplateId(root));
         loadScript(resolveBrowserPrintSdkUrl())
             .then(function (browserPrint) {
                 return fetchText(zplUrl).then(function (zpl) {
@@ -381,7 +404,8 @@
         printToZebra: printToZebra,
         printZplDirectly: printZplDirectly,
         fetchPrinterConfig: fetchJson,
-        buildZplUrl: buildZplUrl
+        buildZplUrl: buildZplUrl,
+        withTemplateId: withTemplateId
     };
 
     if (document.readyState === 'loading') {

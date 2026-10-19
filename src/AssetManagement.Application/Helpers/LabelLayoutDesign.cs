@@ -16,6 +16,9 @@ namespace AssetManagement.Application.Helpers
         public double YMm { get; set; }
 
         public int FontHeight { get; set; }
+
+        /// <summary>Free text for the CustomText element only (null for every other element).</summary>
+        public string Text { get; set; }
     }
 
     public class LabelLayoutDesign
@@ -36,6 +39,18 @@ namespace AssetManagement.Application.Helpers
         public const string AssetNameId = "AssetName";
         public const string DepartmentNameId = "DepartmentName";
         public const string SerialNumberId = "SerialNumber";
+        /// <summary>Prints the current organisation's name (Organization.Name).</summary>
+        public const string CompanyNameId = "CompanyName";
+        /// <summary>Prints free text typed in the Label designer, word-wrapped inside the label.</summary>
+        public const string CustomTextId = "CustomText";
+
+        /// <summary>Storage cap for custom text (about 150 words). The real limit is the lines that fit on the label.</summary>
+        public const int MaxCustomTextLength = 1000;
+        /// <summary>Average ZPL font 0 character width as a share of the font height (conservative, shared with the JS).</summary>
+        public const double CustomTextCharWidthFactor = 0.55d;
+        /// <summary>Extra dots between custom text lines (ZPL ^FB third parameter).</summary>
+        public const int CustomTextLineSpacingDots = 2;
+        public const int DefaultCustomTextFontHeight = 14;
 
         public static readonly string[] OrderedElementIds =
         {
@@ -43,7 +58,9 @@ namespace AssetManagement.Application.Helpers
             AssetTagId,
             AssetNameId,
             DepartmentNameId,
-            SerialNumberId
+            SerialNumberId,
+            CompanyNameId,
+            CustomTextId
         };
 
         public static LabelLayoutDesign CreateDefault(int widthMm, int heightMm)
@@ -160,6 +177,16 @@ namespace AssetManagement.Application.Helpers
                 return "Serial number";
             }
 
+            if (string.Equals(elementId, CompanyNameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Company name";
+            }
+
+            if (string.Equals(elementId, CustomTextId, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Custom text";
+            }
+
             return elementId ?? string.Empty;
         }
 
@@ -243,6 +270,22 @@ namespace AssetManagement.Application.Helpers
                 element.FontHeight = 14;
                 element.Enabled = heightMm >= 34;
             }
+            else if (string.Equals(id, CompanyNameId, StringComparison.OrdinalIgnoreCase))
+            {
+                // Off by default so existing layouts print exactly as before until someone ticks it.
+                element.XMm = DefaultMarginMm;
+                element.YMm = Math.Max(DefaultMarginMm, heightMm - DefaultMarginMm - 3);
+                element.FontHeight = 14;
+                element.Enabled = false;
+            }
+            else if (string.Equals(id, CustomTextId, StringComparison.OrdinalIgnoreCase))
+            {
+                element.XMm = textX;
+                element.YMm = Math.Min(heightMm - DefaultMarginMm - 4, DefaultMarginMm + 24);
+                element.FontHeight = DefaultCustomTextFontHeight;
+                element.Enabled = false;
+                element.Text = string.Empty;
+            }
 
             return ClampElement(element, widthMm, heightMm, qrMagnification);
         }
@@ -256,10 +299,137 @@ namespace AssetManagement.Application.Helpers
                 Enabled = source.Enabled,
                 XMm = source.XMm,
                 YMm = source.YMm,
-                FontHeight = source.FontHeight > 0 ? source.FontHeight : defaults.FontHeight
+                FontHeight = source.FontHeight > 0 ? source.FontHeight : defaults.FontHeight,
+                Text = string.Equals(id, CustomTextId, StringComparison.OrdinalIgnoreCase) ? NormalizeCustomText(source.Text) : null
             };
 
             return ClampElement(element, widthMm, heightMm, qrMagnification);
+        }
+
+        /// <summary>Line endings to \n, control characters removed, trailing space trimmed, capped at MaxCustomTextLength.</summary>
+        public static string NormalizeCustomText(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return string.Empty;
+            }
+
+            var unified = text.Replace("\r\n", "\n").Replace('\r', '\n');
+            var sb = new System.Text.StringBuilder(unified.Length);
+            foreach (var ch in unified)
+            {
+                if (ch == '\n' || !char.IsControl(ch))
+                {
+                    sb.Append(ch == '\t' ? ' ' : ch);
+                }
+            }
+
+            var cleaned = sb.ToString().TrimEnd();
+            if (cleaned.Length > MaxCustomTextLength)
+            {
+                cleaned = cleaned.Substring(0, MaxCustomTextLength).TrimEnd();
+            }
+
+            return cleaned;
+        }
+
+        /// <summary>Text block width (label edge minus margin minus X) in printer dots.</summary>
+        public static int GetCustomTextBlockWidthDots(LabelLayoutElement element, int widthMm)
+        {
+            var x = element == null ? DefaultMarginMm : element.XMm;
+            return Math.Max(DotsPerMm, (int)Math.Floor((widthMm - DefaultMarginMm - x) * DotsPerMm));
+        }
+
+        /// <summary>How many lines fit between the element top and the bottom margin.</summary>
+        public static int GetCustomTextMaxLines(LabelLayoutElement element, int heightMm)
+        {
+            var y = element == null ? DefaultMarginMm : element.YMm;
+            var font = element != null && element.FontHeight > 0 ? element.FontHeight : DefaultCustomTextFontHeight;
+            var availableDots = (heightMm - DefaultMarginMm - y) * DotsPerMm;
+            var lines = (int)Math.Floor((availableDots + CustomTextLineSpacingDots) / (font + CustomTextLineSpacingDots));
+            return Math.Max(1, Math.Min(99, lines));
+        }
+
+        public static int GetCustomTextCharsPerLine(LabelLayoutElement element, int widthMm)
+        {
+            var font = element != null && element.FontHeight > 0 ? element.FontHeight : DefaultCustomTextFontHeight;
+            var charWidth = Math.Max(1d, font * CustomTextCharWidthFactor);
+            return Math.Max(1, (int)Math.Floor(GetCustomTextBlockWidthDots(element, widthMm) / charWidth));
+        }
+
+        /// <summary>
+        /// Word-wraps the CustomText element into the lines that fit on the label (same algorithm as label-designer.js).
+        /// Text past the last line is dropped and the last line ends with "..."; overflow reports that.
+        /// </summary>
+        public static IList<string> WrapCustomText(LabelLayoutElement element, int widthMm, int heightMm, out bool overflow)
+        {
+            overflow = false;
+            var result = new List<string>();
+            var text = NormalizeCustomText(element == null ? null : element.Text);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return result;
+            }
+
+            var perLine = GetCustomTextCharsPerLine(element, widthMm);
+            var maxLines = GetCustomTextMaxLines(element, heightMm);
+            var all = new List<string>();
+            foreach (var paragraph in text.Split('\n'))
+            {
+                var line = string.Empty;
+                foreach (var rawWord in paragraph.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var word = rawWord;
+                    while (word.Length > perLine)
+                    {
+                        if (line.Length > 0)
+                        {
+                            all.Add(line);
+                            line = string.Empty;
+                        }
+
+                        all.Add(word.Substring(0, perLine));
+                        word = word.Substring(perLine);
+                    }
+
+                    if (line.Length == 0)
+                    {
+                        line = word;
+                    }
+                    else if (line.Length + 1 + word.Length <= perLine)
+                    {
+                        line += " " + word;
+                    }
+                    else
+                    {
+                        all.Add(line);
+                        line = word;
+                    }
+                }
+
+                all.Add(line);
+            }
+
+            while (all.Count > 0 && all[all.Count - 1].Length == 0)
+            {
+                all.RemoveAt(all.Count - 1);
+            }
+
+            if (all.Count > maxLines)
+            {
+                overflow = true;
+                all = all.Take(maxLines).ToList();
+                var last = all[all.Count - 1];
+                if (last.Length + 3 > perLine)
+                {
+                    last = last.Substring(0, Math.Max(0, perLine - 3)).TrimEnd();
+                }
+
+                all[all.Count - 1] = last + "...";
+            }
+
+            result.AddRange(all);
+            return result;
         }
 
         /// <summary>Footprint used for clamping: the QR square, or a text line (minimum visible width x line height).</summary>

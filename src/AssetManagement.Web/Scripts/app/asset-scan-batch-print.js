@@ -41,9 +41,24 @@
         return select ? select.value : "Qr";
     }
 
-    function buildZplUrl(baseUrl, codeType) {
+    // Saved Label designer template chosen on the panel ("" = active layout).
+    function getTemplateId() {
+        var panel = getPanel();
+        var select = panel ? panel.querySelector("[data-am-scan-batch-template]") : null;
+        return select && select.value ? select.value : "";
+    }
+
+    function appendTemplateId(url, templateId) {
+        if (!url || !templateId) {
+            return url;
+        }
+
+        return url + (url.indexOf("?") >= 0 ? "&" : "?") + "templateId=" + encodeURIComponent(templateId);
+    }
+
+    function buildZplUrl(baseUrl, codeType, templateId) {
         if (window.AssetLabelZebra && typeof window.AssetLabelZebra.buildZplUrl === "function") {
-            return window.AssetLabelZebra.buildZplUrl(baseUrl, codeType);
+            return window.AssetLabelZebra.buildZplUrl(baseUrl, codeType, templateId);
         }
 
         if (!baseUrl) {
@@ -51,7 +66,7 @@
         }
 
         var separator = baseUrl.indexOf("?") >= 0 ? "&" : "?";
-        return baseUrl + separator + "codeType=" + encodeURIComponent(codeType || "Qr");
+        return appendTemplateId(baseUrl + separator + "codeType=" + encodeURIComponent(codeType || "Qr"), templateId);
     }
 
     function resolveUrlTemplate(template, assetId) {
@@ -448,6 +463,22 @@
 
         if (dept && dept.value) {
             params.push("departmentId=" + encodeURIComponent(dept.value));
+            var includeSub = document.querySelector("[data-am-scan-batch-include-sub]");
+            params.push("includeSubDepartments=" + (includeSub && !includeSub.checked ? "false" : "true"));
+        }
+
+        // Category > type > sub-type (AND with every other filter, applied server-side).
+        var category = document.querySelector("[data-am-scan-batch-category]");
+        var assetType = document.querySelector("[data-am-scan-batch-type]");
+        var subType = document.querySelector("[data-am-scan-batch-subtype]");
+        if (category && category.value) {
+            params.push("categoryId=" + encodeURIComponent(category.value));
+        }
+        if (assetType && assetType.value) {
+            params.push("assetTypeId=" + encodeURIComponent(assetType.value));
+        }
+        if (subType && subType.value) {
+            params.push("assetSubTypeId=" + encodeURIComponent(subType.value));
         }
         if (status && status.value) {
             params.push("status=" + encodeURIComponent(status.value));
@@ -644,7 +675,7 @@
         });
     }
 
-    function fetchPrinterConfig() {
+    function fetchPrinterConfig(templateId) {
         if (!queue.length || !config.labelPrintConfigUrlTemplate) {
             return Promise.reject(new Error("Print queue is empty."));
         }
@@ -653,7 +684,7 @@
             return Promise.reject(new Error("Zebra print module is unavailable."));
         }
 
-        var configUrl = resolveUrlTemplate(config.labelPrintConfigUrlTemplate, queue[0].id);
+        var configUrl = appendTemplateId(resolveUrlTemplate(config.labelPrintConfigUrlTemplate, queue[0].id), templateId);
         return window.AssetLabelZebra.fetchPrinterConfig(configUrl);
     }
 
@@ -684,6 +715,8 @@
         syncActionButtons();
 
         var codeType = getCodeType();
+        // One template for the whole run (picked once, even if the picker changes mid-print).
+        var templateId = getTemplateId();
         var items = queue.slice();
         var total = items.length;
 
@@ -693,6 +726,7 @@
             index: 0,
             printerConfig: null,
             codeType: codeType,
+            templateId: templateId,
             paused: false,
             stopped: false,
             pauseWaiters: []
@@ -700,7 +734,7 @@
 
         setProgress(0, total, "Preparing printer...");
 
-        fetchPrinterConfig()
+        fetchPrinterConfig(templateId)
             .then(function (printerConfig) {
                 if (!printSession) {
                     return;
@@ -731,7 +765,7 @@
 
                         var item = printSession.items[printSession.index];
                         setProgress(printSession.index, printSession.total, "Printing " + item.tag + "...");
-                        var zplUrl = buildZplUrl(item.labelZplUrl, printSession.codeType);
+                        var zplUrl = buildZplUrl(item.labelZplUrl, printSession.codeType, printSession.templateId);
 
                         return fetchZpl(zplUrl)
                             .then(function (zpl) {
@@ -886,6 +920,87 @@
         }
     }
 
+    // Cascading Category > Type > Sub-type pickers from the org catalog embedded on the panel.
+    var classification = null;
+
+    function readClassification(panel) {
+        if (classification) {
+            return classification;
+        }
+
+        try {
+            classification = JSON.parse(panel.getAttribute("data-am-scan-batch-classification") || "{}") || {};
+        } catch (e) {
+            classification = {};
+        }
+
+        classification.Categories = classification.Categories || [];
+        classification.Types = classification.Types || [];
+        classification.SubTypes = classification.SubTypes || [];
+        return classification;
+    }
+
+    function fillOptions(select, items, allText, parentId) {
+        if (!select) {
+            return;
+        }
+
+        var previous = select.value;
+        var html = '<option value="">' + escapeHtml(allText) + "</option>";
+        var keep = false;
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            if (parentId !== undefined && parentId !== null && String(item.ParentId) !== String(parentId)) {
+                continue;
+            }
+
+            if (String(item.Id) === previous) {
+                keep = true;
+            }
+
+            html += '<option value="' + escapeHtml(String(item.Id)) + '">' + escapeHtml(item.Name || "") + "</option>";
+        }
+
+        select.innerHTML = html;
+        select.value = keep ? previous : "";
+    }
+
+    // A chosen category limits types; a chosen type limits sub-types. With no parent chosen, all children of the org show.
+    function syncClassificationOptions(panel, changed) {
+        var data = readClassification(panel);
+        var category = panel.querySelector("[data-am-scan-batch-category]");
+        var assetType = panel.querySelector("[data-am-scan-batch-type]");
+        var subType = panel.querySelector("[data-am-scan-batch-subtype]");
+        if (!category || !assetType || !subType) {
+            return;
+        }
+
+        if (!changed) {
+            fillOptions(category, data.Categories, "All categories", null);
+        }
+
+        if (!changed || changed === "category") {
+            fillOptions(assetType, data.Types, "All types", category.value || null);
+        }
+
+        if (!changed || changed === "category" || changed === "type") {
+            var typeIds = null;
+            if (!assetType.value && category.value) {
+                typeIds = {};
+                for (var t = 0; t < data.Types.length; t++) {
+                    if (String(data.Types[t].ParentId) === category.value) {
+                        typeIds[String(data.Types[t].Id)] = true;
+                    }
+                }
+            }
+
+            var subs = typeIds
+                ? data.SubTypes.filter(function (s) { return typeIds[String(s.ParentId)]; })
+                : data.SubTypes;
+            fillOptions(subType, subs, "All sub-types", assetType.value || null);
+        }
+    }
+
     function handlePanelChange(event) {
         var target = event.target;
         if (!target || !target.matches || !target.closest) {
@@ -894,6 +1009,16 @@
 
         var panel = target.closest("[data-am-scan-batch-panel]");
         if (!panel) {
+            return;
+        }
+
+        if (target.matches("[data-am-scan-batch-category]")) {
+            syncClassificationOptions(panel, "category");
+            return;
+        }
+
+        if (target.matches("[data-am-scan-batch-type]")) {
+            syncClassificationOptions(panel, "type");
             return;
         }
 
@@ -985,6 +1110,7 @@
         }
 
         bindPanelEvents();
+        syncClassificationOptions(panel, null);
         renderQueue();
         syncActionButtons();
 
@@ -1008,6 +1134,7 @@
     }
 
     window.AmScanBatchPrint = {
+        syncClassificationOptions: syncClassificationOptions,
         init: init,
         addToQueue: addToQueue,
         removeFromQueue: removeFromQueue,

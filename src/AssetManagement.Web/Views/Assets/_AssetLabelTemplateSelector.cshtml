@@ -1,0 +1,18 @@
+@model AssetManagement.Web.ViewModels.AssetLabelPrintVm
+@* Saved Label designer templates; "" = active layout. Preview and Print to Zebra both use the selected template. *@
+@if (Model.TemplateOptions != null && Model.TemplateOptions.Count > 1)
+{
+    <div class="am-asset-label-template mb-3 no-print">
+        <label class="form-label" for="assetLabelTemplate">Label template</label>
+        <select id="assetLabelTemplate"
+                class="form-select"
+                data-am-asset-label-template="true"
+                aria-label="Choose a saved label template">
+            @foreach (var option in Model.TemplateOptions)
+            {
+                <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+            }
+        </select>
+        <div class="form-text">Templates are saved in Settings &gt; Label designer. The preview and the printed label use the template chosen here.</div>
+    </div>
+}

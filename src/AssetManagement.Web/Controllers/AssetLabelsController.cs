@@ -66,7 +66,11 @@ namespace AssetManagement.Web.Controllers
                 StatusOptions = AssetScanController.BuildStatusOptions(),
                 PurchaseOptions = PurchaseFilterOptions.Build(purchases, initialPurchaseId),
                 InitialPurchaseId = initialPurchaseId,
-                InitialPurchaseLabel = initialPurchase == null ? null : PurchaseFilterOptions.Label(initialPurchase)
+                InitialPurchaseLabel = initialPurchase == null ? null : PurchaseFilterOptions.Label(initialPurchase),
+                // Saved Label designer templates (read-only list; Assets.View is enough to print with one).
+                LabelTemplateOptions = LabelPrintSupport.BuildTemplateOptions(DependencyResolver.Current.GetService<IUnitOfWork>()),
+                // Category > type > sub-type cascade for the candidate filters (this org, active only).
+                ClassificationCatalog = LabelPrintSupport.BuildClassificationCatalog(DependencyResolver.Current.GetService<IUnitOfWork>())
             };
 
             return View(model);

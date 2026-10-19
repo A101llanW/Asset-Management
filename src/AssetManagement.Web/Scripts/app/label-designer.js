@@ -14,8 +14,16 @@
         AssetTag: { label: 'Asset tag', sample: 'AST-1001', fontHeight: 24 },
         AssetName: { label: 'Asset name', sample: 'Sample Laptop', fontHeight: 18 },
         DepartmentName: { label: 'Department', sample: 'IT Department', fontHeight: 14 },
-        SerialNumber: { label: 'Serial number', sample: 'S/N: SN-123456', fontHeight: 14 }
+        SerialNumber: { label: 'Serial number', sample: 'S/N: SN-123456', fontHeight: 14 },
+        // Off by default (existing layouts unchanged). Same ids and defaults as LabelLayoutDesignHelper.
+        CompanyName: { label: 'Company name', sample: 'Your organisation', fontHeight: 14, defaultEnabled: false },
+        CustomText: { label: 'Custom text', sample: 'Custom text', fontHeight: 14, defaultEnabled: false, isBlock: true }
     };
+    var ELEMENT_IDS = ['ScanCode', 'AssetTag', 'AssetName', 'DepartmentName', 'SerialNumber', 'CompanyName', 'CustomText'];
+    // Shared with LabelLayoutDesignHelper (C#): storage cap, char width factor, ^FB line spacing.
+    var CUSTOM_TEXT_MAX_LENGTH = 1000;
+    var CUSTOM_TEXT_CHAR_WIDTH_FACTOR = 0.55;
+    var CUSTOM_TEXT_LINE_SPACING_DOTS = 2;
 
     // rel1009i: real QR size and magnification cap (same as LabelQrSizing.cs). ZPL ^BQN prints magnification
     // dots per module with no quiet zone; modules = 17 + 4 x version, version = smallest QR version whose
@@ -116,11 +124,15 @@
             return { x: textX, y: Math.min(heightMm - MARGIN_MM - 4, MARGIN_MM + 16) };
         }
 
+        if (id === 'CompanyName') {
+            return { x: MARGIN_MM, y: Math.max(MARGIN_MM, heightMm - MARGIN_MM - 3) };
+        }
+
         return { x: textX, y: Math.min(heightMm - MARGIN_MM - 4, MARGIN_MM + 24) };
     }
 
     function normalizeDesign(design, widthMm, heightMm) {
-        var ids = ['ScanCode', 'AssetTag', 'AssetName', 'DepartmentName', 'SerialNumber'];
+        var ids = ELEMENT_IDS;
         var byId = {};
         var i;
 
@@ -131,21 +143,138 @@
         var elements = [];
         for (i = 0; i < ids.length; i++) {
             var id = ids[i];
+            var hasSource = !!byId[id];
             var source = byId[id] || {};
             var fallback = defaultPosition(id, widthMm, heightMm, uiState.qrMagnification);
+            var fieldMeta = FIELD_META[id] || {};
 
-            var fontHeight = parseInt(source.FontHeight, 10) || (FIELD_META[id] ? FIELD_META[id].fontHeight : 0);
+            var fontHeight = parseInt(source.FontHeight, 10) || (fieldMeta.fontHeight || 0);
             var size = elementSizeMm({ Id: id, FontHeight: fontHeight }, uiState.qrMagnification, null);
-            elements.push({
+            var normalized = {
                 Id: id,
-                Enabled: source.Enabled !== false,
+                // Elements missing from an older saved layout use their default (CompanyName/CustomText start off).
+                Enabled: hasSource ? source.Enabled !== false : fieldMeta.defaultEnabled !== false,
                 XMm: clampAxis(toMm(source.XMm, fallback.x), size.w, widthMm),
                 YMm: clampAxis(toMm(source.YMm, fallback.y), size.h, heightMm),
                 FontHeight: fontHeight
-            });
+            };
+            // Keep the free text through every normalise/copy (designer, save, templates).
+            normalized.Text = id === 'CustomText' ? normalizeCustomText(source.Text) : null;
+            elements.push(normalized);
         }
 
         return { Elements: elements };
+    }
+
+    function normalizeCustomText(text) {
+        if (!text) {
+            return '';
+        }
+
+        var cleaned = String(text).replace(/\r\n?/g, '\n').replace(/\t/g, ' ').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '');
+        cleaned = cleaned.replace(/\s+$/, '');
+        if (cleaned.length > CUSTOM_TEXT_MAX_LENGTH) {
+            cleaned = cleaned.substring(0, CUSTOM_TEXT_MAX_LENGTH).replace(/\s+$/, '');
+        }
+
+        return cleaned;
+    }
+
+    // Same word wrap as LabelLayoutDesignHelper.WrapCustomText (C#), so canvas, preview and ZPL agree.
+    function wrapCustomText(element, widthMm, heightMm) {
+        var text = normalizeCustomText(element && element.Text);
+        var font = (element && element.FontHeight > 0) ? element.FontHeight : 14;
+        var x = element ? element.XMm : MARGIN_MM;
+        var y = element ? element.YMm : MARGIN_MM;
+        var blockWidthDots = Math.max(DOTS_PER_MM, Math.floor((widthMm - MARGIN_MM - x) * DOTS_PER_MM));
+        var perLine = Math.max(1, Math.floor(blockWidthDots / Math.max(1, font * CUSTOM_TEXT_CHAR_WIDTH_FACTOR)));
+        var availableDots = (heightMm - MARGIN_MM - y) * DOTS_PER_MM;
+        var maxLines = Math.max(1, Math.min(99, Math.floor((availableDots + CUSTOM_TEXT_LINE_SPACING_DOTS) / (font + CUSTOM_TEXT_LINE_SPACING_DOTS))));
+        var result = { lines: [], totalLines: 0, maxLines: maxLines, overflow: false, words: 0 };
+        if (!text || !text.replace(/\s/g, '')) {
+            return result;
+        }
+
+        var all = [];
+        var paragraphs = text.split('\n');
+        for (var p = 0; p < paragraphs.length; p++) {
+            var words = paragraphs[p].split(' ').filter(function (w) { return w.length > 0; });
+            result.words += words.length;
+            var line = '';
+            for (var i = 0; i < words.length; i++) {
+                var word = words[i];
+                while (word.length > perLine) {
+                    if (line.length > 0) {
+                        all.push(line);
+                        line = '';
+                    }
+
+                    all.push(word.substring(0, perLine));
+                    word = word.substring(perLine);
+                }
+
+                if (line.length === 0) {
+                    line = word;
+                } else if (line.length + 1 + word.length <= perLine) {
+                    line += ' ' + word;
+                } else {
+                    all.push(line);
+                    line = word;
+                }
+            }
+
+            all.push(line);
+        }
+
+        while (all.length && all[all.length - 1].length === 0) {
+            all.pop();
+        }
+
+        result.totalLines = all.length;
+        if (all.length > maxLines) {
+            result.overflow = true;
+            all = all.slice(0, maxLines);
+            var last = all[all.length - 1];
+            if (last.length + 3 > perLine) {
+                last = last.substring(0, Math.max(0, perLine - 3)).replace(/\s+$/, '');
+            }
+
+            all[all.length - 1] = last + '...';
+        }
+
+        result.lines = all;
+        return result;
+    }
+
+    function updateCustomTextStatus(design, dimensions) {
+        var status = document.getElementById('labelCustomTextStatus');
+        if (!status) {
+            return;
+        }
+
+        var element = null;
+        for (var i = 0; i < design.Elements.length; i++) {
+            if (design.Elements[i].Id === 'CustomText') {
+                element = design.Elements[i];
+            }
+        }
+
+        if (!element) {
+            status.textContent = '';
+            return;
+        }
+
+        var wrap = wrapCustomText(element, dimensions.widthMm, dimensions.heightMm);
+        var used = Math.min(wrap.totalLines, wrap.maxLines);
+        var summary = wrap.words + (wrap.words === 1 ? ' word' : ' words') + ' \u00b7 ' + used + ' of ' + wrap.maxLines + ' lines fit here';
+        if (wrap.overflow) {
+            status.className = 'small mt-1 text-danger';
+            status.textContent = summary + '. Too long for this label: ' + (wrap.totalLines - wrap.maxLines) +
+                ' more line(s) will be cut and the last line ends with "...". Shorten the text, use a smaller font, or move the box up/left.';
+        } else {
+            status.className = 'small mt-1 text-muted';
+            status.textContent = summary + '.';
+        }
     }
 
     function toMm(value, fallback) {
@@ -159,6 +288,12 @@
         if (element.Id === 'ScanCode') {
             var qr = estimateQrSizeMm(qrMagnification);
             return { w: qr, h: qr };
+        }
+
+        if (element.Id === 'CustomText') {
+            // Clamp on the first line only (like the server); the wrapped block stops at the label edge itself.
+            var blockFontMm = fontHeightToMm(element.FontHeight || 14);
+            return { w: 4, h: blockFontMm * 1.15 };
         }
 
         if (node && node.offsetWidth) {
@@ -203,7 +338,11 @@
     }
 
     function serializeDesign(design) {
-        return JSON.stringify(design);
+        // Escape < > & so typed custom text never trips ASP.NET request validation (still valid JSON).
+        return JSON.stringify(design)
+            .replace(/</g, '\\u003c')
+            .replace(/>/g, '\\u003e')
+            .replace(/&/g, '\\u0026');
     }
 
     function getDimensions(widthField, heightField) {
@@ -286,8 +425,9 @@
         return fontHeightDots / DOTS_PER_MM;
     }
 
-    function renderFieldControls(fieldsRoot, design, onToggle) {
+    function renderFieldControls(fieldsRoot, design, onToggle, onTextChange) {
         fieldsRoot.innerHTML = '';
+        var customTextElement = null;
         for (var i = 0; i < design.Elements.length; i++) {
             (function (element) {
                 var meta = FIELD_META[element.Id] || { label: element.Id };
@@ -312,7 +452,40 @@
                 wrapper.appendChild(input);
                 wrapper.appendChild(label);
                 fieldsRoot.appendChild(wrapper);
+                if (element.Id === 'CustomText') {
+                    customTextElement = element;
+                }
             })(design.Elements[i]);
+        }
+
+        if (customTextElement && customTextElement.Enabled) {
+            var box = document.createElement('div');
+            box.className = 'am-label-designer-custom-text mt-1 mb-2';
+            var boxLabel = document.createElement('label');
+            boxLabel.className = 'form-label small mb-1';
+            boxLabel.setAttribute('for', 'labelCustomText');
+            boxLabel.textContent = 'Custom text (prints on every label; wraps inside the label)';
+            var area = document.createElement('textarea');
+            area.className = 'form-control form-control-sm';
+            area.id = 'labelCustomText';
+            area.rows = 3;
+            area.maxLength = CUSTOM_TEXT_MAX_LENGTH;
+            area.placeholder = 'e.g. Property of ... If found, call ...';
+            area.value = customTextElement.Text || '';
+            area.addEventListener('input', function () {
+                customTextElement.Text = area.value;
+                if (onTextChange) {
+                    onTextChange();
+                }
+            });
+            var status = document.createElement('div');
+            status.id = 'labelCustomTextStatus';
+            status.className = 'small mt-1 text-muted';
+            status.setAttribute('aria-live', 'polite');
+            box.appendChild(boxLabel);
+            box.appendChild(area);
+            box.appendChild(status);
+            fieldsRoot.appendChild(box);
         }
     }
 
@@ -364,6 +537,27 @@
             node.style.left = element.XMm + 'mm';
             node.style.top = element.YMm + 'mm';
 
+            if (element.Id === 'CustomText') {
+                var wrap = wrapCustomText(element, dimensions.widthMm, dimensions.heightMm);
+                var blockFont = element.FontHeight || metaField.fontHeight || 14;
+                node.className += ' am-label-designer-item--block';
+                node.style.fontSize = fontHeightToMm(blockFont) + 'mm';
+                node.style.lineHeight = ((blockFont + CUSTOM_TEXT_LINE_SPACING_DOTS) / DOTS_PER_MM) + 'mm';
+                node.style.whiteSpace = 'pre';
+                node.textContent = wrap.lines.length ? wrap.lines.join('\n') : 'Custom text (type it above)';
+                if (!wrap.lines.length) {
+                    node.style.opacity = '0.55';
+                }
+                if (wrap.overflow) {
+                    node.style.outline = '1px dashed #dc3545';
+                    node.title = 'Text is too long for the label and will be cut.';
+                }
+
+                bindDrag(node, element, canvas, dimensions);
+                canvas.appendChild(node);
+                continue;
+            }
+
             if (metaField.isCode) {
                 node.className += ' am-label-designer-item--code';
                 var codeHost = document.createElement('div');
@@ -406,6 +600,10 @@
 
         if (elementId === 'SerialNumber') {
             return sampleData.serialNumber || fallback;
+        }
+
+        if (elementId === 'CompanyName') {
+            return sampleData.companyName || fallback;
         }
 
         return fallback;
@@ -759,6 +957,7 @@
             assetName: root.getAttribute('data-sample-name') || 'Sample asset',
             departmentName: root.getAttribute('data-sample-dept') || 'Department',
             serialNumber: 'S/N: ' + (root.getAttribute('data-sample-serial') || 'SN-123456'),
+            companyName: root.getAttribute('data-sample-company') || 'Your organisation',
             // rel1009g: the server builds the scan URL (ExternalBaseUrl + app path + org code); no hard-coded tenant fallback.
             scanUrl: root.getAttribute('data-sample-scan-url') || '',
             barcodePayload: root.getAttribute('data-sample-tag') || 'AST-1001'
@@ -803,9 +1002,18 @@
             var dimensions = getDimensions(widthField, heightField);
             applyQrCap(qrField, dimensions, qrHint);
             design = normalizeDesign(design, dimensions.widthMm, dimensions.heightMm);
-            renderFieldControls(fieldsRoot, design, refresh);
+            renderFieldControls(fieldsRoot, design, refresh, refreshText);
             renderCanvas(scaler, canvas, meta, design, dimensions, sampleData, uiState.qrMagnification);
             jsonField.value = serializeDesign(design);
+            updateCustomTextStatus(design, dimensions);
+        }
+
+        // Typing in the custom text box: redraw the canvas only, so the textarea keeps focus.
+        function refreshText() {
+            var dimensions = getDimensions(widthField, heightField);
+            renderCanvas(scaler, canvas, meta, design, dimensions, sampleData, uiState.qrMagnification);
+            jsonField.value = serializeDesign(design);
+            updateCustomTextStatus(design, dimensions);
         }
 
         widthField.addEventListener('change', refresh);
@@ -872,6 +1080,8 @@
         maxQrMagnification: maxQrMagnification,
         marginMm: MARGIN_MM,
         clampAxis: clampAxis,
-        normalizeDesign: normalizeDesign
+        normalizeDesign: normalizeDesign,
+        wrapCustomText: wrapCustomText,
+        serializeDesign: serializeDesign
     };
 })(window);

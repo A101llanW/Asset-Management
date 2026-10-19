@@ -20,6 +20,32 @@
         return (root || document).querySelector('[data-am-asset-label-code-type]');
     }
 
+    // Saved-template picker ("" = active layout). In the asset details modal it sits next to the sheet,
+    // so look in the root, then its modal, then the page.
+    function getTemplateSelector(root) {
+        var scope = root || document;
+        var node = scope.querySelector ? scope.querySelector('[data-am-asset-label-template]') : null;
+        if (!node && scope.closest) {
+            var modal = scope.closest('.modal');
+            node = modal ? modal.querySelector('[data-am-asset-label-template]') : null;
+        }
+
+        return node || document.querySelector('[data-am-asset-label-template]');
+    }
+
+    function getSelectedTemplateId(root) {
+        var selector = getTemplateSelector(root);
+        return selector && selector.value ? selector.value : '';
+    }
+
+    function withTemplateId(url, templateId) {
+        if (!url || !templateId) {
+            return url;
+        }
+
+        return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'templateId=' + encodeURIComponent(templateId);
+    }
+
     function fetchJson(url) {
         return fetch(url, { credentials: 'same-origin' }).then(function (response) {
             if (!response.ok) {
@@ -36,7 +62,8 @@
             departmentName: shell.getAttribute('data-department-name') || '',
             serialNumber: shell.getAttribute('data-serial-number') || '',
             scanUrl: shell.getAttribute('data-scan-url') || '',
-            barcodePayload: shell.getAttribute('data-barcode-payload') || shell.getAttribute('data-asset-tag') || ''
+            barcodePayload: shell.getAttribute('data-barcode-payload') || shell.getAttribute('data-asset-tag') || '',
+            companyName: shell.getAttribute('data-company-name') || ''
         };
     }
 
@@ -59,6 +86,10 @@
             }
 
             return data.serialNumber.indexOf('S/N:') === 0 ? data.serialNumber : 'S/N: ' + data.serialNumber;
+        }
+
+        if (elementId === 'CompanyName') {
+            return data.companyName;
         }
 
         return '';
@@ -141,6 +172,23 @@
             field.className = 'am-asset-label-field';
             field.style.left = element.XMm + 'mm';
             field.style.top = element.YMm + 'mm';
+
+            if (element.Id === 'CustomText') {
+                // Server-wrapped lines (LabelLayoutDesignHelper.WrapCustomText): same lines the ZPL prints.
+                var lines = config.customTextLines || [];
+                if (!lines.length) {
+                    continue;
+                }
+
+                var blockFont = element.FontHeight || 14;
+                field.className += ' am-asset-label-field--block';
+                field.textContent = lines.join('\n');
+                field.style.whiteSpace = 'pre';
+                field.style.fontSize = fontHeightToMm(blockFont, 1.75) + 'mm';
+                field.style.lineHeight = ((blockFont + 2) / DOTS_PER_MM) + 'mm';
+                root.appendChild(field);
+                continue;
+            }
 
             if (element.Id === 'ScanCode') {
                 field.className += ' am-asset-label-field--code';
@@ -268,13 +316,33 @@
             return;
         }
 
-        fetchJson(configUrl).then(function (config) {
-            renderScope(sheet, config);
-            bindCodeTypeSelector(sheet, config);
-        }).catch(function () {
-            renderScope(sheet, null);
-            bindCodeTypeSelector(sheet, null);
-        });
+        var state = { config: null };
+        function load() {
+            fetchJson(withTemplateId(configUrl, getSelectedTemplateId(sheet))).then(function (config) {
+                state.config = config;
+                renderScope(sheet, config);
+            }).catch(function () {
+                state.config = null;
+                renderScope(sheet, null);
+            });
+        }
+
+        // Code type re-renders with the config of the template currently chosen.
+        var codeSelector = getCodeTypeSelector(sheet);
+        if (codeSelector && codeSelector.getAttribute('data-am-asset-label-code-type-bound') !== 'true') {
+            codeSelector.setAttribute('data-am-asset-label-code-type-bound', 'true');
+            codeSelector.addEventListener('change', function () {
+                renderScope(sheet, state.config);
+            });
+        }
+
+        var templateSelector = getTemplateSelector(sheet);
+        if (templateSelector && templateSelector.getAttribute('data-am-asset-label-template-bound') !== 'true') {
+            templateSelector.setAttribute('data-am-asset-label-template-bound', 'true');
+            templateSelector.addEventListener('change', load);
+        }
+
+        load();
     }
 
     function printLabel() {
@@ -313,7 +381,9 @@
         print: printLabel,
         initModal: initModal,
         initSheet: initSheet,
-        getSelectedCodeType: getSelectedCodeType
+        getSelectedCodeType: getSelectedCodeType,
+        getSelectedTemplateId: getSelectedTemplateId,
+        withTemplateId: withTemplateId
     };
 
     if (document.readyState === 'loading') {

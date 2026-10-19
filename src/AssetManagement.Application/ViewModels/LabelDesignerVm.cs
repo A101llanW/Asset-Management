@@ -17,6 +17,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string SampleSerialNumber { get; set; } = "SN-123456";
 
+        /// <summary>Current organisation name shown for the Company name element.</summary>
+        public string SampleCompanyName { get; set; } = "Your organisation";
+
         public string LayoutTemplatesJson { get; set; } = "[]";
 
         /// <summary>Configured ExternalBaseUrl (PlatformSettingsService.GetExternalBaseUrl) for the sample scan URL.</summary>
