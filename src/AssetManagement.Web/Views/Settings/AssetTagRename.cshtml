@@ -1,6 +1,17 @@
-﻿@model AssetManagement.Web.ViewModels.AssetTagRenameVm
+@model AssetManagement.Web.ViewModels.AssetTagRenameVm
 @{
     ViewBag.Title = "Rename existing asset tags";
+    var levelVm = new AssetManagement.Web.ViewModels.AssetTagLevelPreviewVm
+    {
+        FormId = "renameScopeForm",
+        DepartmentPrefix = Model.DepartmentPrefix,
+        SubDepartmentPrefix = Model.SubDepartmentPrefix,
+        RoomPrefix = Model.RoomPrefix,
+        ExcludedCodes = Model.ExcludedCodes,
+        Previewed = Model.Previewed,
+        NextTag = Model.NextTagExample,
+        Codes = Model.LevelCodes
+    };
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -41,8 +52,9 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <button type="submit" class="btn btn-outline-primary w-100" id="renamePreviewBtn">Preview</button>
+                <button type="submit" class="btn btn-outline-primary w-100" id="renamePreviewBtn">Preview next tag</button>
             </div>
+            @Html.Partial("_AssetTagLevelPreview", levelVm, new ViewDataDictionary { { "part", "boxes" } })
         }
     </div>
 </div>
@@ -52,6 +64,7 @@
     <div class="card mb-3">
         <div class="card-header">2. Preview: @Model.ScopeLabel</div>
         <div class="card-body">
+            @Html.Partial("_AssetTagLevelPreview", levelVm, new ViewDataDictionary { { "part", "columns" } })
             <p class="mb-2" id="renameSummary">
                 @Model.Items.Count tag(s) will change. @Model.AlreadyConformingCount of @Model.CandidateCount asset(s) already use the right format and are left alone.
             </p>
@@ -78,6 +91,10 @@
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="scopeDepartmentId" value="@Model.ScopeDepartmentId" />
                     <input type="hidden" name="planFingerprint" value="@Model.PlanFingerprint" />
+                    <input type="hidden" name="departmentPrefix" value="@Model.DepartmentPrefix" />
+                    <input type="hidden" name="subDepartmentPrefix" value="@Model.SubDepartmentPrefix" />
+                    <input type="hidden" name="roomPrefix" value="@Model.RoomPrefix" />
+                    <input type="hidden" name="excludedCodes" value="@Model.ExcludedCodes" />
                     <button type="submit" class="btn btn-primary" id="renameApplyBtn" onclick="return confirm('Rename @Model.Items.Count asset tag(s) now? You can undo this batch later.');">Apply @Model.Items.Count rename(s)</button>
                 }
             }

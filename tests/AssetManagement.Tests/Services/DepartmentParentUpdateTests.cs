@@ -13,7 +13,7 @@ namespace AssetManagement.Tests.Services
     public class DepartmentParentUpdateTests
     {
         [Test]
-        public void Update_ConvertsLeafAdminToRoomAndSetsParent()
+        public void Update_RejectsParentOnAdministrativeDepartment()
         {
             var unitOfWork = new FakeUnitOfWork();
             unitOfWork.Seed(new Department
@@ -41,7 +41,8 @@ namespace AssetManagement.Tests.Services
                 new FakeReferenceDataCache(),
                 new FakeOrganizationScopeService());
 
-            service.Update(new DepartmentVm
+            // Current behaviour: strict hierarchy validation, no silent conversion of an admin department into a room.
+            var ex = Assert.Throws<BusinessException>(() => service.Update(new DepartmentVm
             {
                 Id = 2,
                 Name = "Dining",
@@ -51,14 +52,12 @@ namespace AssetManagement.Tests.Services
                 IsRequisitionTarget = true,
                 IsActive = true,
                 RequisitionFlowMode = RequisitionFlowMode.InheritParent
-            });
+            }));
 
+            Assert.AreEqual("Administrative departments must be top-level (no parent department).", ex.Message);
             var dining = unitOfWork.Repository<Department>().GetById(2);
-            var support = unitOfWork.Repository<Department>().GetById(1);
-            Assert.AreEqual(DepartmentKind.Room, dining.DepartmentKind);
-            Assert.AreEqual(1, dining.ParentDepartmentId);
-            Assert.IsTrue(dining.IsRequisitionTarget);
-            Assert.IsFalse(support.IsRequisitionTarget);
+            Assert.AreEqual(DepartmentKind.Administrative, dining.DepartmentKind);
+            Assert.IsFalse(dining.ParentDepartmentId.HasValue);
         }
 
         [Test]
@@ -115,7 +114,7 @@ namespace AssetManagement.Tests.Services
         }
 
         [Test]
-        public void Update_IgnoresParentChangeForGrade()
+        public void Update_RejectsParentOnGrade()
         {
             var unitOfWork = new FakeUnitOfWork();
             unitOfWork.Seed(new Department
@@ -134,7 +133,7 @@ namespace AssetManagement.Tests.Services
                 new FakeReferenceDataCache(),
                 new FakeOrganizationScopeService());
 
-            service.Update(new DepartmentVm
+            var ex = Assert.Throws<BusinessException>(() => service.Update(new DepartmentVm
             {
                 Id = 10,
                 Name = "Grade 2",
@@ -143,8 +142,9 @@ namespace AssetManagement.Tests.Services
                 ParentDepartmentId = 99,
                 IsRequisitionTarget = true,
                 IsActive = true
-            });
+            }));
 
+            Assert.AreEqual("Grade departments cannot have a parent department.", ex.Message);
             var grade = unitOfWork.Repository<Department>().GetById(10);
             Assert.IsFalse(grade.ParentDepartmentId.HasValue);
             Assert.IsFalse(grade.IsRequisitionTarget);

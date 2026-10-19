@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
@@ -23,7 +23,7 @@ namespace AssetManagement.Web.Controllers
         private const int RenamePreviewRows = 500;
 
         [HttpGet]
-        public ActionResult AssetTagRename(int? scopeDepartmentId, bool preview = false, int? batchId = null)
+        public ActionResult AssetTagRename(int? scopeDepartmentId, bool preview = false, int? batchId = null, string departmentPrefix = null, string subDepartmentPrefix = null, string roomPrefix = null, string excludedCodes = null)
         {
             var organizationId = ResolveCurrentOrganizationId();
             var store = DependencyResolver.Current.GetService<IAssetTagRenameStore>();
@@ -34,7 +34,8 @@ namespace AssetManagement.Web.Controllers
             }
 
             string error;
-            var model = BuildRenameModel(organizationId.Value, store, scopeDepartmentId, preview, out error);
+            var levels = MakeLevelOptions(departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes);
+            var model = BuildRenameModel(organizationId.Value, store, scopeDepartmentId, preview, levels, out error);
             if (error != null)
             {
                 return HttpNotFound();
@@ -51,7 +52,7 @@ namespace AssetManagement.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult AssetTagRenameApply(int? scopeDepartmentId, string planFingerprint)
+        public ActionResult AssetTagRenameApply(int? scopeDepartmentId, string planFingerprint, string departmentPrefix = null, string subDepartmentPrefix = null, string roomPrefix = null, string excludedCodes = null)
         {
             var organizationId = ResolveCurrentOrganizationId();
             var store = DependencyResolver.Current.GetService<IAssetTagRenameStore>();
@@ -63,7 +64,8 @@ namespace AssetManagement.Web.Controllers
             string error;
             List<AssetTagRenamePlanItem> plan;
             string scopeLabel;
-            if (!TryBuildRenamePlan(organizationId.Value, store, scopeDepartmentId, out plan, out scopeLabel, out error))
+            var levels = MakeLevelOptions(departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes);
+            if (!TryBuildRenamePlan(organizationId.Value, store, scopeDepartmentId, levels, out plan, out scopeLabel, out error))
             {
                 return HttpNotFound();
             }
@@ -77,13 +79,13 @@ namespace AssetManagement.Web.Controllers
             if (plan.Count > AssetTagRenamePlanner.MaxBatchSize)
             {
                 TempData["ErrorMessage"] = "This scope has " + plan.Count + " tags to rename. Pick a smaller department (max " + AssetTagRenamePlanner.MaxBatchSize + " per batch).";
-                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true });
+                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true, departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes });
             }
 
             if (!string.Equals(Fingerprint(plan), planFingerprint, StringComparison.Ordinal))
             {
                 TempData["ErrorMessage"] = "Assets in this scope changed since the preview. Nothing was renamed. Check the new preview and apply again.";
-                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true });
+                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true, departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes });
             }
 
             AssetTagRenameOutcome outcome;
@@ -94,13 +96,13 @@ namespace AssetManagement.Web.Controllers
             catch (InvalidOperationException ex)
             {
                 TempData["ErrorMessage"] = ex.Message;
-                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true });
+                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true, departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes });
             }
 
             if (!outcome.Success)
             {
                 TempData["ErrorMessage"] = outcome.Message;
-                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true });
+                return RedirectToAction("AssetTagRename", new { scopeDepartmentId, preview = true, departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes });
             }
 
             AuditWriter.Write(
@@ -153,7 +155,7 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("AssetTagRename", new { batchId });
         }
 
-        private AssetTagRenameVm BuildRenameModel(int organizationId, IAssetTagRenameStore store, int? scopeDepartmentId, bool preview, out string error)
+        private AssetTagRenameVm BuildRenameModel(int organizationId, IAssetTagRenameStore store, int? scopeDepartmentId, bool preview, AssetTagRenamePlanner.LevelOptions levels, out string error)
         {
             var departments = UnitOfWork.Repository<Department>().GetAll().ToList();
             var byId = departments.ToDictionary(x => x.Id);
@@ -171,7 +173,11 @@ namespace AssetManagement.Web.Controllers
                 ScopeDepartmentId = scopeDepartmentId,
                 ScopeLabel = scopeDepartmentId.HasValue ? DepartmentPath(scopeDepartmentId.Value, byId) : "Whole organisation",
                 StructuredTagsEnabled = AssetTagPrefixResolver.IsEnabled(settings),
-                Batches = store.GetBatches(organizationId, 25).ToList()
+                Batches = store.GetBatches(organizationId, 25).ToList(),
+                DepartmentPrefix = levels.DepartmentOverride,
+                SubDepartmentPrefix = levels.SubDepartmentOverride,
+                RoomPrefix = levels.RoomOverride,
+                ExcludedCodes = string.Join(",", levels.ExcludedDepartmentIds.OrderBy(x => x))
             };
             model.ScopeOptions = departments.Where(x => x.IsActive)
                 .Select(x => new KeyValuePair<int, string>(x.Id, DepartmentPath(x.Id, byId)))
@@ -183,7 +189,10 @@ namespace AssetManagement.Web.Controllers
                 List<AssetTagRenamePlanItem> plan;
                 string label;
                 int candidates;
-                TryBuildRenamePlan(organizationId, store, scopeDepartmentId, out plan, out label, out error, out candidates);
+                List<AssetTagRenamePlanner.LevelCode> levelCodes;
+                TryBuildRenamePlan(organizationId, store, scopeDepartmentId, levels, out plan, out label, out error, out candidates, out levelCodes);
+                model.LevelCodes = levelCodes;
+                model.NextTagExample = plan.Count > 0 ? plan[0].NewTag : null;
                 model.Previewed = true;
                 model.CandidateCount = candidates;
                 model.AlreadyConformingCount = candidates - plan.Count;
@@ -195,15 +204,17 @@ namespace AssetManagement.Web.Controllers
             return model;
         }
 
-        private bool TryBuildRenamePlan(int organizationId, IAssetTagRenameStore store, int? scopeDepartmentId, out List<AssetTagRenamePlanItem> plan, out string scopeLabel, out string error)
+        private bool TryBuildRenamePlan(int organizationId, IAssetTagRenameStore store, int? scopeDepartmentId, AssetTagRenamePlanner.LevelOptions levels, out List<AssetTagRenamePlanItem> plan, out string scopeLabel, out string error)
         {
             int candidates;
-            return TryBuildRenamePlan(organizationId, store, scopeDepartmentId, out plan, out scopeLabel, out error, out candidates);
+            List<AssetTagRenamePlanner.LevelCode> levelCodes;
+            return TryBuildRenamePlan(organizationId, store, scopeDepartmentId, levels, out plan, out scopeLabel, out error, out candidates, out levelCodes);
         }
 
-        private bool TryBuildRenamePlan(int organizationId, IAssetTagRenameStore store, int? scopeDepartmentId, out List<AssetTagRenamePlanItem> plan, out string scopeLabel, out string error, out int candidateCount)
+        private bool TryBuildRenamePlan(int organizationId, IAssetTagRenameStore store, int? scopeDepartmentId, AssetTagRenamePlanner.LevelOptions levels, out List<AssetTagRenamePlanItem> plan, out string scopeLabel, out string error, out int candidateCount, out List<AssetTagRenamePlanner.LevelCode> levelCodes)
         {
             plan = new List<AssetTagRenamePlanItem>();
+            levelCodes = new List<AssetTagRenamePlanner.LevelCode>();
             candidateCount = 0;
             error = null;
             var departments = UnitOfWork.Repository<Department>().GetAll().ToList(); // tenant-scoped
@@ -227,8 +238,29 @@ namespace AssetManagement.Web.Controllers
                 byId,
                 AssetTagPrefixResolver.GetTenantPrefix(settings),
                 prefix => store.PeekNext(organizationId, prefix),
-                prefix => store.GetTakenTags(organizationId, prefix));
+                prefix => store.GetTakenTags(organizationId, prefix),
+                levels);
+            levelCodes = AssetTagRenamePlanner.GetLevelCodes(candidates, byId, levels);
             return true;
+        }
+
+        /// <summary>Builds the three-level options from the page boxes and the unticked code ids.</summary>
+        private static AssetTagRenamePlanner.LevelOptions MakeLevelOptions(string departmentPrefix, string subDepartmentPrefix, string roomPrefix, string excludedCodes)
+        {
+            var excluded = new HashSet<int>();
+            foreach (var part in (excludedCodes ?? string.Empty).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int id;
+                if (int.TryParse(part.Trim(), out id)) { excluded.Add(id); }
+            }
+
+            return new AssetTagRenamePlanner.LevelOptions
+            {
+                DepartmentOverride = AssetTagPrefixResolver.NormalizePrefix(departmentPrefix),
+                SubDepartmentOverride = AssetTagPrefixResolver.NormalizePrefix(subDepartmentPrefix),
+                RoomOverride = AssetTagPrefixResolver.NormalizePrefix(roomPrefix),
+                ExcludedDepartmentIds = excluded
+            };
         }
 
         private static string DepartmentPath(int id, IDictionary<int, Department> byId)

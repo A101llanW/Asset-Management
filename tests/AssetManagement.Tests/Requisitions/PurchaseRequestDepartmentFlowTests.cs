@@ -1,3 +1,4 @@
+using System.Linq;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Services;
 using AssetManagement.Application.ViewModels;
@@ -121,7 +122,7 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void PurchaseRequestService_Submit_AllowsChildTarget_UnderHomeDepartmentBranch()
+        public void PurchaseRequestService_Submit_RefusesChildTarget_UnderHomeDepartmentBranch()
         {
             var unitOfWork = new FakeUnitOfWork();
             unitOfWork.Seed(new Department
@@ -160,16 +161,19 @@ namespace AssetManagement.Tests.Requisitions
                 new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
                 new FakeOperationsQueryRepository());
 
-            var id = service.Submit(new PurchaseRequestCreateVm
+            // Current behaviour (DepartmentScopeService.EnsureCanCreateForRequisitionTarget): a department-scoped user
+            // without Purchases.CreateForAnyDepartment may only target their own department, not a child of it.
+            var ex = Assert.Throws<BusinessException>(() => service.Submit(new PurchaseRequestCreateVm
             {
                 DepartmentId = 118,
                 ItemDescription = "Shelves",
                 Justification = "Library shelves",
                 Quantity = 1,
                 Currency = "KES"
-            }, "dept-user");
+            }, "dept-user"));
 
-            Assert.AreEqual(118, unitOfWork.Repository<PurchaseRequest>().GetById(id).DepartmentId);
+            Assert.AreEqual("This department is outside your scope. Only administrators can access it.", ex.Message);
+            Assert.AreEqual(0, unitOfWork.Repository<PurchaseRequest>().GetAll().Count());
         }
 
         [Test]

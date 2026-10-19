@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using AssetManagement.Application.DTOs;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -36,16 +37,11 @@ namespace AssetManagement.Tests.Assets
                 unitOfWork,
                 authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
 
-            service.RelocateToClassDepartment(1, 2, ActorUserId);
-
-            var asset = unitOfWork.Repository<Asset>().GetById(1);
-            Assert.AreEqual(2, asset.DepartmentId);
-
-            var events = unitOfWork.Repository<AssetCustodyEvent>().GetAll().ToList();
-            Assert.AreEqual(1, events.Count);
-            Assert.AreEqual(CustodyActionType.Transferred, events[0].ActionType);
-            Assert.AreEqual(1, events[0].FromDepartmentId);
-            Assert.AreEqual(2, events[0].ToDepartmentId);
+            // Allan's move rule (2026-10-09, kept 2026-10-19): assets never move INTO a class. Permission passes; the rule refuses.
+            var ex = Assert.Throws<BusinessException>(() => service.RelocateToClassDepartment(1, 2, ActorUserId));
+            Assert.AreEqual(AssetMoveRules.RefusedMessage, ex.Message);
+            Assert.AreEqual(1, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+            Assert.AreEqual(0, unitOfWork.Repository<AssetCustodyEvent>().GetAll().Count());
         }
 
         [Test]
@@ -57,9 +53,10 @@ namespace AssetManagement.Tests.Assets
                 departmentScope: new StrictDepartmentScopeService(1),
                 authorization: new FixedPermissionAuthorizationService("Assets.Transfer"));
 
-            service.RelocateToClassDepartment(1, 2, ActorUserId);
-
-            Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+            // Transfer permission still bypasses department scope (no 'outside your scope' error); the class-move rule then refuses.
+            var ex = Assert.Throws<BusinessException>(() => service.RelocateToClassDepartment(1, 2, ActorUserId));
+            Assert.AreEqual(AssetMoveRules.RefusedMessage, ex.Message);
+            Assert.AreEqual(1, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
         }
 
         [Test]

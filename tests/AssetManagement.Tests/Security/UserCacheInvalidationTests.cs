@@ -83,7 +83,7 @@ namespace AssetManagement.Tests.Security
         [Test]
         public void AssignRole_InvalidatesUserDropdownCache()
         {
-            var user = new ApplicationUser { Id = "target", RoleId = 2, IsActive = true, OrganizationId = 23 };
+            var user = new ApplicationUser { Id = "target", RoleId = 2, IsActive = true, OrganizationId = 23, DepartmentId = 10 };
             var role = new Role { Id = 145, Name = "Staff", IsSystemRole = false, IsActive = true, OrganizationId = 23 };
 
             var userWriter = new Mock<IEntityWriter<ApplicationUser>>();

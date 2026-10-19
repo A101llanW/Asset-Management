@@ -14,9 +14,9 @@ namespace AssetManagement.Tests.Departments
         {
             var flat = new List<DepartmentVm>
             {
-                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", DepartmentKind = DepartmentKind.Administrative },
-                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
-                new DepartmentVm { Id = 3, Code = "IT-STORE", Name = "Store", DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 1 }
+                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", IsActive = true, DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", IsActive = true, DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
+                new DepartmentVm { Id = 3, Code = "IT-STORE", Name = "Store", IsActive = true, DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 1 }
             };
 
             var room = flat[2];
@@ -31,9 +31,9 @@ namespace AssetManagement.Tests.Departments
         {
             var flat = new List<DepartmentVm>
             {
-                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", DepartmentKind = DepartmentKind.Administrative },
-                new DepartmentVm { Id = 2, Code = "R1", Name = "Room 1", DepartmentKind = DepartmentKind.Room },
-                new DepartmentVm { Id = 3, Code = "R2", Name = "Room 2", DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 2 }
+                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", IsActive = true, DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 2, Code = "R1", Name = "Room 1", IsActive = true, DepartmentKind = DepartmentKind.Room },
+                new DepartmentVm { Id = 3, Code = "R2", Name = "Room 2", IsActive = true, DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 2 }
             };
 
             var candidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(flat[2], flat);
@@ -45,10 +45,10 @@ namespace AssetManagement.Tests.Departments
         {
             var flat = new List<DepartmentVm>
             {
-                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", DepartmentKind = DepartmentKind.Administrative },
-                new DepartmentVm { Id = 1, Code = "IT", Name = "Information Technology", DepartmentKind = DepartmentKind.Administrative },
-                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
-                new DepartmentVm { Id = 3, Code = "R1", Name = "Room", DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 2 }
+                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", IsActive = true, DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 1, Code = "IT", Name = "Information Technology", IsActive = true, DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", IsActive = true, DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
+                new DepartmentVm { Id = 3, Code = "R1", Name = "Room", IsActive = true, DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 2 }
             };
 
             var candidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(flat[3], flat);
@@ -60,10 +60,10 @@ namespace AssetManagement.Tests.Departments
         {
             var flat = new List<DepartmentVm>
             {
-                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", DepartmentKind = DepartmentKind.Administrative },
-                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
-                new DepartmentVm { Id = 3, Code = "R1", Name = "Room", DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 1 },
-                new DepartmentVm { Id = 4, Code = "G1", Name = "Grade 1", DepartmentKind = DepartmentKind.Grade }
+                new DepartmentVm { Id = 1, Code = "IT", Name = "IT", IsActive = true, DepartmentKind = DepartmentKind.Administrative },
+                new DepartmentVm { Id = 2, Code = "IT-LAB", Name = "Lab", IsActive = true, DepartmentKind = DepartmentKind.SubDepartment, ParentDepartmentId = 1 },
+                new DepartmentVm { Id = 3, Code = "R1", Name = "Room", IsActive = true, DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 1 },
+                new DepartmentVm { Id = 4, Code = "G1", Name = "Grade 1", IsActive = true, DepartmentKind = DepartmentKind.Grade }
             };
 
             var groups = DepartmentRoomParentCandidates.BuildOtherParentPickerGroups(flat);

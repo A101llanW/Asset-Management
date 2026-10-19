@@ -67,9 +67,9 @@ namespace AssetManagement.Tests.Helpers
 #endif
 
         [Test]
-        public void DisplayLabel_SubDepartment()
+        public void DisplayLabel_SubDepartment_IsSubUnit()
         {
-            Assert.AreEqual("Sub-department", DepartmentHierarchyRules.DisplayLabel(DepartmentKind.SubDepartment));
+            Assert.AreEqual("Sub-unit", DepartmentHierarchyRules.DisplayLabel(DepartmentKind.SubDepartment));
         }
 
     }

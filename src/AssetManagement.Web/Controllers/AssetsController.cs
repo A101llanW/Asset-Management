@@ -1290,11 +1290,11 @@ namespace AssetManagement.Web.Controllers
             }
         }
 
-        // Departments whose assets may be moved to a room (room, sub-department, class).
+        // Departments whose assets may be moved to a room (room, sub-department, class, top-level Administration).
         private HashSet<int> GetMoveToRoomSourceDepartmentIds()
         {
             return new HashSet<int>(UnitOfWork.Repository<Department>().GetAll()
-                .Where(x => x.IsActive && AssetMoveRules.CanMoveToRoomFrom(x.DepartmentKind))
+                .Where(x => x.IsActive && AssetMoveRules.CanMoveToRoomFrom(x.DepartmentKind, AssetMoveRules.IsAdministrationRoot(x)))
                 .Select(x => x.Id));
         }
 

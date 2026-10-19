@@ -18,7 +18,10 @@ namespace AssetManagement.Tests
         public void Execute_WithoutPermission_Throws()
         {
             var asset = new Asset { Id = 1, AssetTag = "TAG-1", IsActive = true, CurrentStatus = AssetStatus.InStore };
-            var unitOfWork = new Mock<IUnitOfWork>();
+            var unitOfWork = new Mock<IUnitOfWork> { DefaultValue = DefaultValue.Mock };
+            var departmentRepo = new Mock<IRepository<Department>>();
+            departmentRepo.Setup(x => x.GetById(It.IsAny<int>())).Returns((int id) => new Department { Id = id, Name = "Room " + id, DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 100, IsActive = true });
+            unitOfWork.Setup(x => x.Repository<Department>()).Returns(departmentRepo.Object);
             var assetRepo = new Mock<IRepository<Asset>>();
             assetRepo.Setup(x => x.GetById(1)).Returns(asset);
             unitOfWork.Setup(x => x.Repository<Asset>()).Returns(assetRepo.Object);
@@ -46,7 +49,10 @@ namespace AssetManagement.Tests
         public void Execute_ChangeDepartment_WithPermission_Processes()
         {
             var asset = new Asset { Id = 1, AssetTag = "TAG-1", IsActive = true, CurrentStatus = AssetStatus.InStore, DepartmentId = 1 };
-            var unitOfWork = new Mock<IUnitOfWork>();
+            var unitOfWork = new Mock<IUnitOfWork> { DefaultValue = DefaultValue.Mock };
+            var departmentRepo = new Mock<IRepository<Department>>();
+            departmentRepo.Setup(x => x.GetById(It.IsAny<int>())).Returns((int id) => new Department { Id = id, Name = "Room " + id, DepartmentKind = DepartmentKind.Room, ParentDepartmentId = 100, IsActive = true });
+            unitOfWork.Setup(x => x.Repository<Department>()).Returns(departmentRepo.Object);
             var assetRepo = new Mock<IRepository<Asset>>();
             assetRepo.Setup(x => x.GetById(1)).Returns(asset);
             unitOfWork.Setup(x => x.Repository<Asset>()).Returns(assetRepo.Object);

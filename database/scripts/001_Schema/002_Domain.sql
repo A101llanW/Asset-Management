@@ -717,7 +717,7 @@ BEGIN
         [ActorUserId] NVARCHAR(128) NULL,
         [Action] NVARCHAR(200) NULL,
         [EntityType] NVARCHAR(100) NULL,
-        [EntityId] NVARCHAR(100) NULL,
+        [EntityId] NVARCHAR(450) NULL,
         [OldValues] NVARCHAR(MAX) NULL,
         [NewValues] NVARCHAR(MAX) NULL,
         [Timestamp] DATETIME NOT NULL,

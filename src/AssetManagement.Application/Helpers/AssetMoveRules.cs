@@ -1,4 +1,6 @@
 using AssetManagement.Application.DTOs;
+using System;
+using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Helpers
@@ -12,7 +14,7 @@ namespace AssetManagement.Application.Helpers
     public static class AssetMoveRules
     {
         public const string RefusedMessage =
-            "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, or from a class to a room.";
+            "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, from a class to a room, or from the Administration department itself (not a room or sub-department under it) to a room.";
 
         public static bool IsAllowed(DepartmentKind? fromKind, DepartmentKind toKind)
         {
@@ -30,6 +32,29 @@ namespace AssetManagement.Application.Helpers
                     return toKind == DepartmentKind.Room;
                 default:
                     return false;
+            }
+        }
+
+        /// <summary>
+        /// Allan, 2026-10-19 (narrowed): also allow a move into a room when the asset sits directly in the
+        /// organisation's top-level Administration department (see IsAdministrationRoot). Other top-level
+        /// departments (grades, academics, ...) cannot move assets into rooms. All other rules are unchanged.
+        /// </summary>
+        public static bool IsAllowed(DepartmentKind? fromKind, bool fromIsAdministrationRoot, DepartmentKind toKind)
+        {
+            if (IsAllowed(fromKind, toKind))
+            {
+                return true;
+            }
+
+            return fromKind.HasValue && fromIsAdministrationRoot && toKind == DepartmentKind.Room;
+        }
+
+        public static void Ensure(DepartmentKind? fromKind, bool fromIsAdministrationRoot, DepartmentKind toKind)
+        {
+            if (!IsAllowed(fromKind, fromIsAdministrationRoot, toKind))
+            {
+                throw new BusinessException(RefusedMessage);
             }
         }
 
@@ -79,6 +104,26 @@ namespace AssetManagement.Application.Helpers
         public static bool CanMoveToRoomFrom(DepartmentKind? fromKind)
         {
             return IsAllowed(fromKind, DepartmentKind.Room);
+        }
+
+        public static bool CanMoveToRoomFrom(DepartmentKind? fromKind, bool fromIsAdministrationRoot)
+        {
+            return IsAllowed(fromKind, fromIsAdministrationRoot, DepartmentKind.Room);
+        }
+
+        public const string AdministrationDepartmentName = "Administration";
+
+        /// <summary>
+        /// True for an organisation's top-level Administration department: no parent, name "Administration"
+        /// (trimmed, case-insensitive). Matched by name, not Id, so it works in every organisation and database
+        /// (live NIS Id 1493 is not hard-coded). Rooms/sub-departments under it are NOT matched.
+        /// </summary>
+        public static bool IsAdministrationRoot(Department department)
+        {
+            return department != null
+                && !department.ParentDepartmentId.HasValue
+                && department.Name != null
+                && string.Equals(department.Name.Trim(), AdministrationDepartmentName, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace AssetManagement.Web.ViewModels
 {
@@ -7,6 +7,9 @@ namespace AssetManagement.Web.ViewModels
         public bool Enabled { get; set; } = true;
         public string TenantPrefix { get; set; }
         public List<AssetTagOverrideRowVm> Rows { get; set; } = new List<AssetTagOverrideRowVm>();
+        /// <summary>Three-level prefix preview (read-only; does not change the saved settings).</summary>
+        public int? LevelScopeId { get; set; }
+        public AssetTagLevelPreviewVm Level { get; set; } = new AssetTagLevelPreviewVm { FormId = "levelPreviewForm", CountLabel = "unit(s)" };
     }
 
     public class AssetTagOverrideRowVm

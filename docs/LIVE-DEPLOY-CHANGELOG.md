@@ -1,4 +1,4 @@
-﻿# LIVE DEPLOY CHANGELOG
+# LIVE DEPLOY CHANGELOG
 
 ## Standing rule
 
@@ -9,6 +9,16 @@ Every change must be recorded here so it can be applied to live later. **One ent
 
 **Required fields per entry:** Date/time EAT Â· What and why Â· Commit hash Â· Files changed Â· DB migration/script Â· Config/Web.config keys Â· IIS/server steps (local) Â· Live-deploy steps Â· Verify Â· Rollback
 
+## 2026-10-17 08:06 - Classes-to-rooms merged onto rel1014a (rel1016a, `e798780`, branch `rel1016a-c2r`) - PUBLISHED (local IIS :8080 2026-10-17 08:06:24 EAT)
+
+- **Published:** 2026-10-17 08:06:24 EAT. Allan approved in chat 08:03 EAT ("Yes, send the prompt now"); launcher fired once, UAC accepted 08:06:32. Live Web.dll was 560F9071...82DF (uncommitted Oct 15 13:25 rel1009i-based c2r build), now 6050F3F98E40DEFC10416AA342F502DB83C7620DDB66518FDD5A98B2D336B214 (Application 15A91B0A, Infrastructure E9114D67, Domain 65BB6745). Restores tag prefix (rel1013a), tag rename (rel1013b), bulk print (rel1014a), catalog pickers; adds classes-to-rooms.
+- **Copy mode:** add/overwrite only, no deletes. 292 files copied, 0 hash mismatches. Skipped: every Web.config, secrets, `bin\AssetManagement.Web.dll.config`, STAGED_README.txt, Convert-ClassesToRooms.ps1, _Common.ps1. Web.config unchanged 27426D6E...D4D3; smtp.secrets unchanged. 488 live-only files kept (App_Data\AspNetTemp, App_Data\Attachments, Areas\Platform, Properties\PublishProfiles, 137 root .cs sources unchanged by hash). No live file was newer than 2026-10-15 13:25.
+- **DB migration/script:** none (099-103 present). COPY_ONLY backup `AssetManagementModuleDb_pre_rel1016a_publish_20261017_080603.bak`.
+- **Config/Web.config keys:** none.
+- **IIS/server steps (local):** `artifacts\rel1016a-launch-elevated.ps1` -> `rel1016a-iis-publish.ps1`. Site backup `C:\inetpub\_backups\AssetManagement_root_pre_rel1016a_20261017_080603` (774 files).
+- **Live-deploy steps:** deploy site files (keep live Web.config). No SQL. Run Convert-ClassesToRooms.ps1 only in PREVIEW first, per org, after a DB backup.
+- **Verify:** 4 login pages 200, no YSOD. Anonymous BulkPrint, Settings/AssetTagRename, Settings/AssetTags, Departments/ConvertClassesToRooms (root and A46138179) all 302 to login, no 500.
+- **Rollback:** stop pool AssetManagement; `robocopy C:\inetpub\_backups\AssetManagement_root_pre_rel1016a_20261017_080603 C:\inetpub\AssetManagement /E /XF Web.config smtp.secrets.config`; start pool. No DB change to undo.
 ## 2026-10-14 12:20 - Bulk Label Print only: PO filter, Send to Bulk Label Print from receipts, day groups (rel1014a, `5d0d7f1`) - PUBLISHED (rel1014a, local IIS :8080 2026-10-14 15:27:33 EAT; branch `feat/bulk-print-separate-module`)
 
 - **Published:** 2026-10-14 15:27:33 EAT to local IIS :8080 (Allan approved 15:25 EAT; pre-checks re-run and matched; launcher fired once, UAC accepted 15:27:43). Live Web.dll was 06AC4589...0B55 (07:46 deploy), now E6C7B033C980A9B2394DDE09DD556752F7AA5AFBDDE8D95BE403A9470B39DE69 (Application 7E1149D7...6C18, Infrastructure 8632D926...EFF8, Domain 1CB22F79...7A3D). 289 files copied, 0 hash mismatches. Web.config unchanged 27426D6E...D4D3; smtp.secrets unchanged. Removed only the 4 stray hotfix .cs files (140 -> 136 .cs; the other 136 unchanged by hash). Site backup C:\inetpub\_backups\AssetManagement_root_pre_rel1014a_20261014_152653 (808 files); hotfix files also in ..._hotfix0742_files. DB backup AssetManagementModuleDb_pre_rel1014a_publish_20261014_152653.bak; no migration (099-103 present). Smoke: 4 login pages 200, no YSOD. Scratch Test-WF Company Admin check 27/27 (DB backup AssetManagementModuleDb_pre_rel1014a_liveverify_20261014_152934.bak first): Bulk Label Print ?purchaseId=17 preselects PO 5676 and shows its 12 assets newest first with a day key; Send to Bulk Label Print button on Purchases/Details/17 opens it; asset list PO filter shows the 12 tags; Scan & Search has no print panel; rename tool page; Dashboard/AssetCategories/AssetTypes/AssetSubTypes/Reports/Purchases/Assets/AssetScan 200; purchase request create shows the grouped department select and catalog pickers and saved (throw-away PR 51 deleted after; audit rows kept); anonymous PrintCandidates 302 to login; Test-WF assets unchanged (hash). Headless Edge on the live page/data: 1 day header (2026-10-09, 12 rows), partial = indeterminate, full select 12, collapse/expand ok. Scratch user deleted.
@@ -1206,4 +1216,13 @@ Every change must be recorded here so it can be applied to live later. **One ent
 - **Do not** clear `RequirePasswordChange` locally unless Allan explicitly asks.
 - **Do not** run `083` revert, `#6`, or `#7` scripts without Allanâ€™s approval.
 
+
+
+## rel1018a - PUBLISHED to local IIS (localhost:8080) 2026-10-18 18:38 EAT
+- **Build:** tagcode cf4a3fc (rel1016a + random 6-char tag code replacing the 001/002 suffix). Approved by Allan in chat Oct 18 18:37 EAT. Local IIS only; NOT on hosted live.
+- **Web.dll:** 99585CF5FD244E419AB5448A0897A240332F1098D8EB51FD6B02163BE99BA5D7 (was 6050F3F9). Web.config unchanged 27426D6E.
+- **Copy:** 287 files add/overwrite, no deletes, no migrations, no config/secrets copied.
+- **Backups:** C:\inetpub\_backups\AssetManagement_root_pre_rel1018a_20261018_183825; DB AssetManagementModuleDb_pre_rel1018a_publish_20261018_183825.bak (COPY_ONLY, VERIFYONLY ok).
+- **Smoke:** 4 login pages 200; 8 protected pages 302 to Login (root and /A46138179).
+- **Note:** earlier attempt 18:18 EAT auto-rolled back due to a smoke-harness bug (not an app failure).
 

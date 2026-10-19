@@ -59,6 +59,8 @@ namespace AssetManagement.Application.Services
             var processed = 0;
             var skipped = 0;
             var departmentMoves = new List<string>();
+            var processedIds = new List<int>();
+            var moveByAsset = new Dictionary<int, string>();
             Department targetDepartment = null;
             if (string.Equals(action, "department", StringComparison.OrdinalIgnoreCase) && request.TargetDepartmentId.HasValue)
             {
@@ -118,7 +120,7 @@ namespace AssetManagement.Application.Services
                         if (fromDepartmentId.HasValue && fromDepartmentId.Value != toDepartmentId)
                         {
                             var fromDepartment = _unitOfWork.Repository<Department>().GetById(fromDepartmentId.Value);
-                            AssetMoveRules.Ensure(fromDepartment == null ? (DepartmentKind?)null : fromDepartment.DepartmentKind, targetDepartment.DepartmentKind);
+                            AssetMoveRules.Ensure(fromDepartment == null ? (DepartmentKind?)null : fromDepartment.DepartmentKind, AssetMoveRules.IsAdministrationRoot(fromDepartment), targetDepartment.DepartmentKind);
                         }
                         var now = DateTime.UtcNow;
                         asset.DepartmentId = toDepartmentId;
@@ -142,7 +144,10 @@ namespace AssetManagement.Application.Services
                             AssetMovementRecorder.FromCustodyEvent(_unitOfWork, asset, bulkEvent, AssetMovementType.BulkDepartment, actorUserId, bulkBatchId);
                         }
 
-                        departmentMoves.Add(asset.Id + ":" + (fromDepartmentId.HasValue ? fromDepartmentId.Value.ToString() : "none") + ">" + toDepartmentId);
+                        var move = asset.Id + ":" + (fromDepartmentId.HasValue ? fromDepartmentId.Value.ToString() : "none") + ">" + toDepartmentId;
+                        departmentMoves.Add(move);
+                        moveByAsset[asset.Id] = move;
+                        processedIds.Add(asset.Id);
                         processed++;
                     }
                     else if (string.Equals(action, "status", StringComparison.OrdinalIgnoreCase))
@@ -161,6 +166,7 @@ namespace AssetManagement.Application.Services
                         asset.CurrentStatus = request.TargetStatus.Value;
                         asset.UpdatedAt = DateTime.UtcNow;
                         _unitOfWork.Repository<Asset>().Update(asset);
+                        processedIds.Add(asset.Id);
                         processed++;
                     }
                     else if (string.Equals(action, "maintenance", StringComparison.OrdinalIgnoreCase))
@@ -174,6 +180,7 @@ namespace AssetManagement.Application.Services
                         asset.CurrentStatus = AssetStatus.UnderMaintenance;
                         asset.UpdatedAt = DateTime.UtcNow;
                         _unitOfWork.Repository<Asset>().Update(asset);
+                        processedIds.Add(asset.Id);
                         processed++;
                     }
                     else
@@ -191,15 +198,29 @@ namespace AssetManagement.Application.Services
             if (processed > 0)
             {
                 _unitOfWork.SaveChanges();
-                _auditWriter.Write(
-                    "Assets.Bulk." + action,
-                    nameof(Asset),
-                    string.Join(",", request.AssetIds.Distinct()),
-                    null,
-                    "processed=" + processed + ";skipped=" + skipped
-                        + (targetDepartment != null ? ";toDepartmentId=" + targetDepartment.Id + ";toDepartment=" + targetDepartment.Name : string.Empty)
-                        + (departmentMoves.Count > 0 ? ";moves(assetId:from>to)=" + string.Join(",", departmentMoves) : string.Empty)
-                        + ";notes=" + (request.Notes ?? string.Empty));
+                // One audit row per asset: EntityId is a single Id, so the per-asset history tab
+                // (IX_AuditLog_Org_Entity seek) finds it, and no Id list can overflow the column.
+                // An audit failure must not turn a committed move into a 500 for the user.
+                var batchSuffix = ";batch=" + bulkBatchId + ";batchProcessed=" + processed + ";batchSkipped=" + skipped
+                    + (targetDepartment != null ? ";toDepartmentId=" + targetDepartment.Id + ";toDepartment=" + targetDepartment.Name : string.Empty)
+                    + ";notes=" + (request.Notes ?? string.Empty);
+                foreach (var id in processedIds)
+                {
+                    string move;
+                    try
+                    {
+                        _auditWriter.Write(
+                            "Assets.Bulk." + action,
+                            nameof(Asset),
+                            id.ToString(),
+                            null,
+                            (moveByAsset.TryGetValue(id, out move) ? "move(assetId:from>to)=" + move : "asset=" + id) + batchSuffix);
+                    }
+                    catch (Exception ex)
+                    {
+                        messages.Add("Asset #" + id + " was updated but its audit entry failed: " + ex.Message);
+                    }
+                }
             }
 
             return new AssetBulkActionResultVm

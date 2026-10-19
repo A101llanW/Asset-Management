@@ -28,7 +28,8 @@ namespace AssetManagement.Tests.Helpers
         [Test]
         public void ShouldResolveAsSubDepartment_RequiresNonClassroomValues()
         {
-            Assert.IsTrue(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Information Technology", "Comp Lab - Senior"));
+            // "Comp Lab - Senior" is room-like (IsRoomLikeDepartmentName), so it resolves as a room, not a sub-department.
+            Assert.IsFalse(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Information Technology", "Comp Lab - Senior"));
             Assert.IsTrue(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Administration", "Reception"));
             Assert.IsFalse(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Classroom", "2A"));
             Assert.IsFalse(SchoolDepartmentCodeHelper.ShouldResolveAsSubDepartment("Administration", string.Empty));

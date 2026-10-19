@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.DTOs;
@@ -50,6 +50,29 @@ namespace AssetManagement.Tests.Assignments
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Administrative, DepartmentKind.Room));
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Room, DepartmentKind.Administrative));
             Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Room, DepartmentKind.SubDepartment));
+        }
+
+        [Test]
+        public void PhysicalMoveRule_AllowsOnlyAdministrationDirectToRoom()
+        {
+            var admin = new Department { Name = " administration ", ParentDepartmentId = null, DepartmentKind = DepartmentKind.Administrative };
+            var grade = new Department { Name = "Grade 2", ParentDepartmentId = null, DepartmentKind = DepartmentKind.Grade };
+            var academics = new Department { Name = "Academics", ParentDepartmentId = null, DepartmentKind = DepartmentKind.Administrative };
+            var underAdmin = new Department { Name = "Administration", ParentDepartmentId = 7, DepartmentKind = DepartmentKind.SubDepartment };
+            Assert.IsTrue(AssetMoveRules.IsAdministrationRoot(admin));
+            Assert.IsFalse(AssetMoveRules.IsAdministrationRoot(grade));
+            Assert.IsFalse(AssetMoveRules.IsAdministrationRoot(academics));
+            Assert.IsFalse(AssetMoveRules.IsAdministrationRoot(underAdmin));
+            Assert.IsFalse(AssetMoveRules.IsAdministrationRoot(null));
+
+            Assert.IsTrue(AssetMoveRules.IsAllowed(admin.DepartmentKind, AssetMoveRules.IsAdministrationRoot(admin), DepartmentKind.Room));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(grade.DepartmentKind, AssetMoveRules.IsAdministrationRoot(grade), DepartmentKind.Room));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(academics.DepartmentKind, AssetMoveRules.IsAdministrationRoot(academics), DepartmentKind.Room));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Administrative, true, DepartmentKind.SubDepartment));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Administrative, true, DepartmentKind.Class));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Room, false, DepartmentKind.Class));
+            Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Class, false, DepartmentKind.Room));
+            Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.SubDepartment, false, DepartmentKind.Room));
         }
 
         [Test]

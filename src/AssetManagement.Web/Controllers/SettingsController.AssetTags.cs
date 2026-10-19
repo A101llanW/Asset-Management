@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
@@ -14,9 +14,41 @@ namespace AssetManagement.Web.Controllers
     public partial class SettingsController
     {
         [HttpGet]
-        public ActionResult AssetTags()
+        public ActionResult AssetTags(int? levelScopeId = null, bool levelPreview = false, string departmentPrefix = null, string subDepartmentPrefix = null, string roomPrefix = null, string excludedCodes = null)
         {
-            return View(BuildAssetTagSettings(null));
+            var model = BuildAssetTagSettings(null);
+            var levels = MakeLevelOptions(departmentPrefix, subDepartmentPrefix, roomPrefix, excludedCodes);
+            model.LevelScopeId = levelScopeId;
+            model.Level.DepartmentPrefix = levels.DepartmentOverride;
+            model.Level.SubDepartmentPrefix = levels.SubDepartmentOverride;
+            model.Level.RoomPrefix = levels.RoomOverride;
+            model.Level.ExcludedCodes = string.Join(",", levels.ExcludedDepartmentIds.OrderBy(x => x));
+            if (levelPreview)
+            {
+                var organizationId = ResolveCurrentOrganizationId();
+                var departments = UnitOfWork.Repository<Department>().GetAll().ToList(); // tenant-scoped
+                var byId = departments.ToDictionary(x => x.Id);
+                if (levelScopeId.HasValue && !byId.ContainsKey(levelScopeId.Value))
+                {
+                    return HttpNotFound();
+                }
+
+                var settings = ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll())
+                    .ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase);
+                var ids = levelScopeId.HasValue
+                    ? AssetTagRenamePlanner.GetSubtree(levelScopeId.Value, departments)
+                    : new HashSet<int>(departments.Where(x => x.IsActive).Select(x => x.Id));
+                // One pseudo-candidate per unit so the columns list every code in scope (counts are units, not assets).
+                var units = ids.Select(id => new AssetTagRenameCandidate { DepartmentId = id, AssetTag = "-" }).ToList();
+                model.Level.Codes = AssetTagRenamePlanner.GetLevelCodes(units, byId, levels);
+                var prefix = AssetTagRenamePlanner.BuildLevelPrefix(levelScopeId, byId, AssetTagPrefixResolver.GetTenantPrefix(settings), levels);
+                var store = DependencyResolver.Current.GetService<IAssetTagSequenceStore>();
+                var next = store == null || !organizationId.HasValue ? 1 : store.PeekNext(organizationId.Value, prefix);
+                model.Level.NextTag = AssetTagPrefixResolver.FormatTag(prefix, next);
+                model.Level.Previewed = true;
+            }
+
+            return View(model);
         }
 
         [HttpPost]

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using AssetManagement.Application.Contracts;
 
 namespace AssetManagement.Web.ViewModels
@@ -21,5 +21,29 @@ namespace AssetManagement.Web.ViewModels
         public List<AssetTagRenameBatchInfo> Batches { get; set; } = new List<AssetTagRenameBatchInfo>();
         public int? ViewBatchId { get; set; }
         public List<AssetTagRenamePlanItem> BatchItems { get; set; } = new List<AssetTagRenamePlanItem>();
+        /// <summary>Three prefix boxes (blank = use each node's saved prefix or department code).</summary>
+        public string DepartmentPrefix { get; set; }
+        public string SubDepartmentPrefix { get; set; }
+        public string RoomPrefix { get; set; }
+        /// <summary>Comma-separated department ids whose code is unticked (left out of the tag).</summary>
+        public string ExcludedCodes { get; set; }
+        public List<AssetManagement.Application.Helpers.AssetTagRenamePlanner.LevelCode> LevelCodes { get; set; } = new List<AssetManagement.Application.Helpers.AssetTagRenamePlanner.LevelCode>();
+        /// <summary>Example next tag (first planned rename) for the current boxes and ticks.</summary>
+        public string NextTagExample { get; set; }
+    }
+
+    /// <summary>Shared three-level prefix preview (room / department / sub-department boxes, code columns with checkboxes, next tag). Used by AssetTags and AssetTagRename.</summary>
+    public class AssetTagLevelPreviewVm
+    {
+        /// <summary>Id of the GET form the boxes and checkboxes belong to; ticking a code re-submits it.</summary>
+        public string FormId { get; set; }
+        public string DepartmentPrefix { get; set; }
+        public string SubDepartmentPrefix { get; set; }
+        public string RoomPrefix { get; set; }
+        public string ExcludedCodes { get; set; }
+        public bool Previewed { get; set; }
+        public string NextTag { get; set; }
+        public string CountLabel { get; set; } = "asset(s)";
+        public List<AssetManagement.Application.Helpers.AssetTagRenamePlanner.LevelCode> Codes { get; set; } = new List<AssetManagement.Application.Helpers.AssetTagRenamePlanner.LevelCode>();
     }
 }

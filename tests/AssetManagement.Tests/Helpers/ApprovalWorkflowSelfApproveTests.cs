@@ -42,9 +42,10 @@ namespace AssetManagement.Tests.Helpers
 #endif
 
         [Test]
-        public void EnsureUserCanApprove_Purchase_SelfRequesterWhoIsStageUser_Succeeds()
+        public void EnsureUserCanApprove_Purchase_SelfRequesterWhoIsStageUser_IsBlocked()
         {
-            Assert.DoesNotThrow(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
+            // Current behaviour: self-approval is blocked unless break-glass admin bypass + Settings.AllowAdminSelfApproval.
+            var ex = Assert.Throws<BusinessException>(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
                 StageRoleId,
                 false,
                 StageRoleId,
@@ -52,12 +53,14 @@ namespace AssetManagement.Tests.Helpers
                 Requester,
                 Requester,
                 ApprovalProcessCodes.Purchase));
+            Assert.AreEqual("The requester cannot approve their own requisition.", ex.Message);
         }
 
         [Test]
-        public void EnsureUserCanApprove_Transfer_SelfRequesterWhoIsStageUser_Succeeds()
+        public void EnsureUserCanApprove_Transfer_SelfRequesterWhoIsStageUser_IsBlocked()
         {
-            Assert.DoesNotThrow(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
+            // Current behaviour: self-approval is blocked unless break-glass admin bypass + Settings.AllowAdminSelfApproval.
+            var ex = Assert.Throws<BusinessException>(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
                 StageRoleId,
                 false,
                 StageRoleId,
@@ -65,12 +68,14 @@ namespace AssetManagement.Tests.Helpers
                 Requester,
                 Requester,
                 ApprovalProcessCodes.Transfer));
+            Assert.AreEqual("The requester cannot approve their own transfer request.", ex.Message);
         }
 
         [Test]
-        public void EnsureUserCanApprove_Disposal_SelfRequesterWhoIsStageUser_Succeeds()
+        public void EnsureUserCanApprove_Disposal_SelfRequesterWhoIsStageUser_IsBlocked()
         {
-            Assert.DoesNotThrow(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
+            // Current behaviour: self-approval is blocked unless break-glass admin bypass + Settings.AllowAdminSelfApproval.
+            var ex = Assert.Throws<BusinessException>(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
                 StageRoleId,
                 false,
                 StageRoleId,
@@ -78,12 +83,13 @@ namespace AssetManagement.Tests.Helpers
                 Requester,
                 Requester,
                 ApprovalProcessCodes.Disposal));
+            Assert.AreEqual("The requester cannot approve their own disposal request.", ex.Message);
         }
 
         [Test]
-        public void EnsureUserCanApprove_Transfer_SelfRequesterWithMatchingRole_Succeeds()
+        public void EnsureUserCanApprove_Transfer_SelfRequesterWithMatchingRole_IsBlocked()
         {
-            Assert.DoesNotThrow(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
+            var ex = Assert.Throws<BusinessException>(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
                 StageRoleId,
                 false,
                 StageRoleId,
@@ -91,12 +97,13 @@ namespace AssetManagement.Tests.Helpers
                 Requester,
                 Requester,
                 ApprovalProcessCodes.Transfer));
+            Assert.AreEqual("The requester cannot approve their own transfer request.", ex.Message);
         }
 
         [Test]
         public void EnsureUserCanApprove_Transfer_SelfRequesterNotStageApprover_ThrowsSelfMessage()
         {
-            // Fall-through reaches stage check: wrong user configured as stage approver.
+            // The self-approval block runs before the stage check, so the requester gets the self message.
             var ex = Assert.Throws<BusinessException>(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
                 StageRoleId,
                 false,
@@ -105,11 +112,11 @@ namespace AssetManagement.Tests.Helpers
                 Requester,
                 Requester,
                 ApprovalProcessCodes.Transfer));
-            Assert.AreEqual("You are not configured to approve this stage.", ex.Message);
+            Assert.AreEqual("The requester cannot approve their own transfer request.", ex.Message);
         }
 
         [Test]
-        public void EnsureUserCanApprove_Disposal_SelfRequesterWrongRole_ThrowsStageMessage()
+        public void EnsureUserCanApprove_Disposal_SelfRequesterWrongRole_ThrowsSelfMessage()
         {
             var ex = Assert.Throws<BusinessException>(() => ApprovalWorkflowHelper.EnsureUserCanApprove(
                 OtherRoleId,
@@ -119,7 +126,7 @@ namespace AssetManagement.Tests.Helpers
                 Requester,
                 Requester,
                 ApprovalProcessCodes.Disposal));
-            Assert.AreEqual("You are not configured to approve this stage.", ex.Message);
+            Assert.AreEqual("The requester cannot approve their own disposal request.", ex.Message);
         }
 
         [Test]

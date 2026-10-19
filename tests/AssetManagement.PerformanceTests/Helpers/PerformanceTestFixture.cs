@@ -145,6 +145,15 @@ namespace AssetManagement.PerformanceTests.Helpers
         {
         }
 
+        // Fixed-org fixture: the tenant execution context is irrelevant, so these are safe no-ops (same as TestFakes).
+        public void SetExecutionContext(TenantExecutionContext context)
+        {
+        }
+
+        public void ClearExecutionContext()
+        {
+        }
+
         public bool IsImpersonating()
         {
             return false;

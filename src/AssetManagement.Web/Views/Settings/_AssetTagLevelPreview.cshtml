@@ -1,0 +1,66 @@
+@model AssetManagement.Web.ViewModels.AssetTagLevelPreviewVm
+@using AssetManagement.Application.Helpers
+@* Shared three-level prefix preview. ViewData["part"] = "boxes" (inside the GET form) or "columns" (after preview). *@
+@if ((ViewData["part"] as string) == "boxes")
+{
+    <div class="col-12"><span class="form-label d-block mt-2">Prefix boxes (leave blank to use each unit's saved prefix or a short code from its name)</span></div>
+    <div class="col-md-4">
+        <label class="form-label" for="roomPrefix">Department room prefix</label>
+        <input type="text" class="form-control text-uppercase" id="roomPrefix" name="roomPrefix" maxlength="20" value="@Model.RoomPrefix" placeholder="e.g. ARTROOM" />
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="departmentPrefix">Department prefix</label>
+        <input type="text" class="form-control text-uppercase" id="departmentPrefix" name="departmentPrefix" maxlength="20" value="@Model.DepartmentPrefix" placeholder="e.g. ACAD" />
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="subDepartmentPrefix">Sub-department prefix</label>
+        <input type="text" class="form-control text-uppercase" id="subDepartmentPrefix" name="subDepartmentPrefix" maxlength="20" value="@Model.SubDepartmentPrefix" placeholder="e.g. ENT" />
+    </div>
+    <input type="hidden" id="excludedCodes" name="excludedCodes" value="@Model.ExcludedCodes" />
+    <div class="col-12"><p class="text-muted small mb-0">Tag format: DEPARTMENT-SUBDEPARTMENT-ROOM-number. The number at the end is always added and cannot be removed. Untick a code in the preview to leave it out of the tag.</p></div>
+}
+else if (Model.Previewed)
+{
+    var levelNames = new[] { AssetTagRenamePlanner.LevelRoom, AssetTagRenamePlanner.LevelDepartment, AssetTagRenamePlanner.LevelSubDepartment };
+    <p class="mb-2" id="levelNextTag">Next tag: <code>@(Model.NextTag ?? "(nothing to rename)")</code> <span class="text-muted small">(the number at the end is always included)</span></p>
+    <div class="row g-2 mb-3" id="renameLevelColumns">
+        @foreach (var level in levelNames)
+        {
+            var codes = Model.Codes.Where(x => x.Level == level).ToList();
+            <div class="col-md-4">
+                <table class="table table-sm table-bordered mb-0" data-level="@level">
+                    <thead><tr><th colspan="3">@level</th></tr></thead>
+                    <tbody>
+                        @if (codes.Count == 0)
+                        {
+                            <tr><td colspan="3" class="text-muted small">None in this scope</td></tr>
+                        }
+                        @foreach (var code in codes)
+                        {
+                            <tr>
+                                <td style="width:2rem"><input type="checkbox" class="form-check-input rename-code-toggle" id="code_@(code.DepartmentId)" value="@code.DepartmentId" @(code.Included ? "checked" : null) /></td>
+                                <td><label for="code_@(code.DepartmentId)" class="mb-0">@code.DepartmentName</label><div class="text-muted small">@code.Source, @code.AssetCount @Model.CountLabel</div></td>
+                                <td><code>@code.Code</code></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+    <script>
+        (function () {
+            // Ticking or unticking a code re-runs the preview (read-only GET) so the next tag shows the new shape.
+            var formId = '@Model.FormId';
+            var all = document.querySelectorAll('.rename-code-toggle');
+            for (var i = 0; i < all.length; i++) {
+                all[i].addEventListener('change', function () {
+                    var off = [];
+                    for (var j = 0; j < all.length; j++) { if (!all[j].checked) { off.push(all[j].value); } }
+                    document.getElementById('excludedCodes').value = off.join(',');
+                    document.getElementById(formId).submit();
+                });
+            }
+        })();
+    </script>
+}

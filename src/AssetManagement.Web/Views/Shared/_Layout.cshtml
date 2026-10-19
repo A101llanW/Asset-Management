@@ -1,4 +1,4 @@
-@using AssetManagement.Web.App_Start
+﻿@using AssetManagement.Web.App_Start
 @using AssetManagement.Web.Helpers
 <!DOCTYPE html>
 <html>
@@ -30,6 +30,9 @@
     }
     <style>
         .app-impersonation-bar { background: #f39c12; color: #1a1a1a; }
+        .am-brand-org-logo { height: 36px; max-width: 120px; width: auto; object-fit: contain; border-radius: 6px; background: #fff; padding: 2px; flex-shrink: 0; }
+        .am-brand--org .am-brand-org-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
+        .am-brand--org .am-brand-suite-soft { opacity: .65; font-weight: 400; text-transform: none; letter-spacing: .02em; }
     </style>
 </head>
 <body class="@(ViewBag.ShowLoginBackground == true ? "am-login-page am-auth-theme-light" : null)">
@@ -125,6 +128,55 @@
                         <span class="am-menu-button-dot"></span>
                     </button>
                 }
+                @{
+                    string headerOrgName = null;
+                    string headerOrgLogo = null;
+                    if (Request.IsAuthenticated)
+                    {
+                        try
+                        {
+                            var hbUow = System.Web.Mvc.DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.IUnitOfWork>();
+                            var hbScope = System.Web.Mvc.DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Security.IOrganizationScopeService>();
+                            var hb = AssetManagement.Application.Helpers.ReportBrandingHelper.Resolve(hbUow, hbScope, null);
+                            if (hb != null)
+                            {
+                                headerOrgName = hb.OrganizationName;
+                                headerOrgLogo = hb.OrganizationLogoUrl;
+                                if (!string.IsNullOrWhiteSpace(headerOrgLogo) && headerOrgLogo.StartsWith("/"))
+                                {
+                                    headerOrgLogo = Url.Content("~" + headerOrgLogo);
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            headerOrgName = null;
+                            headerOrgLogo = null;
+                        }
+                    }
+                    var headerHasOrg = !string.IsNullOrWhiteSpace(headerOrgName);
+                }
+                @if (headerHasOrg)
+                {
+                    <a class="am-brand am-brand--org" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">
+                        @if (!string.IsNullOrWhiteSpace(headerOrgLogo))
+                        {
+                            <img src="@headerOrgLogo" alt="@headerOrgName" class="am-brand-org-logo"
+                                 onerror="this.style.display='none';var m=this.nextElementSibling;if(m){m.style.display='inline-flex';}" />
+                            <span class="am-brand-mark" style="display:none">@headerOrgName.Trim().Substring(0, 1).ToUpperInvariant()</span>
+                        }
+                        else
+                        {
+                            <span class="am-brand-mark">@headerOrgName.Trim().Substring(0, 1).ToUpperInvariant()</span>
+                        }
+                        <span class="am-brand-copy">
+                            <span class="am-brand-title am-brand-org-name">@headerOrgName</span>
+                            <small class="am-brand-kicker am-brand-suite-soft">Nano Asset Suite</small>
+                        </span>
+                    </a>
+                }
+                else
+                {
                 <a class="am-brand" href="@TenantUrlHelper.TenantRouteUrl(Url, "Landing", "Account")">
                     <span class="am-brand-mark">AM</span>
                     <span class="am-brand-copy">
@@ -132,6 +184,7 @@
                         <span class="am-brand-title">Asset Management Module</span>
                     </span>
                 </a>
+                }
             </div>
 
             @if (Request.IsAuthenticated)

@@ -343,7 +343,8 @@ namespace AssetManagement.Tests
             Assert.AreEqual("user-old", custodyEvent.FromUserId);
             Assert.AreEqual("user-new", custodyEvent.ToUserId);
             Assert.AreEqual(2, custodyEvent.FromDepartmentId);
-            Assert.AreEqual(4, custodyEvent.ToDepartmentId);
+            // rel1009h: a cross-department recipient with no Move/Keep choice keeps the asset in its current department.
+            Assert.AreEqual(2, custodyEvent.ToDepartmentId);
         }
 
         [Test]

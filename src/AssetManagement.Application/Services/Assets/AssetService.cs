@@ -592,7 +592,7 @@ namespace AssetManagement.Application.Services
             if (fromDepartmentId.HasValue)
             {
                 var fromDepartment = _unitOfWork.Repository<Department>().GetById(fromDepartmentId.Value);
-                AssetMoveRules.Ensure(fromDepartment == null ? (DepartmentKind?)null : fromDepartment.DepartmentKind, targetDepartment.DepartmentKind);
+                AssetMoveRules.Ensure(fromDepartment == null ? (DepartmentKind?)null : fromDepartment.DepartmentKind, AssetMoveRules.IsAdministrationRoot(fromDepartment), targetDepartment.DepartmentKind);
             }
 
             var now = DateTime.UtcNow;
@@ -2073,7 +2073,7 @@ namespace AssetManagement.Application.Services
                 }
             }
 
-            // Asset move rules: room to room, room to sub-department, sub-department to room, class to room only.
+            // Asset move rules: room to room, room to sub-department, sub-department to room, class to room, Administration (top-level, directly) to room.
             var oldDepartmentId = NormalizeOptionalId(entity.DepartmentId);
             if (oldDepartmentId.HasValue)
             {
@@ -2084,7 +2084,7 @@ namespace AssetManagement.Application.Services
 
                 var from = _unitOfWork.Repository<Department>().GetById(oldDepartmentId.Value);
                 var to = _unitOfWork.Repository<Department>().GetById(newDepartmentId.Value);
-                AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, to.DepartmentKind);
+                AssetMoveRules.Ensure(from == null ? (DepartmentKind?)null : from.DepartmentKind, AssetMoveRules.IsAdministrationRoot(from), to.DepartmentKind);
             }
         }
 
