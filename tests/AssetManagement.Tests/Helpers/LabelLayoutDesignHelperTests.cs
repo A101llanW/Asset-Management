@@ -13,7 +13,10 @@ namespace AssetManagement.Tests.Helpers
         {
             var design = LabelLayoutDesignHelper.Deserialize(string.Empty, 76, 37);
 
-            Assert.AreEqual(5, design.Elements.Count);
+            // rel1019a: CompanyName and CustomText joined the five original elements (both off by default).
+            Assert.AreEqual(7, design.Elements.Count);
+            Assert.IsFalse(design.Elements.First(x => x.Id == LabelLayoutDesignHelper.CompanyNameId).Enabled);
+            Assert.IsFalse(design.Elements.First(x => x.Id == LabelLayoutDesignHelper.CustomTextId).Enabled);
             Assert.IsTrue(design.Elements.Any(x => x.Id == LabelLayoutDesignHelper.ScanCodeId && x.Enabled));
         }
 

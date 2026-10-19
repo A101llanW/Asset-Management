@@ -66,7 +66,7 @@
             <div class="card card-kpi mt-3">
                 <div class="card-header">Layout templates</div>
                 <div class="card-body">
-                    <p class="text-muted small">Save the current canvas as a reusable template. Loading a template restores label size, QR magnification, field positions, and visibility.</p>
+                    <p class="text-muted small">Save the current canvas as a reusable template. Loading a template restores label size, QR magnification, field positions, visibility and custom text. Saved templates can also be picked at print time (Bulk Label Print and the asset label page) without changing the active layout.</p>
                     <div class="mb-3">
                         <label class="form-label" for="labelTemplateName">Template name</label>
                         <div class="input-group">
@@ -97,6 +97,8 @@
                          data-sample-name="@Model.SampleAssetName"
                          data-sample-dept="@Model.SampleDepartmentName"
                          data-sample-serial="@Model.SampleSerialNumber"
+                         data-sample-company="@Model.SampleCompanyName"
+                         data-custom-text-max-length="@LabelLayoutDesignHelper.MaxCustomTextLength"
                          data-qr-payload-bytes="@(ViewBag.QrPayloadBytes ?? 100)"
                          data-sample-scan-url="@AssetQrUrlHelper.BuildScanUrl(Request, Url, "AST-1001", externalBaseUrl: Model.ExternalBaseUrl)">
                         <div class="am-label-designer-fields mb-3" id="labelDesignerFields"></div>

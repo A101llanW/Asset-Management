@@ -645,7 +645,7 @@ namespace AssetManagement.Web.Controllers
             var entity = UnitOfWork.Repository<Asset>().GetById(assetId);
             ViewBag.TransferApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Transfer);
             ViewBag.DisposalApprovalSummary = BuildAssetApprovalProcessSummary(entity, ApprovalProcessCodes.Disposal);
-            ViewBag.AssetLabelPrint = AssetLabelPrintHelper.CreateModel(Request, Url, model, GetExternalBaseUrl());
+            ViewBag.AssetLabelPrint = PrepareLabelModel(AssetLabelPrintHelper.CreateModel(Request, Url, model, GetExternalBaseUrl()), includeTemplates: true);
             ViewBag.AssetId = assetId;
             try
             {
@@ -707,11 +707,15 @@ namespace AssetManagement.Web.Controllers
                 return NotFoundPage("This asset was not found or is outside your department.");
             }
 
-            return View(model);
+            return View(PrepareLabelModel(model, includeTemplates: true));
         }
 
+        /// <summary>
+        /// LabelZpl / LabelPrintConfig take an optional saved template id (Label designer templates). Empty or unknown
+        /// ids print with the active layout. The template list itself is read-only and only needs Assets.View.
+        /// </summary>
         [PermissionAuthorize("Assets.View")]
-        public ActionResult LabelZpl(string id, string codeType = null)
+        public ActionResult LabelZpl(string id, string codeType = null, string templateId = null)
         {
             int assetId;
             if (!TryResolveAssetId(id, out assetId))
@@ -725,13 +729,15 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
-            var settings = GetLabelPrinterSettings();
+            PrepareLabelModel(model, includeTemplates: false);
+            LabelLayoutTemplate template;
+            var settings = GetLabelPrinterSettings(templateId, out template);
             var zpl = ZplLabelBuilder.Build(ToZplLabelData(model), settings, codeType);
             return Content(zpl, "text/plain");
         }
 
         [PermissionAuthorize("Assets.View")]
-        public JsonResult LabelPrintConfig(string id)
+        public JsonResult LabelPrintConfig(string id, string templateId = null)
         {
             int assetId;
             if (!TryResolveAssetId(id, out assetId))
@@ -745,14 +751,32 @@ namespace AssetManagement.Web.Controllers
                 return Json(new { error = "Asset not found." }, JsonRequestBehavior.AllowGet);
             }
 
-            var settings = GetLabelPrinterSettings();
+            PrepareLabelModel(model, includeTemplates: false);
+            LabelLayoutTemplate template;
+            var settings = GetLabelPrinterSettings(templateId, out template);
             var layoutDesign = LabelPrinterSettingsHelper.GetLayoutDesign(settings);
+            var customTextLines = new List<string>();
+            var customTextOverflow = false;
+            var customTextElement = LabelLayoutDesignHelper.GetElement(layoutDesign, LabelLayoutDesignHelper.CustomTextId);
+            if (customTextElement != null && customTextElement.Enabled)
+            {
+                customTextLines.AddRange(LabelLayoutDesignHelper.WrapCustomText(customTextElement, settings.WidthMm, settings.HeightMm, out customTextOverflow));
+            }
+
             return Json(new
             {
                 enabled = settings.Enabled,
                 mode = settings.Mode,
                 deviceName = settings.DeviceName,
-                zplUrl = Url.Action("LabelZpl", new { id = model.AssetId }),
+                // Same template id on the ZPL URL so the Zebra output matches this preview.
+                zplUrl = template == null
+                    ? Url.Action("LabelZpl", new { id = model.AssetId })
+                    : Url.Action("LabelZpl", new { id = model.AssetId, templateId = template.Id }),
+                templateId = template == null ? null : template.Id,
+                templateName = template == null ? null : template.Name,
+                companyName = model.CompanyName,
+                customTextLines = customTextLines,
+                customTextOverflow = customTextOverflow,
                 labelWidthMm = settings.WidthMm,
                 labelHeightMm = settings.HeightMm,
                 qrMagnification = ZplLabelBuilder.CapForLabel(settings, model.ScanUrl),
@@ -776,10 +800,37 @@ namespace AssetManagement.Web.Controllers
             return platformSettings == null ? null : platformSettings.GetExternalBaseUrl();
         }
 
-        private LabelPrinterSettingsVm GetLabelPrinterSettings()
+        private string _labelCompanyName;
+
+        /// <summary>Adds the organisation name (Company name element) and, for pages, the saved-template picker.</summary>
+        private AssetManagement.Web.ViewModels.AssetLabelPrintVm PrepareLabelModel(AssetManagement.Web.ViewModels.AssetLabelPrintVm model, bool includeTemplates)
         {
-            var settings = LabelPrinterSettingsHelper.FromDictionary(
-                ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll()));
+            if (model == null)
+            {
+                return null;
+            }
+
+            if (_labelCompanyName == null)
+            {
+                _labelCompanyName = LabelPrintSupport.GetCurrentOrganizationName(UnitOfWork, ViewBag.OrganizationName as string) ?? string.Empty;
+            }
+
+            model.CompanyName = _labelCompanyName;
+            if (includeTemplates)
+            {
+                model.TemplateOptions = LabelPrintSupport.BuildTemplateOptions(UnitOfWork);
+            }
+
+            return model;
+        }
+
+        /// <summary>Printer settings, with the saved template applied when templateId matches one (else the active layout).</summary>
+        private LabelPrinterSettingsVm GetLabelPrinterSettings(string templateId, out LabelLayoutTemplate template)
+        {
+            var settingsMap = ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll());
+            var settings = LabelPrinterSettingsHelper.FromDictionary(settingsMap);
+            template = LabelLayoutTemplateHelper.FindTemplate(settingsMap, templateId);
+            settings = LabelLayoutTemplateHelper.ApplyToSettings(settings, template);
             // rel1009i: same cap as the Label Designer (worst-case scan URL), so print matches the preview.
             settings.QrMagnification = LabelQrSizing.CapMagnification(
                 settings.QrMagnification,
@@ -798,7 +849,8 @@ namespace AssetManagement.Web.Controllers
                 DepartmentName = model.DepartmentName,
                 SerialNumber = model.SerialNumber,
                 ScanUrl = model.ScanUrl,
-                BarcodePayload = model.BarcodePayload
+                BarcodePayload = model.BarcodePayload,
+                CompanyName = model.CompanyName
             };
         }
 

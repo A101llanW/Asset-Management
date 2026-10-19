@@ -78,6 +78,9 @@ namespace AssetManagement.Web.Controllers
         /// Query params are validated by <see cref="PrintCandidateQuery"/>: sort in (tag, created, assigned, activity),
         /// direction asc|desc, createdFrom/createdTo/assignedFrom/assignedTo as yyyy-MM-dd (EAT days), take 1..100.
         /// Invalid input returns HTTP 400 with { Error }.
+        /// Bulk Label Print also sends categoryId, assetTypeId, assetSubTypeId (cascading pickers) and
+        /// includeSubDepartments (default true: the chosen department/class/room plus every node below it).
+        /// All filters combine with AND; the asset query stays tenant-scoped, so another tenant's ids match nothing.
         /// </summary>
         [HttpGet]
         [Authorize]
@@ -94,7 +97,11 @@ namespace AssetManagement.Web.Controllers
             string assignedFrom = null,
             string assignedTo = null,
             int take = PrintCandidateQuery.DefaultTake,
-            int? purchaseId = null)
+            int? purchaseId = null,
+            int? categoryId = null,
+            int? assetTypeId = null,
+            int? assetSubTypeId = null,
+            bool includeSubDepartments = true)
         {
             var query = PrintCandidateQuery.Parse(sort, direction, createdFrom, createdTo, assignedFrom, assignedTo, take);
             if (!query.IsValid)
@@ -104,9 +111,18 @@ namespace AssetManagement.Web.Controllers
                 return Json(new { Error = query.Error }, JsonRequestBehavior.AllowGet);
             }
 
+            var departmentIds = PrintCandidateQuery.ResolveDepartmentIds(
+                PrintCandidateQuery.NormalizeId(departmentId),
+                includeSubDepartments,
+                departmentId.HasValue && includeSubDepartments && _departmentService != null ? _departmentService.GetAll() : null);
             var filter = new AssetFilterVm
             {
-                DepartmentId = departmentId,
+                // One node: exact match (as before); a subtree: IN (...) over the node and its descendants.
+                DepartmentId = departmentIds != null && departmentIds.Count == 1 ? departmentIds[0] : (int?)null,
+                DepartmentIds = departmentIds != null && departmentIds.Count > 1 ? departmentIds : null,
+                CategoryId = PrintCandidateQuery.NormalizeId(categoryId),
+                AssetTypeId = PrintCandidateQuery.NormalizeId(assetTypeId),
+                AssetSubTypeId = PrintCandidateQuery.NormalizeId(assetSubTypeId),
                 Status = status,
                 Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
                 OrganizationWide = true,

@@ -43,6 +43,12 @@ namespace AssetManagement.Web.ViewModels
 
         public string LabelZplUrlTemplate { get; set; }
 
+        /// <summary>Saved label templates offered on Bulk Label Print ("" = active layout).</summary>
+        public IList<SelectListItem> LabelTemplateOptions { get; set; }
+
+        /// <summary>Category / type / sub-type options for the Bulk Label Print cascading filters.</summary>
+        public AssetManagement.Web.Helpers.ClassificationCatalog ClassificationCatalog { get; set; }
+
         public string InitialCode { get; set; }
 
         public GlobalSearchResultVm SearchResults { get; set; }

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using AssetManagement.Application.ViewModels;
 
 namespace AssetManagement.Application.Helpers
 {
@@ -138,6 +140,40 @@ namespace AssetManagement.Application.Helpers
 
             day = parsed.Date;
             return true;
+        }
+
+        /// <summary>Above this many nodes the department filter falls back to the exact node (SQL parameter limit).</summary>
+        public const int MaxDepartmentScopeIds = 1500;
+
+        /// <summary>
+        /// Department filter for Bulk Label Print: the chosen department/class/room and, when includeDescendants,
+        /// every node below it (DepartmentSubtreeHelper, cycle-safe). Null = no department filter.
+        /// </summary>
+        public static IList<int> ResolveDepartmentIds(int? departmentId, bool includeDescendants, IEnumerable<DepartmentVm> departments)
+        {
+            if (!departmentId.HasValue || departmentId.Value <= 0)
+            {
+                return null;
+            }
+
+            if (!includeDescendants)
+            {
+                return new List<int> { departmentId.Value };
+            }
+
+            var ids = DepartmentSubtreeHelper.GetSelfAndDescendantIds(departmentId.Value, departments ?? Enumerable.Empty<DepartmentVm>());
+            if (ids.Count > MaxDepartmentScopeIds)
+            {
+                return new List<int> { departmentId.Value };
+            }
+
+            return ids.OrderBy(x => x).ToList();
+        }
+
+        /// <summary>Positive ids only; anything else means "no filter".</summary>
+        public static int? NormalizeId(int? id)
+        {
+            return id.HasValue && id.Value > 0 ? id : null;
         }
 
         private static PrintCandidateQuery Fail(PrintCandidateQuery query, string error)

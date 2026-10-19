@@ -95,7 +95,8 @@ namespace AssetManagement.Web.Controllers
                 LabelPrinter = labelPrinter,
                 LayoutDesignJson = LabelLayoutDesignHelper.Serialize(design, labelPrinter.WidthMm, labelPrinter.HeightMm, labelPrinter.QrMagnification),
                 LayoutTemplatesJson = LabelLayoutTemplateHelper.SerializeForClient(LabelLayoutTemplateHelper.ListTemplates(settings)),
-                ExternalBaseUrl = ExternalUrlHelper.GetConfiguredBaseUrl()
+                ExternalBaseUrl = ExternalUrlHelper.GetConfiguredBaseUrl(),
+                SampleCompanyName = LabelPrintSupport.GetCurrentOrganizationName(UnitOfWork, ViewBag.OrganizationName as string) ?? "Your organisation"
             };
 
             SetLabelQrViewBag(model.LabelPrinter, model.ExternalBaseUrl);

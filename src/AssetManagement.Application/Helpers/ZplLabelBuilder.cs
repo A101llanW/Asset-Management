@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using AssetManagement.Application.ViewModels;
 
@@ -17,6 +18,9 @@ namespace AssetManagement.Application.Helpers
         public string ScanUrl { get; set; }
 
         public string BarcodePayload { get; set; }
+
+        /// <summary>Current organisation name (Organization.Name) for the CompanyName element.</summary>
+        public string CompanyName { get; set; }
     }
 
     public static class ZplLabelBuilder
@@ -157,6 +161,12 @@ namespace AssetManagement.Application.Helpers
                     continue;
                 }
 
+                if (string.Equals(element.Id, LabelLayoutDesignHelper.CustomTextId, StringComparison.OrdinalIgnoreCase))
+                {
+                    AppendCustomText(sb, x, y, element, settings.WidthMm, settings.HeightMm);
+                    continue;
+                }
+
                 var text = GetTextForElement(element.Id, data);
                 if (string.IsNullOrWhiteSpace(text))
                 {
@@ -197,6 +207,11 @@ namespace AssetManagement.Application.Helpers
                 }
 
                 return "S/N: " + Truncate(data.SerialNumber, 24);
+            }
+
+            if (string.Equals(elementId, LabelLayoutDesignHelper.CompanyNameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return Truncate(data.CompanyName, 40);
             }
 
             return string.Empty;
@@ -386,6 +401,43 @@ namespace AssetManagement.Application.Helpers
             }
 
             sb.AppendLine("^FO" + x + "," + y + "^A0N," + height + "," + width + "^FH\\^FD" + EscapeZplField(text) + "^FS");
+        }
+
+        /// <summary>
+        /// Custom text as one ZPL field block (^FB): pre-wrapped lines joined with \&amp;, max lines = lines that fit.
+        /// ^FH_ uses "_" as the hex indicator so the ^FB line break "\&amp;" is left alone.
+        /// </summary>
+        private static void AppendCustomText(StringBuilder sb, int x, int y, LabelLayoutElement element, int widthMm, int heightMm)
+        {
+            bool overflow;
+            var lines = LabelLayoutDesignHelper.WrapCustomText(element, widthMm, heightMm, out overflow);
+            if (lines.Count == 0)
+            {
+                return;
+            }
+
+            var fontHeight = element.FontHeight > 0 ? element.FontHeight : LabelLayoutDesignHelper.DefaultCustomTextFontHeight;
+            var fontWidth = Math.Max(12, (int)Math.Round(fontHeight * 0.85));
+            var blockWidth = Math.Max(8, MmToDots(widthMm) - x - (LabelLayoutDesignHelper.DefaultMarginMm * DotsPerMm));
+            var body = string.Join("\\&", lines.Select(EscapeZplBlockText).ToArray());
+            sb.AppendLine("^FO" + x + "," + y + "^A0N," + fontHeight + "," + fontWidth
+                + "^FB" + blockWidth + "," + lines.Count + "," + LabelLayoutDesignHelper.CustomTextLineSpacingDots + ",L,0"
+                + "^FH_^FD" + body + "^FS");
+        }
+
+        /// <summary>Escapes one ^FB line for ^FH_: "_" "^" "~" become hex, "\" is doubled (literal backslash in ^FB).</summary>
+        public static string EscapeZplBlockText(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            return value
+                .Replace("_", "_5F")
+                .Replace("^", "_5E")
+                .Replace("~", "_7E")
+                .Replace("\\", "\\\\");
         }
 
         public static string EscapeZplField(string value)
