@@ -221,6 +221,11 @@ namespace AssetManagement.Tests.Helpers
 
             // SerialNumber is one 14-dot line (1.75 mm); CustomText must start below it, inside the bottom margin.
             Assert.GreaterOrEqual(custom.YMm, serial.YMm + serial.FontHeight / 8.0, "CustomText overlaps SerialNumber");
+            if (heightMm - LabelLayoutDesignHelper.DefaultMarginMm - 2 >= LabelLayoutDesignHelper.DefaultMarginMm + 29)
+            {
+                // rel1019g (QA): when the label is tall enough, leave about 1 mm clear below SerialNumber's box.
+                Assert.GreaterOrEqual(custom.YMm, serial.YMm + serial.FontHeight / 8.0 + 1.0, "CustomText touches SerialNumber");
+            }
             Assert.LessOrEqual(custom.YMm, heightMm - LabelLayoutDesignHelper.DefaultMarginMm - 2);
             Assert.AreEqual(serial.XMm, custom.XMm);
             Assert.GreaterOrEqual(LabelLayoutDesignHelper.GetCustomTextMaxLines(custom, heightMm), 1);

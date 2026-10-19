@@ -3,12 +3,14 @@
     var lookupUrl = ViewBag.SubTypeLookupUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "Lookup", "AssetSubTypes");
     var byTypeUrl = ViewBag.SubTypeByTypeUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "ByType", "AssetSubTypes");
     var createUrl = ViewBag.SubTypeCreateUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetSubTypes");
+    var typeCreateUrl = ViewBag.TypeCreateUrl as string ?? TenantUrlHelper.TenantRouteUrl(Url, "CreateFromAsset", "AssetTypes");
 }
 
 <div class="modal fade" id="assetClassificationPickerModal" tabindex="-1" aria-labelledby="assetClassificationPickerModalLabel" aria-hidden="true"
      data-am-subtype-lookup-url="@lookupUrl"
      data-am-subtype-by-type-url="@byTypeUrl"
-     data-am-subtype-create-url="@createUrl">
+     data-am-subtype-create-url="@createUrl"
+     data-am-type-create-url="@typeCreateUrl">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
@@ -46,6 +48,28 @@
                             Select a category to see asset types.
                         </div>
                         <ul class="am-classification-options list-unstyled mb-0 d-none" id="classifier-type-list" role="listbox" aria-label="Asset types"></ul>
+
+                        @* rel1019g: a missing TYPE can be created here, always together with its first sub-type (one server call,
+                           one transaction). Categories stay select-only. *@
+                        <div class="am-classification-create border-top mt-3 pt-3 d-none" id="classifier-type-create-panel">
+                            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                <strong class="small">Create new asset type</strong>
+                                <button type="button" class="btn btn-link btn-sm p-0" id="classifier-type-create-clear">Clear form</button>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="classifier-type-create-name">Asset type name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="classifier-type-create-name" maxlength="200" placeholder="e.g. Chairs" autocomplete="off" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="classifier-type-create-subtype">First sub-type <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="classifier-type-create-subtype" maxlength="200" placeholder="e.g. Student chair" autocomplete="off" />
+                                    <div class="form-text small mb-0">A new type always gets its first sub-type. Both are created together in <span id="classifier-type-create-category">the selected category</span>.</div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="classifier-type-create-btn">Create type and select</button>
+                            <div class="alert alert-danger mt-2 mb-0 py-2 small" id="classifier-type-create-error" style="display:none;"></div>
+                        </div>
                     </section>
 
                     <section class="am-classification-panel" aria-labelledby="classifier-subtype-heading">

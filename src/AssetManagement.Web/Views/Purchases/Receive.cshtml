@@ -15,7 +15,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Receive Goods - PO " + poLabel,
-    Subtitle = "Ordered " + Model.Ordered + " · received " + Model.Received + " · outstanding " + Model.Outstanding + " · " + Model.Status,
+    Subtitle = "Ordered " + Model.Ordered + " \u00B7 received " + Model.Received + " \u00B7 outstanding " + Model.Outstanding + " \u00B7 " + Model.Status,
     BackUrl = returnUrl,
     BackLabel = "Back to Purchase"
 })
@@ -54,7 +54,7 @@
         <div class="card card-kpi mb-3 am-receive-line" data-am-line-index="@i" data-am-outstanding="@line.Outstanding">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <span><strong>#@line.LineNumber</strong> @line.Description</span>
-                <span class="small">Ordered <strong>@line.Ordered</strong> · received <strong>@line.Received</strong> · outstanding <strong class="am-outstanding">@line.Outstanding</strong></span>
+                <span class="small">Ordered <strong>@line.Ordered</strong> &middot; received <strong>@line.Received</strong> &middot; outstanding <strong class="am-outstanding">@line.Outstanding</strong></span>
             </div>
             <div class="card-body">
                 <input type="hidden" name="Lines[@i].PurchaseOrderLineId" value="@line.PurchaseOrderLineId" />

@@ -296,9 +296,13 @@
             return;
         }
 
+        var typeCreatePanel = byId("classifier-type-create-panel");
         list.innerHTML = "";
         if (!draft.categoryId) {
             list.classList.add("d-none");
+            if (typeCreatePanel) {
+                typeCreatePanel.classList.add("d-none");
+            }
             if (placeholder) {
                 placeholder.classList.remove("d-none");
                 placeholder.textContent = "Select a category to see asset types.";
@@ -306,12 +310,23 @@
             return;
         }
 
+        // rel1019g: a missing type can be created (with its first sub-type) once a category is chosen.
+        if (typeCreatePanel) {
+            typeCreatePanel.classList.toggle("d-none", !getTypeCreateUrl());
+        }
+        var typeCreateCategory = byId("classifier-type-create-category");
+        if (typeCreateCategory) {
+            typeCreateCategory.textContent = draft.categoryName ? "\"" + draft.categoryName + "\"" : "the selected category";
+        }
+
+        var totalInCategory = 0;
         var visibleCount = 0;
         config.types.forEach(function (type) {
             if (type.categoryId !== draft.categoryId) {
                 return;
             }
 
+            totalInCategory += 1;
             if (!matchesSearch(type.name)) {
                 return;
             }
@@ -328,7 +343,9 @@
             placeholder.classList.toggle("d-none", visibleCount > 0);
             placeholder.textContent = visibleCount > 0
                 ? ""
-                : "No asset types match your search for this category.";
+                : (totalInCategory === 0
+                    ? "No asset types in this category yet. Create one below."
+                    : "No asset types match your search for this category. Create one below.");
         }
 
         list.classList.toggle("d-none", visibleCount === 0);
@@ -608,6 +625,148 @@
             });
     }
 
+    function getTypeCreateUrl() {
+        return modalEl ? (modalEl.getAttribute("data-am-type-create-url") || "") : "";
+    }
+
+    function showTypeCreateError(message) {
+        var error = byId("classifier-type-create-error");
+        if (!error) {
+            return;
+        }
+
+        error.textContent = message || "";
+        error.style.display = message ? "block" : "none";
+    }
+
+    function clearTypeCreateForm() {
+        var typeField = byId("classifier-type-create-name");
+        var subTypeField = byId("classifier-type-create-subtype");
+        if (typeField) {
+            typeField.value = "";
+        }
+        if (subTypeField) {
+            subTypeField.value = "";
+        }
+        showTypeCreateError("");
+    }
+
+    function prefillTypeCreateForm() {
+        // Same default as the sub-type form: the asset name the user already typed.
+        var subTypeField = byId("classifier-type-create-subtype");
+        var assetName = byId("AssetName");
+        if (subTypeField && !subTypeField.value && assetName && assetName.value.trim()) {
+            subTypeField.value = assetName.value.trim();
+        }
+    }
+
+    function namesEqual(left, right) {
+        return String(left || "").replace(/\s+/g, " ").trim().toLowerCase()
+            === String(right || "").replace(/\s+/g, " ").trim().toLowerCase();
+    }
+
+    // rel1019g: create a missing asset type together with its first sub-type (AssetTypes/CreateFromAsset; one server
+    // transaction), then select both, fill the hidden fields and close the modal. Categories are never created.
+    function createTypeWithSubType() {
+        if (!modalEl || !draft.categoryId) {
+            showTypeCreateError("Select a category first.");
+            return;
+        }
+
+        showTypeCreateError("");
+        var typeName = ((byId("classifier-type-create-name") || {}).value || "").replace(/\s+/g, " ").trim();
+        var subTypeName = ((byId("classifier-type-create-subtype") || {}).value || "").replace(/\s+/g, " ").trim();
+        if (!typeName) {
+            showTypeCreateError("Enter a name for the new asset type.");
+            return;
+        }
+
+        if (!subTypeName) {
+            showTypeCreateError("Enter the first sub-type. A new asset type cannot be created without a sub-type.");
+            return;
+        }
+
+        var existing = (config.types || []).filter(function (type) {
+            return type.categoryId === draft.categoryId && namesEqual(type.name, typeName);
+        })[0];
+        if (existing) {
+            showTypeCreateError("\"" + existing.name + "\" already exists in this category. Select it from the list instead.");
+            return;
+        }
+
+        var createUrl = getTypeCreateUrl();
+        if (!createUrl) {
+            showTypeCreateError("Asset type create URL is not configured on this page.");
+            return;
+        }
+
+        var button = byId("classifier-type-create-btn");
+        if (button) {
+            button.disabled = true;
+        }
+
+        var body = "__RequestVerificationToken=" + encodeURIComponent(getAntiForgeryToken())
+            + "&categoryId=" + encodeURIComponent(draft.categoryId)
+            + "&typeName=" + encodeURIComponent(typeName)
+            + "&subTypeName=" + encodeURIComponent(subTypeName);
+
+        fetch(createUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: body
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Request failed (" + response.status + ").");
+                }
+                return response.json();
+            })
+            .then(function (result) {
+                if (button) {
+                    button.disabled = false;
+                }
+
+                if (!result || !result.success) {
+                    showTypeCreateError((result && result.message) || "Unable to create the asset type.");
+                    return;
+                }
+
+                var newType = { id: normalizeId(result.assetTypeId), name: result.assetTypeName, categoryId: normalizeId(result.categoryId) };
+                if (!findType(newType.id)) {
+                    config.types.push(newType);
+                }
+
+                var category = findCategory(newType.categoryId);
+                draft.categoryId = newType.categoryId;
+                draft.categoryName = category ? category.name : (result.categoryName || draft.categoryName);
+                draft.typeId = newType.id;
+                draft.typeName = newType.name;
+                draft.subTypeId = normalizeId(result.subTypeId || result.id);
+                draft.subTypeName = result.subTypeName || result.name || "";
+                draft.pendingDefaultCost = "";
+                subTypes = [{ id: draft.subTypeId, name: draft.subTypeName, stockCount: 0 }];
+
+                renderCategories();
+                renderTypes();
+                renderSubTypes();
+                updatePreview();
+                updateApplyState();
+                applySelection(draft, { applyCost: false });
+                clearTypeCreateForm();
+                hideModal(modalEl);
+            })
+            .catch(function (err) {
+                if (button) {
+                    button.disabled = false;
+                }
+                showTypeCreateError((err && err.message) || "Unable to create the asset type.");
+            });
+    }
+
     function openModal() {
         if (!modalEl) {
             return;
@@ -628,6 +787,8 @@
 
         clearCreateForm();
         prefillCreateForm();
+        clearTypeCreateForm();
+        prefillTypeCreateForm();
         renderCategories();
         renderTypes();
 
@@ -709,6 +870,16 @@
         var clearCreateButton = byId("classifier-create-clear");
         if (clearCreateButton) {
             clearCreateButton.addEventListener("click", clearCreateForm);
+        }
+
+        var typeCreateButton = byId("classifier-type-create-btn");
+        if (typeCreateButton) {
+            typeCreateButton.addEventListener("click", createTypeWithSubType);
+        }
+
+        var typeCreateClear = byId("classifier-type-create-clear");
+        if (typeCreateClear) {
+            typeCreateClear.addEventListener("click", clearTypeCreateForm);
         }
     }
 
