@@ -2006,6 +2006,108 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
     justify-content: center;
 }
 
+/* rel1019f: Label designer layout in the browser preview (Assets/PrintLabel and the Details label modal).
+   asset-label.js sets left/top/font-size in mm from the saved design; these rules were only ever on 2b8211b,
+   so the preview fell back to the flex row of .am-asset-label and fields ran past the label edge. */
+.am-asset-label.am-asset-label--designed {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px #1a4a72;
+    background: #ffffff;
+    margin: 0 auto;
+}
+
+.am-asset-label--designed .am-asset-label-field {
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+    line-height: 1.15;
+    color: #111111;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.am-asset-label--designed .am-asset-label-field--tag {
+    font-weight: 800;
+}
+
+.am-asset-label--designed .am-asset-label-field--company {
+    font-weight: 600;
+}
+
+/* CustomText: server-wrapped lines (same as the ZPL ^FB block), absolutely placed in mm, clipped to its block. */
+.am-asset-label--designed .am-asset-label-field--block {
+    white-space: pre;
+    overflow: hidden;
+    word-break: normal;
+}
+
+.am-asset-label--designed .am-asset-label-field--code {
+    line-height: 0;
+}
+
+.am-asset-label--designed .am-asset-label-field--code .am-asset-label-code-host {
+    display: block;
+    overflow: hidden;
+}
+
+.am-asset-label--designed .am-asset-label-field--code .am-asset-label-code-host img,
+.am-asset-label--designed .am-asset-label-field--code .am-asset-label-code-host canvas {
+    display: block;
+    width: var(--am-label-qr-size, 18mm) !important;
+    height: var(--am-label-qr-size, 18mm) !important;
+}
+
+.am-asset-label--designed .am-asset-label-field--code .am-asset-label-barcode-svg {
+    display: block;
+    width: 28mm;
+    max-width: none;
+    height: auto;
+}
+
+/* Label designer: saved templates list and the CustomText editor (also only on 2b8211b before). */
+.am-label-designer-templates {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.am-label-designer-template-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #d8e2ec;
+    border-radius: 0.65rem;
+    background: #fbfdff;
+}
+
+.am-label-designer-template-item__title {
+    font-weight: 600;
+    flex: 1 1 140px;
+}
+
+.am-label-designer-template-item__meta {
+    flex: 1 1 160px;
+}
+
+.am-label-designer-template-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.am-label-designer-custom-text textarea {
+    font-family: Arial, Helvetica, sans-serif;
+    resize: vertical;
+}
 .am-zebra-printer-status {
     display: inline-flex;
     align-items: center;
@@ -2078,6 +2180,12 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
 
     .am-asset-label {
         border-width: 1px;
+    }
+
+    .am-asset-label.am-asset-label--designed {
+        box-shadow: none;
+        outline: 1px solid #1a4a72;
+        page-break-inside: avoid;
     }
 
     .am-asset-label-code--qr {

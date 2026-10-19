@@ -128,6 +128,11 @@
             return { x: MARGIN_MM, y: Math.max(MARGIN_MM, heightMm - MARGIN_MM - 3) };
         }
 
+        if (id === 'CustomText') {
+            // rel1019f: one line below SerialNumber so the two never overlap (same as LabelLayoutDesignHelper.GetDefaultCustomTextY).
+            return { x: textX, y: Math.max(MARGIN_MM, Math.min(heightMm - MARGIN_MM - 2, MARGIN_MM + 28)) };
+        }
+
         return { x: textX, y: Math.min(heightMm - MARGIN_MM - 4, MARGIN_MM + 24) };
     }
 
