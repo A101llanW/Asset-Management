@@ -208,5 +208,22 @@ namespace AssetManagement.Tests.Helpers
             CollectionAssert.AreEqual(new[] { 100 }, catalog.SubTypes.Select(x => x.Id).ToArray());
             Assert.AreEqual(10, catalog.SubTypes[0].ParentId);
         }
+
+        [TestCase(76, 37)]
+        [TestCase(50, 30)]
+        [TestCase(50, 25)]
+        [TestCase(100, 50)]
+        public void CustomText_DefaultPosition_SitsBelowSerialNumber(int widthMm, int heightMm)
+        {
+            var design = LabelLayoutDesignHelper.CreateDefault(widthMm, heightMm);
+            var serial = LabelLayoutDesignHelper.GetElement(design, LabelLayoutDesignHelper.SerialNumberId);
+            var custom = LabelLayoutDesignHelper.GetElement(design, LabelLayoutDesignHelper.CustomTextId);
+
+            // SerialNumber is one 14-dot line (1.75 mm); CustomText must start below it, inside the bottom margin.
+            Assert.GreaterOrEqual(custom.YMm, serial.YMm + serial.FontHeight / 8.0, "CustomText overlaps SerialNumber");
+            Assert.LessOrEqual(custom.YMm, heightMm - LabelLayoutDesignHelper.DefaultMarginMm - 2);
+            Assert.AreEqual(serial.XMm, custom.XMm);
+            Assert.GreaterOrEqual(LabelLayoutDesignHelper.GetCustomTextMaxLines(custom, heightMm), 1);
+        }
     }
 }

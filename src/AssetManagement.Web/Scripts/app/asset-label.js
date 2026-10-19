@@ -186,6 +186,9 @@
                 field.style.whiteSpace = 'pre';
                 field.style.fontSize = fontHeightToMm(blockFont, 1.75) + 'mm';
                 field.style.lineHeight = ((blockFont + 2) / DOTS_PER_MM) + 'mm';
+                // rel1019f: the ^FB block box in mm (LabelLayoutDesignHelper.GetCustomTextBlockWidthDots / 8).
+                field.style.width = Math.max(1, widthMm - 2 - element.XMm) + 'mm';
+                field.style.height = (lines.length * (blockFont + 2) / DOTS_PER_MM) + 'mm';
                 root.appendChild(field);
                 continue;
             }
@@ -211,6 +214,8 @@
                 field.style.lineHeight = '1.15';
                 if (element.Id === 'AssetTag') {
                     field.className += ' am-asset-label-field--tag';
+                } else if (element.Id === 'CompanyName') {
+                    field.className += ' am-asset-label-field--company';
                 }
             }
 

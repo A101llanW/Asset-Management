@@ -224,6 +224,12 @@ namespace AssetManagement.Application.Helpers
             return CreateDefaultElement(id, widthMm, heightMm, DefaultQrMagnification);
         }
 
+        /// <summary>Default top of the CustomText block: below SerialNumber (MARGIN + 24 plus a 14-dot line), inside the bottom margin.</summary>
+        public static double GetDefaultCustomTextY(int heightMm)
+        {
+            return Math.Max(DefaultMarginMm, Math.Min(heightMm - DefaultMarginMm - 2, DefaultMarginMm + 28));
+        }
+
         private static LabelLayoutElement CreateDefaultElement(string id, int widthMm, int heightMm, decimal qrMagnification)
         {
             var element = new LabelLayoutElement
@@ -280,8 +286,9 @@ namespace AssetManagement.Application.Helpers
             }
             else if (string.Equals(id, CustomTextId, StringComparison.OrdinalIgnoreCase))
             {
+                // rel1019f: one line below SerialNumber (MARGIN + 24) so the two never overlap on the canvas.
                 element.XMm = textX;
-                element.YMm = Math.Min(heightMm - DefaultMarginMm - 4, DefaultMarginMm + 24);
+                element.YMm = GetDefaultCustomTextY(heightMm);
                 element.FontHeight = DefaultCustomTextFontHeight;
                 element.Enabled = false;
                 element.Text = string.Empty;
