@@ -54,6 +54,11 @@ namespace AssetManagement.Application.Helpers
 
                 { "Assets.RelocateClass", "Asset class relocated" },
                 { "Assets.RelocateRoom", "Asset room relocated" },
+                { "Assets.LabelPrint", "Asset label printed" },
+                { "Assets.LabelReprint", "Asset label reprinted" },
+                { "LabelPrintBatch.Create", "Label print batch sent" },
+                { "LabelPrintBatch.Reprint", "Label print batch reprinted" },
+                { "LabelPrintBatch.Clear", "Label print batch cleared" },
                 { "Assets.Edit.Department", "Asset department changed" },
 
                 { "Assets.AcknowledgeReceipt", "Assignment receipt acknowledged" },

@@ -1,0 +1,55 @@
+@using AssetManagement.Application.ViewModels
+@using AssetManagement.Application.Helpers
+@{
+    // rel1022a: label print history from the asset's audit trail (Assets.LabelPrint / Assets.LabelReprint).
+    var history = ViewBag.AssetPrintHistory as AssetPrintHistoryVm;
+    var unavailable = ViewBag.AssetPrintHistoryUnavailable as string;
+    var eatLabel = KenyaTimeHelper.DisplayAbbreviation;
+    var entries = history == null ? new List<AssetPrintHistoryEntryVm>() : history.Entries;
+}
+<div class="card card-kpi" data-am-asset-print-history="true">
+    <div class="card-body">
+        <h6 class="mb-3">Label prints</h6>
+        <p class="text-muted small">Every label printed or reprinted for this asset (single and bulk), newest first. Times in @eatLabel (Africa/Nairobi).</p>
+        @if (!string.IsNullOrEmpty(unavailable))
+        {
+            <div class="alert alert-warning py-2 small mb-0" role="status">@unavailable</div>
+        }
+        else
+        {
+            <dl class="row small mb-3">
+                <dt class="col-sm-3">Last printed</dt>
+                <dd class="col-sm-9" data-am-print-last>@(history != null && !string.IsNullOrEmpty(history.LastPrintedDisplay) ? history.LastPrintedDisplay : "Never")</dd>
+                <dt class="col-sm-3">Times printed</dt>
+                <dd class="col-sm-9" data-am-print-count>@(history == null ? 0 : history.PrintCount)@if (history != null && history.ReprintCount > 0) {<span class="text-muted"> (@history.ReprintCount reprint@(history.ReprintCount == 1 ? "" : "s"))</span>}</dd>
+            </dl>
+            if (entries.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0" id="amAssetPrintHistory">
+                        <thead><tr><th>When (@eatLabel)</th><th>Print</th><th>By</th><th>Details</th></tr></thead>
+                        <tbody>
+                        @foreach (var e in entries)
+                        {
+                            <tr>
+                                <td class="text-nowrap">@e.WhenDisplay</td>
+                                <td>@if (e.IsReprint) {<span class="badge bg-warning text-dark">Reprint</span>} else {<span class="badge bg-success">First print</span>}</td>
+                                <td>@e.ActorName</td>
+                                <td class="small text-muted">@e.Details</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                if (history != null && history.PrintCount > entries.Count)
+                {
+                    <p class="small text-muted mt-2 mb-0">Showing the latest @entries.Count of @history.PrintCount prints. The full list is in the Audit Trail tab.</p>
+                }
+            }
+            else
+            {
+                <p class="text-muted mb-0">No label has been printed for this asset yet.</p>
+            }
+        }
+    </div>
+</div>

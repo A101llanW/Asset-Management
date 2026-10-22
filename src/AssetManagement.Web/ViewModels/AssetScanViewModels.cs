@@ -49,6 +49,15 @@ namespace AssetManagement.Web.ViewModels
         /// <summary>Category / type / sub-type options for the Bulk Label Print cascading filters.</summary>
         public AssetManagement.Web.Helpers.ClassificationCatalog ClassificationCatalog { get; set; }
 
+        /// <summary>rel1022a: print log endpoints (null on pages without bulk printing).</summary>
+        public LabelPrintLogUrlsVm PrintLog { get; set; }
+
+        /// <summary>rel1022a: batch sent from the Asset register (?batchId=), preloaded into the print queue.</summary>
+        public LabelPrintBatchVm InitialPrintBatch { get; set; }
+
+        /// <summary>?batchId= was given but the batch is not this tenant's, is cleared, or has no printable assets.</summary>
+        public bool InitialPrintBatchMissing { get; set; }
+
         public string InitialCode { get; set; }
 
         public GlobalSearchResultVm SearchResults { get; set; }
@@ -56,5 +65,16 @@ namespace AssetManagement.Web.ViewModels
         public IEnumerable<SelectListItem> DepartmentOptions { get; set; }
 
         public IEnumerable<SelectListItem> StatusOptions { get; set; }
+    }
+
+    /// <summary>rel1022a: URLs the label pages use to log prints and manage print batches.</summary>
+    public class LabelPrintLogUrlsVm
+    {
+        public string RecordPrintUrl { get; set; }
+        public string CreateBatchUrl { get; set; }
+        public string CompleteBatchUrl { get; set; }
+        public string BatchesUrl { get; set; }
+        public string BatchItemsUrl { get; set; }
+        public string ClearBatchUrl { get; set; }
     }
 }

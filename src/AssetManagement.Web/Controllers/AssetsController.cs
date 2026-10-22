@@ -683,6 +683,22 @@ namespace AssetManagement.Web.Controllers
                 ViewBag.AssetMovementsUnavailable =
                     "Movement history is temporarily unavailable. Reload the page in a moment to try again.";
             }
+            try
+            {
+                // rel1022a: label print history (last printed, count, entries) from the audit trail.
+                ViewBag.AssetPrintHistory = DependencyResolver.Current.GetService<ILabelPrintLogService>().GetPrintHistory(assetId, 50);
+            }
+            catch (Exception ex)
+            {
+                // Same rule as movements: the print history must never take the Details page down.
+                System.Diagnostics.Trace.TraceWarning(
+                    "Assets/Details {0}: label print history omitted ({1}: {2})",
+                    assetId,
+                    ex.GetType().Name,
+                    ex.Message);
+                ViewBag.AssetPrintHistoryUnavailable =
+                    "Label print history is temporarily unavailable. Reload the page in a moment to try again.";
+            }
             ViewBag.DisposalBlockedReason = BuildDisposalBlockedReason(model);
             EnrichAssetDetails(model);
             model.Documents = BuildAssetDocumentService().GetByAsset(assetId).ToList();

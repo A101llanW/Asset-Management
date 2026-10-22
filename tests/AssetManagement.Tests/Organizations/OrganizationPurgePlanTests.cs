@@ -69,6 +69,8 @@ namespace AssetManagement.Tests.Organizations
         [TestCase("PurchaseRequest", "Asset")]
         [TestCase("AssetRequest", "Asset")]
         [TestCase("AssetSubType", "AssetType")]
+        [TestCase("LabelPrintBatchItem", "Asset")]
+        [TestCase("LabelPrintBatchItem", "LabelPrintBatch")]
         [TestCase("AssetType", "AssetCategory")]
         [TestCase("RoleTemplate", "Roles")]
         [TestCase("Users", "Roles")]

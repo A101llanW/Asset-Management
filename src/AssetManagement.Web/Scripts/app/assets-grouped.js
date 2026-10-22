@@ -2,6 +2,8 @@
     var config = window.AmGroupedAssetsConfig || {};
     var storageKey = "am-assets-grouped-expanded";
     var memberPageSize = config.memberPageSize || 10;
+    // rel1022a: unit checkboxes serve bulk actions (Assets.Edit) and "Send to printing" (Assets.View).
+    var canSelectMembers = !!(config.canBulkEdit || config.canSelect);
 
     // Details links carry this list URL (view, filters, page) as returnUrl so "Back to Assets" returns here;
     // the server only accepts a local, tenant-aware path and falls back to Assets/Index.
@@ -107,7 +109,7 @@
 
     function getMemberColumnCount(groupBy) {
         var count = 4 + getContextColumns(groupBy).length;
-        if (config.canBulkEdit) {
+        if (canSelectMembers) {
             count += 1;
         }
         return count;
@@ -130,7 +132,7 @@
         var columns = getContextColumns(groupBy);
         var html = "";
 
-        if (config.canBulkEdit) {
+        if (canSelectMembers) {
             html += '<th class="fw-normal am-bulk-col"><input type="checkbox" class="form-check-input" data-am-bulk-group-master aria-label="Select all units in group" /></th>';
         }
 
@@ -212,7 +214,7 @@
         row.className = "am-group-member-row";
         var columns = getContextColumns(resolveGroupBy(panel));
 
-        if (config.canBulkEdit) {
+        if (canSelectMembers) {
             var bulkCell = document.createElement("td");
             bulkCell.className = "align-middle am-bulk-col";
             bulkCell.innerHTML = '<input type="checkbox" data-am-bulk-id value="' + item.id + '" aria-label="Select ' + item.assetTag + '" class="form-check-input" />';
@@ -567,4 +569,9 @@
         wireGroupMaster(panel);
     });
     restoreExpandedGroups();
+
+    // rel1022a: whole-group selection (asset-group-selection.js) pages every member with the same query.
+    window.AmAssetsGrouped = {
+        buildMembersQuery: buildMembersQuery
+    };
 })();

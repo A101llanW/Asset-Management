@@ -127,7 +127,12 @@
     </div>
 }
 
-@if (canBulkEdit || isGrouped)
+@{
+    // rel1022a: units / whole groups can be ticked for bulk actions (Assets.Edit) or "Send to printing" (Assets.View).
+    var canSendToPrint = (isGrouped || isRoomView) && Html.HasPermission("Assets.View");
+    var canSelectGroups = (isGrouped || isRoomView) && (canBulkEdit || canSendToPrint);
+}
+@if (canBulkEdit || isGrouped || canSendToPrint)
 {
     @Html.Partial("_ListBulkToolbar")
 }
@@ -157,9 +162,9 @@ else if (isGrouped && groupedPage != null)
     <div class="card card-kpi border-0 shadow-sm am-fade-content mb-4">
         <div class="card-body p-0">
             <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom am-group-expand-toolbar">
-                @if (canBulkEdit)
+                @if (canSelectGroups)
                 {
-                    <span class="text-muted small">Expand groups to select individual units for bulk actions.</span>
+                    <span class="text-muted small">Tick a group to select all of its units, or expand it to pick single units.</span>
                 }
                 else
                 {
@@ -210,6 +215,10 @@ else if (isGrouped && groupedPage != null)
                             @if (isSimpleGroupBy)
                             {
                                 <td class="ps-3 fw-bold">
+                                    @if (canSelectGroups)
+                                    {
+                                        <input type="checkbox" class="form-check-input me-2 align-middle" data-am-group-select="@groupCollapseId" data-am-group-count="@group.Count" data-am-group-label="@groupLabel" aria-label="Select all @group.Count units in @groupLabel" />
+                                    }
                                     @if (string.Equals(groupBy, AssetListGroupBy.Status, StringComparison.OrdinalIgnoreCase))
                                     {
                                         <span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(group.CurrentStatus) badge-status">@groupLabel</span>
@@ -224,7 +233,13 @@ else if (isGrouped && groupedPage != null)
                             }
                             else
                             {
-                                <td class="ps-3 fw-bold">@group.AssetName</td>
+                                <td class="ps-3 fw-bold">
+                                    @if (canSelectGroups)
+                                    {
+                                        <input type="checkbox" class="form-check-input me-2 align-middle" data-am-group-select="@groupCollapseId" data-am-group-count="@group.Count" data-am-group-label="@(group.AssetName + (string.IsNullOrWhiteSpace(group.DepartmentName) ? "" : " - " + group.DepartmentName))" aria-label="Select all @group.Count units in @group.AssetName" />
+                                    }
+                                    @group.AssetName
+                                </td>
                                 <td>@group.CategoryName</td>
                                 <td>@(string.IsNullOrWhiteSpace(group.DepartmentName) ? "Company custody" : group.DepartmentName)</td>
                                 <td>@(string.IsNullOrWhiteSpace(group.AssetSubTypeName) ? DisplayText.Empty : group.AssetSubTypeName)</td>
@@ -574,7 +589,7 @@ else
     }
     @if (canBulkEdit)
     {
-        <script src="@Url.Content("~/Scripts/app/list-bulk.js")"></script>
+        <script src="@Url.Content("~/Scripts/app/list-bulk.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/list-bulk.js")).Ticks"></script>
     }
     @if (isRoomView && hasResults)
     {
@@ -604,6 +619,7 @@ else
                 groupMembersUrl: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Action("GroupMembers", "Assets"))),
                 groupBy: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(groupBy)),
                 canBulkEdit: @(canBulkEdit ? "true" : "false"),
+                canSelect: @(canSelectGroups ? "true" : "false"),
                 canMoveToClass: @(canRelocateAsset && classDepartments != null && classDepartments.Any() ? "true" : "false"),
                 canMoveToRoom: @(canRelocateToRoom ? "true" : "false"),
                 unassignedLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Unassigned)),
@@ -617,5 +633,9 @@ else
             };
         </script>
         <script src="@Url.Content("~/Scripts/app/assets-grouped.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/assets-grouped.js")).Ticks"></script>
+    }
+    @if (canSelectGroups && hasResults)
+    {
+        <script src="@Url.Content("~/Scripts/app/asset-group-selection.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-group-selection.js")).Ticks"></script>
     }
 }

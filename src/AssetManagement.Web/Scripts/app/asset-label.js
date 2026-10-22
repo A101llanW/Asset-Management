@@ -350,7 +350,19 @@
         load();
     }
 
-    function printLabel() {
+    // rel1022a: the print dialog cannot report whether paper came out, so the request itself is logged
+    // (Mode=BrowserDialog) before the dialog opens. Logging never blocks or replaces the print.
+    function logBrowserDialogPrint(arg) {
+        if (!window.AmLabelPrintLog) {
+            return;
+        }
+        var button = (arg && arg.currentTarget && arg.currentTarget.getAttribute) ? arg.currentTarget
+            : ((arg && arg.getAttribute) ? arg : document.querySelector('[data-am-asset-label-print][data-print-log-url]'));
+        window.AmLabelPrintLog.recordFromButton(button, 'BrowserDialog');
+    }
+
+    function printLabel(arg) {
+        logBrowserDialogPrint(arg);
         document.body.classList.add('am-printing-asset-label');
         window.onafterprint = function () {
             document.body.classList.remove('am-printing-asset-label');

@@ -178,6 +178,7 @@
         <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#disposal">Disposal</a></li>
     }
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#movements">Movement history</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#labelprints">Label prints</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#audit">Audit Trail</a></li>
 </ul>
 
@@ -332,6 +333,7 @@
         <div class="tab-pane fade" id="disposal">@Html.Partial("_AssetDisposalTab", Model)</div>
     }
     <div class="tab-pane fade" id="movements">@Html.Partial("_AssetMovementTab")</div>
+    <div class="tab-pane fade" id="labelprints">@Html.Partial("_AssetPrintHistoryTab")</div>
     <div class="tab-pane fade" id="audit">@Html.Partial("_AssetAuditTab")</div>
 </div>
 </div>
@@ -347,6 +349,7 @@
 @section scripts {
     <script src="@Url.Content("~/Scripts/vendor/qrcode.min.js")"></script>
     <script src="@Url.Content("~/Scripts/vendor/jsbarcode.all.min.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/label-print-log.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/label-print-log.js")).Ticks"></script>
     <script src="@Url.Content("~/Scripts/app/asset-label.js")"></script>
     <script>
         window.AssetLabelZebraScriptUrl = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Content("~/Scripts/app/asset-label-zebra.js") + "?v=" + System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks));

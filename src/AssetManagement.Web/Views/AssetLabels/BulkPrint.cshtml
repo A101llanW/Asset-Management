@@ -20,5 +20,7 @@
         window.AssetLabelZebraScriptUrl = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Url.Content("~/Scripts/app/asset-label-zebra.js") + "?v=" + System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks));
     </script>
     <script src="@Url.Content("~/Scripts/app/asset-label-zebra-loader.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra-loader.js")).Ticks" data-am-zebra-loader="true" data-zebra-src="@Url.Content("~/Scripts/app/asset-label-zebra.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-label-zebra.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/label-print-log.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/label-print-log.js")).Ticks"></script>
     <script src="@Url.Content("~/Scripts/app/asset-scan-batch-print.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/asset-scan-batch-print.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/label-print-batch-log.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/label-print-batch-log.js")).Ticks"></script>
 }

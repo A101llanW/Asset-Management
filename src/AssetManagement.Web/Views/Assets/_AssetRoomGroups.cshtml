@@ -12,6 +12,8 @@
     // the same effective filters as this page (Scripts/app/assets-by-room.js).
     var listFilter = ViewBag.Filter as AssetFilterVm ?? new AssetFilterVm();
     var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
+    // rel1022a: units are also selectable for "Send to printing" (Assets.View); whole rooms via the row checkbox.
+    var canSelect = canBulkEdit || Html.HasPermission("Assets.View");
     var filterQuery = HttpUtility.ParseQueryString(string.Empty);
     if (!string.IsNullOrWhiteSpace(listFilter.Search)) { filterQuery["Search"] = listFilter.Search; }
     if (listFilter.DepartmentId.HasValue) { filterQuery["DepartmentId"] = listFilter.DepartmentId.Value.ToString(); }
@@ -30,7 +32,7 @@
      data-am-room-categories-url="@Url.Action("RoomCategories", "Assets")"
      data-am-room-assets-url="@Url.Action("RoomCategoryAssets", "Assets")"
      data-am-room-filter-query="@filterQuery.ToString()"
-     data-am-room-can-bulk="@(canBulkEdit ? "true" : "false")"
+     data-am-room-can-bulk="@(canSelect ? "true" : "false")"
      data-am-room-asset-page-size="@AssetRoomGroupView.DefaultAssetPageSize">
     <div class="card-body p-0">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
@@ -60,6 +62,10 @@
                     var panelId = "am-room-panel-" + room.RoomId;
                     <tr class="am-room-row" data-am-room-row data-am-room-id="@room.RoomId">
                         <td class="ps-3">
+                            @if (canSelect && room.AssetCount > 0)
+                            {
+                                <input type="checkbox" class="form-check-input me-2 float-start mt-1" data-am-room-select="@room.RoomId" data-am-room-panel-id="@panelId" data-am-group-count="@room.AssetCount" data-am-group-label="@room.DisplayName" aria-label="Select all @room.AssetCount assets in @room.DisplayName" />
+                            }
                             <div class="fw-bold text-dark" data-am-room-name>@room.DisplayName</div>
                             @if (!string.IsNullOrWhiteSpace(room.ParentName))
                             {
