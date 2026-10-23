@@ -155,7 +155,7 @@
         @Html.ValidationMessageFor(m => m.Section, "", new { @class = "text-danger small" })
         <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a grade's Section also moves its classes that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
     </div>
-    @if (isGrade)
+    if (isGrade)
     {
         <div class="mb-3" id="edit-sortorder-row">
             <label class="form-label" for="department-sortorder-input">Sort number</label>
