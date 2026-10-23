@@ -12,12 +12,25 @@
     var createSetupMode = ViewBag.CreateSetupMode as string ?? Model.SetupMode ?? DepartmentService.SetupModeNormal;
     var lockedParentKind = ViewBag.LockedParentDepartmentKind as DepartmentKind?;
     var lockedParentIsAdmin = lockedParentKind == DepartmentKind.Administrative;
+    var sectionOptions = ViewBag.SectionOptions as System.Web.Mvc.SelectList;
+    var gradeOptions = ViewBag.GradeOptions as System.Collections.Generic.IList<AssetManagement.Application.ViewModels.DepartmentVm>
+        ?? new System.Collections.Generic.List<AssetManagement.Application.ViewModels.DepartmentVm>();
+    var isGradeSetup = createSetupMode == DepartmentService.SetupModeGrade;
+    var isClassSetup = createSetupMode == DepartmentService.SetupModeClass;
     var pageTitle = createSetupMode == DepartmentService.SetupModeSubDepartment
         ? "Create Sub-department"
         : createSetupMode == DepartmentService.SetupModeRoom
             ? (lockedParentId.HasValue ? "Create Room" : "Create independent Room")
-            : "Create Department";
-    var pageSubtitle = createSetupMode == DepartmentService.SetupModeSubDepartment
+            : isGradeSetup
+                ? "Create Grade"
+                : isClassSetup
+                    ? "Create Class"
+                    : "Create Department";
+    var pageSubtitle = isGradeSetup
+        ? "Add one grade (for example Prep, G00). Pick its Section so Prep stays apart from Senior school."
+        : isClassSetup
+        ? "Add one class under an existing grade. It takes the grade's Section."
+        : createSetupMode == DepartmentService.SetupModeSubDepartment
         ? "Add a sub-department under " + lockedParentName + "."
         : createSetupMode == DepartmentService.SetupModeRoom
             ? (lockedParentId.HasValue
@@ -31,6 +44,8 @@
     var showSharedIdentity = createSetupMode == DepartmentService.SetupModeNormal
         || createSetupMode == DepartmentService.SetupModeSubDepartment
         || createSetupMode == DepartmentService.SetupModeRoom
+        || isGradeSetup
+        || isClassSetup
         || showSetupModePicker;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -67,6 +82,14 @@
             @Html.DropDownListFor(m => m.SetupMode, setupModes, new { @class = "form-select", id = "department-setup-mode" })
         </div>
     }
+    if (sectionOptions != null)
+    {
+        <div class="mb-3" id="setup-section-row">
+            <label class="form-label" for="department-section-select">Section</label>
+            @Html.DropDownListFor(m => m.Section, sectionOptions, new { @class = "form-select", id = "department-section-select" })
+            <div class="form-text" id="section-help">Prep and Senior school are kept apart in the tree, the asset register and reports. Existing departments stay Senior school.</div>
+        </div>
+    }
     <div id="setup-shared-identity" style="@(showSharedIdentity ? null : "display:none;")">
         <div class="mb-3" id="shared-parent-row" style="display:none;">
             <label class="form-label" id="shared-parent-label">Parent</label>
@@ -98,6 +121,33 @@
                 "-- None (department pool) --",
                 new { @class = "form-select", id = "RoomCustodianUserId" })
             <div class="form-text">Optional. Never required to create a room.</div>
+        </div>
+    </div>
+    <div id="setup-grade-single" style="display:none;">
+        <div class="mb-3">
+            <label class="form-label" for="department-sortorder-input">Sort number</label>
+            @Html.TextBoxFor(m => m.SortOrder, new { @class = "form-control", type = "number", min = "0", max = "999", id = "department-sortorder-input" })
+            <div class="form-text">Optional. Lower numbers list first inside the section. Blank = taken from the code (G03 = 3).</div>
+        </div>
+    </div>
+    <div id="setup-class-single" style="display:none;">
+        <div class="mb-3">
+            <label class="form-label" for="class-grade-select">Grade</label>
+            <select name="ParentDepartmentId" id="class-grade-select" class="form-select">
+                <option value="">-- Select grade --</option>
+                @foreach (var grade in gradeOptions)
+                {
+                    <option value="@grade.Id" data-section="@AssetManagement.Application.Helpers.DepartmentSectionHelper.ToQueryValue(AssetManagement.Application.Helpers.DepartmentSectionHelper.Normalize(grade.Section))" @(Model.ParentDepartmentId == grade.Id ? "selected" : null)>@AssetManagement.Application.Helpers.DepartmentLabelHelper.FormatCodeName(grade.Code, grade.Name) (@AssetManagement.Application.Helpers.DepartmentSectionHelper.Label(grade.Section))</option>
+                }
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
+            @Html.DropDownListFor(
+                m => m.ClassTeacherUserId,
+                ViewBag.ClassTeacherUsers as System.Web.Mvc.SelectList ?? new System.Web.Mvc.SelectList(Enumerable.Empty<System.Web.Mvc.SelectListItem>()),
+                "-- None --",
+                new { @class = "form-select", id = "ClassTeacherUserId" })
         </div>
     </div>
     <div id="setup-grade-streams" style="display:none;">
@@ -145,8 +195,13 @@
         var lockedParentIsAdmin = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(lockedParentIsAdmin));
         var sections = {
             GradeWithStreams: document.getElementById('setup-grade-streams'),
-            BulkGrades: document.getElementById('setup-bulk-grades')
+            BulkGrades: document.getElementById('setup-bulk-grades'),
+            GradeSingle: document.getElementById('setup-grade-single'),
+            ClassSingle: document.getElementById('setup-class-single')
         };
+        var sectionRow = document.getElementById('setup-section-row');
+        var sectionSelect = document.getElementById('department-section-select');
+        var classGradeSelect = document.getElementById('class-grade-select');
         var shared = document.getElementById('setup-shared-identity');
         var parentRow = document.getElementById('shared-parent-row');
         var parentLabel = document.getElementById('shared-parent-label');
@@ -174,7 +229,9 @@
             var isBulk = mode === 'BulkGrades';
             var isSub = mode === 'SubDepartment';
             var isRoom = mode === 'Room';
-            var isNormal = mode === 'Normal' || (!isGrade && !isBulk && !isSub && !isRoom);
+            var isGradeOne = mode === 'Grade';
+            var isClassOne = mode === 'Class';
+            var isNormal = mode === 'Normal' || (!isGrade && !isBulk && !isSub && !isRoom && !isGradeOne && !isClassOne);
 
             if (shared) {
                 shared.style.display = (isGrade || isBulk) ? 'none' : '';
@@ -182,7 +239,8 @@
             }
             Object.keys(sections).forEach(function (key) {
                 if (sections[key]) {
-                    var show = (key === 'GradeWithStreams' && isGrade) || (key === 'BulkGrades' && isBulk);
+                    var show = (key === 'GradeWithStreams' && isGrade) || (key === 'BulkGrades' && isBulk)
+                        || (key === 'GradeSingle' && isGradeOne) || (key === 'ClassSingle' && isClassOne);
                     sections[key].style.display = show ? '' : 'none';
                     setDisabled(sections[key], !show);
                 }
@@ -197,12 +255,21 @@
                         : 'Parent department';
                 }
             }
+            if (sectionRow) {
+                // Sub-departments and rooms under a locked parent inherit its Section, so the select is hidden and not posted.
+                var showSection = !(lockedParentId && (isSub || isRoom));
+                sectionRow.style.display = showSection ? '' : 'none';
+                setDisabled(sectionRow, !showSection);
+            }
             if (codeRow) {
-                var showCode = isNormal || (isRoom && !lockedParentId);
+                var showCode = isNormal || (isRoom && !lockedParentId) || isGradeOne || isClassOne;
                 codeRow.style.display = showCode ? '' : 'none';
                 setDisabled(codeRow, !showCode);
                 if (codeHelp) {
-                    codeHelp.textContent = (isRoom && !lockedParentId) ? 'Independent rooms require a unique code.' : '';
+                    codeHelp.textContent = (isRoom && !lockedParentId) ? 'Independent rooms require a unique code.'
+                        : isGradeOne ? 'Required and unique, up to 20 letters or digits (Prep = G00, Grade 3 = G03).'
+                        : isClassOne ? 'Optional. Blank = generated from the grade code and the class name.'
+                        : '';
                 }
             }
             if (reqRow) {
@@ -216,7 +283,7 @@
                 setDisabled(custRow, !isRoom);
             }
             if (nameLabel) {
-                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : 'Name');
+                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : (isGradeOne ? 'Grade name' : (isClassOne ? 'Class name' : 'Name')));
             }
             if (nameHelp) {
                 if (isSub) {
@@ -228,8 +295,18 @@
                 }
             }
             if (nameInput) {
-                nameInput.placeholder = isSub ? 'Comp Lab - Senior' : (isRoom ? 'Conference Room A' : '');
+                nameInput.placeholder = isSub ? 'Comp Lab - Senior' : (isRoom ? 'Conference Room A' : (isGradeOne ? 'Prep' : (isClassOne ? 'Prep Red' : '')));
             }
+        }
+        if (classGradeSelect && sectionSelect) {
+            // A class takes its grade's Section: follow the grade picker (still editable afterwards).
+            classGradeSelect.addEventListener('change', function () {
+                var opt = classGradeSelect.options[classGradeSelect.selectedIndex];
+                var value = opt ? opt.getAttribute('data-section') : '';
+                if (value) {
+                    sectionSelect.value = value;
+                }
+            });
         }
         if (modeSelect) {
             modeSelect.addEventListener('change', syncSections);

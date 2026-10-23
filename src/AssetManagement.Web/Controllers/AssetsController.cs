@@ -71,6 +71,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.ListViewMode = filter.ListViewMode;
             ViewBag.GroupBy = filter.GroupBy;
             ViewBag.Departments = BuildAssetFilterDepartmentSelectList(filter?.DepartmentId);
+            ViewBag.Sections = BuildSectionSelectList(filter?.Section);
             ViewBag.PurchaseOptions = BuildPurchaseFilterOptions(filter);
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
@@ -369,6 +370,7 @@ namespace AssetManagement.Web.Controllers
             {
                 Search = filter.Search,
                 DepartmentId = filter.DepartmentId,
+                Section = filter.Section,
                 Status = filter.Status,
                 sort,
                 direction,
@@ -419,6 +421,7 @@ namespace AssetManagement.Web.Controllers
             {
                 Search = filter.Search,
                 DepartmentId = filter.DepartmentId,
+                Section = filter.Section,
                 Status = filter.Status,
                 sort,
                 direction,
@@ -502,6 +505,7 @@ namespace AssetManagement.Web.Controllers
             {
                 Search = filter.Search,
                 DepartmentId = filter.DepartmentId,
+                Section = filter.Section,
                 Status = filter.Status,
                 sort,
                 direction,

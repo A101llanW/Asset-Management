@@ -17,6 +17,7 @@ namespace AssetManagement.Web.Helpers
             }
 
             var hasExplicitFilter = filter.DepartmentId.HasValue
+                || filter.Section.HasValue
                 || filter.Status.HasValue
                 || filter.CategoryId.HasValue
                 || !string.IsNullOrWhiteSpace(filter.Search)

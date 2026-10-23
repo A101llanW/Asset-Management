@@ -69,6 +69,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int? DepartmentId { get; set; }
 
+        /// <summary>School section filter (Prep / Senior school). Null = all sections. Combines (AND) with the department filter.</summary>
+        public DepartmentSection? Section { get; set; }
+
         public int? CategoryId { get; set; }
 
         /// <summary>Multi-select department filter (Customize Reports). Empty = all departments in scope.</summary>

@@ -19,6 +19,8 @@ namespace AssetManagement.Application.Services
         public const string SetupModeRoom = DepartmentSetupModes.Room;
         public const string SetupModeGradeStreams = DepartmentSetupModes.GradeStreams;
         public const string SetupModeBulkGrades = DepartmentSetupModes.BulkGrades;
+        public const string SetupModeGrade = DepartmentSetupModes.Grade;
+        public const string SetupModeClass = DepartmentSetupModes.Class;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly IDepartmentScopeService _departmentScope;
@@ -84,35 +86,9 @@ namespace AssetManagement.Application.Services
 
             DepartmentOrgHierarchyDisplay.AttachGradeClassChildren(departments);
 
-            var sections = new List<DepartmentTreeSectionVm>();
-            for (var grade = 1; grade <= SchoolClassCodeHelper.MaxGrade; grade++)
-            {
-                var gradeCode = SchoolClassCodeHelper.BuildGradeDepartmentCode(grade);
-                var gradeParent = departments.FirstOrDefault(x =>
-                    x.DepartmentKind == DepartmentKind.Grade
-                    && string.Equals(x.Code, gradeCode, StringComparison.OrdinalIgnoreCase));
-                if (gradeParent == null)
-                {
-                    continue;
-                }
-
-                sections.Add(new DepartmentTreeSectionVm
-                {
-                    Title = gradeParent.Name,
-                    Items = new List<DepartmentVm> { gradeParent }
-                });
-            }
-
+            // Section order: Prep first, then Senior school. Inside a section: its grades (by sort number, not by a
+            // hard-coded G01..G99 list, so Prep G00 and any non-G## grade code are shown), Administration, Other.
             var adminItems = DepartmentOrgHierarchyDisplay.BuildAdministrativeSectionItems(departments);
-            if (adminItems.Any())
-            {
-                sections.Add(new DepartmentTreeSectionVm
-                {
-                    Title = "Administration",
-                    Items = adminItems
-                });
-            }
-
             var ungrouped = departments
                 .Where(x => !x.ParentDepartmentId.HasValue
                     && x.DepartmentKind != DepartmentKind.Grade
@@ -120,16 +96,114 @@ namespace AssetManagement.Application.Services
                     && x.DepartmentKind != DepartmentKind.SubDepartment)
                 .OrderBy(x => x.Name)
                 .ToList();
-            if (ungrouped.Any())
+
+            var sections = new List<DepartmentTreeSectionVm>();
+            foreach (var section in new[] { DepartmentSection.Prep, DepartmentSection.SeniorSchool })
             {
-                sections.Add(new DepartmentTreeSectionVm
+                var current = section;
+                var grades = departments
+                    .Where(x => x.DepartmentKind == DepartmentKind.Grade
+                        && DepartmentSectionHelper.Normalize(x.Section) == current)
+                    .OrderBy(x => DepartmentSectionHelper.EffectiveSortNumber(x.SortOrder, x.Code))
+                    .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Id)
+                    .ToList();
+                foreach (var gradeParent in grades)
                 {
-                    Title = "Other",
-                    Items = ungrouped
-                });
+                    sections.Add(new DepartmentTreeSectionVm
+                    {
+                        Title = gradeParent.Name,
+                        SectionGroup = current,
+                        Items = new List<DepartmentVm> { gradeParent }
+                    });
+                }
+
+                var sectionAdmins = adminItems
+                    .Select(x => ProjectAdministrativeToSection(x, current))
+                    .Where(x => x != null)
+                    .ToList();
+                if (sectionAdmins.Any())
+                {
+                    sections.Add(new DepartmentTreeSectionVm
+                    {
+                        Title = "Administration",
+                        SectionGroup = current,
+                        Items = sectionAdmins
+                    });
+                }
+
+                var sectionOther = ungrouped
+                    .Where(x => DepartmentSectionHelper.Normalize(x.Section) == current)
+                    .ToList();
+                if (sectionOther.Any())
+                {
+                    sections.Add(new DepartmentTreeSectionVm
+                    {
+                        Title = "Other",
+                        SectionGroup = current,
+                        Items = sectionOther
+                    });
+                }
             }
 
             return sections;
+        }
+
+        /// <summary>
+        /// The administrative department as it appears inside one Section: its own children/rooms that belong to that Section.
+        /// Returns the same object when nothing is filtered out (the usual all-Senior case), a trimmed copy when a
+        /// department holds rooms of both sections (e.g. Prep rooms under a Senior administrative department),
+        /// and null when neither the department nor anything under it is in the Section.
+        /// </summary>
+        private static DepartmentVm ProjectAdministrativeToSection(DepartmentVm admin, DepartmentSection current)
+        {
+            var adminIn = DepartmentSectionHelper.Normalize(admin.Section) == current;
+            var kept = new List<DepartmentVm>();
+            var changed = false;
+            foreach (var child in admin.Children ?? new List<DepartmentVm>())
+            {
+                var item = child;
+                var childIn = DepartmentSectionHelper.Normalize(child.Section) == current;
+                if (child.DepartmentKind == DepartmentKind.SubDepartment)
+                {
+                    var rooms = (child.Children ?? new List<DepartmentVm>())
+                        .Where(r => DepartmentSectionHelper.Normalize(r.Section) == current)
+                        .ToList();
+                    if (!childIn && rooms.Count == 0)
+                    {
+                        changed = true;
+                        continue;
+                    }
+
+                    if (rooms.Count != (child.Children == null ? 0 : child.Children.Count))
+                    {
+                        item = child.ShallowCopy();
+                        item.Children = rooms;
+                        changed = true;
+                    }
+                }
+                else if (!childIn)
+                {
+                    changed = true;
+                    continue;
+                }
+
+                kept.Add(item);
+            }
+
+            if (!adminIn && kept.Count == 0)
+            {
+                return null;
+            }
+
+            if (!changed)
+            {
+                return admin;
+            }
+
+            var copy = admin.ShallowCopy();
+            copy.Children = kept;
+            return copy;
         }
 
         public DepartmentVm GetById(int id)
@@ -181,6 +255,10 @@ namespace AssetManagement.Application.Services
                     return CreateGradeWithStreams(model);
                 case SetupModeBulkGrades:
                     return CreateBulkGrades(model);
+                case SetupModeGrade:
+                    return CreateGrade(model);
+                case SetupModeClass:
+                    return CreateClass(model);
                 default:
                     return CreateNormal(model);
             }
@@ -265,6 +343,7 @@ namespace AssetManagement.Application.Services
 
             var oldKind = entity.DepartmentKind;
             var oldParentId = entity.ParentDepartmentId;
+            var oldSection = entity.Section;
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
@@ -272,6 +351,18 @@ namespace AssetManagement.Application.Services
             entity.DepartmentKind = model.DepartmentKind;
             entity.IsRequisitionTarget = model.IsRequisitionTarget;
             entity.IsActive = model.IsActive;
+            // Section: a null (field not posted) leaves the stored value alone, so a form that omits it can never
+            // silently turn a Prep unit back into Senior school.
+            if (model.Section.HasValue)
+            {
+                entity.Section = model.Section.Value;
+            }
+
+            if (model.DepartmentKind == DepartmentKind.Grade)
+            {
+                entity.SortOrder = model.SortOrder;
+            }
+
             // Optional PIC only — never cascade-reassign assets when teacher/custodian changes.
             if (model.DepartmentKind == DepartmentKind.Class)
             {
@@ -304,9 +395,30 @@ namespace AssetManagement.Application.Services
             entity.UpdatedAt = now;
 
             var movedChildren = new List<KeyValuePair<Department, int?>>();
+            var sectionFollowers = new List<Department>();
             _unitOfWork.ExecuteInTransaction(() =>
             {
                 repository.Update(entity);
+                if (entity.DepartmentKind == DepartmentKind.Grade && entity.Section != oldSection)
+                {
+                    // A grade's classes are its streams: the ones still on the grade's old section follow it.
+                    foreach (var classRow in allDepartments.Where(x =>
+                        x.ParentDepartmentId == entity.Id
+                        && x.DepartmentKind == DepartmentKind.Class
+                        && x.Section == oldSection))
+                    {
+                        var follower = repository.GetById(classRow.Id);
+                        if (follower == null)
+                        {
+                            continue;
+                        }
+
+                        follower.Section = entity.Section;
+                        follower.UpdatedAt = now;
+                        repository.Update(follower);
+                        sectionFollowers.Add(follower);
+                    }
+                }
                 foreach (var move in childMoves)
                 {
                     var child = repository.GetById(move.Key);
@@ -325,13 +437,31 @@ namespace AssetManagement.Application.Services
                 _unitOfWork.SaveChanges();
             });
             InvalidateDepartmentCache();
+            var auditOld = new List<string>();
+            if (oldKind != entity.DepartmentKind || oldParentId != entity.ParentDepartmentId)
+            {
+                auditOld.Add("Kind=" + oldKind + ";ParentId=" + (oldParentId.HasValue ? oldParentId.Value.ToString() : "-"));
+            }
+
+            if (oldSection != entity.Section)
+            {
+                auditOld.Add("Section=" + oldSection);
+            }
+
             WriteDepartmentAudit(
                 "Departments.Edit",
                 entity.Id.ToString(),
-                oldKind != entity.DepartmentKind || oldParentId != entity.ParentDepartmentId
-                    ? "Kind=" + oldKind + ";ParentId=" + (oldParentId.HasValue ? oldParentId.Value.ToString() : "-")
-                    : null,
-                entity.Name);
+                auditOld.Count > 0 ? string.Join(";", auditOld) : null,
+                oldSection != entity.Section ? entity.Name + ";Section=" + entity.Section : entity.Name);
+            foreach (var follower in sectionFollowers)
+            {
+                WriteDepartmentAudit(
+                    "Departments.Edit",
+                    follower.Id.ToString(),
+                    "Section=" + oldSection,
+                    follower.Name + ";Section=" + follower.Section + ";Reason=Section change on grade " + entity.Name);
+            }
+
             foreach (var moved in movedChildren)
             {
                 WriteDepartmentAudit(
@@ -616,6 +746,7 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = parent.Id,
                 DepartmentKind = DepartmentKind.SubDepartment,
                 IsRequisitionTarget = true,
+                Section = model.Section ?? parent.Section,
                 IsActive = true,
                 CreatedAt = now
             };
@@ -659,6 +790,7 @@ namespace AssetManagement.Application.Services
                     Description = model.Description,
                     DepartmentKind = DepartmentKind.Room,
                     IsRequisitionTarget = model.IsRequisitionTarget,
+                    Section = DepartmentSectionHelper.Normalize(model.Section),
                     RoomCustodianUserId = string.IsNullOrWhiteSpace(model.RoomCustodianUserId) ? null : model.RoomCustodianUserId.Trim(),
                     IsActive = true,
                     CreatedAt = now
@@ -704,6 +836,7 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = parent.Id,
                 DepartmentKind = DepartmentKind.Room,
                 IsRequisitionTarget = true,
+                Section = model.Section ?? parent.Section,
                 RoomCustodianUserId = string.IsNullOrWhiteSpace(model.RoomCustodianUserId) ? null : model.RoomCustodianUserId.Trim(),
                 IsActive = true,
                 CreatedAt = now
@@ -726,6 +859,7 @@ namespace AssetManagement.Application.Services
                 Description = model.Description,
                 DepartmentKind = DepartmentKind.Administrative,
                 IsRequisitionTarget = model.IsRequisitionTarget,
+                Section = DepartmentSectionHelper.Normalize(model.Section),
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -754,11 +888,11 @@ namespace AssetManagement.Application.Services
 
             var grade = model.GradeNumber.Value;
             var now = DateTime.UtcNow;
-            var gradeEntity = EnsureGradeParent(grade, now);
+            var gradeEntity = EnsureGradeParent(grade, now, DepartmentSectionHelper.Normalize(model.Section));
             var firstClassId = 0;
             foreach (var stream in streams)
             {
-                var classEntity = BuildClassEntity(grade, stream, gradeEntity.Id, now);
+                var classEntity = BuildClassEntity(grade, stream, gradeEntity.Id, now, gradeEntity.Section);
                 _unitOfWork.Repository<Department>().Add(classEntity);
                 _unitOfWork.SaveChanges();
                 WriteDepartmentAudit("Departments.Create", classEntity.Id.ToString(), null, classEntity.Name);
@@ -770,6 +904,160 @@ namespace AssetManagement.Application.Services
 
             InvalidateDepartmentCache();
             return firstClassId > 0 ? firstClassId : gradeEntity.Id;
+        }
+
+        /// <summary>Create ONE grade: any code (Prep = G00 is fine), a Section and an optional sort number.</summary>
+        private int CreateGrade(DepartmentCreateVm model)
+        {
+            ValidateRequiredNameAndCode(model);
+            var name = model.Name.Trim();
+            var code = model.Code.Trim().ToUpperInvariant();
+            if (code.Length > SchoolDepartmentCodeHelper.MaxDepartmentCodeLength)
+            {
+                throw new BusinessException("Code must be " + SchoolDepartmentCodeHelper.MaxDepartmentCodeLength + " characters or fewer.");
+            }
+
+            if (model.SortOrder.HasValue && (model.SortOrder.Value < 0 || model.SortOrder.Value > 999))
+            {
+                throw new BusinessException("Sort number must be between 0 and 999.");
+            }
+
+            // IX_Department_Org_Code_Unique covers inactive rows too, so check every code in the organization.
+            var existing = _unitOfWork.Repository<Department>().GetAll().ToList();
+            if (existing.Any(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new BusinessException("A department with code '" + code + "' already exists.");
+            }
+
+            if (existing.Any(x => x.IsActive
+                && x.DepartmentKind == DepartmentKind.Grade
+                && string.Equals((x.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new BusinessException("A grade named '" + name + "' already exists.");
+            }
+
+            var entity = new Department
+            {
+                Name = name,
+                Code = code,
+                Description = string.IsNullOrWhiteSpace(model.Description) ? name + " container" : model.Description.Trim(),
+                DepartmentKind = DepartmentKind.Grade,
+                IsRequisitionTarget = false,
+                Section = DepartmentSectionHelper.Normalize(model.Section),
+                SortOrder = model.SortOrder,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            ApplyOrganization(entity);
+            _unitOfWork.Repository<Department>().Add(entity);
+            _unitOfWork.SaveChanges();
+            InvalidateDepartmentCache();
+            WriteDepartmentAudit("Departments.Create", entity.Id.ToString(), null, entity.Name + ";Section=" + entity.Section);
+            return entity.Id;
+        }
+
+        /// <summary>Create ONE class (stream) under an existing active grade; it takes the grade's Section unless one is chosen.</summary>
+        private int CreateClass(DepartmentCreateVm model)
+        {
+            if (string.IsNullOrWhiteSpace(model.Name))
+            {
+                throw new BusinessException("Name is required.");
+            }
+
+            if (!model.ParentDepartmentId.HasValue || model.ParentDepartmentId.Value <= 0)
+            {
+                throw new BusinessException("Select the grade for this class.");
+            }
+
+            var classOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
+            if (classOrganizationId.HasValue)
+            {
+                var guard = NewReferenceGuard();
+                guard.EnsureDepartmentInOrganization(
+                    classOrganizationId.Value, model.ParentDepartmentId, "Grade", "Departments.CreateClass", nameof(Department), null);
+                guard.EnsureUserInOrganization(
+                    classOrganizationId.Value, model.ClassTeacherUserId, "Class teacher", "Departments.CreateClass", nameof(Department), null);
+            }
+
+            var grade = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
+            if (grade == null || !grade.IsActive || grade.DepartmentKind != DepartmentKind.Grade)
+            {
+                throw new BusinessException("Select an active grade for this class.");
+            }
+
+            var name = model.Name.Trim();
+            var existing = _unitOfWork.Repository<Department>().GetAll().ToList();
+            if (existing.Any(x => x.IsActive
+                && x.ParentDepartmentId == grade.Id
+                && x.DepartmentKind == DepartmentKind.Class
+                && string.Equals((x.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new BusinessException("A class named '" + name + "' already exists under " + grade.Name + ".");
+            }
+
+            string code;
+            if (string.IsNullOrWhiteSpace(model.Code))
+            {
+                code = SchoolDepartmentCodeHelper.MakeUniqueCode(
+                    BuildSingleClassCode(grade.Code, name),
+                    candidate => existing.Any(x => string.Equals(x.Code, candidate, StringComparison.OrdinalIgnoreCase)));
+            }
+            else
+            {
+                code = model.Code.Trim().ToUpperInvariant();
+                if (code.Length > SchoolDepartmentCodeHelper.MaxDepartmentCodeLength)
+                {
+                    throw new BusinessException("Code must be " + SchoolDepartmentCodeHelper.MaxDepartmentCodeLength + " characters or fewer.");
+                }
+
+                if (existing.Any(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new BusinessException("A department with code '" + code + "' already exists.");
+                }
+            }
+
+            var entity = new Department
+            {
+                Name = name,
+                Code = code,
+                Description = string.IsNullOrWhiteSpace(model.Description) ? name + " (" + grade.Name + ")" : model.Description.Trim(),
+                ParentDepartmentId = grade.Id,
+                DepartmentKind = DepartmentKind.Class,
+                IsRequisitionTarget = true,
+                Section = model.Section ?? grade.Section,
+                ClassTeacherUserId = string.IsNullOrWhiteSpace(model.ClassTeacherUserId) ? null : model.ClassTeacherUserId.Trim(),
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            ApplyOrganization(entity);
+            _unitOfWork.Repository<Department>().Add(entity);
+            _unitOfWork.SaveChanges();
+            InvalidateDepartmentCache();
+            WriteDepartmentAudit("Departments.Create", entity.Id.ToString(), null, entity.Name + ";Section=" + entity.Section);
+            return entity.Id;
+        }
+
+        /// <summary>Grade code + the letters/digits of the class name, e.g. G03 + "C" = G03C. A leading grade number in the name is not repeated (G03 + "3C" = G03C).</summary>
+        public static string BuildSingleClassCode(string gradeCode, string className)
+        {
+            var stream = new string((className ?? string.Empty)
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+            var number = DepartmentSectionHelper.ParseGradeNumber(gradeCode);
+            if (number.HasValue && number.Value > 0)
+            {
+                var prefix = number.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (stream.Length > prefix.Length && stream.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    stream = stream.Substring(prefix.Length);
+                }
+            }
+
+            var code = ((gradeCode ?? string.Empty).Trim().ToUpperInvariant() + stream);
+            return code.Length > SchoolDepartmentCodeHelper.MaxDepartmentCodeLength
+                ? code.Substring(0, SchoolDepartmentCodeHelper.MaxDepartmentCodeLength)
+                : code;
         }
 
         private int CreateBulkGrades(DepartmentCreateVm model)
@@ -791,7 +1079,7 @@ namespace AssetManagement.Application.Services
             var firstId = 0;
             for (var grade = from; grade <= to; grade++)
             {
-                var gradeEntity = EnsureGradeParent(grade, now);
+                var gradeEntity = EnsureGradeParent(grade, now, DepartmentSectionHelper.Normalize(model.Section));
                 foreach (var stream in streams)
                 {
                     var code = SchoolClassCodeHelper.BuildClassDepartmentCode(grade, stream);
@@ -801,7 +1089,7 @@ namespace AssetManagement.Application.Services
                         continue;
                     }
 
-                    var classEntity = BuildClassEntity(grade, stream, gradeEntity.Id, now);
+                    var classEntity = BuildClassEntity(grade, stream, gradeEntity.Id, now, gradeEntity.Section);
                     _unitOfWork.Repository<Department>().Add(classEntity);
                     _unitOfWork.SaveChanges();
                     WriteDepartmentAudit("Departments.Create", classEntity.Id.ToString(), null, classEntity.Name);
@@ -816,7 +1104,7 @@ namespace AssetManagement.Application.Services
             return firstId;
         }
 
-        private Department EnsureGradeParent(int grade, DateTime now)
+        private Department EnsureGradeParent(int grade, DateTime now, DepartmentSection section)
         {
             var gradeCode = SchoolClassCodeHelper.BuildGradeDepartmentCode(grade);
             var existing = _unitOfWork.Repository<Department>().GetAll()
@@ -833,6 +1121,7 @@ namespace AssetManagement.Application.Services
                 Description = "Grade " + grade + " container",
                 DepartmentKind = DepartmentKind.Grade,
                 IsRequisitionTarget = false,
+                Section = section,
                 IsActive = true,
                 CreatedAt = now
             };
@@ -843,7 +1132,7 @@ namespace AssetManagement.Application.Services
             return gradeEntity;
         }
 
-        private Department BuildClassEntity(int grade, string stream, int parentId, DateTime now)
+        private Department BuildClassEntity(int grade, string stream, int parentId, DateTime now, DepartmentSection section)
         {
             var entity = new Department
             {
@@ -853,6 +1142,7 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = parentId,
                 DepartmentKind = DepartmentKind.Class,
                 IsRequisitionTarget = true,
+                Section = section,
                 IsActive = true,
                 CreatedAt = now
             };
@@ -915,7 +1205,9 @@ namespace AssetManagement.Application.Services
                 ParentDepartmentId = model.ParentDepartmentId,
                 DepartmentKind = model.DepartmentKind,
                 IsRequisitionTarget = model.IsRequisitionTarget,
-                IsActive = model.IsActive
+                IsActive = model.IsActive,
+                Section = DepartmentSectionHelper.Normalize(model.Section),
+                SortOrder = model.SortOrder
             };
         }
 
@@ -952,7 +1244,9 @@ namespace AssetManagement.Application.Services
                 ClassTeacherUserId = entity.ClassTeacherUserId,
                 RoomCustodianUserId = entity.RoomCustodianUserId,
                 PurchaseOrderRaiserRoleId = entity.PurchaseOrderRaiserRoleId,
-                PurchaseOrderRaiserUserId = entity.PurchaseOrderRaiserUserId
+                PurchaseOrderRaiserUserId = entity.PurchaseOrderRaiserUserId,
+                Section = entity.Section,
+                SortOrder = entity.SortOrder
             };
         }
 

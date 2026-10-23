@@ -9,6 +9,13 @@
     var isRoom = Model.DepartmentKind == DepartmentKind.Room;
     var isSubDepartment = Model.DepartmentKind == DepartmentKind.SubDepartment;
     var isClass = Model.DepartmentKind == DepartmentKind.Class;
+    var isGrade = Model.DepartmentKind == DepartmentKind.Grade;
+    var sectionSelectList = ViewBag.SectionOptions as SelectList
+        ?? new SelectList(
+            DepartmentSectionHelper.Options().Select(x => new { Value = DepartmentSectionHelper.ToQueryValue(x.Key), Text = x.Value }).ToList(),
+            "Value",
+            "Text",
+            DepartmentSectionHelper.ToQueryValue(DepartmentSectionHelper.Normalize(Model.Section)));
     var isFlowConfigurable = DepartmentHierarchyRules.CanConfigureRequisitionFlow(Model.DepartmentKind);
     var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
     var editPageTitle = DepartmentLabelHelper.GetEditActionLabel(Model.DepartmentKind, isTopLevelAdmin);
@@ -142,6 +149,21 @@
         @Html.TextAreaFor(m => m.Description, new { @class = "form-control", rows = "3" })
         @Html.ValidationMessageFor(m => m.Description, "", new { @class = "text-danger small" })
     </div>
+    <div class="mb-3" id="edit-section-row">
+        <label class="form-label" for="department-section-select">Section</label>
+        @Html.DropDownListFor(m => m.Section, sectionSelectList, new { @class = "form-select", id = "department-section-select" })
+        @Html.ValidationMessageFor(m => m.Section, "", new { @class = "text-danger small" })
+        <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a grade's Section also moves its classes that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
+    </div>
+    @if (isGrade)
+    {
+        <div class="mb-3" id="edit-sortorder-row">
+            <label class="form-label" for="department-sortorder-input">Sort number</label>
+            @Html.TextBoxFor(m => m.SortOrder, new { @class = "form-control", type = "number", min = "0", max = "999", id = "department-sortorder-input" })
+            @Html.ValidationMessageFor(m => m.SortOrder, "", new { @class = "text-danger small" })
+            <div class="form-text">Optional. Lower numbers list first inside the section. Blank = taken from the code (G03 = 3).</div>
+        </div>
+    }
     <div class="mb-3">
         <label class="form-label" for="department-kind-select">Department kind</label>
         @{

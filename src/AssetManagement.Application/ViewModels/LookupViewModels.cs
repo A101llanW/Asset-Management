@@ -6,6 +6,12 @@ namespace AssetManagement.Application.ViewModels
 {
     public class DepartmentVm
     {
+        /// <summary>Field-for-field copy (Children list is shared until replaced). Used to show one department in two Sections.</summary>
+        public DepartmentVm ShallowCopy()
+        {
+            return (DepartmentVm)MemberwiseClone();
+        }
+
         public int Id { get; set; }
 
         [Required]
@@ -71,6 +77,15 @@ namespace AssetManagement.Application.ViewModels
         public IList<ApprovalProcessSettingsVm> RequisitionApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
 
         public IList<DepartmentVm> Children { get; set; } = new List<DepartmentVm>();
+
+        /// <summary>School section (migration 106). Null on a posted form = leave the stored value unchanged.</summary>
+        [Display(Name = "Section")]
+        public DepartmentSection? Section { get; set; }
+
+        /// <summary>Grades only: explicit sort number. Null = derive from the code (G05 = 5; Prep G00 = 0).</summary>
+        [Range(0, 999)]
+        [Display(Name = "Sort number")]
+        public int? SortOrder { get; set; }
     }
 
     public class DepartmentChildMoveVm
@@ -177,11 +192,23 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>Optional Class teacher when creating a Class (future single-class create). Never required.</summary>
         [StringLength(128)]
         public string ClassTeacherUserId { get; set; }
+
+        /// <summary>School section for the new unit (migration 106). Null = same as the parent, else Senior school.</summary>
+        [Display(Name = "Section")]
+        public DepartmentSection? Section { get; set; }
+
+        /// <summary>Grade create only: optional sort number. Null = derive from the code (G05 = 5).</summary>
+        [Range(0, 999)]
+        [Display(Name = "Sort number")]
+        public int? SortOrder { get; set; }
     }
 
     public class DepartmentTreeSectionVm
     {
         public string Title { get; set; }
+
+        /// <summary>Which school section this card belongs to (Prep cards come first).</summary>
+        public DepartmentSection SectionGroup { get; set; }
 
         public IList<DepartmentVm> Items { get; set; } = new List<DepartmentVm>();
     }

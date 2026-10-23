@@ -45,6 +45,15 @@
         ?? new Dictionary<DepartmentKind, int>();
     Func<DepartmentKind, int> kindCountOf = k => kindCounts.ContainsKey(k) ? kindCounts[k] : 0;
     Func<DepartmentVm, int> childCountOf = d => d != null && d.Children != null ? d.Children.Count : 0;
+    // Prep first, then Senior school. Headings only appear when the tree really has more than one section.
+    var showSectionHeadings = treeSections.Select(s => s.SectionGroup).Distinct().Count() > 1;
+}
+@if (canCreateDepartment)
+{
+    <div class="d-flex flex-wrap gap-2 mb-3" data-am-dept-create-shortcuts>
+        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeGrade })">Create grade</a>
+        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeClass })">Create class</a>
+    </div>
 }
 @if (Model.Any())
 {
@@ -105,9 +114,15 @@ else if (viewMode == "tree")
             <button type="button" class="btn btn-sm btn-outline-secondary" id="am-dept-expand-cycle" data-am-dept-expand-cycle>Expand hierarchy</button>
         </div>
     </div>
+    DepartmentSection? lastSectionGroup = null;
     foreach (var section in treeSections)
     {
-        <div class="card card-kpi mb-3" data-am-dept-section>
+        if (showSectionHeadings && lastSectionGroup != section.SectionGroup)
+        {
+            lastSectionGroup = section.SectionGroup;
+            <h5 class="mt-4 mb-2 am-dept-section-heading" data-am-section-heading="@DepartmentSectionHelper.ToQueryValue(section.SectionGroup)">@DepartmentSectionHelper.Label(section.SectionGroup)</h5>
+        }
+        <div class="card card-kpi mb-3" data-am-dept-section data-am-section-group="@DepartmentSectionHelper.ToQueryValue(section.SectionGroup)">
             <div class="card-header bg-light fw-semibold">@(section.Title)</div>
             <div class="card-body p-0">
                 <table class="table mb-0 am-dept-tree-table">
@@ -232,13 +247,14 @@ else
     <div class="card card-kpi">
         <div class="card-body p-0">
             <table class="table mb-0">
-                <thead class="table-light"><tr><th>Name</th><th>Kind</th><th>Parent</th><th>Mode</th><th>Requisitions by</th><th>Flow</th><th>Description</th><th>Status</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Name</th><th>Kind</th><th>Section</th><th>Parent</th><th>Mode</th><th>Requisitions by</th><th>Flow</th><th>Description</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var item in Model)
                 {
                     <tr>
                         <td>@item.Name</td>
                         <td>@Html.DepartmentKindBadge(item.DepartmentKind)</td>
+                        <td>@DepartmentSectionHelper.Label(item.Section)</td>
                         <td>@(string.IsNullOrWhiteSpace(item.ParentDepartmentName) ? "\u2014" : item.ParentDepartmentName)</td>
                         @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(item.DepartmentKind))
                         {

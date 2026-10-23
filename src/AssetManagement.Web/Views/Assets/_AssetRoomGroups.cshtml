@@ -15,6 +15,7 @@
     var filterQuery = HttpUtility.ParseQueryString(string.Empty);
     if (!string.IsNullOrWhiteSpace(listFilter.Search)) { filterQuery["Search"] = listFilter.Search; }
     if (listFilter.DepartmentId.HasValue) { filterQuery["DepartmentId"] = listFilter.DepartmentId.Value.ToString(); }
+    if (listFilter.Section.HasValue) { filterQuery["Section"] = AssetManagement.Application.Helpers.DepartmentSectionHelper.ToQueryValue(listFilter.Section.Value); }
     if (listFilter.CategoryId.HasValue) { filterQuery["CategoryId"] = listFilter.CategoryId.Value.ToString(); }
     if (listFilter.AssetTypeId.HasValue) { filterQuery["AssetTypeId"] = listFilter.AssetTypeId.Value.ToString(); }
     if (listFilter.AssetSubTypeId.HasValue) { filterQuery["AssetSubTypeId"] = listFilter.AssetSubTypeId.Value.ToString(); }
