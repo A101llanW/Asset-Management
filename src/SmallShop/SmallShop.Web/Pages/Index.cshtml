@@ -1,0 +1,120 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="section-title">
+    <div>
+        <h1>The shop book</h1>
+        <p class="help mb-0">One shop. Goods on the shelf, customers who owe, and the suppliers who bring stock in.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="shop-card">
+            <h2>Goods in stock</h2>
+            <p class="stat">@Model.GoodCount</p>
+            <p>@(Model.LowCount == 1 ? "1 is at the low-stock level." : Model.LowCount + " are at the low-stock level.")</p>
+            <a asp-page="/Goods/Index">Open the stock list</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="shop-card">
+            <h2>Customers with debt</h2>
+            <p class="stat money-owed">@ShopFormat.Money(Model.TotalDebt)</p>
+            <p>@Model.DebtorCount of @Model.CustomerCount still owe.</p>
+            <a asp-page="/Customers/Index">Open the debt book</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="shop-card">
+            <h2>Suppliers</h2>
+            <p class="stat">@Model.SupplierCount</p>
+            <p>Who supplies which goods, and at what price.</p>
+            <a asp-page="/Suppliers/Index">Open suppliers</a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="d-flex justify-content-between align-items-baseline">
+            <h2 class="h5">Low stock</h2>
+            <a asp-page="/Goods/LowStock">Full list</a>
+        </div>
+        @if (Model.LowStock.Count == 0)
+        {
+            <p class="help">Nothing is at or below its low-stock level.</p>
+        }
+        else
+        {
+            <div class="shop-table table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Good</th>
+                            <th class="text-end">On hand</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var good in Model.LowStock)
+                        {
+                            <tr>
+                                <td><a asp-page="/Goods/Details" asp-route-id="@good.Id">@good.Name</a></td>
+                                <td class="text-end">@ShopFormat.Qty(good.QuantityOnHand) @ShopLabels.Unit(good.Unit)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.LowCount > Model.LowStock.Count)
+            {
+                <div class="shop-paging">
+                    <a asp-page="/Goods/LowStock">View more (@(Model.LowCount - Model.LowStock.Count) more)</a>
+                </div>
+            }
+        }
+    </div>
+    <div class="col-lg-6">
+        <div class="d-flex justify-content-between align-items-baseline">
+            <h2 class="h5">Who owes</h2>
+            <a asp-page="/Customers/Index">Full list</a>
+        </div>
+        @if (Model.Debtors.Count == 0)
+        {
+            <p class="help">Nobody owes the shop.</p>
+        }
+        else
+        {
+            <div class="shop-table table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th class="text-end">Balance</th>
+                            <th class="text-end">Unpaid for</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var customer in Model.Debtors)
+                        {
+                            <tr>
+                                <td><a asp-page="/Customers/Details" asp-route-id="@customer.Id">@customer.Name</a></td>
+                                <td class="text-end money-owed">@ShopFormat.Money(customer.Balance)</td>
+                                <td class="text-end">@ShopFormat.UnpaidFor(customer.UnpaidSince, customer.Balance)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.DebtorCount > Model.Debtors.Count)
+            {
+                <div class="shop-paging">
+                    <a asp-page="/Customers/Index">View more (@(Model.DebtorCount - Model.Debtors.Count) more)</a>
+                </div>
+            }
+        }
+    </div>
+</div>

@@ -1,0 +1,43 @@
+@page
+@model SmallShop.Web.Pages.Goods.LowStockModel
+@{
+    ViewData["Title"] = "Low stock";
+}
+
+<div class="section-title">
+    <div>
+        <h1>Low stock</h1>
+        <p class="help mb-0">Goods at or below the level you set for each one.</p>
+    </div>
+    <a class="btn btn-outline-secondary" asp-page="Index">All goods</a>
+</div>
+
+@if (Model.Goods.Count == 0)
+{
+    <p>Nothing is low.</p>
+}
+else
+{
+    <div class="shop-table table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Good</th>
+                    <th class="text-end">On hand</th>
+                    <th class="text-end">Low at</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var good in Model.Goods)
+                {
+                    <tr class="low">
+                        <td><a asp-page="Details" asp-route-id="@good.Id">@good.Name</a></td>
+                        <td class="text-end">@ShopFormat.Qty(good.QuantityOnHand) @ShopLabels.Unit(good.Unit)</td>
+                        <td class="text-end">@ShopFormat.Qty(good.LowStockThreshold)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Paging" model="Model.Paging" />
+}

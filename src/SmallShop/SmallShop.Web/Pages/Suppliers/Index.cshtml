@@ -1,0 +1,43 @@
+@page
+@model SmallShop.Web.Pages.Suppliers.IndexModel
+@{
+    ViewData["Title"] = "Suppliers";
+}
+
+<div class="section-title">
+    <div>
+        <h1>Suppliers</h1>
+        <p class="help mb-0">Who they are, and how many goods they supply.</p>
+    </div>
+    <a class="btn btn-primary" asp-page="Create">Add a supplier</a>
+</div>
+
+@if (Model.Suppliers.Count == 0)
+{
+    <p>No suppliers yet.</p>
+}
+else
+{
+    <div class="shop-table table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th class="text-end">Goods they supply</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Suppliers)
+                {
+                    <tr>
+                        <td><a asp-page="Details" asp-route-id="@row.Supplier.Id">@row.Supplier.Name</a></td>
+                        <td>@row.Supplier.Phone</td>
+                        <td class="text-end">@row.GoodCount</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Paging" model="Model.Paging" />
+}

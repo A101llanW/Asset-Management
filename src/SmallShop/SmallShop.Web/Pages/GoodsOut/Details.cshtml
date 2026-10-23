@@ -1,0 +1,44 @@
+@page "{id:int}"
+@model SmallShop.Web.Pages.GoodsOut.DetailsModel
+@{
+    ViewData["Title"] = "Goods out";
+    var record = Model.Record!;
+}
+
+<div class="section-title">
+    <div>
+        <h1>Goods out</h1>
+        <p class="help mb-0">@ShopFormat.When(record.OccurredAt)</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="shop-card"><div class="help">Customer</div><div class="stat" style="font-size:1.1rem">@(record.Customer?.Name ?? "Walk-in")</div></div></div>
+    <div class="col-md-3"><div class="shop-card"><div class="help">Total</div><div class="stat">@ShopFormat.Money(record.Total)</div></div></div>
+    <div class="col-md-3"><div class="shop-card"><div class="help">Paid@(record.TenderMethod is PaymentMethod method ? " · " + ShopLabels.Method(method) : "")</div><div class="stat">@ShopFormat.Money(record.AmountPaid)</div></div></div>
+    <div class="col-md-3"><div class="shop-card"><div class="help">On the book</div><div class="stat @(record.AmountCharged > 0 ? "money-owed" : "")">@ShopFormat.Money(record.AmountCharged)</div></div></div>
+</div>
+
+<div class="shop-table table-responsive">
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Good</th>
+                <th class="text-end">Quantity</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">Line</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in record.Lines)
+            {
+                <tr>
+                    <td><a asp-page="/Goods/Details" asp-route-id="@line.GoodId">@line.Good.Name</a></td>
+                    <td class="text-end">@ShopFormat.Qty(line.Quantity) @ShopLabels.Unit(line.Good.Unit)</td>
+                    <td class="text-end">@ShopFormat.Money(line.UnitPrice)</td>
+                    <td class="text-end">@ShopFormat.Money(line.LineTotal)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

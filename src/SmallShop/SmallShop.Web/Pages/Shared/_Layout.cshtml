@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] == null ? "Small shop" : ViewData["Title"] + " · Small shop")</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/SmallShop.Web.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-md navbar-dark shop-nav">
+            <div class="container">
+                <a class="navbar-brand" asp-page="/Index">Small shop</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#shop-nav" aria-controls="shop-nav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="shop-nav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item"><a class="nav-link" asp-page="/Goods/Index">Goods</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/Customers/Index">Customers</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/Suppliers/Index">Suppliers</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/GoodsOut/Index">Goods out</a></li>
+                    </ul>
+                    <a class="btn btn-sm btn-light" asp-page="/GoodsOut/Create">Record goods out</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container py-4">
+        @if (TempData["Message"] is string message)
+        {
+            <div class="alert alert-success" role="status">@message</div>
+        }
+        <main>
+            @RenderBody()
+        </main>
+    </div>
+    <footer class="shop-footer">
+        <div class="container">Goods in stock, customers who owe, and suppliers.</div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,142 @@
+:root {
+  --shop-ink: #1c1915;
+  --shop-paper: #f4efe6;
+  --shop-card: #fffdf8;
+  --shop-line: #e3d7c6;
+  --shop-green: #1f6b4a;
+  --shop-debt: #8c2f2f;
+  --shop-low: #8a5a12;
+  --shop-low-bg: #fff6e8;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  background: var(--shop-paper);
+  color: var(--shop-ink);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.shop-nav {
+  background: var(--shop-green);
+}
+
+.shop-nav .nav-link,
+.shop-nav .navbar-brand {
+  color: #f4efe6;
+}
+
+.shop-nav .nav-link:hover,
+.shop-nav .nav-link:focus,
+.shop-nav .navbar-brand:hover {
+  color: #fff;
+}
+
+.shop-footer {
+  border-top: 1px solid var(--shop-line);
+  color: #6d6458;
+  padding: 1.25rem 0 2rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.shop-card {
+  background: var(--shop-card);
+  border: 1px solid var(--shop-line);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  height: 100%;
+}
+
+.shop-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.35rem;
+}
+
+.shop-card p {
+  color: #5c564c;
+  margin-bottom: 0.75rem;
+}
+
+.shop-table {
+  background: var(--shop-card);
+  border: 1px solid var(--shop-line);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.shop-table table {
+  margin-bottom: 0;
+}
+
+.shop-table th {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6d6458;
+  font-weight: 600;
+}
+
+tr.low td {
+  background: var(--shop-low-bg);
+}
+
+.money-owed {
+  color: var(--shop-debt);
+  font-weight: 650;
+}
+
+.low-flag {
+  color: var(--shop-low);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shop-form,
+.shop-panel {
+  background: var(--shop-card);
+  border: 1px solid var(--shop-line);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.shop-form {
+  max-width: 40rem;
+}
+
+.shop-paging {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  color: #6d6458;
+}
+
+.stat {
+  font-size: 1.35rem;
+  font-weight: 650;
+}
+
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.help {
+  color: #6d6458;
+  font-size: 0.92rem;
+}
+
+.validation-summary-valid {
+  display: none;
+}

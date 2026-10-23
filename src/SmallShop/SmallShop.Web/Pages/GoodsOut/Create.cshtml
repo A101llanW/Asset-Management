@@ -1,0 +1,96 @@
+@page
+@model SmallShop.Web.Pages.GoodsOut.CreateModel
+@{
+    ViewData["Title"] = "Record goods out";
+}
+
+<h1>Record goods out</h1>
+<p class="help">Stock goes down by the quantity. If a named customer does not pay in full, the rest is charged to their book. A walk-in has to pay the total.</p>
+
+@if (Model.Goods.Count == 0)
+{
+    <p>Add goods before recording a goods-out. <a asp-page="/Goods/Create">Add a good</a></p>
+}
+else
+{
+    <form method="post" class="shop-panel">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label asp-for="Input.CustomerId" class="form-label">Customer</label>
+                <select asp-for="Input.CustomerId" class="form-select">
+                    <option value="">Walk-in (no debt)</option>
+                    @foreach (var customer in Model.Customers)
+                    {
+                        <option value="@customer.Id">@customer.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label asp-for="Input.AmountPaid" class="form-label">Amount paid now</label>
+                <input asp-for="Input.AmountPaid" class="form-control" step="0.01" min="0" />
+            </div>
+            <div class="col-md-3 mb-3">
+                <label asp-for="Input.TenderMethod" class="form-label">Paid by</label>
+                <select asp-for="Input.TenderMethod" class="form-select">
+                    <option value="Cash">Cash</option>
+                    <option value="Mpesa">M-Pesa</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="shop-table table-responsive mb-3">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Good</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Input.Lines.Count; i++)
+                    {
+                        <tr>
+                            <td>
+                                <select asp-for="Input.Lines[i].GoodId" class="form-select good-select" data-price-for="price-@i">
+                                    <option value="">Choose a good</option>
+                                    @foreach (var good in Model.Goods)
+                                    {
+                                        <option value="@good.Id" data-price="@good.SellingPrice.ToString("0.00", CultureInfo.InvariantCulture)">
+                                            @good.Name (@ShopFormat.Qty(good.QuantityOnHand) @ShopLabels.Unit(good.Unit))
+                                        </option>
+                                    }
+                                </select>
+                            </td>
+                            <td style="max-width: 8rem">
+                                <input asp-for="Input.Lines[i].Quantity" class="form-control" step="0.001" min="0" />
+                            </td>
+                            <td style="max-width: 9rem">
+                                <input asp-for="Input.Lines[i].UnitPrice" class="form-control" id="price-@i" step="0.01" min="0" placeholder="Selling price" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="help">Leave the price blank to use the selling price. Leave a row empty to skip it.</p>
+        <button type="submit" class="btn btn-primary">Record goods out</button>
+        <a class="btn btn-link" asp-page="Index">Cancel</a>
+    </form>
+}
+
+@section Scripts {
+    <script>
+        document.querySelectorAll(".good-select").forEach(function (select) {
+            select.addEventListener("change", function () {
+                var option = select.options[select.selectedIndex];
+                var price = option.getAttribute("data-price");
+                var target = document.getElementById(select.getAttribute("data-price-for"));
+                if (target && price) {
+                    target.value = price;
+                }
+            });
+        });
+    </script>
+}

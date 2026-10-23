@@ -1,0 +1,18 @@
+@model SmallShop.Web.Paging
+@if (Model.Total > 0)
+{
+    <div class="shop-paging">
+        <span>Showing @Model.Shown of @Model.Total.</span>
+        @if (Model.HasMore)
+        {
+            if (Model.Id is int id)
+            {
+                <a asp-route-id="@id" asp-route-take="@Model.NextTake">View more (@Model.Remaining more)</a>
+            }
+            else
+            {
+                <a asp-route-take="@Model.NextTake">View more (@Model.Remaining more)</a>
+            }
+        }
+    </div>
+}

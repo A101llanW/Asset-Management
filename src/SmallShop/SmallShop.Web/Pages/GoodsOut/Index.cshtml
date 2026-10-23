@@ -1,0 +1,56 @@
+@page
+@model SmallShop.Web.Pages.GoodsOut.IndexModel
+@{
+    ViewData["Title"] = "Goods out";
+}
+
+<div class="section-title">
+    <div>
+        <h1>Goods out</h1>
+        <p class="help mb-0">Quantity and price leave the shelf. A named customer can take the unpaid amount onto their book. A walk-in cannot.</p>
+    </div>
+    <a class="btn btn-primary" asp-page="Create">Record goods out</a>
+</div>
+
+@if (Model.Records.Count == 0)
+{
+    <p>No goods-out records yet.</p>
+}
+else
+{
+    <div class="shop-table table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-end">Paid</th>
+                    <th class="text-end">On the book</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var record in Model.Records)
+                {
+                    <tr>
+                        <td><a asp-page="Details" asp-route-id="@record.Id">@ShopFormat.When(record.OccurredAt)</a></td>
+                        <td>
+                            @if (record.CustomerId is int customerId)
+                            {
+                                <a asp-page="/Customers/Details" asp-route-id="@customerId">@record.Customer!.Name</a>
+                            }
+                            else
+                            {
+                                <span>Walk-in</span>
+                            }
+                        </td>
+                        <td class="text-end">@ShopFormat.Money(record.Total)</td>
+                        <td class="text-end">@ShopFormat.Money(record.AmountPaid)</td>
+                        <td class="text-end @(record.AmountCharged > 0 ? "money-owed" : "")">@ShopFormat.Money(record.AmountCharged)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Paging" model="Model.Paging" />
+}

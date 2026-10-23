@@ -1,0 +1,75 @@
+@page "{id:int}"
+@model SmallShop.Web.Pages.Suppliers.DetailsModel
+@{
+    ViewData["Title"] = Model.Supplier!.Name;
+    var supplier = Model.Supplier;
+}
+
+<div class="section-title">
+    <div>
+        <h1>@supplier.Name</h1>
+        <p class="help mb-0">@supplier.Phone</p>
+    </div>
+    <a class="btn btn-primary" asp-page="Receive" asp-route-id="@supplier.Id">Receive stock</a>
+</div>
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<h2 class="h5">Goods they supply</h2>
+@if (Model.Links.Count == 0)
+{
+    <p class="help">Nothing linked yet.</p>
+}
+else
+{
+    <div class="shop-table table-responsive mb-4">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Good</th>
+                    <th class="text-end">On hand</th>
+                    <th class="text-end">Shop cost</th>
+                    <th>Price they charge</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var link in Model.Links)
+                {
+                    <tr>
+                        <td><a asp-page="/Goods/Details" asp-route-id="@link.GoodId">@link.Good.Name</a></td>
+                        <td class="text-end">@ShopFormat.Qty(link.Good.QuantityOnHand) @ShopLabels.Unit(link.Good.Unit)</td>
+                        <td class="text-end">@ShopFormat.Money(link.Good.Cost)</td>
+                        <td>
+                            <form method="post" asp-page-handler="SetPrice" class="d-flex gap-2">
+                                <input type="hidden" name="goodId" value="@link.GoodId" />
+                                <input class="form-control" type="number" name="supplyPrice" value="@link.SupplyPrice.ToString("0.00", CultureInfo.InvariantCulture)" step="0.01" min="0" style="max-width: 9rem" />
+                                <button type="submit" class="btn btn-outline-secondary">Save</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (Model.AvailableGoods.Count > 0)
+{
+    <form method="post" asp-page-handler="AddGood" class="shop-form">
+        <h2 class="h5">Add a good they supply</h2>
+        <div class="mb-3">
+            <label class="form-label" for="goodId">Good</label>
+            <select class="form-select" id="goodId" name="goodId">
+                @foreach (var good in Model.AvailableGoods)
+                {
+                    <option value="@good.Id">@good.Name</option>
+                }
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="supplyPrice">Price they charge</label>
+            <input class="form-control" id="supplyPrice" name="supplyPrice" type="number" step="0.01" min="0" value="0.00" />
+        </div>
+        <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+}

@@ -35,6 +35,10 @@ pdf_converter.py
 
 # Packages
 packages/
+.nuget/packages/
+
+# Small shop local SQLite database
+src/SmallShop/SmallShop.Web/App_Data/
 
 # Test results
 TestResults/

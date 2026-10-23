@@ -1,0 +1,52 @@
+@page "{id:int}"
+@model SmallShop.Web.Pages.Suppliers.ReceiveModel
+@{
+    ViewData["Title"] = "Receive stock";
+    var supplier = Model.Supplier!;
+}
+
+<h1>Receive from @supplier.Name</h1>
+<p class="help">Quantity on hand goes up. Tick “Update shop cost” to replace the shop’s cost with the price on this delivery. Leave quantity at 0 to skip a good.</p>
+
+@if (Model.Lines.Count == 0)
+{
+    <p>This supplier has no goods yet. <a asp-page="Details" asp-route-id="@supplier.Id">Link what they supply</a> first.</p>
+}
+else
+{
+    <form method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <div class="shop-table table-responsive mb-3">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Good</th>
+                        <th class="text-end">On hand</th>
+                        <th class="text-end">Shop cost</th>
+                        <th>Quantity in</th>
+                        <th>Delivery price</th>
+                        <th>Update shop cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Lines.Count; i++)
+                    {
+                        <tr>
+                            <td>
+                                @Model.Lines[i].Name
+                                <input type="hidden" asp-for="Lines[i].GoodId" />
+                            </td>
+                            <td class="text-end">@ShopFormat.Qty(Model.Lines[i].OnHand) @Model.Lines[i].UnitLabel</td>
+                            <td class="text-end">@ShopFormat.Money(Model.Lines[i].CurrentCost)</td>
+                            <td style="max-width: 8rem"><input asp-for="Lines[i].Quantity" class="form-control" step="0.001" min="0" /></td>
+                            <td style="max-width: 9rem"><input asp-for="Lines[i].UnitCost" class="form-control" step="0.01" min="0" /></td>
+                            <td class="text-center"><input asp-for="Lines[i].UpdateCost" class="form-check-input" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button type="submit" class="btn btn-primary">Receive stock</button>
+        <a class="btn btn-link" asp-page="Details" asp-route-id="@supplier.Id">Cancel</a>
+    </form>
+}

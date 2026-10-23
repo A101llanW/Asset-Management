@@ -1,0 +1,52 @@
+@page "{id:int}"
+@model SmallShop.Web.Pages.Goods.DetailsModel
+@{
+    ViewData["Title"] = Model.Good!.Name;
+    var good = Model.Good;
+}
+
+<div class="section-title">
+    <div>
+        <h1>@good.Name</h1>
+        <p class="help mb-0">@ShopLabels.Unit(good.Unit)@(good.IsLow ? " · low stock" : "")</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-page="Edit" asp-route-id="@good.Id">Edit</a>
+        <a class="btn btn-primary" asp-page="Adjust" asp-route-id="@good.Id">Adjust stock</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="shop-card"><div class="help">On hand</div><div class="stat">@ShopFormat.Qty(good.QuantityOnHand)</div></div></div>
+    <div class="col-6 col-md-3"><div class="shop-card"><div class="help">Cost</div><div class="stat">@ShopFormat.Money(good.Cost)</div></div></div>
+    <div class="col-6 col-md-3"><div class="shop-card"><div class="help">Selling price</div><div class="stat">@ShopFormat.Money(good.SellingPrice)</div></div></div>
+    <div class="col-6 col-md-3"><div class="shop-card"><div class="help">Low at</div><div class="stat">@ShopFormat.Qty(good.LowStockThreshold)</div></div></div>
+</div>
+
+<h2 class="h5">Stock movements</h2>
+<div class="shop-table table-responsive">
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>What</th>
+                <th class="text-end">Change</th>
+                <th class="text-end">On hand</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var movement in Model.Movements)
+            {
+                <tr>
+                    <td>@ShopFormat.When(movement.OccurredAt)</td>
+                    <td>@ShopLabels.Movement(movement.Kind)</td>
+                    <td class="text-end">@ShopFormat.SignedQty(movement.QuantityDelta)</td>
+                    <td class="text-end">@ShopFormat.Qty(movement.QuantityAfter)</td>
+                    <td>@(movement.Reason ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<partial name="_Paging" model="Model.Paging" />

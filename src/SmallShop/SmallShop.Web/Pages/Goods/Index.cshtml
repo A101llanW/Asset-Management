@@ -1,0 +1,56 @@
+@page
+@model SmallShop.Web.Pages.Goods.IndexModel
+@{
+    ViewData["Title"] = "Goods";
+}
+
+<div class="section-title">
+    <div>
+        <h1>Goods in stock</h1>
+        <p class="help mb-0">Quantity on hand, cost, and selling price. Low rows are marked.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-page="LowStock">Low stock (@Model.LowCount)</a>
+        <a class="btn btn-primary" asp-page="Create">Add a good</a>
+    </div>
+</div>
+
+@if (Model.Goods.Count == 0)
+{
+    <p>No goods yet. Add one and set the opening stock.</p>
+}
+else
+{
+    <div class="shop-table table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Good</th>
+                    <th>Unit</th>
+                    <th class="text-end">On hand</th>
+                    <th class="text-end">Cost</th>
+                    <th class="text-end">Selling price</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var good in Model.Goods)
+                {
+                    <tr class="@(good.IsLow ? "low" : "")">
+                        <td>
+                            <a asp-page="Details" asp-route-id="@good.Id">@good.Name</a>
+                            @if (good.IsLow)
+                            {
+                                <div class="low-flag">Low</div>
+                            }
+                        </td>
+                        <td>@ShopLabels.Unit(good.Unit)</td>
+                        <td class="text-end">@ShopFormat.Qty(good.QuantityOnHand)</td>
+                        <td class="text-end">@ShopFormat.Money(good.Cost)</td>
+                        <td class="text-end">@ShopFormat.Money(good.SellingPrice)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Paging" model="Model.Paging" />
+}

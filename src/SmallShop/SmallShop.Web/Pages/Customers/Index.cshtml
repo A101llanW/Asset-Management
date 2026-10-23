@@ -1,0 +1,45 @@
+@page
+@model SmallShop.Web.Pages.Customers.IndexModel
+@{
+    ViewData["Title"] = "Customers";
+}
+
+<div class="section-title">
+    <div>
+        <h1>Customers</h1>
+        <p class="help mb-0">Who owes, how much, and how long it has been unpaid. Total owed: <span class="money-owed">@ShopFormat.Money(Model.TotalDebt)</span></p>
+    </div>
+    <a class="btn btn-primary" asp-page="Create">Add a customer</a>
+</div>
+
+@if (Model.Customers.Count == 0)
+{
+    <p>No customers yet.</p>
+}
+else
+{
+    <div class="shop-table table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th class="text-end">Balance</th>
+                    <th class="text-end">Unpaid for</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var customer in Model.Customers)
+                {
+                    <tr>
+                        <td><a asp-page="Details" asp-route-id="@customer.Id">@customer.Name</a></td>
+                        <td>@customer.Phone</td>
+                        <td class="text-end @(customer.Balance > 0 ? "money-owed" : "")">@ShopFormat.Money(customer.Balance)</td>
+                        <td class="text-end">@ShopFormat.UnpaidFor(customer.UnpaidSince, customer.Balance)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Paging" model="Model.Paging" />
+}

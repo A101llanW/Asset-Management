@@ -1,0 +1,162 @@
+@page "{id:int}"
+@model SmallShop.Web.Pages.Customers.DetailsModel
+@{
+    ViewData["Title"] = Model.Customer!.Name;
+    var customer = Model.Customer;
+}
+
+<div class="section-title">
+    <div>
+        <h1>@customer.Name</h1>
+        <p class="help mb-0">@customer.Phone</p>
+    </div>
+    <a class="btn btn-outline-secondary" asp-page="/GoodsOut/Create" asp-route-customerId="@customer.Id">Goods out</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="shop-card">
+            <div class="help">Balance</div>
+            <div class="stat @(customer.Balance > 0 ? "money-owed" : "")">@ShopFormat.Money(customer.Balance)</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="shop-card">
+            <div class="help">Unpaid for</div>
+            <div class="stat">@ShopFormat.UnpaidFor(customer.UnpaidSince, customer.Balance)</div>
+        </div>
+    </div>
+</div>
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<div class="row g-4 mb-4">
+    @if (customer.Balance > 0)
+    {
+        <div class="col-lg-6">
+            <form method="post" asp-page-handler="Payment" class="shop-panel">
+                <h2 class="h5">Payment</h2>
+                <p class="help">Cash or M-Pesa. A payment cannot be more than the balance.</p>
+                <div class="mb-3">
+                    <label asp-for="Payment.Amount" class="form-label">Amount</label>
+                    <input asp-for="Payment.Amount" class="form-control" step="0.01" min="0.01" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Payment.Method" class="form-label">Method</label>
+                    <select asp-for="Payment.Method" class="form-select">
+                        <option value="Cash">Cash</option>
+                        <option value="Mpesa">M-Pesa</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Record payment</button>
+            </form>
+        </div>
+    }
+    @if (customer.Balance > 0 && Model.ReturnableGoods.Count > 0)
+    {
+        <div class="col-lg-6">
+            <form method="post" asp-page-handler="Return" class="shop-panel">
+                <h2 class="h5">Return goods</h2>
+                <p class="help">Puts the quantity back in stock and reduces what they owe. The value cannot exceed the balance.</p>
+                <div class="mb-3">
+                    <label asp-for="Return.GoodId" class="form-label">Good</label>
+                    <select asp-for="Return.GoodId" class="form-select">
+                        @foreach (var good in Model.ReturnableGoods)
+                        {
+                            <option value="@good.Id">@good.Name (@ShopFormat.Money(good.SellingPrice))</option>
+                        }
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label asp-for="Return.Quantity" class="form-label">Quantity</label>
+                        <input asp-for="Return.Quantity" class="form-control" step="0.001" min="0" />
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label asp-for="Return.UnitPrice" class="form-label">Unit price</label>
+                        <input asp-for="Return.UnitPrice" class="form-control" step="0.01" min="0" />
+                        <div class="form-text">Blank uses the price on their latest goods-out.</div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Record return</button>
+            </form>
+        </div>
+    }
+    <div class="col-lg-6">
+        <form method="post" asp-page-handler="WriteOff" class="shop-panel">
+            <h2 class="h5">Write off</h2>
+            <p class="help">Forgive part of the balance. It needs a reason and cannot exceed what they owe.</p>
+            <div class="mb-3">
+                <label asp-for="WriteOff.Amount" class="form-label">Amount</label>
+                <input asp-for="WriteOff.Amount" class="form-control" step="0.01" min="0.01" />
+            </div>
+            <div class="mb-3">
+                <label asp-for="WriteOff.Reason" class="form-label">Reason</label>
+                <input asp-for="WriteOff.Reason" class="form-control" maxlength="400" />
+            </div>
+            <button type="submit" class="btn btn-outline-danger">Write off</button>
+        </form>
+    </div>
+    <div class="col-lg-6">
+        <form method="post" asp-page-handler="Adjust" class="shop-panel">
+            <h2 class="h5">Adjust balance</h2>
+            <p class="help">Positive increases what they owe. Negative reduces it. The balance cannot go below zero. A reason is required.</p>
+            <div class="mb-3">
+                <label asp-for="Adjustment.Amount" class="form-label">Amount</label>
+                <input asp-for="Adjustment.Amount" class="form-control" step="0.01" />
+            </div>
+            <div class="mb-3">
+                <label asp-for="Adjustment.Reason" class="form-label">Reason</label>
+                <input asp-for="Adjustment.Reason" class="form-control" maxlength="400" />
+            </div>
+            <button type="submit" class="btn btn-outline-secondary">Adjust balance</button>
+        </form>
+    </div>
+</div>
+
+<h2 class="h5">Lines behind the balance</h2>
+@if (Model.Entries.Count == 0)
+{
+    <p class="help">No lines yet.</p>
+}
+else
+{
+    <div class="shop-table table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>What</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-end">Balance</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in Model.Entries)
+                {
+                    <tr>
+                        <td>@ShopFormat.When(entry.OccurredAt)</td>
+                        <td>
+                            @ShopLabels.Ledger(entry.Kind)
+                            @if (entry.PaymentMethod is PaymentMethod method)
+                            {
+                                <div class="help">@ShopLabels.Method(method)</div>
+                            }
+                        </td>
+                        <td class="text-end">@ShopFormat.SignedMoney(entry.Amount)</td>
+                        <td class="text-end">@ShopFormat.Money(entry.BalanceAfter)</td>
+                        <td>
+                            @(entry.Note ?? entry.Reason ?? "—")
+                            @if (entry.GoodsOutRecordId is int goodsOutId)
+                            {
+                                <div><a asp-page="/GoodsOut/Details" asp-route-id="@goodsOutId">View goods out</a></div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <partial name="_Paging" model="Model.Paging" />
+}
