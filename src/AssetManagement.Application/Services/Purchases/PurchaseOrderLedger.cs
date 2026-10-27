@@ -303,6 +303,13 @@ namespace AssetManagement.Application.Services
             return null;
         }
 
+        /// <summary>True when the type has at least one active sub-type (so receiving must choose one).</summary>
+        public bool TypeHasActiveSubTypes(int assetTypeId)
+        {
+            return assetTypeId > 0
+                && _unitOfWork.Repository<AssetSubType>().Find(x => x.AssetTypeId == assetTypeId && x.IsActive).Any();
+        }
+
         /// <summary>Fills the category from the type and drops a sub-type that does not belong to the type.</summary>
         public PurchaseLineClassification Complete(PurchaseLineClassification classification)
         {

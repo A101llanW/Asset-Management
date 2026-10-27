@@ -1127,6 +1127,9 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
             }
         }
 
+        /// <summary>Asset list "Missing sub-type" filter: assets still to be classified to a sub-type.</summary>
+        internal const string MissingSubTypeClause = "a.[AssetSubTypeId] IS NULL";
+
         internal static string BuildWhereClause(AssetFilterVm filter)
         {
             var clauses = new List<string>
@@ -1239,6 +1242,11 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                 if (filter.UnassignedOnly)
                 {
                     clauses.Add("(a.[CurrentCustodianId] IS NULL OR LTRIM(RTRIM(a.[CurrentCustodianId])) = '')");
+                }
+
+                if (filter.MissingSubTypeOnly)
+                {
+                    clauses.Add(MissingSubTypeClause);
                 }
             }
 

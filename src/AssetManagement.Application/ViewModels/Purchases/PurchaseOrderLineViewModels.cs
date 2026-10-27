@@ -152,6 +152,17 @@ namespace AssetManagement.Application.ViewModels
 
         public string FulfilmentStatus { get; set; }
 
+        /// <summary>More is on order than the requisition asked for (ordered &gt; requested).</summary>
+        public bool IsOverOrdered
+        {
+            get { return AssetManagement.Application.Helpers.PurchaseOrderQuantityRules.IsOverOrdered(RequisitionQuantity, OrderedQuantity); }
+        }
+
+        public int OverOrderedBy
+        {
+            get { return IsOverOrdered ? OrderedQuantity - RequisitionQuantity : 0; }
+        }
+
         public IList<RequisitionLinkedOrderVm> Orders { get; set; } = new List<RequisitionLinkedOrderVm>();
     }
 }

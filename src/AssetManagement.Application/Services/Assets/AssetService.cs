@@ -451,6 +451,16 @@ namespace AssetManagement.Application.Services
 
         public int Create(AssetCreateVm model)
         {
+            return CreateCore(model, false);
+        }
+
+        public int CreateReceived(AssetCreateVm model)
+        {
+            return CreateCore(model, true);
+        }
+
+        private int CreateCore(AssetCreateVm model, bool allowBlankSubTypeWhenTypeHasNone)
+        {
             model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
             model.AssetTag = NormalizeAssetTag(ResolveAssetTagForCreate(model));
             ValidateUniqueness(model.AssetTag, model.SerialNumber, null);
@@ -513,7 +523,7 @@ namespace AssetManagement.Application.Services
             ApplyCalculatedDepreciation(entity);
 
             ApplyGuardedApprovalStages(entity, model.ApprovalProcesses, createOrganizationId, referenceGuard, "Assets.Create");
-            ApplySubType(entity, model);
+            ApplySubType(entity, model, allowBlankSubTypeWhenTypeHasNone);
 
             _unitOfWork.Repository<Asset>().Add(entity);
             _unitOfWork.SaveChanges();
@@ -1754,6 +1764,11 @@ namespace AssetManagement.Application.Services
 
         private void ApplySubType(Asset entity, AssetCreateVm model)
         {
+            ApplySubType(entity, model, false);
+        }
+
+        private void ApplySubType(Asset entity, AssetCreateVm model, bool allowBlankSubTypeWhenTypeHasNone)
+        {
             if (entity == null || model == null)
             {
                 return;
@@ -1761,7 +1776,9 @@ namespace AssetManagement.Application.Services
 
             if (!model.AssetSubTypeId.HasValue || model.AssetSubTypeId.Value <= 0)
             {
-                if (model.AllowDeferredSubTypeClassification)
+                // Service-internal only (CreateReceived): a type with no active sub-types has nothing to choose from.
+                if (allowBlankSubTypeWhenTypeHasNone
+                    && !_unitOfWork.Repository<AssetSubType>().Find(x => x.AssetTypeId == model.AssetTypeId && x.IsActive).Any())
                 {
                     entity.AssetSubTypeId = null;
                     if (!string.IsNullOrWhiteSpace(model.Brand))

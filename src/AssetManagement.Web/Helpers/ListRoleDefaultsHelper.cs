@@ -22,7 +22,8 @@ namespace AssetManagement.Web.Helpers
                 || filter.CategoryId.HasValue
                 || !string.IsNullOrWhiteSpace(filter.Search)
                 || !string.IsNullOrWhiteSpace(filter.CustodianUserId)
-                || filter.UnassignedOnly;
+                || filter.UnassignedOnly
+                || filter.MissingSubTypeOnly;
 
             if (hasExplicitFilter || user == null)
             {

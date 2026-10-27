@@ -26,6 +26,7 @@
     if (listFilter.Status.HasValue) { filterQuery["Status"] = ((int)listFilter.Status.Value).ToString(); }
     if (!string.IsNullOrWhiteSpace(listFilter.CustodianUserId)) { filterQuery["CustodianUserId"] = listFilter.CustodianUserId; }
     if (listFilter.UnassignedOnly) { filterQuery["UnassignedOnly"] = "true"; }
+    if (listFilter.MissingSubTypeOnly) { filterQuery["MissingSubTypeOnly"] = "true"; }
     Func<int, decimal, string> formatValue = (pricedCount, total) => pricedCount > 0 ? CurrencyFormatter.Format(total) : AssetPriceRules.NotSetLabel;
 }
 <div class="card card-kpi border-0 shadow-sm am-fade-content mb-4 am-room-groups"

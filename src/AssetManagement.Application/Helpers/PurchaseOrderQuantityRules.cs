@@ -27,6 +27,12 @@ namespace AssetManagement.Application.Helpers
         }
 
         /// <summary>PO status from its ordered and received quantities.</summary>
+        /// <summary>A requisition is over-ordered when its POs carry more than was requested.</summary>
+        public static bool IsOverOrdered(int requestedQuantity, int orderedQuantity)
+        {
+            return orderedQuantity > requestedQuantity;
+        }
+
         public static string ReceiptStatus(int ordered, int received)
         {
             if (ordered <= 0 || received <= 0)

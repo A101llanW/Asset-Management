@@ -144,7 +144,7 @@ namespace AssetManagement.Tests.Services
                 IsActive = true
             }));
 
-            Assert.AreEqual("Grade departments cannot have a parent department.", ex.Message);
+            Assert.AreEqual("Year departments cannot have a parent department.", ex.Message);
             var grade = unitOfWork.Repository<Department>().GetById(10);
             Assert.IsFalse(grade.ParentDepartmentId.HasValue);
             Assert.IsFalse(grade.IsRequisitionTarget);

@@ -164,6 +164,12 @@
                             &middot; ordered @orderSummary.OrderedQuantity of @orderSummary.RequisitionQuantity
                             &middot; received @orderSummary.ReceivedQuantity
                             &middot; <span class="badge bg-light text-dark border" id="requisition-fulfilment-status">@orderSummary.FulfilmentStatus</span></p>
+                        @if (orderSummary.IsOverOrdered)
+                        {
+                            <div class="alert alert-warning py-2 small mb-2" id="requisition-over-ordered">
+                                <strong>Over-ordered:</strong> @orderSummary.OrderedQuantity on order against @orderSummary.RequisitionQuantity requested (@orderSummary.OverOrderedBy more than requested).
+                            </div>
+                        }
                         @if (orderSummary.Orders.Any(x => x.Received < x.Quantity) && Html.HasPermission("Assets.Receive"))
                         {
                             <a class="btn btn-sm btn-primary mb-2" id="requisition-receive-goods" href="@Url.Action("ReceiveForRequisition", "Purchases", new { purchaseRequestId = Model.Id, returnUrl = Request.RawUrl })">Receive goods</a>

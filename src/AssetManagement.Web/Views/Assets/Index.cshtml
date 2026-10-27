@@ -115,6 +115,12 @@
                         <label class="form-check-label" for="UnassignedOnly">Unassigned only (no custodian)</label>
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="MissingSubTypeOnly" value="true" id="MissingSubTypeOnly" @(listFilter.MissingSubTypeOnly ? "checked" : null) />
+                        <label class="form-check-label" for="MissingSubTypeOnly">Missing sub-type (needs classification)</label>
+                    </div>
+                </div>
                 @if (canAssignAssets)
                 {
                     <div class="col-md-8 text-md-end">
