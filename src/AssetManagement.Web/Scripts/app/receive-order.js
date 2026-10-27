@@ -59,6 +59,9 @@
         }
         if (typeSelect) {
             typeSelect.required = qty > 0;
+            if (!typeSelect.required || typeSelect.value) {
+                typeSelect.classList.remove("is-invalid");
+            }
         }
         if (subSelect) {
             var typeId = typeSelect ? typeSelect.value : (subSelect.getAttribute("data-am-type-id") || "");
@@ -76,8 +79,10 @@
                     subSelect.value = "";
                 }
             });
-            subSelect.disabled = !typeId || available === 0;
-            subSelect.required = qty > 0 && available > 0;
+            // C5 (Allan 2026-10-27 21:20 EAT): category, type and sub-type are all required. A type with no
+            // sub-types keeps the (empty) select enabled and required, so the submit is blocked until one is added.
+            subSelect.disabled = !typeId;
+            subSelect.required = qty > 0 && !!typeId;
             if (!subSelect.required || subSelect.value) {
                 subSelect.classList.remove("is-invalid");
             }
@@ -108,6 +113,7 @@
         typeSelect.disabled = !editing;
         typeSelect.required = editing && qty > 0;
         var typeId = typeSelect.value;
+        var available = 0;
         Array.prototype.forEach.call(subSelect.options, function (opt) {
             if (!opt.value) {
                 return;
@@ -115,15 +121,24 @@
             var show = !!typeId && opt.getAttribute("data-type-id") === typeId;
             opt.hidden = !show;
             opt.disabled = !show;
-            if (!show && opt.selected) {
+            if (show) {
+                available++;
+            } else if (opt.selected) {
                 subSelect.value = "";
             }
         });
+        var none = editor.querySelector(".am-edit-subtype-none");
+        if (none) {
+            none.classList.toggle("d-none", !(editing && typeId && available === 0));
+        }
         // Sub-type is always required after Edit; the server rejects a type with no active sub-types.
         subSelect.disabled = !editing || !typeId;
         subSelect.required = !subSelect.disabled && qty > 0;
         if (!subSelect.required || subSelect.value) {
             subSelect.classList.remove("is-invalid");
+        }
+        if (!typeSelect.required || typeSelect.value) {
+            typeSelect.classList.remove("is-invalid");
         }
     }
 
@@ -148,9 +163,10 @@
         updateLine(card);
     }
 
+    // C5: blocks the submit while any received line lacks its type or sub-type (category follows the type).
     function flagMissingSubTypes(form) {
         var missing = 0;
-        Array.prototype.forEach.call(form.querySelectorAll(".am-po-subtype, .am-edit-subtype"), function (sel) {
+        Array.prototype.forEach.call(form.querySelectorAll(".am-po-type, .am-edit-type, .am-po-subtype, .am-edit-subtype"), function (sel) {
             if (sel.required && !sel.disabled && !sel.value) {
                 sel.classList.add("is-invalid");
                 missing++;

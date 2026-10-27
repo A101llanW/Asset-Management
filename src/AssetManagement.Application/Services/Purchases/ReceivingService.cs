@@ -547,6 +547,7 @@ namespace AssetManagement.Application.Services
 
                         plan.DefaultItemName = ledger.ResolveItemName(request, plan.Line);
                         plan.Classification = ResolvePlanClassification(ledger, purchase, request, plan);
+                        EnsureCompleteClassification(plan.Classification, plan.Label);
                         totalRequested += plan.Input.QuantityReceived;
                     }
 
@@ -757,6 +758,29 @@ namespace AssetManagement.Application.Services
 
             var chosen = ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, Source = "ReceiverOverride" });
             return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan);
+        }
+
+        /// <summary>
+        /// C5 (Allan 2026-10-27 21:20 EAT): a line is received only with category, type and sub-type all set, whether
+        /// they came from the source or from Edit. Final server check after the classification is resolved.
+        /// </summary>
+        public static void EnsureCompleteClassification(PurchaseLineClassification classification, string label)
+        {
+            var suffix = string.IsNullOrWhiteSpace(label) ? "." : " (" + label + ").";
+            if (classification == null || !classification.AssetTypeId.HasValue || classification.AssetTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the asset type before receiving" + suffix);
+            }
+
+            if (!classification.AssetCategoryId.HasValue || classification.AssetCategoryId.Value <= 0)
+            {
+                throw new BusinessException("The asset type has no category; fix it under Asset Categories before receiving" + suffix);
+            }
+
+            if (!classification.AssetSubTypeId.HasValue || classification.AssetSubTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the asset sub-type before receiving" + suffix + " Every received asset needs a sub-type.");
+            }
         }
 
         public const string SubTypeRequiredMessage = "Choose the sub-type: a sub-type is required to receive goods.";

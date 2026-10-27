@@ -133,6 +133,7 @@
                                                 </optgroup>
                                             }
                                         </select>
+                                        <div class="invalid-feedback">Choose the asset type.</div>
                                     </div>
                                     <div class="col-md-6">
                                         <select class="form-select am-edit-subtype" name="Lines[@i].OverrideAssetSubTypeId" aria-label="Sub-type (required)" @(editing ? "" : "disabled")>
@@ -150,6 +151,7 @@
                                             }
                                         </select>
                                         <div class="invalid-feedback">Choose a sub-type: it is required to receive goods.</div>
+                                        <div class="text-danger small am-edit-subtype-none d-none">This asset type has no sub-types yet. Add one under Asset Categories before receiving: every received asset needs a sub-type.</div>
                                     </div>
                                 </div>
                                 <div class="form-text">Category follows the type. The sub-type is required. The new asset gets this classification (the purchase order line keeps its own), and the change is recorded in the audit log.</div>
@@ -161,7 +163,7 @@
                             <div class="alert alert-warning py-2 mb-2 small">No classification on the purchase order line, the requisition or the supplier catalog. Choose it here (override).</div>
                             <div class="row g-2">
                                 <div class="col-md-6">
-                                    <select class="form-select am-po-type" name="Lines[@i].OverrideAssetTypeId">
+                                    <select class="form-select am-po-type" name="Lines[@i].OverrideAssetTypeId" aria-label="Asset type (required)">
                                         <option value="">-- Asset type --</option>
                                         @foreach (var grp in typeOptions.GroupBy(t => t.GroupName ?? "Other"))
                                         {
@@ -180,6 +182,7 @@
                                             </optgroup>
                                         }
                                     </select>
+                                    <div class="invalid-feedback">Choose the asset type.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <select class="form-select am-po-subtype" name="Lines[@i].OverrideAssetSubTypeId" required="required" data-am-subtype-required="true" aria-label="Sub-type (required)">
@@ -197,7 +200,7 @@
                                         }
                                     </select>
                                     <div class="invalid-feedback">Choose a sub-type: it is required to receive goods.</div>
-                                    <div class="form-text am-subtype-none d-none">This asset type has no sub-types defined; it will be received without one.</div>
+                                    <div class="text-danger small am-subtype-none d-none">This asset type has no sub-types yet. Add one under Asset Categories before receiving: every received asset needs a sub-type.</div>
                                 </div>
                             </div>
                         }
