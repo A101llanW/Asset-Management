@@ -4,6 +4,15 @@
 (function () {
     "use strict";
 
+    // IE11: classList.toggle ignores its second (force) argument, so show / hide with explicit add / remove.
+    function setHidden(el, hidden) {
+        if (hidden) {
+            el.classList.add("d-none");
+        } else {
+            el.classList.remove("d-none");
+        }
+    }
+
     function num(value) {
         var parsed = parseFloat(value);
         return isNaN(parsed) ? 0 : parsed;
@@ -57,9 +66,9 @@
             typeSelect.disabled = !editing;
             typeSelect.required = editing;
         }
-        editor.classList.toggle("d-none", !editing);
+        setHidden(editor, !editing);
         if (readonly) {
-            readonly.classList.toggle("d-none", editing);
+            setHidden(readonly, editing);
         }
         filterSubTypes(row);
         if (editing && typeSelect) {

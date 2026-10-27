@@ -4,6 +4,15 @@
 (function () {
     "use strict";
 
+    // IE11: classList.toggle ignores its second (force) argument, so show / hide with explicit add / remove.
+    function setHidden(el, hidden) {
+        if (hidden) {
+            el.classList.add("d-none");
+        } else {
+            el.classList.remove("d-none");
+        }
+    }
+
     function countLines(text) {
         return String(text || "").split(/[\r\n,;\t]+/).filter(function (x) { return x.trim().length > 0; }).length;
     }
@@ -129,7 +138,7 @@
         });
         var none = editor.querySelector(".am-edit-subtype-none");
         if (none) {
-            none.classList.toggle("d-none", !(editing && typeId && available === 0));
+            setHidden(none, !(editing && typeId && available === 0));
         }
         // Sub-type is always required after Edit; the server rejects a type with no active sub-types.
         subSelect.disabled = !editing || !typeId;
@@ -152,9 +161,9 @@
             editor.querySelector(".am-edit-type").value = editor.getAttribute("data-am-prefill-type") || "";
             editor.querySelector(".am-edit-subtype").value = editor.getAttribute("data-am-prefill-subtype") || "";
         }
-        editor.classList.toggle("d-none", !editing);
+        setHidden(editor, !editing);
         if (readonly) {
-            readonly.classList.toggle("d-none", editing);
+            setHidden(readonly, editing);
             var ro = readonly.querySelector(".am-po-subtype");
             if (ro && !editing) {
                 ro.disabled = false; // updateLine re-applies its rules
