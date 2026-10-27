@@ -12,7 +12,7 @@ namespace AssetManagement.Application.Helpers
     /// <summary>
     /// rel1027: the card shown when an asset label QR is scanned ({org}/AssetScan/Lookup?code=TAG; the URL itself is unchanged).
     /// The page is public, so this is the single place that decides what each viewer may see:
-    ///   * everyone: name, tag, category &gt; type &gt; sub-type, brand / model / serial, location (department, Year, Classroom, room),
+    ///   * everyone: name, tag, category &gt; type &gt; sub-type, brand / model (serial only with Assets.View, review S8), location (department, Year, Classroom, room),
     ///     Section, status, condition, date received, photo;
     ///   * signed-out viewers: NO person's name or e-mail at all; the custodian line shows only "In &lt;unit&gt;" (Allan, 2026-10-27);
     ///   * signed in: the custodian's name (e-mail only with Assets.View when no name is set);
@@ -66,9 +66,9 @@ namespace AssetManagement.Application.Helpers
 
             AddIfSet(card.Rows, "category", "Category", JoinNonBlank(lookup.CategoryName, lookup.AssetTypeName, lookup.AssetSubTypeName));
             AddIfSet(card.Rows, "brand-model", "Brand / model", JoinWith(" / ", lookup.Brand, lookup.Model));
-            if (viewer.IsSignedIn || !viewer.HideSerialFromPublic)
+            if (viewer.IsSignedIn || viewer.ShowSerialToPublic)
             {
-                // Review S8: unchanged by default; Web.config "AssetScan:HideSerialFromPublic" = true hides it from the public card.
+                // Review S8 (Allan): serial only for Assets.View in scope; Web.config "AssetScan:ShowSerialToPublic" = true shows it to everyone.
                 AddIfSet(card.Rows, "serial", "Serial no.", lookup.SerialNumber);
             }
             card.Rows.Add(new AssetScanCardRow("status", "Status", card.StatusText));

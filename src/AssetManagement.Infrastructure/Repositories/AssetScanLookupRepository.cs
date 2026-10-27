@@ -105,16 +105,23 @@ WHERE a.[IsActive] = 1
 
         private readonly string _lookupSql;
         private readonly string _existsSql;
+        private readonly string _lookupSqlNoSerial;
+        private readonly string _existsSqlNoSerial;
         private readonly ISqlConnectionFactory _connectionFactory;
+
+        // Review S8: NULL never equals @LookupKey, so the serial-number branch matches nothing for public viewers.
+        private const string NoSerialKeySql = "NULL";
 
         public AssetScanLookupRepository(ISqlConnectionFactory connectionFactory)
         {
             _connectionFactory = connectionFactory;
             _lookupSql = string.Format(LookupSql, AssetTagKeySql, BarcodeKeySql, SerialKeySql, AliasMatchSql);
             _existsSql = string.Format(ExistsSql, AssetTagKeySql, BarcodeKeySql, SerialKeySql, AliasMatchSql);
+            _lookupSqlNoSerial = string.Format(LookupSql, AssetTagKeySql, BarcodeKeySql, NoSerialKeySql, AliasMatchSql);
+            _existsSqlNoSerial = string.Format(ExistsSql, AssetTagKeySql, BarcodeKeySql, NoSerialKeySql, AliasMatchSql);
         }
 
-        public bool ExistsByScanCode(string code, int organizationId)
+        public bool ExistsByScanCode(string code, int organizationId, bool matchSerialNumber = true)
         {
             if (string.IsNullOrWhiteSpace(code) || organizationId <= 0)
             {
@@ -126,7 +133,7 @@ WHERE a.[IsActive] = 1
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = _existsSql;
+                    command.CommandText = matchSerialNumber ? _existsSql : _existsSqlNoSerial;
                     AddParameter(command, "@LookupKey", code.Trim());
                     AddParameter(command, "@OrganizationId", organizationId);
                     var result = command.ExecuteScalar();
@@ -135,7 +142,7 @@ WHERE a.[IsActive] = 1
             }
         }
 
-        public AssetScanLookupResult FindByScanCode(string code, int organizationId, int? departmentId)
+        public AssetScanLookupResult FindByScanCode(string code, int organizationId, int? departmentId, bool matchSerialNumber = true)
         {
             if (string.IsNullOrWhiteSpace(code) || organizationId <= 0)
             {
@@ -147,7 +154,7 @@ WHERE a.[IsActive] = 1
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = _lookupSql;
+                    command.CommandText = matchSerialNumber ? _lookupSql : _lookupSqlNoSerial;
                     AddParameter(command, "@LookupKey", code.Trim());
                     AddParameter(command, "@OrganizationId", organizationId);
                     AddParameter(command, "@DepartmentId", departmentId.HasValue ? (object)departmentId.Value : DBNull.Value);

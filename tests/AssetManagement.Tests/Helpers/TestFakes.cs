@@ -477,12 +477,12 @@ namespace AssetManagement.Tests.Helpers
             _unitOfWork = unitOfWork;
         }
 
-        public bool ExistsByScanCode(string code, int organizationId)
+        public bool ExistsByScanCode(string code, int organizationId, bool matchSerialNumber = true)
         {
-            return FindByScanCode(code, organizationId, null) != null;
+            return FindByScanCode(code, organizationId, null, matchSerialNumber) != null;
         }
 
-        public AssetScanLookupResult FindByScanCode(string code, int organizationId, int? departmentId)
+        public AssetScanLookupResult FindByScanCode(string code, int organizationId, int? departmentId, bool matchSerialNumber = true)
         {
             if (string.IsNullOrWhiteSpace(code))
             {
@@ -501,7 +501,7 @@ namespace AssetManagement.Tests.Helpers
                 .Where(x => !departmentId.HasValue || x.DepartmentId == departmentId.Value)
                 .Where(x => ScanCodeHelper.FieldMatchesLookupKey(x.AssetTag, lookupKey)
                     || ScanCodeHelper.FieldMatchesLookupKey(x.BarcodeOrQRCode, lookupKey)
-                    || ScanCodeHelper.FieldMatchesLookupKey(x.SerialNumber, lookupKey))
+                    || (matchSerialNumber && ScanCodeHelper.FieldMatchesLookupKey(x.SerialNumber, lookupKey)))
                 .OrderBy(x => ScanCodeHelper.FieldMatchesLookupKey(x.AssetTag, lookupKey) ? 0
                     : ScanCodeHelper.FieldMatchesLookupKey(x.BarcodeOrQRCode, lookupKey) ? 1 : 2)
                 .FirstOrDefault();

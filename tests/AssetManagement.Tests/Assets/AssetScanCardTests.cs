@@ -76,7 +76,7 @@ namespace AssetManagement.Tests.Assets
             Assert.AreEqual("G7-G7B-045", card.AssetTag);
             Assert.AreEqual("Furniture \u203A Desk \u203A Teacher desk 120cm", Row(card, "category"));
             Assert.AreEqual("Victoria / TD-120", Row(card, "brand-model"));
-            Assert.AreEqual("SN-1", Row(card, "serial"));
+            Assert.IsNull(Row(card, "serial"), "review S8: serial hidden from signed-out viewers");
             Assert.AreEqual("Academics", Row(card, "location-administrative"));
             Assert.AreEqual("Year 7", Row(card, "location-grade"));
             Assert.AreEqual("Year 7B", Row(card, "location-class"));
@@ -365,7 +365,7 @@ namespace AssetManagement.Tests.Assets
             var lookup = SampleLookup();
             lookup.CustodianUserId = "u-1";
             lookup.CustodianPersonName = "Jane Teacher";
-            var viewer = AssetScanViewer.Resolve(isAuthenticated: true, canViewDetails: false, outsideScope: false, canViewFinancials: true, canViewSuppliers: true, hideSerialFromPublic: false);
+            var viewer = AssetScanViewer.Resolve(isAuthenticated: true, canViewDetails: false, outsideScope: false, canViewFinancials: true, canViewSuppliers: true, showSerialToPublic: false);
 
             Assert.IsFalse(viewer.IsSignedIn);
             Assert.IsFalse(viewer.CanViewAssetDetails);
@@ -424,15 +424,36 @@ namespace AssetManagement.Tests.Assets
         }
 
         [Test]
-        public void S8_SerialSwitch_DefaultShowsSerial_TrueHidesItFromPublicOnly()
+        public void S8_Serial_HiddenFromPublicByDefault_SwitchShowsIt()
         {
-            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Anonymous), "serial"), "default unchanged");
-            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, false, false, false, false, false)), "serial"));
-            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(false, false, false, false, false, true)), "serial"));
-            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, false, false, false, false, true)), "serial"));
-            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, true, false, false, false, true)), "serial"), "Assets.View still sees it");
+            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Anonymous), "serial"), "signed out: hidden");
+            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), null), "serial"), "no viewer: hidden");
+            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, false, false, false, false, false)), "serial"), "signed in without Assets.View: hidden");
+            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, true, true, false, false, false)), "serial"), "outside scope: hidden");
+            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, true, false, false, false, false)), "serial"), "Assets.View: shown");
+            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(false, false, false, false, false, true)), "serial"), "switch on: shown");
             var controller = RepoFile("src", "AssetManagement.Web", "Controllers", "AssetScanController.cs");
-            StringAssert.Contains("\"AssetScan:HideSerialFromPublic\"", controller);
+            StringAssert.Contains("\"AssetScan:ShowSerialToPublic\"", controller);
+            StringAssert.Contains("matchSerialNumber: canViewDetails || ShowSerialToPublic()", controller);
+        }
+
+        [Test]
+        public void S8_LookupBySerial_OnlyWhenSerialMatchingIsAllowed()
+        {
+            var unitOfWork = new FakeUnitOfWork();
+            unitOfWork.Seed(new Asset
+            {
+                Id = 8, AssetTag = "G7-G7B-046", AssetName = "Projector", SerialNumber = "PJ-998877", OrganizationId = 1,
+                CategoryId = 1, AssetTypeId = 1, DepartmentId = 1, Currency = "KES", AcquisitionCost = 500,
+                CurrentStatus = AssetStatus.InStore, Condition = AssetCondition.Good, PurchaseDate = new DateTime(2026, 3, 1),
+                DepreciationMethod = DepreciationMethod.StraightLine, DepreciationStartDate = DateTime.UtcNow, UsefulLifeMonths = 36,
+                IsActive = true, CreatedAt = DateTime.UtcNow
+            });
+            var service = TestServiceFactory.CreateAssetService(unitOfWork);
+
+            Assert.IsTrue(service.LookupByScanCode("PJ-998877", applyDepartmentScope: false, includeDetails: true).Found, "Assets.View: serial lookup works");
+            Assert.IsFalse(service.LookupByScanCode("PJ-998877", applyDepartmentScope: false, includeDetails: true, matchSerialNumber: false).Found, "public: no serial lookup");
+            Assert.IsTrue(service.LookupByScanCode("G7-G7B-046", applyDepartmentScope: false, includeDetails: true, matchSerialNumber: false).Found, "public: tag still works");
         }
 
         [Test]

@@ -136,7 +136,7 @@ namespace AssetManagement.Application.Services
             return _assetQueryService.Count(filter);
         }
 
-        public AssetScanLookupVm LookupByScanCode(string code, bool applyDepartmentScope = true, bool includeDetails = true)
+        public AssetScanLookupVm LookupByScanCode(string code, bool applyDepartmentScope = true, bool includeDetails = true, bool matchSerialNumber = true)
         {
             var lookupKey = ScanCodeHelper.ToLookupKey(code);
             if (string.IsNullOrWhiteSpace(lookupKey))
@@ -152,7 +152,7 @@ namespace AssetManagement.Application.Services
 
             if (!includeDetails)
             {
-                var exists = _assetScanLookupRepository.ExistsByScanCode(lookupKey, organizationId.Value);
+                var exists = _assetScanLookupRepository.ExistsByScanCode(lookupKey, organizationId.Value, matchSerialNumber);
                 return new AssetScanLookupVm
                 {
                     Found = exists,
@@ -161,7 +161,7 @@ namespace AssetManagement.Application.Services
             }
 
             var departmentId = applyDepartmentScope ? _departmentScope.ScopedDepartmentId : null;
-            var match = _assetScanLookupRepository.FindByScanCode(lookupKey, organizationId.Value, departmentId);
+            var match = _assetScanLookupRepository.FindByScanCode(lookupKey, organizationId.Value, departmentId, matchSerialNumber);
             if (match == null)
             {
                 return new AssetScanLookupVm { Found = false, Message = "No active asset matched that code." };

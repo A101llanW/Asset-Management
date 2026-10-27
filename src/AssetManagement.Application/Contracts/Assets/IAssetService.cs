@@ -29,7 +29,7 @@ namespace AssetManagement.Application.Contracts
 
         AssetDetailsVm GetById(int id);
 
-        AssetScanLookupVm LookupByScanCode(string code, bool applyDepartmentScope = true, bool includeDetails = true);
+        AssetScanLookupVm LookupByScanCode(string code, bool applyDepartmentScope = true, bool includeDetails = true, bool matchSerialNumber = true);
 
         AssetTcoVm GetTotalCostOfOwnership(int assetId);
 

@@ -391,7 +391,7 @@ namespace AssetManagement.Web.Controllers
                     outsideScope,
                     isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Financials.View"),
                     isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Suppliers.View"),
-                    HideSerialFromPublic());
+                    ShowSerialToPublic());
                 pageModel.Card = AssetScanCardBuilder.Build(lookup, viewer);
                 pageModel.StatusBadgeClass = StatusHtmlHelpers.ToBadgeClass(lookup.CurrentStatus);
                 if (pageModel.Card != null && pageModel.Card.HasPhoto)
@@ -416,15 +416,16 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Review S8 switch: Web.config appSetting "AssetScan:HideSerialFromPublic" = "true" hides the serial number from
-        /// viewers without Assets.View. Missing or anything else = shown (current behaviour).
+        /// Review S8 (Allan, 2026-10-27): the serial number, and lookup by serial number, are only for signed-in users with
+        /// Assets.View. Web.config appSetting "AssetScan:ShowSerialToPublic" = "true" is the single switch that restores
+        /// both for everyone. Missing or anything else = hidden.
         /// </summary>
-        public const string HideSerialFromPublicSetting = "AssetScan:HideSerialFromPublic";
+        public const string ShowSerialToPublicSetting = "AssetScan:ShowSerialToPublic";
 
-        private static bool HideSerialFromPublic()
+        private static bool ShowSerialToPublic()
         {
             bool value;
-            var raw = System.Configuration.ConfigurationManager.AppSettings[HideSerialFromPublicSetting];
+            var raw = System.Configuration.ConfigurationManager.AppSettings[ShowSerialToPublicSetting];
             return bool.TryParse((raw ?? string.Empty).Trim(), out value) && value;
         }
 
@@ -446,10 +447,12 @@ namespace AssetManagement.Web.Controllers
             {
                 // rel1027: details for every viewer (the QR scan page is public); AssetScanCardBuilder filters what is shown.
                 // Department scope still applies to signed-in users with Assets.View, as before.
+                // Review S8: lookup by exact serial number only with Assets.View (or the ShowSerialToPublic switch).
                 return _assetService.LookupByScanCode(
                     term,
                     applyDepartmentScope: canViewDetails,
-                    includeDetails: true);
+                    includeDetails: true,
+                    matchSerialNumber: canViewDetails || ShowSerialToPublic());
             }
             catch (BusinessException ex)
             {

@@ -84,10 +84,11 @@ namespace AssetManagement.Application.ViewModels
         public bool CanViewSuppliers { get; set; }
 
         /// <summary>
-        /// Review S8 switch (default false = unchanged, serial shown to everyone). When true, viewers without Assets.View
-        /// do not see the serial number. Set by Web.config appSetting "AssetScan:HideSerialFromPublic".
+        /// Review S8 (Allan, 2026-10-27): viewers without Assets.View do NOT see the serial number and cannot look an
+        /// asset up by its serial. Default false = hidden. The only switch back is Web.config appSetting
+        /// "AssetScan:ShowSerialToPublic" = "true".
         /// </summary>
-        public bool HideSerialFromPublic { get; set; }
+        public bool ShowSerialToPublic { get; set; }
 
         public static readonly AssetScanViewer Anonymous = new AssetScanViewer();
 
@@ -95,11 +96,11 @@ namespace AssetManagement.Application.ViewModels
         /// Review fix S6: one place that decides the viewer. Signed out, signed in WITHOUT Assets.View, or outside the
         /// user's departments all get the public (anonymous) card: no custodian name, cost or supplier.
         /// </summary>
-        public static AssetScanViewer Resolve(bool isAuthenticated, bool canViewDetails, bool outsideScope, bool canViewFinancials, bool canViewSuppliers, bool hideSerialFromPublic)
+        public static AssetScanViewer Resolve(bool isAuthenticated, bool canViewDetails, bool outsideScope, bool canViewFinancials, bool canViewSuppliers, bool showSerialToPublic)
         {
             if (!isAuthenticated || !canViewDetails || outsideScope)
             {
-                return new AssetScanViewer { HideSerialFromPublic = hideSerialFromPublic };
+                return new AssetScanViewer { ShowSerialToPublic = showSerialToPublic };
             }
 
             return new AssetScanViewer
@@ -108,7 +109,7 @@ namespace AssetManagement.Application.ViewModels
                 CanViewAssetDetails = true,
                 CanViewFinancials = canViewFinancials,
                 CanViewSuppliers = canViewSuppliers,
-                HideSerialFromPublic = hideSerialFromPublic
+                ShowSerialToPublic = showSerialToPublic
             };
         }
     }

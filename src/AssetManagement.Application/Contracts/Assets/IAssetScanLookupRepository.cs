@@ -10,11 +10,12 @@ namespace AssetManagement.Application.Contracts
 
     {
 
-        bool ExistsByScanCode(string code, int organizationId);
+        bool ExistsByScanCode(string code, int organizationId, bool matchSerialNumber = true);
 
 
 
-        AssetScanLookupResult FindByScanCode(string code, int organizationId, int? departmentId);
+        /// <param name="matchSerialNumber">Review S8: false = tag, barcode and old tags only (public scan viewers).</param>
+        AssetScanLookupResult FindByScanCode(string code, int organizationId, int? departmentId, bool matchSerialNumber = true);
 
     }
 
