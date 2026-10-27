@@ -709,6 +709,14 @@ namespace AssetManagement.Application.Services
                         || !classification.AssetTypeId.HasValue
                         || !classification.AssetSubTypeId.HasValue)
                     {
+                        if (classification != null
+                            && classification.AssetTypeId.HasValue
+                            && !new PurchaseOrderLedger(_unitOfWork).TypeHasActiveSubTypes(classification.AssetTypeId.Value))
+                        {
+                            // Same wording as receiving (ReceivingService.RequireSubType).
+                            throw new BusinessException(label + ": this asset type has no active sub-types yet. Add one under Asset Categories first; every requisitioned asset needs a sub-type.");
+                        }
+
                         throw new BusinessException(label + ": choose the asset type and sub-type.");
                     }
                 }
