@@ -16,20 +16,46 @@
         return byId("targetAssetPickerModal");
     }
 
-    function getHiddenInput() {
-        return byId("TargetAssetId");
-    }
-
-    function getDisplayInput() {
-        return byId("target-asset-display");
-    }
-
     function getLineItemsContainer() {
         return byId("purchase-line-items");
     }
 
-    function getFirstLineDescriptionInput() {
-        return document.querySelector(".am-line-description");
+    function getAssetNameMax() {
+        var container = getLineItemsContainer();
+        var max = container ? parseInt(container.getAttribute("data-am-asset-name-max"), 10) : NaN;
+        return isNaN(max) || max <= 0 ? 150 : max;
+    }
+
+    function isRowTagged(row) {
+        var hidden = row ? row.querySelector(".am-line-target-id") : null;
+        return !!(hidden && String(hidden.value || "").trim().length > 0);
+    }
+
+    /* Tagged line: name optional (defaults to the asset's name, editable); classification from the asset. */
+    function setRowTagged(row, tagged) {
+        if (!row) {
+            return;
+        }
+        var nameInput = row.querySelector(".am-line-item-name");
+        if (nameInput) {
+            nameInput.required = !tagged;
+        }
+        var star = row.querySelector(".am-line-name-required");
+        if (star) {
+            star.classList.toggle("d-none", tagged);
+        }
+        var block = row.querySelector(".am-line-classification");
+        if (block) {
+            block.classList.toggle("am-line-classification-from-asset", tagged);
+            var evt;
+            try {
+                evt = new CustomEvent("am:line-tag-changed");
+            } catch (e) {
+                evt = document.createEvent("CustomEvent");
+                evt.initCustomEvent("am:line-tag-changed", false, false, null);
+            }
+            block.dispatchEvent(evt);
+        }
     }
 
     function ensureModalInBody(modal) {
@@ -107,12 +133,11 @@
 
     function updateQtyInStockVisibility() {
         var group = byId("qty-in-stock-group");
-        var targetId = getHiddenInput();
         if (!group) {
             return;
         }
 
-        var hasAsset = targetId && String(targetId.value || "").trim().length > 0;
+        var hasAsset = Array.prototype.some.call(document.querySelectorAll(".purchase-line-item"), isRowTagged);
         if (hasAsset) {
             group.classList.remove("d-none");
         } else {
@@ -130,9 +155,19 @@
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
             row.setAttribute("data-line-index", String(i));
+            var itemName = row.querySelector(".am-line-item-name");
+            var targetId = row.querySelector(".am-line-target-id");
             var description = row.querySelector(".am-line-description");
             var quantity = row.querySelector(".am-line-quantity");
             var removeButton = row.querySelector(".am-remove-line-item");
+            if (itemName) {
+                itemName.name = "Lines[" + i + "].ItemName";
+                itemName.id = "Lines_" + i + "__ItemName";
+            }
+            if (targetId) {
+                targetId.name = "Lines[" + i + "].TargetAssetId";
+                targetId.id = "Lines_" + i + "__TargetAssetId";
+            }
             if (description) {
                 description.name = "Lines[" + i + "].Description";
                 description.id = "Lines_" + i + "__Description";
@@ -158,7 +193,12 @@
         row.className = "purchase-line-item row g-2 align-items-end border rounded p-2";
         row.setAttribute("data-line-index", String(index));
         row.innerHTML =
-            "<div class=\"col-md-8\">" +
+            "<div class=\"col-md-4\">" +
+            "<label class=\"form-label small mb-1\">Item / asset name <span class=\"text-danger am-line-name-required\">*</span></label>" +
+            "<input type=\"text\" name=\"Lines[" + index + "].ItemName\" id=\"Lines_" + index + "__ItemName\" " +
+            "class=\"form-control am-line-item-name\" required=\"required\" maxlength=\"" + getAssetNameMax() + "\" />" +
+            "</div>" +
+            "<div class=\"col-md-4\">" +
             "<label class=\"form-label small mb-1\">Description / what you need</label>" +
             "<input type=\"text\" name=\"Lines[" + index + "].Description\" id=\"Lines_" + index + "__Description\" " +
             "class=\"form-control am-line-description\" required=\"required\" maxlength=\"2000\" />" +
@@ -170,6 +210,15 @@
             "</div>" +
             "<div class=\"col-md-2 text-end\">" +
             "<button type=\"button\" class=\"btn btn-outline-secondary btn-sm am-remove-line-item\" title=\"Remove line\">Remove</button>" +
+            "</div>" +
+            "<div class=\"col-12 am-line-target\">" +
+            "<input type=\"hidden\" name=\"Lines[" + index + "].TargetAssetId\" id=\"Lines_" + index + "__TargetAssetId\" class=\"am-line-target-id\" value=\"\" />" +
+            "<div class=\"input-group input-group-sm\">" +
+            "<span class=\"input-group-text\">Tag existing asset (optional)</span>" +
+            "<input type=\"text\" class=\"form-control am-line-target-display\" readonly=\"readonly\" placeholder=\"No asset tagged\" role=\"button\" style=\"cursor: pointer;\" />" +
+            "<button type=\"button\" class=\"btn btn-outline-primary am-line-target-browse\">Browse assets</button>" +
+            "<button type=\"button\" class=\"btn btn-outline-secondary am-line-target-clear\" title=\"Clear tag\">&times;</button>" +
+            "</div>" +
             "</div>";
         container.appendChild(row);
         reindexLineItems();
@@ -203,6 +252,7 @@
             }
             row.remove();
             reindexLineItems();
+            updateQtyInStockVisibility();
         });
     }
 
@@ -259,8 +309,8 @@
         ensureModalInBody(modal);
 
         var searchUrl = modal.getAttribute("data-am-target-asset-search-url") || "";
-        var hiddenInput = getHiddenInput();
-        var displayInput = getDisplayInput();
+        var container = getLineItemsContainer();
+        var activeRow = null; // the line the picker was opened from (tags are per line)
         var filterForm = byId("target-asset-picker-filters");
         var tbody = byId("target-asset-picker-body");
         var loading = byId("target-asset-picker-loading");
@@ -271,7 +321,6 @@
         var rangeLabel = byId("target-asset-picker-range");
         var prevBtn = byId("target-asset-picker-prev");
         var nextBtn = byId("target-asset-picker-next");
-        var clearBtn = byId("clear-target-asset");
 
         var state = {
             search: "",
@@ -375,6 +424,7 @@
                 selectButton.className = "btn btn-sm btn-primary am-target-asset-select";
                 selectButton.setAttribute("data-asset-id", item.id);
                 selectButton.setAttribute("data-asset-label", item.label || "");
+                selectButton.setAttribute("data-asset-name", item.assetName || "");
                 if (item.departmentId) {
                     selectButton.setAttribute("data-department-id", item.departmentId);
                 }
@@ -470,10 +520,11 @@
                 });
         }
 
-        function openModal(event) {
+        function openModal(event, row) {
             if (event) {
                 event.preventDefault();
             }
+            activeRow = row || null;
             showModal(modal);
         }
 
@@ -487,9 +538,16 @@
                 return;
             }
 
+            // Pre-fill the tagged line: name = the asset's name (editable), description only when still blank.
+            var row = activeRow;
+            var assetName = button.getAttribute("data-asset-name") || "";
+            var nameInput = row ? row.querySelector(".am-line-item-name") : null;
+            if (nameInput && assetName) {
+                nameInput.value = assetName.length > getAssetNameMax() ? assetName.substring(0, getAssetNameMax()) : assetName;
+            }
             var itemDescription = button.getAttribute("data-item-description") || "";
-            var descriptionInput = getFirstLineDescriptionInput();
-            if (descriptionInput && itemDescription) {
+            var descriptionInput = row ? row.querySelector(".am-line-description") : null;
+            if (descriptionInput && itemDescription && !String(descriptionInput.value || "").trim()) {
                 descriptionInput.value = itemDescription;
             }
 
@@ -534,6 +592,10 @@
 
             var assetId = button.getAttribute("data-asset-id");
             var label = button.getAttribute("data-asset-label") || "";
+            var row = activeRow || document.querySelector(".purchase-line-item");
+            activeRow = row;
+            var hiddenInput = row ? row.querySelector(".am-line-target-id") : null;
+            var displayInput = row ? row.querySelector(".am-line-target-display") : null;
 
             if (hiddenInput) {
                 hiddenInput.value = assetId;
@@ -542,17 +604,24 @@
                 displayInput.value = label;
             }
 
+            setRowTagged(row, true);
             applyAssetToForm(button);
             hideModal(modal);
         }
 
-        function clearSelection() {
+        function clearSelection(row) {
+            if (!row) {
+                return;
+            }
+            var hiddenInput = row.querySelector(".am-line-target-id");
+            var displayInput = row.querySelector(".am-line-target-display");
             if (hiddenInput) {
                 hiddenInput.value = "";
             }
             if (displayInput) {
                 displayInput.value = "";
             }
+            setRowTagged(row, false);
             updateQtyInStockVisibility();
         }
 
@@ -617,15 +686,21 @@
             loadAssets();
         });
 
-        if (displayInput) {
-            displayInput.addEventListener("click", openModal);
-        }
-        var openBtn = byId("open-target-asset-picker");
-        if (openBtn) {
-            openBtn.addEventListener("click", openModal);
-        }
-        if (clearBtn) {
-            clearBtn.addEventListener("click", clearSelection);
+        if (container) {
+            // Delegated: rows added later get the same per-line Browse / clear behaviour.
+            container.addEventListener("click", function (event) {
+                var target = event.target;
+                if (!target || !target.closest) {
+                    return;
+                }
+                var row = target.closest(".purchase-line-item");
+                if (target.closest(".am-line-target-browse") || target.closest(".am-line-target-display")) {
+                    openModal(event, row);
+                } else if (target.closest(".am-line-target-clear")) {
+                    event.preventDefault();
+                    clearSelection(row);
+                }
+            });
         }
     }
 

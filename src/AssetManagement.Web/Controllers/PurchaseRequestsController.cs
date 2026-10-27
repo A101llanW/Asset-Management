@@ -432,7 +432,40 @@ namespace AssetManagement.Web.Controllers
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
             PopulateCatalogPickers();
-            ViewBag.SelectedTargetAssetLabel = ResolveSelectedTargetAssetLabel(model?.TargetAssetId);
+            // Migration 108: tags are per line. An older link / asset request posting the header tag shows it on line 1.
+            if (model != null)
+            {
+                if (model.Lines == null || model.Lines.Count == 0)
+                {
+                    model.Lines = new List<PurchaseRequestLineCreateVm> { new PurchaseRequestLineCreateVm { Description = model.ItemDescription, Quantity = 1 } };
+                }
+
+                if (model.TargetAssetId.HasValue
+                    && model.TargetAssetId.Value > 0
+                    && !model.Lines.Any(x => x != null && x.TargetAssetId.HasValue && x.TargetAssetId.Value > 0)
+                    && model.Lines[0] != null)
+                {
+                    model.Lines[0].TargetAssetId = model.TargetAssetId;
+                }
+
+                model.TargetAssetId = null;
+            }
+
+            var lineTargetLabels = new Dictionary<int, string>();
+            if (model != null)
+            {
+                for (var i = 0; i < model.Lines.Count; i++)
+                {
+                    var line = model.Lines[i];
+                    if (line != null && line.TargetAssetId.HasValue && line.TargetAssetId.Value > 0)
+                    {
+                        lineTargetLabels[i] = ResolveSelectedTargetAssetLabel(line.TargetAssetId);
+                    }
+                }
+            }
+
+            ViewBag.LineTargetAssetLabels = lineTargetLabels;
+            ViewBag.SelectedTargetAssetLabel = string.Empty;
             var profile = GetCurrentUserProfile();
             ViewBag.RequestingAsDisplayName = profile == null
                 ? (User != null && User.Identity != null ? User.Identity.Name : "Current user")

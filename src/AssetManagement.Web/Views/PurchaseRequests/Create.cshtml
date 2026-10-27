@@ -17,6 +17,8 @@
     var requisitionPolicies = ViewBag.RequisitionPolicies as AssetManagement.Application.ViewModels.RequisitionPolicySettingsVm;
     var classificationMode = requisitionPolicies == null ? AssetManagement.Domain.Enums.RequisitionClassificationMode.Optional : requisitionPolicies.ClassificationMode;
     var lineClassificationRequired = classificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredPerLine;
+    var lineTargetLabels = ViewBag.LineTargetAssetLabels as IDictionary<int, string> ?? new Dictionary<int, string>();
+    var assetNameMax = AssetManagement.Application.Helpers.AssetNameRules.MaxLength;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -75,23 +77,7 @@
             <div class="form-text">Room, classroom, or admin unit that will receive these goods.</div>
         </div>
         <div class="col-12">
-            <label class="form-label">Tag existing asset (optional)</label>
-            @Html.HiddenFor(m => m.TargetAssetId)
-            <div class="input-group">
-                <input type="text"
-                       class="form-control"
-                       id="target-asset-display"
-                       readonly="readonly"
-                       placeholder="No asset selected"
-                       value="@selectedTargetAssetLabel"
-                       role="button"
-                       style="cursor: pointer;" />
-                <button type="button"
-                        class="btn btn-outline-primary"
-                        id="open-target-asset-picker">Browse assets</button>
-                <button type="button" class="btn btn-outline-secondary" id="clear-target-asset" title="Clear selection">&times;</button>
-            </div>
-            <div id="target-asset-hint" class="form-text">Optional: tag an asset to pre-fill the first line and show qty in stock when available.</div>
+            <div id="target-asset-hint" class="form-text mt-0">Optional: tag an existing asset on a line to copy its name and classification. Receiving always creates a new asset; the tagged asset is not changed.</div>
         </div>
 
         @if (classificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredHeader)
@@ -118,14 +104,29 @@
                 <button type="button" class="btn btn-sm btn-outline-primary" id="add-purchase-line-item">Add another item</button>
             </div>
             <div id="purchase-line-items" class="vstack gap-2"
+                 data-am-asset-name-max="@assetNameMax"
                  data-am-catalog="@catalogPickerJson"
                  data-am-preview-lines-url="@previewLinePathsUrl"
                  data-am-classification-mode="@classificationMode">
                 @for (var i = 0; i < lineCount; i++)
                 {
                     var line = i < lineModels.Count ? lineModels[i] : null;
+                    var lineTargetId = line == null ? null : line.TargetAssetId;
+                    var lineTagged = lineTargetId.HasValue && lineTargetId.Value > 0;
+                    var lineTargetLabel = lineTargetLabels.ContainsKey(i) ? lineTargetLabels[i] : string.Empty;
                     <div class="purchase-line-item row g-2 align-items-end border rounded p-2" data-line-index="@i">
-                        <div class="col-md-8">
+                        <div class="col-md-4">
+                            <label class="form-label small mb-1" for="Lines_@(i)__ItemName">Item / asset name <span class="text-danger am-line-name-required@(lineTagged ? " d-none" : "")">*</span></label>
+                            <input type="text"
+                                   name="Lines[@i].ItemName"
+                                   id="Lines_@(i)__ItemName"
+                                   class="form-control am-line-item-name"
+                                   value="@(line == null ? "" : line.ItemName)"
+                                   @(lineTagged ? "" : "required=\"required\"")
+                                   maxlength="@assetNameMax" />
+                            @Html.ValidationMessage("Lines[" + i + "].ItemName", new { @class = "text-danger small" })
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label small mb-1">Description / what you need</label>
                             <input type="text"
                                    name="Lines[@i].Description"
@@ -148,25 +149,33 @@
                         <div class="col-md-2 text-end">
                             <button type="button" class="btn btn-outline-secondary btn-sm am-remove-line-item" @(i == 0 ? "disabled=\"disabled\"" : "") title="Remove line">Remove</button>
                         </div>
-                        <div class="col-12 am-line-classification am-classification-picker">
+                        <div class="col-12 am-line-target">
+                            <input type="hidden" name="Lines[@i].TargetAssetId" id="Lines_@(i)__TargetAssetId" class="am-line-target-id" value="@(lineTagged ? lineTargetId.Value.ToString() : "")" />
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">Tag existing asset (optional)</span>
+                                <input type="text" class="form-control am-line-target-display" readonly="readonly" placeholder="No asset tagged" value="@lineTargetLabel" role="button" style="cursor: pointer;" />
+                                <button type="button" class="btn btn-outline-primary am-line-target-browse">Browse assets</button>
+                                <button type="button" class="btn btn-outline-secondary am-line-target-clear" title="Clear tag">&times;</button>
+                            </div>
+                        </div>
+                        <div class="col-12 am-line-classification am-classification-picker@(lineTagged ? " am-line-classification-from-asset" : "")">
                             <div class="row g-2">
-                                <div class="col-md-4">
-                                    <select class="form-select form-select-sm am-pick-category" name="Lines[@i].AssetCategoryId" data-field="AssetCategoryId" aria-label="Category" data-selected="@(line == null ? null : line.AssetCategoryId)"></select>
-                                </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <select class="form-select form-select-sm am-pick-type" name="Lines[@i].AssetTypeId" data-field="AssetTypeId" aria-label="Type" data-selected="@(line == null ? null : line.AssetTypeId)"></select>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <select class="form-select form-select-sm am-pick-subtype" name="Lines[@i].AssetSubTypeId" data-field="AssetSubTypeId" aria-label="Sub-type" data-selected="@(line == null ? null : line.AssetSubTypeId)"></select>
                                 </div>
                             </div>
+                            <div class="small text-muted mt-1 am-line-from-asset@(lineTagged ? "" : " d-none")">Type and sub-type come from the tagged asset.</div>
+                            @Html.ValidationMessage("Lines[" + i + "].AssetSubTypeId", new { @class = "text-danger small" })
                             <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
                         </div>
                     </div>
                 }
             </div>
             @Html.ValidationMessage("Lines", new { @class = "text-danger" })
-            <div class="form-text">@(lineClassificationRequired ? "Each line needs a type or sub-type from your asset categories." : "Optional: pick a category, type or sub-type per line. Some items have their own approval path.")</div>
+            <div class="form-text">Each line needs an item / asset name and a type and sub-type from your asset categories (the category follows from the type), unless it is tagged to an existing asset. Some items have their own approval path.</div>
             <div class="alert alert-light border small mt-2 d-none" id="purchase-line-paths" role="status" aria-live="polite"></div>
         </div>
 
@@ -216,10 +225,10 @@
     <template id="am-line-classification-template">
         <div class="col-12 am-line-classification am-classification-picker">
             <div class="row g-2">
-                <div class="col-md-4"><select class="form-select form-select-sm am-pick-category" aria-label="Category" data-field="AssetCategoryId"></select></div>
-                <div class="col-md-4"><select class="form-select form-select-sm am-pick-type" aria-label="Type" data-field="AssetTypeId"></select></div>
-                <div class="col-md-4"><select class="form-select form-select-sm am-pick-subtype" aria-label="Sub-type" data-field="AssetSubTypeId"></select></div>
+                <div class="col-md-6"><select class="form-select form-select-sm am-pick-type" aria-label="Type" data-field="AssetTypeId"></select></div>
+                <div class="col-md-6"><select class="form-select form-select-sm am-pick-subtype" aria-label="Sub-type" data-field="AssetSubTypeId"></select></div>
             </div>
+            <div class="small text-muted mt-1 am-line-from-asset d-none">Type and sub-type come from the tagged asset.</div>
             <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
         </div>
     </template>
