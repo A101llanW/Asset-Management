@@ -3,10 +3,11 @@
     <RootNamespace>AssetManagement.Application</RootNamespace>
     <AssemblyName>AssetSuite.Application</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(LegacySrc)/AssetManagement.Application/**/*.cs" LinkBase="Legacy"
-             Exclude="$(LegacySrc)/AssetManagement.Application/Helpers/LabelLayoutDesign.cs;$(LegacySrc)/AssetManagement.Application/Helpers/LabelLayoutTemplateHelper.cs;$(LegacySrc)/AssetManagement.Application/Helpers/SpreadsheetImportHelper.cs" />
+             Exclude="$(LegacySrc)/AssetManagement.Application/**/obj/**;$(LegacySrc)/AssetManagement.Application/**/bin/**;$(LegacySrc)/AssetManagement.Application/Helpers/LabelLayoutDesign.cs;$(LegacySrc)/AssetManagement.Application/Helpers/LabelLayoutTemplateHelper.cs;$(LegacySrc)/AssetManagement.Application/Helpers/SpreadsheetImportHelper.cs" />
     <Compile Include="Compat/SpreadsheetImportHelper.cs" />
     <Compile Include="Compat/LabelLayoutDesign.cs" />
     <Compile Include="Compat/LabelLayoutTemplateHelper.cs" />

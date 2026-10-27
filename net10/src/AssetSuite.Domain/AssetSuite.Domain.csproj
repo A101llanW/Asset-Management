@@ -3,8 +3,10 @@
     <RootNamespace>AssetManagement.Domain</RootNamespace>
     <AssemblyName>AssetSuite.Domain</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(LegacySrc)/AssetManagement.Domain/**/*.cs" LinkBase="Legacy" />
+    <Compile Include="$(LegacySrc)/AssetManagement.Domain/**/*.cs" LinkBase="Legacy"
+             Exclude="$(LegacySrc)/AssetManagement.Domain/**/obj/**;$(LegacySrc)/AssetManagement.Domain/**/bin/**" />
   </ItemGroup>
 </Project>
