@@ -1,5 +1,14 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 ~09:50 EAT - review fixes S1-S11 - STAGED, NOT PUBLISHED
+
+- Commits (main, local only, not pushed): 49837a4 (S6-S9), b337d68 (S9 print candidates scoped), 4f9330e (S8 serial hidden; AssetScan:ShowSerialToPublic switch), 4e20d79 (S1-S5, S10, S11: LiveDB pack 20261027 + guarded 104 rollback).
+- Backup tags: backup/main-pre-merge-20261027 (8f6bff4), backup/main-pre-review-fixes-20261027 (143cead). Hold branch hold/tag-random-code (cf4a3fc) untouched.
+- LiveDB pack ops/LiveDB_Update_20261027 (00 timestamped COPY_ONLY backup, 01 pre-checks with Prep listing, 02 104 add-missing/history-only, 03 105, 04 106 apostrophe-tolerant, 05 107, 09 verify with 11 Prep rows, 99a-d rollbacks): tested on a scratch restore only. NOT RUN on live.
+- localhost:8080 redeployed 09:42:05-09:42:27 EAT; IIS backup _merge20261027\inetpub_AssetManagement_backup_20261027_0942.
+- Desktop\publish rebuilt (old folder renamed publish_old_20261027_094920). Web.dll SHA256 4A1A1941...BC1E10. Not copied to live.
+- Unit tests 1121 / 1114 passed / 7 skipped / 0 failed.
+
 ## 2026-10-27 09:10 - main: print log (105) + Prep/Senior Section (106) + heads per section (107) + tag segment switches (104) + Year/Classroom labels + required sub-type + QR scan card (`488e78c`) - NOT PUBLISHED (built + tested locally only; staged, not deployed)
 
 - **Status:** NOT PUBLISHED. Local main only, not pushed, no PR. localhost:8080 runs `488e78c`. Live untouched. No print job sent.
