@@ -1,5 +1,14 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 ~10:30 EAT - QA fixes (Q7.2, scan texts, S1.8, tenantless QR, S1.10, N8.1, W5.x, P3.6/X9.4 move rule) - STAGED, NOT PUBLISHED
+
+- Commits (main, local only, not pushed): 936a968 (Q7.2 + scan texts), 7192b00 (S1.8 + tenantless QR), 49d1ea3 (S1.10), a475992 (N8.1), b3428ad (W5.1/W5.4/W5.9/W5.6 display wording; codes keep stored value), 0d5ca73 (P3.6/X9.4, Allan's decision: classroom -> classroom moves allowed as well as classroom -> room). Backup tag backup/main-pre-qa-fixes-20261027 (da8b0e1).
+- DB migration/script: none. Config keys: none.
+- localhost:8080 redeployed 10:14 and 10:21:47-10:22:00 EAT; IIS backups _merge20261027\inetpub_AssetManagement_backup_20261027_1014 and _1021.
+- Local DB only (Allan approved): QA test leftovers hard-deleted after backup AssetManagementModuleDb_pre_qaleftovers_20261027_102102.bak and Bak_QALeftovers_20261027_* tables (3 assets, 5 departments, 2 tag counters, 259 audit rows, 2 login rows). 2678 active Test-WF assets and their tags unchanged. Live DB not touched.
+- Desktop\publish rebuilt (old folder renamed publish_old_20261027_103044). Web.dll SHA256 998F3B48...D32D2B. Not copied to live.
+- Unit tests 1140 / 1133 passed / 7 skipped / 0 failed.
+
 ## 2026-10-27 ~09:50 EAT - review fixes S1-S11 - STAGED, NOT PUBLISHED
 
 - Commits (main, local only, not pushed): 49837a4 (S6-S9), b337d68 (S9 print candidates scoped), 4f9330e (S8 serial hidden; AssetScan:ShowSerialToPublic switch), 4e20d79 (S1-S5, S10, S11: LiveDB pack 20261027 + guarded 104 rollback).
