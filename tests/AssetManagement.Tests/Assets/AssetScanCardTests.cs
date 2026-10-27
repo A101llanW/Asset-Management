@@ -228,14 +228,49 @@ namespace AssetManagement.Tests.Assets
         }
 
         [Test]
-        public void Section_PrepShown_AndHiddenWhenOrganisationHasNoPrep()
+        public void Section_ShownForEveryAssetWithADepartment_EvenWhenOrganisationHasNoPrep()
         {
             var lookup = SampleLookup();
             lookup.Section = DepartmentSection.Prep;
             Assert.AreEqual("Prep", Row(AssetScanCardBuilder.Build(lookup, null), "section"));
+            Assert.AreEqual("Prep", Row(AssetScanCardBuilder.Build(lookup, AssetScanViewer.Anonymous), "section"));
 
+            // QA Q7.2: a tenant without active Prep units still shows the Section row.
             lookup.OrganizationUsesPrep = false;
-            Assert.IsNull(Row(AssetScanCardBuilder.Build(lookup, null), "section"));
+            lookup.Section = DepartmentSection.SeniorSchool;
+            Assert.AreEqual("Senior school", Row(AssetScanCardBuilder.Build(lookup, AssetScanViewer.Anonymous), "section"));
+        }
+
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        public void SearchText_PublicViewer_NeverOffersCustodianOrDepartmentSearch(bool fullSearch, bool serialToPublic)
+        {
+            foreach (var text in new[]
+            {
+                AssetScanSearchText.Placeholder(fullSearch, serialToPublic),
+                AssetScanSearchText.EmptyPrompt(fullSearch, serialToPublic),
+                AssetScanSearchText.NoResultHint(fullSearch, serialToPublic),
+                AssetScanSearchText.SubTitle(fullSearch, serialToPublic)
+            })
+            {
+                StringAssert.DoesNotContain("custodian", text.ToLowerInvariant());
+                StringAssert.DoesNotContain("department", text.ToLowerInvariant());
+                if (!serialToPublic)
+                {
+                    StringAssert.DoesNotContain("serial", text.ToLowerInvariant());
+                }
+            }
+
+            StringAssert.Contains("tag", AssetScanSearchText.Placeholder(false, false).ToLowerInvariant());
+            StringAssert.Contains("serial", AssetScanSearchText.Placeholder(false, true).ToLowerInvariant());
+        }
+
+        [Test]
+        public void SearchText_AssetsViewViewer_KeepsFullSearchWording()
+        {
+            StringAssert.Contains("custodian", AssetScanSearchText.Placeholder(true, false).ToLowerInvariant());
+            StringAssert.Contains("serial", AssetScanSearchText.NoResultHint(true, false).ToLowerInvariant());
+            StringAssert.Contains("department", AssetScanSearchText.EmptyPrompt(true, false).ToLowerInvariant());
         }
 
         [Test]

@@ -35,6 +35,12 @@ namespace AssetManagement.Web.ViewModels
 
         public string LookupJsonUrl { get; set; }
 
+        /// <summary>QA 2026-10-27: search box placeholder that matches what this viewer can search.</summary>
+        public string SearchPlaceholder { get; set; }
+
+        /// <summary>QA 2026-10-27: hint under "not found" that matches what this viewer can search.</summary>
+        public string NoResultHint { get; set; }
+
         /// <summary>Link to the separate bulk label print page; null when the user cannot print labels.</summary>
         public string BulkPrintUrl { get; set; }
 

@@ -27,7 +27,7 @@
     @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
     {
         Title = scanResultFirst ? "Look up another asset" : "Scan & Search",
-        Subtitle = "Scan a label or search by tag, serial number, custodian, department, or asset name."
+        Subtitle = AssetManagement.Application.Helpers.AssetScanSearchText.SubTitle(true, false)
     })
 }
 
@@ -83,7 +83,7 @@
                 <label class="visually-hidden" for="code">Scan or type code</label>
                 <input class="am-scan-input form-control form-control-lg" id="code" name="code"
                        type="text" @Html.Raw(scanAutofocusAttr) autocomplete="off" inputmode="text"
-                       placeholder="Tag, serial, custodian, department..." value="@Model.InitialCode" />
+                       placeholder="@(Model.SearchPlaceholder ?? AssetManagement.Application.Helpers.AssetScanSearchText.Placeholder(!Model.IsPublicScan, false))" value="@Model.InitialCode" />
             </div>
 
             <div class="am-scan-status-bar mt-2" aria-live="polite">
@@ -140,7 +140,8 @@
             statusSelector: "#am-scan-status",
             lookupJsonUrl: "@Model.LookupJsonUrl",
             hasInitialResult: @(Model.Lookup != null && Model.Lookup.Found ? "true" : "false"),
-            detailsFirst: @(scanResultFirst ? "true" : "false")
+            detailsFirst: @(scanResultFirst ? "true" : "false"),
+            noResultHint: "@Html.Raw(HttpUtility.JavaScriptStringEncode(Model.NoResultHint ?? AssetManagement.Application.Helpers.AssetScanSearchText.NoResultHint(!Model.IsPublicScan, false)))"
         });
 
         AmAssetScanCamera.init({

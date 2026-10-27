@@ -283,7 +283,9 @@ namespace AssetManagement.Web.Controllers
                 CanViewAssetDetails = false,
                 CanOpenQuickActions = false,
                 InitialCode = code,
-                LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan")
+                LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan"),
+                SearchPlaceholder = AssetScanSearchText.Placeholder(false, ShowSerialToPublic()),
+                NoResultHint = AssetScanSearchText.NoResultHint(false, ShowSerialToPublic())
             };
         }
 
@@ -315,7 +317,7 @@ namespace AssetManagement.Web.Controllers
                 lookup = new AssetScanLookupVm
                 {
                     Found = false,
-                    Message = "Enter or scan an asset tag, barcode, serial number, custodian, or department."
+                    Message = AssetScanSearchText.EmptyPrompt(canViewDetails, ShowSerialToPublic())
                 };
             }
             else
@@ -376,6 +378,8 @@ namespace AssetManagement.Web.Controllers
                         canReportIncident),
                 InitialCode = term,
                 LookupJsonUrl = TenantUrlHelper.TenantRouteUrl(Url, "LookupJson", "AssetScan"),
+                SearchPlaceholder = AssetScanSearchText.Placeholder(canViewDetails, ShowSerialToPublic()),
+                NoResultHint = AssetScanSearchText.NoResultHint(canViewDetails, ShowSerialToPublic()),
                 BulkPrintUrl = canViewDetails
                     ? TenantUrlHelper.TenantRouteUrl(Url, "BulkPrint", "AssetLabels")
                     : null,
@@ -474,7 +478,8 @@ namespace AssetManagement.Web.Controllers
                     StatusBadgeClass = page.Card == null ? null : page.StatusBadgeClass,
                     PhotoUrl = page.PhotoUrl,
                     CanViewAssetDetails = false,
-                    CanOpenQuickActions = false
+                    CanOpenQuickActions = false,
+                    NoResultHint = page.NoResultHint
                 };
             }
 
@@ -527,7 +532,8 @@ namespace AssetManagement.Web.Controllers
                 QuickActionsUrl = page.QuickActionsUrl,
                 EmptyDisplay = DisplayText.Empty,
                 Card = ToCardPayload(page.Card),
-                PhotoUrl = page.PhotoUrl
+                PhotoUrl = page.PhotoUrl,
+                NoResultHint = page.NoResultHint
             };
         }
 

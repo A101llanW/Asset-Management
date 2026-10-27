@@ -59,7 +59,9 @@ namespace AssetManagement.Application.Helpers
                 card.Rows.Add(new AssetScanCardRow("location-" + level.Kind.ToString().ToLowerInvariant(), KindLabel(level.Kind), GradeDisplay.ToYear(level.Name.Trim())));
             }
 
-            if (lookup.OrganizationUsesPrep && lookup.DepartmentId.HasValue)
+            // QA Q7.2 (2026-10-27): the Section row is shown for every asset with a department, also when the
+            // tenant has no active Prep units yet (the asset then reads "Senior school").
+            if (lookup.DepartmentId.HasValue)
             {
                 card.Rows.Add(new AssetScanCardRow("section", "Section", DepartmentSectionHelper.Label(lookup.Section)));
             }
