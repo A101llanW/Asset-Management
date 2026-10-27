@@ -19,7 +19,7 @@
 --      ids, no FK) so the trail shows what was set even if the asset is reclassified later. A PO line needs no New* columns:
 --      its own AssetCategoryId / AssetTypeId / AssetSubTypeId are written once when the PO is raised.
 --   5. SchemaMigrationHistory row.
--- NVARCHAR(200) matches Asset.AssetName and the application limit AssetNameRules.MaxLength = 200 (pending Allan's confirmation (relayed by PM 20:58 EAT)).
+-- NVARCHAR(200) matches Asset.AssetName and the application limit AssetNameRules.MaxLength = 200 (Allan, 2026-10-27 22:29 EAT (Debugging bot's chat)).
 -- Rows created before 108 keep NULL ItemName / TargetAssetId and are NOT re-validated: the app falls back to the old
 --   rules (header TargetAssetId, description / sub-type / brand-model name).
 -- Must run BEFORE the matching code is published (the entity maps read the new columns).

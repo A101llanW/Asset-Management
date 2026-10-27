@@ -79,11 +79,11 @@ Plan: `C:\Users\allan\.cursor\plans\catalog_requisition_flows_c041f2a2.plan.md`.
 | D2a | **Supersedes D2 (PM: obey approvals switch).** Catalog-level paths (sub-type/type/category) ALWAYS apply regardless of the org-wide purchase-approval switch; the "(organisation approvals off)" behaviour is removed. Department / org-matrix behaviour unchanged. Test `OrgApprovalsOff_CatalogPathHasNoStages_PoRaiserKept` replaced by `OrgApprovalsOff_CatalogPathStillApplies`. |
 | D5a | **Owner decision, supersedes D5 / answers open question 4.** For catalog-sourced stages (requisition ApprovalFlowSource names a Category/Type/Sub-type node) approvers resolve catalog-path FIRST: 1. named person on the stage; 2. every active holder of the stage role configured on the catalog path (catalog nodes have no owning department, so the path scope is organisation-wide); only if there is none, 3. requesting department holders, 4. ancestors, 5. no-department holders, 6. org-wide. Applied identically to approve/reject eligibility, Details 'can approve', pending-approval lists (row now carries ApprovalFlowSource), stage notifications and the PO raiser. Department / org-matrix stages unchanged. Path resolution order (sub-type > type > category > department > matrix) unchanged. Removes the ICT Manager caveat. Caveat: a department-type role (e.g. Head of Department) placed on a catalog path now means every holder of that role org-wide; use a named person there. Catalog detection uses the stored label (no DB change). Tests: CatalogApproverFirstTests (11). |
 
-## Asset name length (migration 108, branch feat/req-line-asset-name) - pending Allan's confirmation (relayed by PM 20:58 EAT)
+## Asset name length (migration 108, branch feat/req-line-asset-name) - Allan, 2026-10-27 22:29 EAT (Debugging bot's chat)
 
 | # | Decision |
 |---|----------|
-| N1 | Asset name length is **200** (`AssetNameRules.MaxLength = 200`), the same as the `Asset.AssetName` / `ItemName` NVARCHAR(200) columns; replaces the provisional 150. Pending Allan's confirmation (relayed by PM 20:58 EAT): Allan's own words choosing 200 have not been seen yet. The code stays at 200; changing it later needs no schema change while it is at most 200. |
+| N1 | Asset name length is **200** (`AssetNameRules.MaxLength = 200`), the same as the `Asset.AssetName` / `ItemName` NVARCHAR(200) columns; replaces the provisional 150. Confirmed: Allan, 2026-10-27 22:29 EAT (Debugging bot's chat). The code stays at 200; changing it later needs no schema change while it is at most 200. |
 
 ## Owner decisions (2026-10-27 21:20 EAT, Allan in the Debugging bot's chat) - C3 and C5 (migration 108)
 

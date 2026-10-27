@@ -10,7 +10,7 @@ namespace AssetManagement.Application.Helpers
     /// </summary>
     public static class AssetNameRules
     {
-        // 200, pending Allan's confirmation (relayed by PM 20:58 EAT); the same as the Asset.AssetName and ItemName NVARCHAR(200) columns.
+        // 200 (Allan, 2026-10-27 22:29 EAT (Debugging bot's chat)); the same as the Asset.AssetName and ItemName NVARCHAR(200) columns.
         public const int MaxLength = 200;
 
         public const string DisplayName = "Asset name";
