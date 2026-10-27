@@ -21,6 +21,9 @@ namespace AssetManagement.Domain.Entities
 
         public string Description { get; set; }
 
+        /// <summary>Migration 108: the requisition line's item / asset name, carried to receiving (NULL on older rows).</summary>
+        public string ItemName { get; set; }
+
         public int Quantity { get; set; }
 
         public decimal UnitCost { get; set; }
@@ -31,7 +34,7 @@ namespace AssetManagement.Domain.Entities
 
         public int? AssetSubTypeId { get; set; }
 
-        /// <summary>Where the classification came from: RequisitionAsset, SelectedOnOrder, SupplierCatalog (NULL = none).</summary>
+        /// <summary>Where the classification came from: RequisitionAsset, RequisitionLine, SelectedOnOrder, SupplierCatalog (NULL = none).</summary>
         public string ClassificationSource { get; set; }
     }
 }

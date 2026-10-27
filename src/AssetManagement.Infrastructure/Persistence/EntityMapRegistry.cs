@@ -31,13 +31,13 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(AssetDocument));
             Register(typeof(AssetDocumentRequirement));
             Register(typeof(PurchaseRequest));
-            Register(typeof(PurchaseRequestLine));
+            Register(typeof(PurchaseRequestLine)); // ItemName, TargetAssetId: migration 108
             Register(typeof(PurchaseRequestGroup)); // migration 100
             Register(typeof(CatalogRequisitionFlow)); // migration 100
             Register(typeof(PurchaseApprovalAction));
             Register(typeof(PurchaseRecord));
             Register(typeof(AssetReceiving));
-            Register(typeof(PurchaseOrderLine)); // migration 098 (rel1009i)
+            Register(typeof(PurchaseOrderLine)); // migration 098 (rel1009i); ItemName: migration 108
             Register(typeof(PurchaseOrderLineReceipt)); // migration 098 (rel1009i)
             Register(typeof(AssetAssignment));
             Register(typeof(AssetTransfer));
