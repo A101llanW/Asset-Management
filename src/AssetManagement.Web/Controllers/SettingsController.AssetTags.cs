@@ -102,7 +102,7 @@ namespace AssetManagement.Web.Controllers
 
             var settingRepository = UnitOfWork.Repository<SystemSetting>();
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(settingRepository.GetAll());
-            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.EnabledSettingKey, model.Enabled.ToString(), "Generate structured PREFIX-NNN asset tags (false = legacy random 10-character tags).");
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.EnabledSettingKey, model.Enabled.ToString(), "Generate structured PREFIX-NNN asset tags from the tenant-wide prefix or the segment switches.");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.TenantPrefixSettingKey, tenantPrefix ?? string.Empty, "Tenant-wide asset tag prefix used when no department/sub-department/room override applies. Blank = derived DEPT-ROOM.");
             var previousSectionPrefixes = AssetTagPrefixResolver.GetSectionPrefixes(
                 settings.ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase));
@@ -176,7 +176,7 @@ namespace AssetManagement.Web.Controllers
                 .ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase);
             if (!AssetTagPrefixResolver.IsEnabled(settings))
             {
-                return Json(new { ok = true, enabled = false, nextTag = "(random 10-character tag)", source = "Structured tags are off" }, JsonRequestBehavior.AllowGet);
+                return Json(new { ok = true, enabled = false, nextTag = "(structured tags are off)", source = "Tick \"Generate structured tags\" to preview the next tag" }, JsonRequestBehavior.AllowGet);
             }
 
             var resolution = AssetTagPrefixResolver.ResolveWithOptions(departmentId, departments, AssetTagPrefixResolver.GetOptions(settings));

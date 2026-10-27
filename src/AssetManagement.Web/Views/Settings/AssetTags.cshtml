@@ -74,7 +74,7 @@
         <div class="card-body">
             <div class="form-check mb-3">
                 @Html.CheckBoxFor(m => m.Enabled, new { @class = "form-check-input", id = "tagEnabled" })
-                <label class="form-check-label" for="tagEnabled">Generate structured tags (PREFIX-001, PREFIX-002, ...). Untick to keep the old random 10-character tags.</label>
+                <label class="form-check-label" for="tagEnabled">Generate structured tags (PREFIX-001, PREFIX-002, ...) from the tenant-wide prefix or the segment switches below.</label>
             </div>
             <div class="row g-3">
                 <div class="col-md-4">
