@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 14:50 EAT - No-department users get organisation-wide scope - PUBLISHED to localhost:8080 (local IIS only, NOT live)
+
+- Commits (branch fix/no-dept-org-scope, local only, not pushed): 998ca7b on top of main b0a3b7b. A user with no department now sees their whole organisation (requisitions incl. New requisition department list, assets, reports, QR scan, print log, Users list); never another organisation. Users with a department unchanged. Fixes the PurchaseRequests/Create "no ViewData item ... 'DepartmentId'" crash.
+- DB migration/script: none (local already has 100-107, re-verified read-only). Config keys: none.
+- Approved by Allan (t703u): "Implement locally and have the Asset Management QA test them." One UAC prompt, accepted.
+- localhost:8080 published 14:50:02-14:50:25 EAT (pool stopped, robocopy add/overwrite only, no deletes, Web.config and Views web.configs untouched). 288 files, 0 hash mismatches.
+- Web.dll SHA256 EA8B901731A31948E699ACD6C8358D582E2929D45FF049BD830305FD250F1F9D (was 1F8248C8...BAAE5). Web.config hash unchanged.
+- Backups: DB AssetManagementModuleDb_pre_nodept_20261027_144843.bak (COPY_ONLY, CHECKSUM, verified); site C:\inetpub\_backups\AssetManagement_root_pre_nodept_20261027_145002.
+- Smoke: GET only (login pages /, /nis, /A46138179, ForgotPassword 200; protected routes 302 to Login). No print job, nothing sent to the Zebra printer.
+- Desktop\publish rebuilt from the same stage (old folder renamed publish_old_20261027_145042). Not copied to live.
+
 ## 2026-10-27 ~12:16 EAT - Flat asset list: Move to classroom (per row + bulk) - STAGED, NOT PUBLISHED
 
 - Commits (main, local only, not pushed): 86f44d7 (flat-list Move to classroom per row and in bulk; same rules as 0d5ca73: classroom -> classroom/room, room/sub-department -> room only, inactive classrooms never offered and refused; bulk returns to the posted view), 7628d07 (Razor fix: bulk toolbar classroom block used "@if" inside a code block, Parser Error on the asset list; caught by the localhost smoke before anything moved). Backup tag backup/main-pre-flatmove-20261027_1159 (5fbf690).
