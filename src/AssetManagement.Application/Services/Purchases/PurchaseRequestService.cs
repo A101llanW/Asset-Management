@@ -160,16 +160,26 @@ namespace AssetManagement.Application.Services
                 .Select(x => new PurchaseRequestLineVm
                 {
                     LineNumber = x.LineNumber,
+                    ItemName = x.ItemName,
                     Description = x.Description,
                     Quantity = x.Quantity,
                     AssetCategoryId = x.AssetCategoryId,
                     AssetTypeId = x.AssetTypeId,
-                    AssetSubTypeId = x.AssetSubTypeId
+                    AssetSubTypeId = x.AssetSubTypeId,
+                    TargetAssetId = x.TargetAssetId
                 })
                 .ToList();
             foreach (var lineItem in lineItems)
             {
                 lineItem.ClassificationLabel = BuildClassificationLabel(lineItem.AssetCategoryId, lineItem.AssetTypeId, lineItem.AssetSubTypeId);
+                if (lineItem.TargetAssetId.HasValue)
+                {
+                    var lineAsset = targetAsset != null && targetAsset.Id == lineItem.TargetAssetId.Value
+                        ? targetAsset
+                        : _unitOfWork.Repository<Asset>().GetById(lineItem.TargetAssetId.Value);
+                    lineItem.TargetAssetTag = lineAsset == null ? null : lineAsset.AssetTag;
+                    lineItem.TargetAssetName = lineAsset == null ? null : lineAsset.AssetName;
+                }
             }
 
             string batchLabel = null;
@@ -292,10 +302,15 @@ namespace AssetManagement.Application.Services
                 }
             }
 
-            var targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
+            // Per-line tags (migration 108): every tag is validated (active, same organisation). Back-compat: an older
+            // form / link posting only the header TargetAssetId tags line 1.
+            ResolveLineTargets(model, effectiveLines, strict: true);
 
             // Classification policy + normalization (server-side; never trust the client).
-            var classified = ClassifyLines(model, effectiveLines, targetAssetId);
+            var classified = ClassifyLines(model, effectiveLines);
+
+            // New-line rules (only on a new submit; existing requisitions are never re-validated): name, type, sub-type.
+            EnsureNewLineRules(classified);
 
             // Resolve each line's path and partition by fingerprint (first-appearance order keeps line 1 first).
             var partitions = new List<RequisitionPartition>();
@@ -360,8 +375,9 @@ namespace AssetManagement.Application.Services
                         partition.Lines,
                         partition.Resolved,
                         requestedByUserId.Trim(),
-                        // The tagged asset stays with the requisition holding line 1 (it pre-fills line 1's classification).
-                        i == 0 ? targetAssetId : null,
+                        // Header tag (back-compat for lists, Details and older PO/receiving code): the first tagged line
+                        // of THIS requisition, so each split requisition keeps the tags of its own lines.
+                        partition.Lines.Select(x => x.Line.TargetAssetId).FirstOrDefault(x => x.HasValue),
                         groupId);
                     result.RequestIds.Add(entity.Id);
                     result.RequestNumbers.Add(entity.RequestNumber);
@@ -403,11 +419,13 @@ namespace AssetManagement.Application.Services
             var lines = (model.Lines ?? new List<PurchaseRequestLineCreateVm>())
                 .Select(x => new PurchaseRequestLineCreateVm
                 {
+                    ItemName = x == null ? null : x.ItemName,
                     Description = x == null || string.IsNullOrWhiteSpace(x.Description) ? "-" : x.Description,
                     Quantity = x == null || x.Quantity <= 0 ? 1 : x.Quantity,
                     AssetCategoryId = x == null ? null : x.AssetCategoryId,
                     AssetTypeId = x == null ? null : x.AssetTypeId,
-                    AssetSubTypeId = x == null ? null : x.AssetSubTypeId
+                    AssetSubTypeId = x == null ? null : x.AssetSubTypeId,
+                    TargetAssetId = x == null || !x.TargetAssetId.HasValue || x.TargetAssetId.Value <= 0 ? null : x.TargetAssetId
                 })
                 .ToList();
             if (lines.Count == 0)
@@ -427,17 +445,9 @@ namespace AssetManagement.Application.Services
                     }
                 }
 
-                int? targetAssetId = null;
-                try
-                {
-                    targetAssetId = ResolveTargetAssetId(model.TargetAssetId);
-                }
-                catch (BusinessException)
-                {
-                    targetAssetId = null; // submit reports the asset problem; the preview just ignores it
-                }
-
-                var classified = ClassifyLines(model, lines, targetAssetId);
+                // Submit reports a bad tag; the preview just ignores it. Name / sub-type rules are not checked here.
+                ResolveLineTargets(model, lines, strict: false);
+                var classified = ClassifyLines(model, lines);
                 for (var i = 0; i < classified.Count; i++)
                 {
                     var resolved = RequisitionFlowResolver.ResolveForLine(_unitOfWork, department, classified[i].Classification);
@@ -575,8 +585,7 @@ namespace AssetManagement.Application.Services
 
         private IList<ClassifiedLine> ClassifyLines(
             PurchaseRequestCreateVm model,
-            IList<PurchaseRequestLineCreateVm> effectiveLines,
-            int? targetAssetId)
+            IList<PurchaseRequestLineCreateVm> effectiveLines)
         {
             var mode = RequisitionPolicySettings.GetClassificationMode(_unitOfWork);
             var organizationId = _organizationScope.GetCurrentOrganizationId();
@@ -587,8 +596,8 @@ namespace AssetManagement.Application.Services
 
             if (mode == RequisitionClassificationMode.RequiredHeader && !header.HasTypeOrSubType)
             {
-                // A tagged asset may stand in for the header pick (its type/sub-type).
-                header = ClassificationFromAsset(targetAssetId) ?? header;
+                // A tagged asset may stand in for the header pick (its type/sub-type): the first tagged line's asset.
+                header = ClassificationFromAsset(effectiveLines.Select(x => x.TargetAssetId).FirstOrDefault(x => x.HasValue)) ?? header;
                 if (!header.HasTypeOrSubType)
                 {
                     throw new BusinessException("Choose an asset type or sub-type for this requisition.");
@@ -599,16 +608,22 @@ namespace AssetManagement.Application.Services
             for (var i = 0; i < effectiveLines.Count; i++)
             {
                 var line = effectiveLines[i];
-                var classification = RequisitionLineClassification.Create(line.AssetCategoryId, line.AssetTypeId, line.AssetSubTypeId);
+                // A tagged line takes its classification from the tagged asset (posted picks are ignored). Untagged:
+                // the category is derived from the type / sub-type, never taken from the client when one is picked.
+                var classification = ClassificationFromAsset(line.TargetAssetId);
+                if (classification == null)
+                {
+                    var hasTypeOrSubType = (line.AssetTypeId.HasValue && line.AssetTypeId.Value > 0)
+                        || (line.AssetSubTypeId.HasValue && line.AssetSubTypeId.Value > 0);
+                    classification = RequisitionLineClassification.Create(
+                        hasTypeOrSubType ? null : line.AssetCategoryId,
+                        line.AssetTypeId,
+                        line.AssetSubTypeId);
+                }
+
                 if (!classification.HasAny && mode == RequisitionClassificationMode.RequiredHeader)
                 {
                     classification = header.Clone();
-                }
-
-                if (!classification.HasAny && i == 0)
-                {
-                    // Tagged asset pre-fills the first line only; it does not satisfy RequiredPerLine for other lines.
-                    classification = ClassificationFromAsset(targetAssetId) ?? classification;
                 }
 
                 if (mode == RequisitionClassificationMode.RequiredPerLine && !classification.HasTypeOrSubType)
@@ -628,6 +643,88 @@ namespace AssetManagement.Application.Services
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Validates each line's TargetAssetId (strict: throws like the old header check; preview: drops a bad tag) and
+        /// applies the back-compat header TargetAssetId to line 1 when no line carries its own tag.
+        /// </summary>
+        private void ResolveLineTargets(PurchaseRequestCreateVm model, IList<PurchaseRequestLineCreateVm> lines, bool strict)
+        {
+            if (lines == null || lines.Count == 0)
+            {
+                return;
+            }
+
+            if (!lines.Any(x => x.TargetAssetId.HasValue && x.TargetAssetId.Value > 0)
+                && model.TargetAssetId.HasValue
+                && model.TargetAssetId.Value > 0)
+            {
+                lines[0].TargetAssetId = model.TargetAssetId;
+            }
+
+            for (var i = 0; i < lines.Count; i++)
+            {
+                try
+                {
+                    lines[i].TargetAssetId = ResolveTargetAssetId(lines[i].TargetAssetId);
+                }
+                catch (BusinessException ex)
+                {
+                    if (strict)
+                    {
+                        throw new BusinessException("Line " + (i + 1) + ": " + ex.Message);
+                    }
+
+                    lines[i].TargetAssetId = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rules for NEW requisition lines (submit only; stored requisitions, POs and receipts are never re-checked):
+        /// untagged line = item / asset name + asset type + sub-type required (category derived from the type);
+        /// tagged line = name defaults to the tagged asset's name (editable), classification from the asset.
+        /// The line Description stays required exactly as before (blank-description rows are not lines).
+        /// </summary>
+        private void EnsureNewLineRules(IList<ClassifiedLine> classified)
+        {
+            for (var i = 0; i < classified.Count; i++)
+            {
+                var line = classified[i].Line;
+                var label = "Line " + (i + 1);
+                var name = AssetNameRules.Normalize(line.ItemName);
+                if (line.TargetAssetId.HasValue)
+                {
+                    if (name == null)
+                    {
+                        var asset = _unitOfWork.Repository<Asset>().GetById(line.TargetAssetId.Value);
+                        name = AssetNameRules.Fit(asset == null ? null : asset.AssetName);
+                    }
+                }
+                else
+                {
+                    var classification = classified[i].Classification;
+                    if (classification == null
+                        || !classification.AssetTypeId.HasValue
+                        || !classification.AssetSubTypeId.HasValue)
+                    {
+                        throw new BusinessException(label + ": choose the asset type and sub-type.");
+                    }
+                }
+
+                if (name == null)
+                {
+                    throw new BusinessException(label + ": enter the item / asset name.");
+                }
+
+                if (name.Length > AssetNameRules.MaxLength)
+                {
+                    throw new BusinessException(label + ": the item / asset name cannot be longer than " + AssetNameRules.MaxLength + " characters (" + name.Length + " entered).");
+                }
+
+                line.ItemName = name;
+            }
         }
 
         private RequisitionLineClassification ClassificationFromAsset(int? targetAssetId)
@@ -1327,11 +1424,13 @@ namespace AssetManagement.Application.Services
                     OrganizationId = organizationId,
                     PurchaseRequestId = entity.Id,
                     LineNumber = lineNumber,
+                    ItemName = AssetNameRules.Normalize(line.Line.ItemName),
                     Description = line.Line.Description,
                     Quantity = line.Line.Quantity,
                     AssetCategoryId = line.Classification == null ? null : line.Classification.AssetCategoryId,
                     AssetTypeId = line.Classification == null ? null : line.Classification.AssetTypeId,
                     AssetSubTypeId = line.Classification == null ? null : line.Classification.AssetSubTypeId,
+                    TargetAssetId = line.Line.TargetAssetId,
                     CreatedAt = DateTime.UtcNow,
                     IsActive = true
                 });

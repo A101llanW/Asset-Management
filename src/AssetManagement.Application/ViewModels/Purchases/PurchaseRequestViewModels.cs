@@ -2,14 +2,29 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.ViewModels
 {
     public class PurchaseRequestLineCreateVm
     {
+        /// <summary>
+        /// "Item / asset name" (migration 108): becomes the received asset's name. Required on untagged lines; a tagged
+        /// line defaults to the tagged asset's name (editable). Limit: AssetNameRules.MaxLength.
+        /// </summary>
+        [Display(Name = "Item / asset name")]
+        [StringLength(AssetNameRules.MaxLength, ErrorMessage = "Item / asset name cannot be longer than {1} characters.")]
+        public string ItemName { get; set; }
+
         [StringLength(2000)]
         public string Description { get; set; }
+
+        /// <summary>
+        /// Existing asset tagged on this line (migration 108). Supplies the line's classification and pre-fills the
+        /// name; receiving still creates a NEW asset and never changes the tagged one.
+        /// </summary>
+        public int? TargetAssetId { get; set; }
 
         [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
         public int Quantity { get; set; } = 1;
@@ -29,6 +44,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int LineNumber { get; set; }
 
+        /// <summary>NULL on lines created before migration 108.</summary>
+        public string ItemName { get; set; }
+
         public string Description { get; set; }
 
         public int Quantity { get; set; }
@@ -38,6 +56,13 @@ namespace AssetManagement.Application.ViewModels
         public int? AssetTypeId { get; set; }
 
         public int? AssetSubTypeId { get; set; }
+
+        /// <summary>Per-line tagged asset (migration 108); NULL on older lines (the header tag then applies).</summary>
+        public int? TargetAssetId { get; set; }
+
+        public string TargetAssetTag { get; set; }
+
+        public string TargetAssetName { get; set; }
     }
 
     /// <summary>Outcome of a requisition submit: one id, or several linked by a group when lines needed different paths.</summary>
@@ -78,6 +103,10 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(2000)]
         public string ItemDescription { get; set; }
 
+        /// <summary>Legacy single-line "Item / asset name" (used only when no Lines are posted).</summary>
+        [StringLength(AssetNameRules.MaxLength)]
+        public string ItemName { get; set; }
+
         [Required(AllowEmptyStrings = false, ErrorMessage = "Justification is required.")]
         [StringLength(2000)]
         public string Justification { get; set; }
@@ -95,7 +124,10 @@ namespace AssetManagement.Application.ViewModels
         [StringLength(2000)]
         public string Notes { get; set; }
 
-        /// <summary>Optional existing asset to tag for easier assignment after purchase.</summary>
+        /// <summary>
+        /// Back-compat header tag (older forms / links). When no line carries its own TargetAssetId it is applied to
+        /// line 1. New forms tag per line (PurchaseRequestLineCreateVm.TargetAssetId).
+        /// </summary>
         public int? TargetAssetId { get; set; }
 
         public IList<PurchaseRequestLineCreateVm> Lines { get; set; } = new List<PurchaseRequestLineCreateVm>();
@@ -133,6 +165,26 @@ namespace AssetManagement.Application.ViewModels
                             "Quantity must be at least 1.",
                             new[] { "Lines[" + i + "].Quantity" });
                     }
+
+                    // Mirrors the new-line rules in PurchaseRequestService.SubmitBatch (which re-checks everything).
+                    var tagged = effectiveLines[i].TargetAssetId.HasValue || (i == 0 && TargetAssetId.HasValue && TargetAssetId.Value > 0);
+                    if (!tagged && string.IsNullOrWhiteSpace(effectiveLines[i].ItemName))
+                    {
+                        yield return new ValidationResult(
+                            "Line " + (i + 1) + ": enter the item / asset name.",
+                            new[] { "Lines[" + i + "].ItemName" });
+                    }
+
+                    // A line without its own type may inherit the header type / sub-type (RequiredHeader mode).
+                    var lineHasType = effectiveLines[i].AssetTypeId.HasValue && effectiveLines[i].AssetTypeId.Value > 0;
+                    var hasSubType = (effectiveLines[i].AssetSubTypeId.HasValue && effectiveLines[i].AssetSubTypeId.Value > 0)
+                        || (!lineHasType && HeaderAssetSubTypeId.HasValue && HeaderAssetSubTypeId.Value > 0);
+                    if (!tagged && !hasSubType)
+                    {
+                        yield return new ValidationResult(
+                            "Line " + (i + 1) + ": choose the asset type and sub-type.",
+                            new[] { "Lines[" + i + "].AssetSubTypeId" });
+                    }
                 }
             }
         }
@@ -143,11 +195,13 @@ namespace AssetManagement.Application.ViewModels
                 .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Description))
                 .Select(x => new PurchaseRequestLineCreateVm
                 {
+                    ItemName = AssetNameRules.Normalize(x.ItemName),
                     Description = x.Description.Trim(),
                     Quantity = x.Quantity > 0 ? x.Quantity : 1,
                     AssetCategoryId = x.AssetCategoryId,
                     AssetTypeId = x.AssetTypeId,
-                    AssetSubTypeId = x.AssetSubTypeId
+                    AssetSubTypeId = x.AssetSubTypeId,
+                    TargetAssetId = x.TargetAssetId.HasValue && x.TargetAssetId.Value > 0 ? x.TargetAssetId : null
                 })
                 .ToList();
             if (fromLines.Count > 0)
@@ -161,6 +215,7 @@ namespace AssetManagement.Application.ViewModels
                 {
                     new PurchaseRequestLineCreateVm
                     {
+                        ItemName = AssetNameRules.Normalize(ItemName),
                         Description = ItemDescription.Trim(),
                         Quantity = Quantity > 0 ? Quantity : 1,
                         AssetCategoryId = HeaderAssetCategoryId,
@@ -196,6 +251,13 @@ namespace AssetManagement.Application.ViewModels
         public string Currency { get; set; }
 
         public string ItemDescription { get; set; }
+
+        /// <summary>Tagged asset shown in the Requisitions list ("Tagged asset" column): the header TargetAssetId.</summary>
+        public int? TargetAssetId { get; set; }
+
+        public string TargetAssetTag { get; set; }
+
+        public string TargetAssetName { get; set; }
     }
 
     public class PurchaseRequestDetailVm
