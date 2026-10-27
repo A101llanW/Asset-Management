@@ -12,6 +12,7 @@
     // rel1027 (Allan): when a specific asset was scanned / found, its details come FIRST (no scrolling on a phone) and the
     // lookup panel sits below; a plain lookup (no asset) keeps the search at the top. Same for signed-in and signed-out viewers.
     var scanResultFirst = Model.Lookup != null && Model.Lookup.Found && Model.Card != null;
+    var scanAutofocusAttr = scanResultFirst ? "" : "autofocus=\"autofocus\"";
 }
 
 @if (scanResultFirst)
@@ -81,7 +82,7 @@
                 </div>
                 <label class="visually-hidden" for="code">Scan or type code</label>
                 <input class="am-scan-input form-control form-control-lg" id="code" name="code"
-                       type="text" @(scanResultFirst ? Html.Raw("") : Html.Raw("autofocus=""autofocus""")) autocomplete="off" inputmode="text"
+                       type="text" @Html.Raw(scanAutofocusAttr) autocomplete="off" inputmode="text"
                        placeholder="Tag, serial, custodian, department..." value="@Model.InitialCode" />
             </div>
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -342,7 +342,7 @@ namespace AssetManagement.Tests.Assets
             Assert.Greater(detailsFirst, 0);
             Assert.Greater(panel, detailsFirst, "a found asset renders above the lookup panel");
             StringAssert.Contains("detailsFirst: @(scanResultFirst", view);
-            StringAssert.Contains("@(scanResultFirst ? Html.Raw(\"\") : Html.Raw(\"autofocus=\"\"autofocus\"\"\"))", view, "no autofocus attribute at all (no jump to the search box) when details are first");
+            StringAssert.Contains("var scanAutofocusAttr = scanResultFirst ? \"\" : ", view, "no autofocus attribute at all (no jump to the search box) when details are first");
         }
 
         [Test]
