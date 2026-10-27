@@ -2108,7 +2108,7 @@ namespace AssetManagement.Application.Services
                 }
             }
 
-            // Asset move rules: room to room, room to sub-department, sub-department to room, class to room, Administration (top-level, directly) to room.
+            // Asset move rules: room to room, room to sub-department, sub-department to room, class to room, class to class (2026-10-27), Administration (top-level, directly) to room.
             var oldDepartmentId = NormalizeOptionalId(entity.DepartmentId);
             if (oldDepartmentId.HasValue)
             {

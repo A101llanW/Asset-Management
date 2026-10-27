@@ -268,8 +268,8 @@
         actionsCell.className = "text-end text-nowrap align-middle";
         var actionsHtml = '<a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + withListReturnUrl(item.detailsUrl) + '">Details</a>';
         // Hide class Move when #amRelocateClassModal was not rendered (empty scoped classDepartments).
-        if (item.canMove && config.canMoveToClass) {
-            actionsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" data-am-relocate-open data-asset-id="' + item.id + '" data-asset-tag="' + item.assetTag + '">Move</button>';
+        if (item.canMoveToClass && config.canMoveToClass) {
+            actionsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" data-am-relocate-open data-asset-id="' + item.id + '" data-asset-tag="' + item.assetTag + '">Move to classroom</button>';
         }
         if (item.canMove && config.canMoveToRoom) {
             actionsHtml += '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-1" data-am-relocate-room-open data-asset-id="' + item.id + '" data-asset-tag="' + item.assetTag + '">Move to room</button>';

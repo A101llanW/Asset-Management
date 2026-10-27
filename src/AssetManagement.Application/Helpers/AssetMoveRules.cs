@@ -6,15 +6,15 @@ using AssetManagement.Domain.Enums;
 namespace AssetManagement.Application.Helpers
 {
     /// <summary>
-    /// Asset location moves (Allan, 2026-10-09). A class acts as a room: the class itself never moves, only the
-    /// assets in it, and only to a room. Allowed: room to room, room to sub-department, sub-department to room,
-    /// class to room. Everything else is refused. An asset with no department (company custody) is being placed
+    /// Asset location moves (Allan, 2026-10-09; class to class added 2026-10-27, QA P3.6/X9.4). A class acts as a
+    /// room: the class itself never moves, only the assets in it, to a room or to another classroom. Allowed: room to
+    /// room, room to sub-department, sub-department to room, class to room, class to class. Everything else is refused. An asset with no department (company custody) is being placed
     /// for the first time, which is not a move.
     /// </summary>
     public static class AssetMoveRules
     {
         public const string RefusedMessage =
-            "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, from a classroom to a room, or from the Administration department itself (not a room or sub-department under it) to a room.";
+            "This move is not allowed. Assets can only be moved room to room, between a room and a sub-department, from a classroom to a room or another classroom, or from the Administration department itself (not a room or sub-department under it) to a room.";
 
         public static bool IsAllowed(DepartmentKind? fromKind, DepartmentKind toKind)
         {
@@ -28,8 +28,10 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Room:
                     return toKind == DepartmentKind.Room || toKind == DepartmentKind.SubDepartment;
                 case DepartmentKind.SubDepartment:
-                case DepartmentKind.Class:
                     return toKind == DepartmentKind.Room;
+                case DepartmentKind.Class:
+                    // Allan, 2026-10-27: classroom to classroom as well as classroom to room.
+                    return toKind == DepartmentKind.Room || toKind == DepartmentKind.Class;
                 default:
                     return false;
             }
@@ -67,7 +69,7 @@ namespace AssetManagement.Application.Helpers
         }
 
         public const string AssignmentRefusedMessage =
-            "This assignment is not allowed. Assets can be assigned into or out of a top-level department, or moved room to room, between a room and a sub-department, or from a classroom to a room.";
+            "This assignment is not allowed. Assets can be assigned into or out of a top-level department, or moved room to room, between a room and a sub-department, or from a classroom to a room or another classroom.";
 
         /// <summary>
         /// rel1009h (Allan, 2026-10-09): rule for assignment and transfer targets (Assign, Batch assign, Asset request
@@ -109,6 +111,12 @@ namespace AssetManagement.Application.Helpers
         public static bool CanMoveToRoomFrom(DepartmentKind? fromKind, bool fromIsAdministrationRoot)
         {
             return IsAllowed(fromKind, fromIsAdministrationRoot, DepartmentKind.Room);
+        }
+
+        /// <summary>True when assets in a department of this kind can be moved to a classroom (UI "Move" / "Move group").</summary>
+        public static bool CanMoveToClassFrom(DepartmentKind? fromKind)
+        {
+            return IsAllowed(fromKind, DepartmentKind.Class);
         }
 
         public const string AdministrationDepartmentName = "Administration";

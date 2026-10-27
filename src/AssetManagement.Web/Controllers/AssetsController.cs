@@ -76,12 +76,15 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
             ViewBag.CanRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
-            // Asset move rules: no moves into a class (a class acts as a room); bulk "Move to department" offers
-            // rooms and sub-departments only; Move to room is shown only for assets in a room, sub-department or class.
-            ViewBag.ClassDepartments = new SelectList(Enumerable.Empty<SelectListItem>());
+            // Asset move rules (Allan, 2026-10-27): classroom assets move to another classroom or to a room;
+            // bulk "Move to department" offers rooms, sub-departments and classrooms (each asset is still checked);
+            // Move to room is shown only for assets in a room, sub-department or class.
+            ViewBag.ClassDepartments = BuildClassDepartmentSelectList();
+            ViewBag.MoveToClassSourceDepartmentIds = GetMoveToClassSourceDepartmentIds();
             ViewBag.RoomDepartmentGroups = BuildMoveTargetDepartmentGroups(DepartmentKind.Room);
             ViewBag.MoveDepartmentGroups = BuildMoveTargetDepartmentGroups(DepartmentKind.Room)
                 .Concat(BuildMoveTargetDepartmentGroups(DepartmentKind.SubDepartment))
+                .Concat(BuildMoveTargetDepartmentGroups(DepartmentKind.Class))
                 .ToList();
             ViewBag.MoveToRoomSourceDepartmentIds = GetMoveToRoomSourceDepartmentIds();
             ViewBag.Filter = filter;
@@ -173,6 +176,7 @@ namespace AssetManagement.Web.Controllers
 
             var canRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
             var moveSourceIds = canRelocateAsset ? GetMoveToRoomSourceDepartmentIds() : new HashSet<int>();
+            var classMoveSourceIds = canRelocateAsset ? GetMoveToClassSourceDepartmentIds() : new HashSet<int>();
             var pageModel = _assetService.GetAssetGroupMembers(
                 filter,
                 assetName,
@@ -205,6 +209,12 @@ namespace AssetManagement.Web.Controllers
                 detailsUrl = Url.Action("Details", new { id = x.Id }),
                 canMove = canRelocateAsset
                     && (!x.DepartmentId.HasValue || moveSourceIds.Contains(x.DepartmentId.Value))
+                    && string.IsNullOrWhiteSpace(x.CurrentCustodianId)
+                    && (x.CurrentStatus == AssetStatus.InStore
+                        || x.CurrentStatus == AssetStatus.Received
+                        || x.CurrentStatus == AssetStatus.Returned),
+                canMoveToClass = canRelocateAsset
+                    && (!x.DepartmentId.HasValue || classMoveSourceIds.Contains(x.DepartmentId.Value))
                     && string.IsNullOrWhiteSpace(x.CurrentCustodianId)
                     && (x.CurrentStatus == AssetStatus.InStore
                         || x.CurrentStatus == AssetStatus.Received
@@ -1368,6 +1378,14 @@ namespace AssetManagement.Web.Controllers
         {
             return new HashSet<int>(UnitOfWork.Repository<Department>().GetAll()
                 .Where(x => x.IsActive && AssetMoveRules.CanMoveToRoomFrom(x.DepartmentKind, AssetMoveRules.IsAdministrationRoot(x)))
+                .Select(x => x.Id));
+        }
+
+        // Departments whose assets may be moved to a classroom (classrooms only; Allan, 2026-10-27).
+        private HashSet<int> GetMoveToClassSourceDepartmentIds()
+        {
+            return new HashSet<int>(UnitOfWork.Repository<Department>().GetAll()
+                .Where(x => x.IsActive && AssetMoveRules.CanMoveToClassFrom(x.DepartmentKind))
                 .Select(x => x.Id));
         }
 

@@ -12,6 +12,8 @@
     var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
     var canRelocateAsset = ViewBag.CanRelocateAsset as bool? ?? false;
     var classDepartments = ViewBag.ClassDepartments as System.Web.Mvc.SelectList;
+    // Allan, 2026-10-27: Move (to classroom) only for assets in a classroom (or company custody).
+    var moveToClassSourceIds = ViewBag.MoveToClassSourceDepartmentIds as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
     var roomDepartmentGroups = ViewBag.RoomDepartmentGroups as System.Collections.Generic.IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
     var canRelocateToRoom = canRelocateAsset && roomDepartmentGroups != null && roomDepartmentGroups.Any(g => g.Items != null && g.Items.Count > 0);
     // Asset move rules: Move to room only for assets in a room, sub-department or class (or company custody).
@@ -266,7 +268,9 @@ else if (isGrouped && groupedPage != null)
                                     var groupStatusRelocatable = group.CurrentStatus == AssetStatus.InStore
                                         || group.CurrentStatus == AssetStatus.Received
                                         || group.CurrentStatus == AssetStatus.Returned;
-                                    var relocatableCount = groupStatusRelocatable ? group.Count : 0;
+                                    var relocatableCount = groupStatusRelocatable
+                                        && (!group.DepartmentId.HasValue || moveToClassSourceIds.Contains(group.DepartmentId.Value))
+                                        ? group.Count : 0;
                                     if (relocatableCount > 0)
                                     {
                                         <button type="button"
@@ -276,7 +280,7 @@ else if (isGrouped && groupedPage != null)
                                                 data-asset-sub-type-id="@(group.AssetSubTypeId.HasValue ? group.AssetSubTypeId.Value.ToString() : string.Empty)"
                                                 data-group-department-id="@(group.DepartmentId.HasValue ? group.DepartmentId.Value.ToString() : string.Empty)"
                                                 data-group-status="@((int)group.CurrentStatus)"
-                                                data-group-label="@group.AssetName (@relocatableCount)">Move group</button>
+                                                data-group-label="@group.AssetName (@relocatableCount)">Move group to classroom</button>
                                     }
                                 }
                                 @if (!isSimpleGroupBy && canRelocateToRoom
