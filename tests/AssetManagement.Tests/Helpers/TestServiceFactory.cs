@@ -115,12 +115,13 @@ namespace AssetManagement.Tests.Helpers
                 new FakeAssetQueryService());
         }
 
-        public static PurchaseService CreatePurchaseService(FakeUnitOfWork unitOfWork)
+        public static PurchaseService CreatePurchaseService(FakeUnitOfWork unitOfWork, IAuditWriter auditWriter = null)
         {
             return new PurchaseService(
                 unitOfWork,
                 new FakeOperationsQueryRepository(),
-                new FakeOrganizationScopeService());
+                new FakeOrganizationScopeService(),
+                auditWriter);
         }
 
         public static AssetStockService CreateAssetStockService(FakeUnitOfWork unitOfWork)
@@ -133,7 +134,7 @@ namespace AssetManagement.Tests.Helpers
             return new AssetSubTypeService(unitOfWork, CreateAssetStockService(unitOfWork));
         }
 
-        public static ReceivingService CreateReceivingService(FakeUnitOfWork unitOfWork, FakeOrganizationScopeService organizationScope = null)
+        public static ReceivingService CreateReceivingService(FakeUnitOfWork unitOfWork, FakeOrganizationScopeService organizationScope = null, IAuditWriter auditWriter = null)
         {
             var subTypeService = CreateAssetSubTypeService(unitOfWork);
             return new ReceivingService(
@@ -141,7 +142,8 @@ namespace AssetManagement.Tests.Helpers
                 subTypeService,
                 CreateAssetService(unitOfWork, assetSubTypeService: subTypeService),
                 new NoOpOutboxWriter(),
-                organizationScope ?? new FakeOrganizationScopeService());
+                organizationScope ?? new FakeOrganizationScopeService(),
+                auditWriter);
         }
 
         public static WebhookService CreateWebhookService(FakeUnitOfWork unitOfWork, IAuditWriter auditWriter = null)

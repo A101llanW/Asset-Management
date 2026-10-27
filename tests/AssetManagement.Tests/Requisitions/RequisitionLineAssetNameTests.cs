@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AssetManagement.Application.Contracts;
 using AssetManagement.Application.DTOs;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Services;
@@ -361,28 +362,32 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void PoDraft_CarriesNameAndLocksTheRequisitionLineClassification()
+        public void PoDraft_CarriesNameAndPrefillsTheRequisitionLineClassification()
         {
             var uow = SeedApprovedRequisition();
             var draft = TestServiceFactory.CreatePurchaseService(uow).BuildFromRequisition(100);
             Assert.AreEqual("Replacement laptop", draft.Lines[0].ItemName);
             Assert.AreEqual(1, draft.Lines[0].AssetTypeId);
             Assert.AreEqual(10, draft.Lines[0].AssetSubTypeId);
-            Assert.IsTrue(draft.Lines[0].ClassificationLocked);
+            Assert.IsTrue(draft.Lines[0].ClassificationPrefilled, "tagged line: prefilled, editable");
+            Assert.AreEqual(1, draft.Lines[0].PrefilledAssetTypeId);
+            Assert.AreEqual(10, draft.Lines[0].PrefilledAssetSubTypeId);
             StringAssert.Contains("existing asset", draft.Lines[0].ClassificationLabel);
 
             Assert.AreEqual("Office printer", draft.Lines[1].ItemName);
             Assert.AreEqual(2, draft.Lines[1].AssetTypeId, "type at PO: the requisition line's type is no longer dropped");
             Assert.AreEqual(20, draft.Lines[1].AssetSubTypeId);
-            Assert.IsTrue(draft.Lines[1].ClassificationLocked);
+            Assert.IsTrue(draft.Lines[1].ClassificationPrefilled);
+            Assert.IsFalse(draft.Lines[1].ClassificationEdited);
             StringAssert.Contains("from the requisition line", draft.Lines[1].ClassificationLabel);
         }
 
         [Test]
-        public void PoCreate_CopiesNameAndClassificationPerLine_FromTheRequisitionNotThePost()
+        public void PoCreate_CopiesNameAndClassificationPerLine_FromTheRequisition_WhenNothingIsEdited()
         {
             var uow = SeedApprovedRequisition();
-            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order(postedType2: 1));
+            var audit = new ClassificationAuditWriter();
+            var poId = TestServiceFactory.CreatePurchaseService(uow, audit).Create(Order());
             var lines = PoLines(uow, poId);
             Assert.AreEqual("Replacement laptop", lines[0].ItemName, "never taken from the post");
             Assert.AreEqual(1, lines[0].AssetTypeId);
@@ -390,10 +395,128 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionAsset, lines[0].ClassificationSource);
 
             Assert.AreEqual("Office printer", lines[1].ItemName);
-            Assert.AreEqual(2, lines[1].AssetTypeId, "requisition line type wins over a type posted on the PO");
+            Assert.AreEqual(2, lines[1].AssetTypeId, "the requisition line's type (prefill, not edited)");
             Assert.AreEqual(20, lines[1].AssetSubTypeId);
             Assert.AreEqual(1, lines[1].AssetCategoryId);
             Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionLine, lines[1].ClassificationSource);
+            Assert.IsFalse(audit.Entries.Any(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedOnOrder), "no edit, no edit audit");
+        }
+
+        [Test]
+        public void PoCreate_PostedSameAsPrefill_IsNotAnEdit()
+        {
+            var uow = SeedApprovedRequisition();
+            var audit = new ClassificationAuditWriter();
+            var order = Order(postedType2: 2);
+            order.Lines[1].AssetSubTypeId = 20;
+            var lines = PoLines(uow, TestServiceFactory.CreatePurchaseService(uow, audit).Create(order));
+            Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionLine, lines[1].ClassificationSource);
+            Assert.IsFalse(audit.Entries.Any(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedOnOrder));
+        }
+
+        [Test]
+        public void PoCreate_BuyerEditsTheClassification_ValidatedSavedAndAudited()
+        {
+            var uow = SeedApprovedRequisition();
+            var audit = new ClassificationAuditWriter();
+            var order = Order(postedType2: 1);
+            order.Lines[1].AssetSubTypeId = 10;
+            var poId = TestServiceFactory.CreatePurchaseService(uow, audit).Create(order);
+            var lines = PoLines(uow, poId);
+            Assert.AreEqual(1, lines[1].AssetTypeId, "the buyer's type");
+            Assert.AreEqual(10, lines[1].AssetSubTypeId);
+            Assert.AreEqual(1, lines[1].AssetCategoryId, "category derived from the type");
+            Assert.AreEqual(PurchaseOrderLedger.SourceEditedOnOrder, lines[1].ClassificationSource);
+            Assert.AreEqual("Office printer", lines[1].ItemName);
+            Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionAsset, lines[0].ClassificationSource, "the other line is unchanged");
+
+            var edit = audit.Entries.Single(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedOnOrder);
+            Assert.AreEqual(nameof(PurchaseOrderLine), edit.EntityType);
+            Assert.AreEqual(lines[1].Id.ToString(), edit.EntityId);
+            StringAssert.Contains("Printer (#2)", edit.OldValues);
+            StringAssert.Contains("HP LaserJet (#20)", edit.OldValues);
+            StringAssert.Contains("Laptop (#1)", edit.NewValues);
+            StringAssert.Contains("Dell Latitude 5440 (#10)", edit.NewValues);
+            StringAssert.Contains("PO-1", edit.NewValues);
+            StringAssert.Contains("PR-100", edit.NewValues);
+        }
+
+        [Test]
+        public void PoCreate_TaggedLine_IsEditableToo_AndAudited()
+        {
+            var uow = SeedApprovedRequisition();
+            var audit = new ClassificationAuditWriter();
+            var order = Order();
+            order.Lines[0].AssetTypeId = 2;
+            order.Lines[0].AssetSubTypeId = 20;
+            var lines = PoLines(uow, TestServiceFactory.CreatePurchaseService(uow, audit).Create(order));
+            Assert.AreEqual(2, lines[0].AssetTypeId);
+            Assert.AreEqual(20, lines[0].AssetSubTypeId);
+            Assert.AreEqual(PurchaseOrderLedger.SourceEditedOnOrder, lines[0].ClassificationSource);
+            Assert.AreEqual(TaggedAssetId, uow.Repository<PurchaseRequestLine>().GetById(1).TargetAssetId, "the requisition line keeps its tag");
+            Assert.AreEqual(1, audit.Entries.Count(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedOnOrder));
+        }
+
+        [Test]
+        public void PoCreate_EditWithoutSubType_IsRejected_NothingSaved()
+        {
+            var uow = SeedApprovedRequisition();
+            var ex = Assert.Throws<BusinessException>(() => TestServiceFactory.CreatePurchaseService(uow).Create(Order(postedType2: 1)));
+            StringAssert.Contains("sub-type", ex.Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseOrderLine>().GetAll().Count());
+        }
+
+        [Test]
+        public void PoCreate_EditWithASubTypeOfAnotherType_IsRejected()
+        {
+            var uow = SeedApprovedRequisition();
+            var order = Order(postedType2: 1);
+            order.Lines[1].AssetSubTypeId = 20; // HP LaserJet belongs to Printer, not Laptop
+            var ex = Assert.Throws<BusinessException>(() => TestServiceFactory.CreatePurchaseService(uow).Create(order));
+            StringAssert.Contains("does not belong", ex.Message);
+        }
+
+        [Test]
+        public void PoCreate_EditToAnInactiveTypeOrSubType_IsRejected()
+        {
+            var uow = SeedApprovedRequisition();
+            uow.Seed(new AssetType { Id = 3, Name = "Old scanners", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = false });
+            uow.Seed(new AssetSubType { Id = 30, AssetTypeId = 3, Name = "Scanner", IsActive = true, CreatedAt = DateTime.UtcNow });
+            uow.Seed(new AssetSubType { Id = 11, AssetTypeId = 1, Name = "Retired model", IsActive = false, CreatedAt = DateTime.UtcNow });
+
+            var inactiveType = Order(postedType2: 3);
+            inactiveType.Lines[1].AssetSubTypeId = 30;
+            StringAssert.Contains("not found", Assert.Throws<BusinessException>(() => TestServiceFactory.CreatePurchaseService(uow).Create(inactiveType)).Message);
+
+            var inactiveSub = Order(postedType2: 1);
+            inactiveSub.Lines[1].AssetSubTypeId = 11;
+            StringAssert.Contains("inactive", Assert.Throws<BusinessException>(() => TestServiceFactory.CreatePurchaseService(uow).Create(inactiveSub)).Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseOrderLine>().GetAll().Count());
+        }
+
+        [Test]
+        public void Ledger_EditedClassification_OtherOrganisation_IsRejected_SharedIsAllowed()
+        {
+            var uow = SeedApprovedRequisition();
+            uow.Seed(new AssetType { Id = 4, OrganizationId = 2, Name = "Other org type", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
+            uow.Seed(new AssetSubType { Id = 40, OrganizationId = 2, AssetTypeId = 4, Name = "Other org sub", IsActive = true, CreatedAt = DateTime.UtcNow });
+            uow.Seed(new AssetSubType { Id = 12, OrganizationId = 2, AssetTypeId = 1, Name = "Other org laptop", IsActive = true, CreatedAt = DateTime.UtcNow });
+            var ledger = new PurchaseOrderLedger(uow);
+
+            StringAssert.Contains("not found", Assert.Throws<BusinessException>(() => ledger.ValidateEditedClassification(1, 4, 40, "line 1", "x")).Message);
+            StringAssert.Contains("not found", Assert.Throws<BusinessException>(() => ledger.ValidateEditedClassification(1, 1, 12, "line 1", "x")).Message);
+            var ok = ledger.ValidateEditedClassification(1, 1, 10, "line 1", "x");
+            Assert.AreEqual(1, ok.AssetCategoryId, "shared (OrganizationId NULL) rows are allowed; category from the type");
+            Assert.AreEqual("Dell", ok.Brand);
+        }
+
+        [Test]
+        public void Ledger_EditedClassification_TypeWithoutSubTypes_SaysAddOneFirst()
+        {
+            var uow = SeedApprovedRequisition();
+            uow.Seed(new AssetType { Id = 5, Name = "Projectors", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
+            var ex = Assert.Throws<BusinessException>(() => new PurchaseOrderLedger(uow).ValidateEditedClassification(null, 5, null, "line 2", "x"));
+            StringAssert.Contains("no active sub-types", ex.Message);
         }
 
         [Test]
@@ -493,6 +616,129 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(before, uow.Repository<Asset>().GetAll().Count());
         }
 
+        private static ReceiveOrderLineVm EditedReceiveLine(int lineId, int qty, int? typeId, int? subTypeId)
+        {
+            var line = ReceiveLine(lineId, qty);
+            line.OverrideAssetTypeId = typeId;
+            line.OverrideAssetSubTypeId = subTypeId;
+            return line;
+        }
+
+        [Test]
+        public void Receiving_EditedClassification_GoesOnTheNewAsset_PoLineKeepsIts_Audited()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var audit = new ClassificationAuditWriter();
+            var result = TestServiceFactory.CreateReceivingService(uow, auditWriter: audit).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId,
+                ReceivedDate = DateTime.UtcNow,
+                Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 10) }
+            }, "receiver");
+
+            var asset = uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId);
+            Assert.AreEqual(1, asset.AssetTypeId, "the receiver's type");
+            Assert.AreEqual(10, asset.AssetSubTypeId);
+            Assert.AreEqual(1, asset.CategoryId, "category derived from the type");
+            Assert.AreEqual("Dell", asset.Brand, "brand / model follow the edited sub-type");
+            Assert.AreEqual("Office printer", asset.AssetName);
+            var poLine = uow.Repository<PurchaseOrderLine>().GetById(lines[1].Id);
+            Assert.AreEqual(2, poLine.AssetTypeId, "the PO line keeps what was ordered");
+            Assert.AreEqual(20, poLine.AssetSubTypeId);
+
+            var edit = audit.Entries.Single(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving);
+            Assert.AreEqual(nameof(PurchaseOrderLine), edit.EntityType);
+            Assert.AreEqual(lines[1].Id.ToString(), edit.EntityId);
+            StringAssert.Contains("Printer (#2)", edit.OldValues);
+            StringAssert.Contains("Laptop (#1)", edit.NewValues);
+            StringAssert.Contains("receipt " + result.ReceivingId, edit.NewValues);
+            StringAssert.Contains("assets " + asset.Id, edit.NewValues);
+            StringAssert.Contains("classification changed at receiving", audit.Entries.Single(x => x.Action == "Purchases.Receive").NewValues);
+        }
+
+        [Test]
+        public void Receiving_TaggedLineEdited_StillCreatesANewAsset_TaggedAssetUntouched()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var audit = new ClassificationAuditWriter();
+            var result = TestServiceFactory.CreateReceivingService(uow, auditWriter: audit).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId,
+                ReceivedDate = DateTime.UtcNow,
+                Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[0].Id, 1, 2, 20) }
+            }, "receiver");
+
+            var created = uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId);
+            Assert.AreNotEqual(TaggedAssetId, created.Id);
+            Assert.AreEqual(2, created.AssetTypeId);
+            Assert.AreEqual(20, created.AssetSubTypeId);
+            var tagged = uow.Repository<Asset>().GetById(TaggedAssetId);
+            Assert.AreEqual(1, tagged.AssetTypeId, "the tagged asset is not reclassified");
+            Assert.AreEqual("Old laptop", tagged.AssetName);
+            Assert.AreEqual(1, audit.Entries.Count(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving));
+        }
+
+        [Test]
+        public void Receiving_EditWithoutSubTypeOrWithAWrongSubType_IsRejected_NothingCreated()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var before = uow.Repository<Asset>().GetAll().Count();
+            var receiving = TestServiceFactory.CreateReceivingService(uow);
+
+            var noSub = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, null) }
+            }, "receiver"));
+            StringAssert.Contains("sub-type", noSub.Message);
+
+            var wrongSub = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 20) }
+            }, "receiver"));
+            StringAssert.Contains("does not belong", wrongSub.Message);
+            Assert.AreEqual(before, uow.Repository<Asset>().GetAll().Count());
+        }
+
+        [Test]
+        public void Receiving_PostedSameAsThePoLine_IsNotAnEdit()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var audit = new ClassificationAuditWriter();
+            var result = TestServiceFactory.CreateReceivingService(uow, auditWriter: audit).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 2, 20) }
+            }, "receiver");
+            Assert.AreEqual(20, uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId).AssetSubTypeId);
+            Assert.IsFalse(audit.Entries.Any(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving));
+        }
+
+        private sealed class ClassificationAuditWriter : IAuditWriter
+        {
+            public List<Entry> Entries { get; } = new List<Entry>();
+
+            public void Write(string action, string entityType, string entityId, string oldValues, string newValues)
+            {
+                Entries.Add(new Entry { Action = action, EntityType = entityType, EntityId = entityId, OldValues = oldValues, NewValues = newValues });
+            }
+
+            public sealed class Entry
+            {
+                public string Action { get; set; }
+                public string EntityType { get; set; }
+                public string EntityId { get; set; }
+                public string OldValues { get; set; }
+                public string NewValues { get; set; }
+            }
+        }
+
         [Test]
         public void LegacyRows_NullItemName_AreNotRevalidated_AndUseTheFallbackChain()
         {
@@ -500,7 +746,7 @@ namespace AssetManagement.Tests.Requisitions
             var purchases = TestServiceFactory.CreatePurchaseService(uow);
             var draft = purchases.BuildFromRequisition(100);
             Assert.IsNull(draft.Lines[0].ItemName);
-            Assert.IsFalse(draft.Lines[0].ClassificationLocked, "no line classification: PO may still choose one");
+            Assert.IsFalse(draft.Lines[0].ClassificationPrefilled, "no line classification: PO may still choose one");
 
             var order = new PurchaseRecordVm
             {

@@ -238,15 +238,16 @@ namespace AssetManagement.Tests.Purchases
         }
 
         [Test]
-        public void PurchaseOrder_RequisitionAssetFixesTheClassification()
+        public void PurchaseOrder_RequisitionAssetPrefillsTheClassification()
         {
             var uow = SeedRequisition(targetAssetId: 40);
             uow.Seed(new Asset { Id = 40, AssetTag = "T-40", AssetName = "Template", CategoryId = 1, AssetTypeId = 2, AssetSubTypeId = 20, IsActive = true, CreatedAt = DateTime.UtcNow, PurchaseDate = DateTime.UtcNow, DepreciationStartDate = DateTime.UtcNow });
             var service = TestServiceFactory.CreatePurchaseService(uow);
-            Assert.IsTrue(service.BuildFromRequisition(100).Lines.All(x => x.ClassificationLocked));
-            var id = service.Create(Order(1, 1, type1: 1, sub1: 10));
+            Assert.IsTrue(service.BuildFromRequisition(100).Lines.All(x => x.ClassificationPrefilled && x.PrefilledAssetTypeId == 2 && x.PrefilledAssetSubTypeId == 20));
+            // C3: nothing posted (the Edit selects stay disabled) = the requisition asset's classification.
+            var id = service.Create(Order(1, 1, type1: null, sub1: null));
             var lines = uow.Repository<PurchaseOrderLine>().GetAll().Where(x => x.PurchaseRecordId == id).ToList();
-            Assert.IsTrue(lines.All(x => x.AssetTypeId == 2 && x.AssetSubTypeId == 20 && x.ClassificationSource == PurchaseOrderLedger.SourceRequisitionAsset), "posted type ignored");
+            Assert.IsTrue(lines.All(x => x.AssetTypeId == 2 && x.AssetSubTypeId == 20 && x.ClassificationSource == PurchaseOrderLedger.SourceRequisitionAsset), "prefill kept");
         }
 
         // ---------------- item 5: receiving ----------------
@@ -291,12 +292,12 @@ namespace AssetManagement.Tests.Purchases
             var lineIds = uow.Repository<PurchaseOrderLine>().GetAll().Where(x => x.PurchaseRecordId == poId).OrderBy(x => x.LineNumber).Select(x => x.Id).ToList();
             var receiving = TestServiceFactory.CreateReceivingService(uow);
 
-            // Partial: 1 laptop with a serial; posted override type is IGNORED because the line has a type.
-            var first = Line(lineIds[0], 1, "SN-A1", overrideType: 2);
+            // Partial: 1 laptop with a serial; nothing posted for the classification (C3: the Edit selects stay disabled).
+            var first = Line(lineIds[0], 1, "SN-A1");
             var result = receiving.ReceiveOrder(new ReceiveOrderVm { PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { first } }, "receiver-1");
             Assert.AreEqual(1, result.CreatedAssets.Count);
             var asset = uow.Repository<Asset>().GetById(result.CreatedAssets[0].AssetId);
-            Assert.AreEqual(1, asset.AssetTypeId, "source type wins over the post");
+            Assert.AreEqual(1, asset.AssetTypeId, "the PO line's type");
             Assert.AreEqual(1, asset.CategoryId);
             Assert.AreEqual(10, asset.AssetSubTypeId);
             Assert.AreEqual("SN-A1", asset.SerialNumber);
@@ -355,9 +356,11 @@ namespace AssetManagement.Tests.Purchases
             Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(wrap(Line(printerLine, 1, overrideSubType: 10)), "r"), "laptop sub-type on a printer line");
             Assert.AreEqual(0, uow.Repository<Asset>().GetAll().Count(), "nothing created");
 
-            var result = receiving.ReceiveOrder(wrap(Line(printerLine, 1, overrideType: 1, overrideSubType: 20)), "r");
+            // C3: a posted type that differs is an Edit and is validated (sub-type 20 is not a Laptop sub-type).
+            Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(wrap(Line(printerLine, 1, overrideType: 1, overrideSubType: 20)), "r"), "edit with a sub-type of another type");
+            var result = receiving.ReceiveOrder(wrap(Line(printerLine, 1, overrideSubType: 20)), "r");
             var asset = uow.Repository<Asset>().GetById(result.CreatedAssets[0].AssetId);
-            Assert.AreEqual(2, asset.AssetTypeId, "source type still wins over the posted type");
+            Assert.AreEqual(2, asset.AssetTypeId, "the PO line's type");
             Assert.AreEqual(20, asset.AssetSubTypeId);
             Assert.AreEqual("HP", asset.Brand);
         }
