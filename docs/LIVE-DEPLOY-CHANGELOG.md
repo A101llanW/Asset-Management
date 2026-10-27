@@ -3,6 +3,14 @@
 ## 2026-10-27 19:38 EAT - Requisition line item / asset name carried to PO and receiving (migration 108) - LOCAL BRANCH ONLY, NOT PUBLISHED
 
 - Branch feat/req-line-asset-name (worktree CodexAsset-wt-req-asset-name, from main a942731, local only, not pushed, no PR): b97cd54 schema/constant, 7e98017 asset name guard, 7cb91fd requisition service, f1fab72 requisition UI, 2f2852c PO carry, a89efdc receiving, 75b3d95 tests.
+- Review fixes (Debugging bot, @4208c15):
+  - 515f342 B1: IX_PurchaseRequestLine_TargetAssetId is now a plain nonclustered index. It was filtered, which DECISIONS A11 forbids (error 1934 under QUOTED_IDENTIFIER OFF).
+  - 23d3b35 C1: the rollback re-checks ConfirmRollback, DB_NAME() = DbName and unsubstituted sqlcmd variables inside the drop batch, so it stops cleanly in SSMS without SQLCMD Mode.
+  - d799d6a C2 + C7(i): a legacy post with no lines keeps ItemName. A header tag goes to the first line with a description, so it is no longer lost when row 0 is blank.
+  - c8987dc C4: the PO uses the stored (approved) requisition line type / sub-type. The tagged asset's current classification is used only when the line has none.
+  - 89790f5 C5: the "type has no sub-types" requisition error reuses the receiving wording ("Add one under Asset Categories first").
+  - 9de4e2a: tests for these fixes.
+  - Left for Allan: C3 (PO classification lock / buyer override) and the C5 design.
 - Requisition lines: "Item / asset name" is required on untagged lines and Description stays required.
   - Untagged lines need Type and Sub-type. Category is derived from the Type, and a posted category is ignored.
   - Each line can tag an existing asset. A tagged line takes the asset's name (editable) and classification, and split requisitions keep their own lines' tags.
@@ -14,7 +22,11 @@
   - NOT applied anywhere (not local SQLEXPRESS, not live). Apply it before publishing this build.
   - Rows created before 108 are not re-validated: a NULL ItemName uses the old name fallback.
 - Live DB kit (PREPARED, NOT RUN): C:\Users\allan\Desktop\LiveKit_req_asset_name\db\ contains README.md (run order, backup, verify, rollback), 108_PreCheck_READ_ONLY.sql (SELECTs only), the 108 migration and the rollback (both byte-identical to the repo).
-- Tests: 1193 total, 1186 passed, 0 failed, 7 skipped (baseline 1174/1167/7/0; +19 new in RequisitionLineAssetNameTests, existing submit tests now supply name and sub-type).
+- Tests: 1198 total, 1191 passed, 0 failed, 7 skipped (baseline 1174/1167/7/0; +24 new in RequisitionLineAssetNameTests, existing submit tests now supply name and sub-type).
+- Known behavior / pending 150 vs 200 decision (no behavior change made):
+  - PurchaseRequestService ~702: a tagged line with a blank name takes the asset's name silently cut to 150 (AssetNameRules.Fit).
+  - ReceivingService:204 (legacy Receive) and DefaultAssetName (order receiving): the description fallback is silently cut to 150 (was 200 or not cut).
+  - AssetService CreateCore (~488) rejects new names of 151-200 characters, although the column allows 200. Update keeps an unchanged legacy name of that length.
 - NOT published to localhost:8080, Desktop\publish not changed, not copied to live. Config keys: none. Live (DB kit and publish) needs Allan's individual approval.
 
 ## 2026-10-27 15:22 EAT - No-department users: default Assets/Assignments lists open org-wide - STAGED, NOT PUBLISHED
