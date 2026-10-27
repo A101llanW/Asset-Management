@@ -45,7 +45,7 @@
             </div>
         </div>
 
-        <h2 class="am-scan-heading">Asset Lookup</h2>
+        <h2 class="am-scan-heading">@(scanResultFirst ? "Look up another asset" : "Asset Lookup")</h2>
         <p class="am-scan-subtext">Scan a label or search using any asset detail below.</p>
 
         <div class="am-scan-camera-section">
@@ -81,7 +81,7 @@
                 </div>
                 <label class="visually-hidden" for="code">Scan or type code</label>
                 <input class="am-scan-input form-control form-control-lg" id="code" name="code"
-                       type="text" autofocus="@(scanResultFirst ? null : "autofocus")" autocomplete="off" inputmode="text"
+                       type="text" @(scanResultFirst ? Html.Raw("") : Html.Raw("autofocus=""autofocus""")) autocomplete="off" inputmode="text"
                        placeholder="Tag, serial, custodian, department..." value="@Model.InitialCode" />
             </div>
 

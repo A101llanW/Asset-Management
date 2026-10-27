@@ -342,7 +342,7 @@ namespace AssetManagement.Tests.Assets
             Assert.Greater(detailsFirst, 0);
             Assert.Greater(panel, detailsFirst, "a found asset renders above the lookup panel");
             StringAssert.Contains("detailsFirst: @(scanResultFirst", view);
-            StringAssert.Contains("autofocus=\"@(scanResultFirst ? null", view, "no autofocus (no jump to the search box) when details are first");
+            StringAssert.Contains("@(scanResultFirst ? Html.Raw(\"\") : Html.Raw(\"autofocus=\"\"autofocus\"\"\"))", view, "no autofocus attribute at all (no jump to the search box) when details are first");
         }
 
         [Test]
