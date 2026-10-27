@@ -1,5 +1,22 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 19:38 EAT - Requisition line item / asset name carried to PO and receiving (migration 108) - LOCAL BRANCH ONLY, NOT PUBLISHED
+
+- Branch feat/req-line-asset-name (worktree CodexAsset-wt-req-asset-name, from main a942731, local only, not pushed, no PR): b97cd54 schema/constant, 7e98017 asset name guard, 7cb91fd requisition service, f1fab72 requisition UI, 2f2852c PO carry, a89efdc receiving, 75b3d95 tests.
+- Requisition lines: "Item / asset name" is required on untagged lines and Description stays required.
+  - Untagged lines need Type and Sub-type. Category is derived from the Type, and a posted category is ignored.
+  - Each line can tag an existing asset. A tagged line takes the asset's name (editable) and classification, and split requisitions keep their own lines' tags.
+  - The header TargetAssetId is kept for back-compat, and the Index has a Tagged asset column.
+- PO lines now carry ItemName and the requisition line's classification (fixes the type lost at PO). Receiving pre-fills an editable per-line asset name: PO ItemName first, then description / sub-type / brand-model.
+- Receiving against a tagged asset always creates a NEW asset. The tagged asset is never updated.
+- Name length: one constant, AssetNameRules.MaxLength = 150. PROVISIONAL: 150 vs 200 is pending Allan. The DB columns are NVARCHAR(200) either way.
+- DB migration: database/scripts/004_Migrations/108_requisition_line_asset_name.sql (additive, idempotent). Rollback: database/scripts/ops/108_Rollback_RequisitionLineAssetName_PREPARE_DO_NOT_RUN.sql.
+  - NOT applied anywhere (not local SQLEXPRESS, not live). Apply it before publishing this build.
+  - Rows created before 108 are not re-validated: a NULL ItemName uses the old name fallback.
+- Live DB kit (PREPARED, NOT RUN): C:\Users\allan\Desktop\LiveKit_req_asset_name\db\ contains README.md (run order, backup, verify, rollback), 108_PreCheck_READ_ONLY.sql (SELECTs only), the 108 migration and the rollback (both byte-identical to the repo).
+- Tests: 1193 total, 1186 passed, 0 failed, 7 skipped (baseline 1174/1167/7/0; +19 new in RequisitionLineAssetNameTests, existing submit tests now supply name and sub-type).
+- NOT published to localhost:8080, Desktop\publish not changed, not copied to live. Config keys: none. Live (DB kit and publish) needs Allan's individual approval.
+
 ## 2026-10-27 15:22 EAT - No-department users: default Assets/Assignments lists open org-wide - STAGED, NOT PUBLISHED
 
 - Commit (branch fix/no-dept-org-scope, local only, not pushed): d9a2eb0 on top of 31f1d6e. QA found the default Assets list showed 'No assets yet' for no-department users (ListRoleDefaultsHelper fell back to 'in my custody'). No-department tenant members now skip the list defaults (whole organisation, never another tenant), like Assets.ViewAll users. Same for Assignments list and batch-assign from filter. Users with a department unchanged.
