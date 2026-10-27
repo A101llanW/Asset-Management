@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AssetManagement.Domain</RootNamespace>
+    <AssemblyName>AssetSuite.Domain</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(LegacySrc)/AssetManagement.Domain/**/*.cs" LinkBase="Legacy" />
+  </ItemGroup>
+</Project>

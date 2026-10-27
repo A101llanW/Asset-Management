@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AssetManagement.Infrastructure</RootNamespace>
+    <AssemblyName>AssetSuite.Infrastructure</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(LegacySrc)/AssetManagement.Infrastructure/**/*.cs" LinkBase="Legacy"
+             Exclude="$(LegacySrc)/AssetManagement.Infrastructure/Services/HttpCurrentUserContext.cs;$(LegacySrc)/AssetManagement.Infrastructure/Services/MembershipService.cs;$(LegacySrc)/AssetManagement.Infrastructure/Services/OrganizationScopeService.cs;$(LegacySrc)/AssetManagement.Infrastructure/Services/UserInvitationService.cs;$(LegacySrc)/AssetManagement.Infrastructure/Security/FormsAuthHelper.cs;$(LegacySrc)/AssetManagement.Infrastructure/Security/SecurityDiagnostics.cs;$(LegacySrc)/AssetManagement.Infrastructure/Queries/ReferenceDataCache.cs;$(LegacySrc)/AssetManagement.Infrastructure/Persistence/SqlConnectionFactory.cs" />
+    <Compile Include="Compat/**/*.cs" />
+    <Compile Include="Services/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AssetSuite.Application\AssetSuite.Application.csproj" />
+    <ProjectReference Include="..\AssetSuite.Domain\AssetSuite.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
+  </ItemGroup>
+</Project>

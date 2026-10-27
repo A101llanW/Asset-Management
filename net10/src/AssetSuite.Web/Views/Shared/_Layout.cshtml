@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Asset Management (NET10)</title>
+    <link rel="stylesheet" href="~/legacy-content/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/legacy-content/css/site.css" />
+</head>
+<body>
+@if (ViewBag.HideNavbar != true)
+{
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
+        <div class="container-fluid">
+            <a class="navbar-brand" asp-controller="Home" asp-action="Privacy">Nanosoft Asset Suite</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                <a class="nav-link" asp-controller="Home" asp-action="Terms">Terms</a>
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-link nav-link">Sign out</button>
+                    </form>
+                }
+                else
+                {
+                    <a class="nav-link" asp-controller="Account" asp-action="Login">Sign in</a>
+                }
+            </div>
+        </div>
+    </nav>
+}
+<main class="container">
+    @RenderBody()
+</main>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AssetManagement.Application</RootNamespace>
+    <AssemblyName>AssetSuite.Application</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(LegacySrc)/AssetManagement.Application/**/*.cs" LinkBase="Legacy"
+             Exclude="$(LegacySrc)/AssetManagement.Application/Helpers/LabelLayoutDesign.cs;$(LegacySrc)/AssetManagement.Application/Helpers/LabelLayoutTemplateHelper.cs;$(LegacySrc)/AssetManagement.Application/Helpers/SpreadsheetImportHelper.cs" />
+    <Compile Include="Compat/SpreadsheetImportHelper.cs" />
+    <Compile Include="Compat/LabelLayoutDesign.cs" />
+    <Compile Include="Compat/LabelLayoutTemplateHelper.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AssetSuite.Domain\AssetSuite.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ExcelDataReader" Version="3.7.0" />
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,8 @@
+@{
+    ViewData["Title"] = "Organization not found";
+}
+<div class="alert alert-warning mt-4">
+    <h2>Organization not found</h2>
+    <p>No organization matches <strong>@ViewBag.TenantToken</strong>.</p>
+    <a asp-controller="Account" asp-action="Login" class="btn btn-secondary">Platform login</a>
+</div>
