@@ -169,6 +169,11 @@ namespace AssetManagement.Web.Controllers
                 }
 
                 line.QuantityReceived = input.QuantityReceived;
+                if (!string.IsNullOrWhiteSpace(input.ItemName))
+                {
+                    line.ItemName = input.ItemName;
+                }
+
                 line.OverrideAssetTypeId = input.OverrideAssetTypeId;
                 line.OverrideAssetSubTypeId = input.OverrideAssetSubTypeId;
                 line.SerialNumbersText = input.SerialNumbersText;

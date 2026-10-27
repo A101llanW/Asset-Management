@@ -69,6 +69,12 @@
                 <input type="hidden" name="Lines[@i].PurchaseOrderLineId" value="@line.PurchaseOrderLineId" />
                 <input type="hidden" name="Lines[@i].LineNumber" value="@line.LineNumber" />
                 <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label mb-1" for="receive-item-name-@i">Asset name <span class="text-danger" title="Required">*</span></label>
+                        <input type="text" class="form-control am-receive-item-name" id="receive-item-name-@i" name="Lines[@i].ItemName"
+                               value="@line.ItemName" required="required" maxlength="@AssetManagement.Application.Helpers.AssetNameRules.MaxLength" />
+                        <div class="form-text">Every unit received on this line becomes a new asset with this name (from the requisition; edit if needed).</div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label mb-1">Category / type / sub-type <span class="text-danger" title="Required">*</span></label>
                         @if (!line.NeedsClassification)

@@ -79,7 +79,7 @@ namespace AssetManagement.Application.Services
                 ContextAssetTypeId = context.AssetTypeId,
                 ContextBrand = context.Brand,
                 ContextModel = context.Model,
-                SuggestedAssetName = ResolveSuggestedAssetName(itemDescription, context),
+                SuggestedAssetName = ResolveSuggestedAssetName(ResolveLegacyItemName(purchase, purchaseRequest), itemDescription, context),
                 UnitCost = purchase.UnitCost,
                 Currency = purchase.Currency,
                 RequisitionDepartmentId = context.RequisitionDepartmentId,
@@ -201,7 +201,7 @@ namespace AssetManagement.Application.Services
             EnsureReceiveSubType(resolvedSubType == null ? (int?)null : resolvedSubType.Id, resolvedSubType == null ? (int?)null : resolvedSubType.AssetTypeId, assetType.Id, null);
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
-            var assetName = ResolveSuggestedAssetName(itemDescription, context);
+            var assetName = ResolveSuggestedAssetName(ResolveLegacyItemName(purchase, purchaseRequest), itemDescription, context);
             var createdAssets = new List<ReceiveCreatedAssetVm>();
             var receivingId = 0;
             _unitOfWork.ExecuteInTransaction(() =>
@@ -333,6 +333,7 @@ namespace AssetManagement.Application.Services
                     PurchaseOrderLineId = line.Id,
                     LineNumber = line.LineNumber,
                     Description = line.Description,
+                    ItemName = DefaultAssetName(line.ItemName, line.Description, line.AssetSubTypeName, line.Brand, line.Model),
                     Ordered = line.Ordered,
                     Received = line.Received,
                     Outstanding = line.Outstanding,
@@ -460,10 +461,18 @@ namespace AssetManagement.Application.Services
                     }
                 }
 
+                // Migration 108: a posted name is trimmed and length-checked; blank falls back to the default chain.
+                var postedName = AssetNameRules.Normalize(input.ItemName);
+                if (postedName != null)
+                {
+                    postedName = AssetNameRules.EnsureValid(postedName, label);
+                }
+
                 plans.Add(new ReceiveLinePlan
                 {
                     Input = input,
                     Label = label,
+                    ItemName = postedName,
                     Condition = condition.ToString(),
                     Serials = serials,
                     Tags = tags,
@@ -513,6 +522,7 @@ namespace AssetManagement.Application.Services
                             plan.UnitCost = line.UnitCost;
                         }
 
+                        plan.DefaultItemName = ledger.ResolveItemName(request, plan.Line);
                         plan.Classification = ResolvePlanClassification(ledger, purchase, request, plan);
                         totalRequested += plan.Input.QuantityReceived;
                     }
@@ -744,24 +754,51 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        /// <summary>
+        /// Migration 108: the name typed on the receive screen, then the PO line / requisition line ItemName, then the
+        /// pre-108 chain (description, sub-type name, brand + model, "Received asset"). Rows from before 108 have a
+        /// NULL ItemName and keep the old behaviour; every result fits AssetNameRules.MaxLength.
+        /// </summary>
         private string ResolveLineAssetName(ReceiveLinePlan plan)
         {
-            if (!string.IsNullOrWhiteSpace(plan.Description))
+            if (plan.ItemName != null)
             {
-                return plan.Description.Trim().Length > 200 ? plan.Description.Trim().Substring(0, 200) : plan.Description.Trim();
+                return plan.ItemName;
             }
 
+            string subTypeName = null;
             if (plan.Classification.AssetSubTypeId.HasValue)
             {
-                var name = _unitOfWork.Repository<AssetSubType>().GetById(plan.Classification.AssetSubTypeId.Value)?.Name;
-                if (!string.IsNullOrWhiteSpace(name))
-                {
-                    return name;
-                }
+                subTypeName = _unitOfWork.Repository<AssetSubType>().GetById(plan.Classification.AssetSubTypeId.Value)?.Name;
             }
 
-            var brandModel = string.Join(" ", new[] { plan.Classification.Brand, plan.Classification.Model }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
-            return string.IsNullOrWhiteSpace(brandModel) ? "Received asset" : brandModel;
+            return DefaultAssetName(plan.DefaultItemName, plan.Description, subTypeName, plan.Classification.Brand, plan.Classification.Model);
+        }
+
+        /// <summary>Default name chain shared by the receive screen prefill and receiving (always non-blank, within the max length).</summary>
+        public static string DefaultAssetName(string itemName, string description, string subTypeName, string brand, string model)
+        {
+            var name = AssetNameRules.Fit(itemName) ?? AssetNameRules.Fit(description) ?? AssetNameRules.Fit(subTypeName);
+            if (name != null)
+            {
+                return name;
+            }
+
+            var brandModel = AssetNameRules.Fit(string.Join(" ", new[] { brand, model }.Where(x => !string.IsNullOrWhiteSpace(x))));
+            return brandModel ?? "Received asset";
+        }
+
+        /// <summary>Migration 108, legacy receive screen: the single PO line's / requisition line's ItemName, else null.</summary>
+        private string ResolveLegacyItemName(PurchaseRecord purchase, PurchaseRequest purchaseRequest)
+        {
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var lines = ledger.GetLines(purchase.Id);
+            if (lines.Count > 1)
+            {
+                return null;
+            }
+
+            return ledger.ResolveItemName(purchaseRequest, lines.Count == 1 ? lines[0] : null);
         }
 
         private void NotifyRequisitionReceipt(PurchaseRequest request, PurchaseRecord purchase, int unitCount, string statusText)
@@ -809,6 +846,12 @@ namespace AssetManagement.Application.Services
 
             public string Description { get; set; }
 
+            /// <summary>Migration 108: the trimmed, validated name posted for this line (null = use the default chain).</summary>
+            public string ItemName { get; set; }
+
+            /// <summary>Migration 108: the PO line / requisition line ItemName (null on older rows).</summary>
+            public string DefaultItemName { get; set; }
+
             public decimal UnitCost { get; set; }
 
             public PurchaseLineClassification Classification { get; set; }
@@ -849,18 +892,10 @@ namespace AssetManagement.Application.Services
             }
             return normalized;
         }
-        private static string ResolveSuggestedAssetName(string itemDescription, ReceiveContext context)
+        private static string ResolveSuggestedAssetName(string itemName, string itemDescription, ReceiveContext context)
         {
-            if (!string.IsNullOrWhiteSpace(itemDescription))
-            {
-                return itemDescription.Trim();
-            }
-            if (!string.IsNullOrWhiteSpace(context.AssetSubTypeName))
-            {
-                return context.AssetSubTypeName.Trim();
-            }
-            var brandModel = string.Join(" ", new[] { context.Brand, context.Model }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
-            return string.IsNullOrWhiteSpace(brandModel) ? "Received asset" : brandModel;
+            // Migration 108: ItemName first; the description is now cut to AssetNameRules.MaxLength (was untruncated).
+            return DefaultAssetName(itemName, itemDescription, context.AssetSubTypeName, context.Brand, context.Model);
         }
         private AssetSubTypeVm ResolveReceiveSubType(AssetReceiveVm model, ReceiveContext context)
         {

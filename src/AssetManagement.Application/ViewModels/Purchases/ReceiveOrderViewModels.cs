@@ -67,6 +67,13 @@ namespace AssetManagement.Application.ViewModels
 
         public string Description { get; set; }
 
+        /// <summary>
+        /// Migration 108: name for the asset(s) created on this line. Prefilled from the PO line / requisition line
+        /// ItemName (else the legacy fallback chain), editable, posted back; blank = use the default chain.
+        /// Max AssetNameRules.MaxLength (checked server-side).
+        /// </summary>
+        public string ItemName { get; set; }
+
         public int Ordered { get; set; }
 
         public int Received { get; set; }
