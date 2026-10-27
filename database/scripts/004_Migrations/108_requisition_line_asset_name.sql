@@ -3,7 +3,8 @@
 -- What it does (additive and idempotent; every new column is NULLable; no existing row is changed):
 --   1. PurchaseRequestLine.ItemName NVARCHAR(200) NULL      "Item / asset name" of the line (becomes the received asset's name).
 --   2. PurchaseRequestLine.TargetAssetId INT NULL            the existing asset tagged on THIS line (split batches keep their tags),
---      FK_PurchaseRequestLine_TargetAsset -> Asset(Id) and IX_PurchaseRequestLine_TargetAssetId.
+--      FK_PurchaseRequestLine_TargetAsset -> Asset(Id) and IX_PurchaseRequestLine_TargetAssetId (plain nonclustered,
+--      NOT filtered: DECISIONS-requisition A11, filtered indexes break QUOTED_IDENTIFIER OFF sessions, error 1934).
 --      The tag only supplies the classification and pre-fills the name; receiving always creates a NEW asset.
 --   3. PurchaseOrderLine.ItemName NVARCHAR(200) NULL        copied from the requisition line when the PO is raised.
 --      PurchaseOrderLine already has AssetCategoryId / AssetTypeId / AssetSubTypeId (migration 098): no classification column added.
@@ -41,7 +42,7 @@ END
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'dbo.PurchaseRequestLine') AND [name] = N'IX_PurchaseRequestLine_TargetAssetId')
 BEGIN
-    EXEC (N'CREATE NONCLUSTERED INDEX [IX_PurchaseRequestLine_TargetAssetId] ON [dbo].[PurchaseRequestLine] ([TargetAssetId]) WHERE [TargetAssetId] IS NOT NULL;');
+    EXEC (N'CREATE NONCLUSTERED INDEX [IX_PurchaseRequestLine_TargetAssetId] ON [dbo].[PurchaseRequestLine] ([TargetAssetId]);');
 END
 
 IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ItemName') IS NULL
