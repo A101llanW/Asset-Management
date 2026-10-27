@@ -720,6 +720,109 @@ namespace AssetManagement.Tests.Requisitions
             Assert.IsFalse(audit.Entries.Any(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving));
         }
 
+        // ---------------- C3 override trail (migration 108 columns) and C5 receive block ----------------
+
+        [Test]
+        public void PoCreate_Edit_RecordsWhoWhenAndTheOriginal_OnTheLine_AndTheOrderStatusShowsIt()
+        {
+            var uow = SeedApprovedRequisition();
+            var order = Order(postedType2: 1);
+            order.Lines[1].AssetSubTypeId = 10;
+            var before = DateTime.UtcNow.AddSeconds(-1);
+            var purchases = TestServiceFactory.CreatePurchaseService(uow);
+            var poId = purchases.Create(order, "buyer-1", null);
+            var lines = PoLines(uow, poId);
+
+            Assert.AreEqual("buyer-1", lines[1].ClassificationOverriddenById);
+            Assert.IsTrue(lines[1].ClassificationOverriddenAt.HasValue && lines[1].ClassificationOverriddenAt.Value >= before, "UTC time of the change");
+            Assert.AreEqual(1, lines[1].OriginalAssetCategoryId);
+            Assert.AreEqual(2, lines[1].OriginalAssetTypeId, "the prefill it replaced");
+            Assert.AreEqual(20, lines[1].OriginalAssetSubTypeId);
+            Assert.IsNull(lines[0].ClassificationOverriddenById, "not edited: no trail");
+            Assert.IsNull(lines[0].ClassificationOverriddenAt);
+            Assert.IsNull(lines[0].OriginalAssetTypeId);
+
+            var status = purchases.GetOrderStatus(poId);
+            var change = status.Lines.Single(x => x.Id == lines[1].Id).ClassificationOverride;
+            Assert.IsNotNull(change);
+            Assert.AreEqual("IT > Printer > HP LaserJet", change.OldClassification);
+            Assert.AreEqual("IT > Laptop > Dell Latitude 5440", change.NewClassification);
+            Assert.AreEqual("buyer-1", change.ChangedByDisplay, "no user directory in the test: falls back to the id");
+            Assert.AreEqual(lines[1].ClassificationOverriddenAt, change.ChangedAtUtc);
+            Assert.IsNull(status.Lines.Single(x => x.Id == lines[0].Id).ClassificationOverride);
+        }
+
+        [Test]
+        public void Receiving_Edit_RecordsWhoWhenAndTheOriginal_OnTheReceipt_AndTheReceivingListShowsIt()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var receiving = TestServiceFactory.CreateReceivingService(uow);
+            var result = receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId,
+                ReceivedDate = DateTime.UtcNow,
+                Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 10), ReceiveLine(lines[0].Id, 1) }
+            }, "receiver-7");
+
+            var receipts = uow.Repository<PurchaseOrderLineReceipt>().GetAll().Where(x => x.PurchaseRecordId == poId).ToList();
+            var edited = receipts.Single(x => x.PurchaseOrderLineId == lines[1].Id);
+            Assert.AreEqual("receiver-7", edited.ClassificationOverriddenById);
+            Assert.IsTrue(edited.ClassificationOverriddenAt.HasValue);
+            Assert.AreEqual(1, edited.OriginalAssetCategoryId);
+            Assert.AreEqual(2, edited.OriginalAssetTypeId, "the PO line's classification it replaced");
+            Assert.AreEqual(20, edited.OriginalAssetSubTypeId);
+            var plain = receipts.Single(x => x.PurchaseOrderLineId == lines[0].Id);
+            Assert.IsNull(plain.ClassificationOverriddenById);
+            Assert.IsNull(plain.ClassificationOverriddenAt);
+            Assert.IsNull(plain.OriginalAssetTypeId);
+            Assert.IsNull(uow.Repository<PurchaseOrderLine>().GetById(lines[1].Id).ClassificationOverriddenAt, "the PO line was not edited on the order");
+
+            var list = receiving.GetReceivingsForPurchase(poId).ToList();
+            var shown = list.Single(x => x.Id == edited.AssetReceivingId).ClassificationOverride;
+            Assert.IsNotNull(shown);
+            Assert.AreEqual("IT > Printer > HP LaserJet", shown.OldClassification);
+            Assert.AreEqual("IT > Laptop > Dell Latitude 5440", shown.NewClassification, "the new asset's classification");
+            Assert.AreEqual("receiver-7", shown.ChangedByDisplay);
+            Assert.IsNull(list.Single(x => x.Id == plain.AssetReceivingId).ClassificationOverride);
+            Assert.AreEqual(2, result.CreatedAssets.Count);
+        }
+
+        [Test]
+        public void ClassificationOverride_ChangedByDisplay_PrefersTheName()
+        {
+            Assert.AreEqual("Jane Buyer", new ClassificationOverrideVm { ChangedById = "u1", ChangedByName = "Jane Buyer" }.ChangedByDisplay);
+            Assert.AreEqual("u1", new ClassificationOverrideVm { ChangedById = "u1" }.ChangedByDisplay);
+            Assert.AreEqual("unknown user", new ClassificationOverrideVm().ChangedByDisplay);
+        }
+
+        [Test]
+        public void C5_ReceivingBlocks_UnlessCategoryTypeAndSubTypeAreAllSet()
+        {
+            StringAssert.Contains("asset type", Assert.Throws<BusinessException>(() => ReceivingService.EnsureCompleteClassification(new PurchaseLineClassification(), "line 1")).Message);
+            StringAssert.Contains("category", Assert.Throws<BusinessException>(() => ReceivingService.EnsureCompleteClassification(new PurchaseLineClassification { AssetTypeId = 1, AssetSubTypeId = 10 }, "line 1")).Message);
+            StringAssert.Contains("sub-type", Assert.Throws<BusinessException>(() => ReceivingService.EnsureCompleteClassification(new PurchaseLineClassification { AssetCategoryId = 1, AssetTypeId = 1 }, "line 1")).Message);
+            Assert.DoesNotThrow(() => ReceivingService.EnsureCompleteClassification(new PurchaseLineClassification { AssetCategoryId = 1, AssetTypeId = 1, AssetSubTypeId = 10 }, "line 1"));
+        }
+
+        [Test]
+        public void C5_ReceivingEditedToATypeWithoutSubTypes_IsBlocked_NothingCreated()
+        {
+            var uow = SeedApprovedRequisition();
+            uow.Seed(new AssetType { Id = 5, Name = "Projectors", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var before = uow.Repository<Asset>().GetAll().Count();
+            var ex = Assert.Throws<BusinessException>(() => TestServiceFactory.CreateReceivingService(uow).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 5, null) }
+            }, "receiver"));
+            StringAssert.Contains("no active sub-types", ex.Message);
+            Assert.AreEqual(before, uow.Repository<Asset>().GetAll().Count());
+            Assert.AreEqual(0, uow.Repository<PurchaseOrderLineReceipt>().GetAll().Count());
+        }
+
         private sealed class ClassificationAuditWriter : IAuditWriter
         {
             public List<Entry> Entries { get; } = new List<Entry>();
