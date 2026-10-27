@@ -296,7 +296,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
     const treeBody = await page.locator('body').innerText();
     const treeShot = await shot(page, '02b-boarding-org-tree-tabs');
     const hasDeptTab = /Departments/i.test(treeBody);
-    const hasGradesTab = /Grades\s*&\s*Streams/i.test(treeBody);
+    const hasGradesTab = /Years\s*&\s*Streams/i.test(treeBody);
     const academicsInOrg = /\bAcademics\b/i.test(treeBody.split('\n').slice(0, 80).join('\n'));
     add({
       id: 'UX-TREE-DOMAIN-TABS-BOARDING',
@@ -436,7 +436,7 @@ test.describe('UX gaps probe 2026-09-29', () => {
       actual: `tabs=${JSON.stringify(tabs)}; viewOptions=${JSON.stringify(viewOptions)}; multiKindFilterCount=${kindFilterUgly}`,
       recommendation: 'Tabs are OK; upgrade Kind multi-select listbox to checkbox chips; clarify Flat list vs Tree in view control',
       source: 'probed',
-      status: tabs.some((t) => /Grades/i.test(t)) ? 'CONFIRMED' : 'ABSENT',
+      status: tabs.some((t) => /Years/i.test(t)) ? 'CONFIRMED' : 'ABSENT',
     });
 
     // ICT kind missing noted in prior flat screenshot — check tree/list for empty Kind

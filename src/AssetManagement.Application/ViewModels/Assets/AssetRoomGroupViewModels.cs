@@ -71,9 +71,9 @@ namespace AssetManagement.Application.ViewModels
                 case DepartmentKind.Room:
                     return "Room";
                 case DepartmentKind.Class:
-                    return "Class";
+                    return "Classroom";
                 case DepartmentKind.Grade:
-                    return "Grade";
+                    return "Year";
                 case DepartmentKind.SubDepartment:
                     return "Sub-department";
                 default:
@@ -125,7 +125,7 @@ namespace AssetManagement.Application.ViewModels
                     return AssetRoomGroupView.UnassignedLabel;
                 }
 
-                return string.IsNullOrWhiteSpace(Name) ? "Unit #" + DepartmentId.Value : Name;
+                return string.IsNullOrWhiteSpace(Name) ? "Unit #" + DepartmentId.Value : AssetManagement.Application.Helpers.GradeDisplay.ToYear(Name);
             }
         }
 

@@ -19,7 +19,7 @@
 
 <h3>@(isBatch ? "Movement batch" : "Asset Movements")</h3>
 <p class="text-muted small mb-3">
-    Every change of an asset's department or custodian: Edit, bulk Move to department, Move to class or room, transfers, assignments, returns and imports.
+    Every change of an asset's department or custodian: Edit, bulk Move to department, Move to classroom or room, transfers, assignments, returns and imports.
     Times are shown in @eatLabel (Africa/Nairobi).
 </p>
 
@@ -81,8 +81,8 @@ else
                 <td class="text-nowrap">@KenyaTimeHelper.FormatUtc(r.OccurredAtUtc, KenyaTimeHelper.ShortTimestampFormat)</td>
                 <td><a href="@Url.Action("Details", "Assets", new { id = r.AssetId })">@r.AssetTag</a><div class="small text-muted">@r.AssetName</div></td>
                 <td>@r.MovementTypeLabel</td>
-                <td>@(r.FromDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.FromCustodianUserId)) {<div class="small text-muted">@(r.FromCustodianName ?? r.FromCustodianUserId)</div>}</td>
-                <td>@(r.ToDepartmentName ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.ToCustodianUserId)) {<div class="small text-muted">@(r.ToCustodianName ?? r.ToCustodianUserId)</div>}</td>
+                <td>@(GradeDisplay.ToYear(r.FromDepartmentName) ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.FromCustodianUserId)) {<div class="small text-muted">@(r.FromCustodianName ?? r.FromCustodianUserId)</div>}</td>
+                <td>@(GradeDisplay.ToYear(r.ToDepartmentName) ?? "\u2014")@if (!string.IsNullOrWhiteSpace(r.ToCustodianUserId)) {<div class="small text-muted">@(r.ToCustodianName ?? r.ToCustodianUserId)</div>}</td>
                 <td>@(r.PerformedByName ?? r.PerformedByUserId)</td>
                 <td class="small">@r.Notes</td>
                 <td class="small">@if (!string.IsNullOrWhiteSpace(r.BatchId)) {<a href="@Url.Action("Batch", "AssetMovements", new { id = r.BatchId })" title="@r.BatchId">View batch</a>}</td>

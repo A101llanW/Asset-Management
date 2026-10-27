@@ -295,7 +295,7 @@ namespace AssetManagement.Application.Services
             var currentParentId = entity.ParentDepartmentId.HasValue && entity.ParentDepartmentId.Value > 0 ? entity.ParentDepartmentId : null;
             if (entity.DepartmentKind == DepartmentKind.Class && requestedParentId != currentParentId)
             {
-                throw new BusinessException("A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
+                throw new BusinessException("A classroom acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
             }
 
             var allDepartments = repository.GetAll().ToList();
@@ -306,7 +306,7 @@ namespace AssetManagement.Application.Services
                     var child = move == null ? null : allDepartments.FirstOrDefault(x => x.Id == move.ChildDepartmentId);
                     if (child != null && child.DepartmentKind == DepartmentKind.Class && move.NewParentDepartmentId.HasValue)
                     {
-                        throw new BusinessException("A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
+                        throw new BusinessException("A classroom acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
                     }
                 }
             }
@@ -670,7 +670,7 @@ namespace AssetManagement.Application.Services
             guard.EnsureDepartmentInOrganization(organizationId, model.ParentDepartmentId, "Parent unit", "Departments.Edit", nameof(Department), entityId);
             if (model.DepartmentKind == DepartmentKind.Class)
             {
-                guard.EnsureUserInOrganization(organizationId, model.ClassTeacherUserId, "Class teacher", "Departments.Edit", nameof(Department), entityId);
+                guard.EnsureUserInOrganization(organizationId, model.ClassTeacherUserId, "Classroom teacher", "Departments.Edit", nameof(Department), entityId);
             }
             else if (model.DepartmentKind == DepartmentKind.Room)
             {
@@ -877,13 +877,13 @@ namespace AssetManagement.Application.Services
                 || model.GradeNumber.Value < 1
                 || model.GradeNumber.Value > SchoolClassCodeHelper.MaxGrade)
             {
-                throw new BusinessException("Grade must be between 1 and " + SchoolClassCodeHelper.MaxGrade + ".");
+                throw new BusinessException("Year must be between 1 and " + SchoolClassCodeHelper.MaxGrade + ".");
             }
 
             var streams = ParseStreams(model.SelectedStreams);
             if (streams.Count == 0)
             {
-                throw new BusinessException("Select at least one class stream.");
+                throw new BusinessException("Select at least one classroom stream.");
             }
 
             var grade = model.GradeNumber.Value;
@@ -933,7 +933,7 @@ namespace AssetManagement.Application.Services
                 && x.DepartmentKind == DepartmentKind.Grade
                 && string.Equals((x.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)))
             {
-                throw new BusinessException("A grade named '" + name + "' already exists.");
+                throw new BusinessException("A year named '" + name + "' already exists.");
             }
 
             var entity = new Department
@@ -966,7 +966,7 @@ namespace AssetManagement.Application.Services
 
             if (!model.ParentDepartmentId.HasValue || model.ParentDepartmentId.Value <= 0)
             {
-                throw new BusinessException("Select the grade for this class.");
+                throw new BusinessException("Select the year for this classroom.");
             }
 
             var classOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
@@ -982,7 +982,7 @@ namespace AssetManagement.Application.Services
             var grade = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
             if (grade == null || !grade.IsActive || grade.DepartmentKind != DepartmentKind.Grade)
             {
-                throw new BusinessException("Select an active grade for this class.");
+                throw new BusinessException("Select an active year for this classroom.");
             }
 
             var name = model.Name.Trim();
@@ -1066,13 +1066,13 @@ namespace AssetManagement.Application.Services
             var to = Math.Min(SchoolClassCodeHelper.MaxGrade, model.BulkGradeTo);
             if (from > to)
             {
-                throw new BusinessException("Bulk grade range is invalid.");
+                throw new BusinessException("Bulk year range is invalid.");
             }
 
             var streams = ParseStreams(model.BulkStreams);
             if (streams.Count == 0)
             {
-                throw new BusinessException("Select at least one class stream.");
+                throw new BusinessException("Select at least one classroom stream.");
             }
 
             var now = DateTime.UtcNow;

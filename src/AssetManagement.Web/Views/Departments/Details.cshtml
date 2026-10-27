@@ -51,7 +51,7 @@
             parentId = Model.Id,
             returnUrl = Request.RawUrl
         });
-        secondaryCreateLabel = "Create class";
+        secondaryCreateLabel = "Create classroom";
     }
     else if (canCreateDepartment && isSubDepartment)
     {
@@ -66,7 +66,7 @@
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
-    Title = Model.Name,
+    Title = GradeDisplay.ToYear(Model.Name),
     Subtitle = detailsSubtitle,
     BackUrl = returnUrl,
     BackLabel = "Back",
@@ -79,7 +79,7 @@
     Breadcrumbs = new[]
     {
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = Model.Name }
+        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = GradeDisplay.ToYear(Model.Name) }
     }
 })
 

@@ -31,7 +31,7 @@
                             <td class="ps-3"><span class="am-tag-pill am-tag-pill--sm">@hit.AssetTag</span></td>
                             <td class="fw-semibold text-dark">@hit.AssetName</td>
                             <td class="text-muted small">@(string.IsNullOrWhiteSpace(hit.SerialNumber) ? DisplayText.Empty : hit.SerialNumber)</td>
-                            <td class="text-muted small">@hit.DepartmentName</td>
+                            <td class="text-muted small">@GradeDisplay.ToYear(hit.DepartmentName)</td>
                             <td class="text-muted small">@hit.CustodianName</td>
                             <td><span class="badge rounded-pill bg-light border text-secondary">@hit.Status</span></td>
                             <td class="small text-muted">

@@ -71,11 +71,11 @@
                         </div>
                         <div class="form-check form-check-inline">
                             <input class="form-check-input" type="radio" name="TargetKind" id="TargetKindRoom" value="Room" @(deliverToRoom ? "checked" : "") data-am-target-kind="true" />
-                            <label class="form-check-label" for="TargetKindRoom">A room / class</label>
+                            <label class="form-check-label" for="TargetKindRoom">A room / classroom</label>
                         </div>
                         <div class="mt-2" id="asset-request-room-wrap" @(deliverToRoom ? "" : "hidden")>
-                            @Html.DropDownListFor(m => m.TargetDepartmentId, roomTargets, "-- Select room or class --", new { @class = "form-select", data_am_room_select = "true" })
-                            <div class="form-text">On fulfilment the asset is assigned to the room (its custodian / class teacher, or the room pool).</div>
+                            @Html.DropDownListFor(m => m.TargetDepartmentId, roomTargets, "-- Select room or classroom --", new { @class = "form-select", data_am_room_select = "true" })
+                            <div class="form-text">On fulfilment the asset is assigned to the room (its custodian / classroom teacher, or the room pool).</div>
                         </div>
                         @Html.ValidationMessageFor(m => m.TargetKind, "", new { @class = "text-danger" })
                         @Html.ValidationMessageFor(m => m.TargetDepartmentId, "", new { @class = "text-danger" })

@@ -62,7 +62,7 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>Optional Class teacher (user id). Clearable; never required.</summary>
         [StringLength(128)]
-        [Display(Name = "Class teacher")]
+        [Display(Name = "Classroom teacher")]
         public string ClassTeacherUserId { get; set; }
 
         public string ClassTeacherName { get; set; }

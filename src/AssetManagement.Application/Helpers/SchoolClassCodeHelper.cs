@@ -42,7 +42,7 @@ namespace AssetManagement.Application.Helpers
         {
             if (grade < MinGrade || grade > MaxGrade)
             {
-                throw new ArgumentOutOfRangeException("grade", "Grade must be between " + MinGrade + " and " + MaxGrade + ".");
+                throw new ArgumentOutOfRangeException("grade", "Year must be between " + MinGrade + " and " + MaxGrade + ".");
             }
 
             var normalizedStream = (stream ?? string.Empty).Trim().ToUpperInvariant();
@@ -70,7 +70,7 @@ namespace AssetManagement.Application.Helpers
         {
             if (grade < MinGrade || grade > MaxGrade)
             {
-                throw new ArgumentOutOfRangeException("grade", "Grade must be between " + MinGrade + " and " + MaxGrade + ".");
+                throw new ArgumentOutOfRangeException("grade", "Year must be between " + MinGrade + " and " + MaxGrade + ".");
             }
 
             return "G" + grade.ToString("00", CultureInfo.InvariantCulture);

@@ -116,9 +116,9 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Room:
                     return "Room";
                 case DepartmentKind.Grade:
-                    return "Grade";
+                    return "Year";
                 case DepartmentKind.Class:
-                    return "Class";
+                    return "Classroom";
                 default:
                     return kind.Value.ToString();
             }

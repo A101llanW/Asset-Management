@@ -22,14 +22,14 @@
         : createSetupMode == DepartmentService.SetupModeRoom
             ? (lockedParentId.HasValue ? "Create Room" : "Create independent Room")
             : isGradeSetup
-                ? "Create Grade"
+                ? "Create Year"
                 : isClassSetup
-                    ? "Create Class"
+                    ? "Create Classroom"
                     : "Create Department";
     var pageSubtitle = isGradeSetup
-        ? "Add one grade (for example Prep, G00). Pick its Section so Prep stays apart from Senior school."
+        ? "Add one year (for example Prep, G00). Pick its Section so Prep stays apart from Senior school."
         : isClassSetup
-        ? "Add one class under an existing grade. It takes the grade's Section."
+        ? "Add one classroom under an existing year. It takes the year's Section."
         : createSetupMode == DepartmentService.SetupModeSubDepartment
         ? "Add a sub-department under " + lockedParentName + "."
         : createSetupMode == DepartmentService.SetupModeRoom
@@ -39,7 +39,7 @@
                     : "Add a room under sub-department " + lockedParentName + ".")
                 : "Add a standalone room with no parent department.")
             : showSetupModePicker
-                ? "Add an administrative department, a grade with class streams, or bulk grades 1-6."
+                ? "Add an administrative department, a year with classroom streams, or bulk years 1-6."
                 : "Add a top-level administrative department for your organization.";
     var showSharedIdentity = createSetupMode == DepartmentService.SetupModeNormal
         || createSetupMode == DepartmentService.SetupModeSubDepartment
@@ -134,7 +134,7 @@
         <div class="mb-3">
             <label class="form-label" for="class-grade-select">Grade</label>
             <select name="ParentDepartmentId" id="class-grade-select" class="form-select">
-                <option value="">-- Select grade --</option>
+                <option value="">-- Select year --</option>
                 @foreach (var grade in gradeOptions)
                 {
                     <option value="@grade.Id" data-section="@AssetManagement.Application.Helpers.DepartmentSectionHelper.ToQueryValue(AssetManagement.Application.Helpers.DepartmentSectionHelper.Normalize(grade.Section))" @(Model.ParentDepartmentId == grade.Id ? "selected" : null)>@AssetManagement.Application.Helpers.DepartmentLabelHelper.FormatCodeName(grade.Code, grade.Name) (@AssetManagement.Application.Helpers.DepartmentSectionHelper.Label(grade.Section))</option>
@@ -152,9 +152,9 @@
     </div>
     <div id="setup-grade-streams" style="display:none;">
         <div class="mb-3">
-            <label class="form-label">Grade number</label>
+            <label class="form-label">Year number</label>
             @Html.TextBoxFor(m => m.GradeNumber, new { @class = "form-control", type = "number", min = "1", max = "6" })
-            <div class="form-text">Grades are capped at 6 for school clients.</div>
+            <div class="form-text">Years are capped at 6 for school clients.</div>
         </div>
         <div class="mb-3">
             <label class="form-label">Streams</label>
@@ -165,19 +165,19 @@
     <div id="setup-bulk-grades" style="display:none;">
         <div class="row g-3">
             <div class="col-md-3">
-                <label class="form-label">From grade</label>
+                <label class="form-label">From year</label>
                 @Html.TextBoxFor(m => m.BulkGradeFrom, new { @class = "form-control", type = "number", min = "1", max = "6" })
             </div>
             <div class="col-md-3">
-                <label class="form-label">To grade</label>
+                <label class="form-label">To year</label>
                 @Html.TextBoxFor(m => m.BulkGradeTo, new { @class = "form-control", type = "number", min = "1", max = "6" })
             </div>
             <div class="col-md-6">
-                <label class="form-label">Streams per grade</label>
+                <label class="form-label">Streams per year</label>
                 @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C,D" })
             </div>
         </div>
-        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template. Maximum grade is 6.</div>
+        <div class="form-text mt-2">Optional manual path when classrooms are not yet in the import template. Maximum year is 6.</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
@@ -267,7 +267,7 @@
                 setDisabled(codeRow, !showCode);
                 if (codeHelp) {
                     codeHelp.textContent = (isRoom && !lockedParentId) ? 'Independent rooms require a unique code.'
-                        : isGradeOne ? 'Required and unique, up to 20 letters or digits (Prep = G00, Grade 3 = G03).'
+                        : isGradeOne ? 'Required and unique, up to 20 letters or digits (Prep = G00, Year 3 = G03).'
                         : isClassOne ? 'Optional. Blank = generated from the grade code and the class name.'
                         : '';
                 }

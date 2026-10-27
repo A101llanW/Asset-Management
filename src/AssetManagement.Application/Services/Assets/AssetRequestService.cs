@@ -171,13 +171,13 @@ namespace AssetManagement.Application.Services
             {
                 if (!model.TargetDepartmentId.HasValue)
                 {
-                    throw new BusinessException("Choose the room or class the asset should be delivered to.");
+                    throw new BusinessException("Choose the room or classroom the asset should be delivered to.");
                 }
 
                 var target = _unitOfWork.Repository<Department>().GetById(model.TargetDepartmentId.Value);
                 if (target == null || !target.IsActive || !DepartmentTreeHelper.IsRoomTargetKind(target.DepartmentKind))
                 {
-                    throw new BusinessException("The delivery location must be an active room or class.");
+                    throw new BusinessException("The delivery location must be an active room or classroom.");
                 }
 
                 if (!DepartmentTreeHelper.IsSelfOrDescendant(target.Id, model.DepartmentId.Value, LoadDepartmentParents()))

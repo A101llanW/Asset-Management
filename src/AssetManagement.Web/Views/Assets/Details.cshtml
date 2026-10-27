@@ -30,7 +30,7 @@
     var openMaintenanceTicket = Model.MaintenanceRecords == null
         ? null
         : Model.MaintenanceRecords.FirstOrDefault(x => x.Status == MaintenanceStatus.Open || x.Status == MaintenanceStatus.InProgress);
-    var departmentDisplay = string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Company custody" : Model.DepartmentName;
+    var departmentDisplay = string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Company custody" : GradeDisplay.ToYear(Model.DepartmentName);
     var supplierDisplay = string.IsNullOrWhiteSpace(Model.SupplierName) ? "Not specified" : Model.SupplierName;
     var brandModelDisplay = DisplayText.FormatBrandModel(Model.Brand, Model.Model);
     var categoryDisplay = string.IsNullOrWhiteSpace(Model.CategoryName) ? DisplayText.Empty : Model.CategoryName;

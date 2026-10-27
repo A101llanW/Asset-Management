@@ -89,7 +89,7 @@ namespace AssetManagement.Web.Controllers
                 || !viewModel.DepartmentId.HasValue
                 || !GetRoomTargetOptions(viewModel.DepartmentId).Any(x => x.Key == viewModel.TargetDepartmentId.Value))
             {
-                ModelState.AddModelError("TargetDepartmentId", "Choose a room or class inside the selected department.");
+                ModelState.AddModelError("TargetDepartmentId", "Choose a room or classroom inside the selected department.");
             }
 
             PopulateLookups(viewModel);
@@ -199,7 +199,7 @@ namespace AssetManagement.Web.Controllers
                     var pic = DepartmentTreeHelper.ResolvePicUserId(room);
                     var picUser = string.IsNullOrWhiteSpace(pic) ? null : BuildUserService().GetById(pic);
                     ViewBag.TargetPicUserName = string.IsNullOrWhiteSpace(pic) ? null : (picUser == null ? pic : BuildUserLabel(picUser));
-                    ViewBag.TargetPicRoleLabel = room != null && room.DepartmentKind == DepartmentKind.Class ? "class teacher" : "room custodian";
+                    ViewBag.TargetPicRoleLabel = room != null && room.DepartmentKind == DepartmentKind.Class ? "classroom teacher" : "room custodian";
                 }
             }
 

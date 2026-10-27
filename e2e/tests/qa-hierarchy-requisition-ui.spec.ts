@@ -300,7 +300,7 @@ test.describe('QA hierarchy + requisition UI 2026-09-29', () => {
         route,
         repro: `Open ${route}; inspect Kind badges and section headers; also open domain=classes`,
         expected: `Kind badges Room/Sub-unit/Admin present; tops ${expectedTops.join(', ')}; classes domain reachable`,
-        actual: `room=${hasRoom} sub=${hasSub} adminish=${hasAdmin} topsOk=${topsOk}; classesUrl=${classesRoute}; classesHasGrade=${/Grade/i.test(classesBody)} flowColLikelyHidden=${!/\\bFlow\\b/.test(classesBody) || /Grades/.test(classesBody)}`,
+        actual: `room=${hasRoom} sub=${hasSub} adminish=${hasAdmin} topsOk=${topsOk}; classesUrl=${classesRoute}; classesHasGrade=${/Year/i.test(classesBody)} flowColLikelyHidden=${!/\\bFlow\\b/.test(classesBody) || /Grades/.test(classesBody)}`,
         evidence: [evidence, classesEvidence],
         notes: flowHiddenOnClasses ? 'classes domain opened' : undefined,
       });

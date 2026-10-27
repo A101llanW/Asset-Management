@@ -19,12 +19,12 @@ namespace AssetManagement.Application.Helpers
 
             if (string.Equals(mode, DepartmentSetupModes.Grade, StringComparison.OrdinalIgnoreCase))
             {
-                return "Grade created.";
+                return "Year created.";
             }
 
             if (string.Equals(mode, DepartmentSetupModes.Class, StringComparison.OrdinalIgnoreCase))
             {
-                return "Class created.";
+                return "Classroom created.";
             }
 
             return "Department created.";
@@ -45,7 +45,7 @@ namespace AssetManagement.Application.Helpers
 
             if (string.Equals(mode, DepartmentSetupModes.Grade, StringComparison.OrdinalIgnoreCase))
             {
-                return "Next step: add classes (streams) under this grade, then assign users or assets to them.";
+                return "Next step: add classrooms (streams) under this year, then assign users or assets to them.";
             }
 
             if (string.Equals(mode, DepartmentSetupModes.Class, StringComparison.OrdinalIgnoreCase))
@@ -56,7 +56,7 @@ namespace AssetManagement.Application.Helpers
             if (string.Equals(mode, DepartmentSetupModes.GradeStreams, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(mode, DepartmentSetupModes.BulkGrades, StringComparison.OrdinalIgnoreCase))
             {
-                return "Next step: review the grade and class structure, then assign users or assets to the new class departments.";
+                return "Next step: review the year and classroom structure, then assign users or assets to the new classroom departments.";
             }
 
             return "Next step: review the department details, then assign users or assets to this department.";

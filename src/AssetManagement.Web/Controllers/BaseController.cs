@@ -420,11 +420,11 @@ namespace AssetManagement.Web.Controllers
                     departments = departments.Where(x => x.IsActive);
                 }
 
-                return new SelectList(departments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
+                return new SelectList(departments.OrderBy(x => x.Name).Select(x => new SelectListItem { Value = x.Id.ToString(), Text = GradeDisplay.ToYear(x.Name) }).ToList(), "Value", "Text", selectedDepartmentId);
             }
 
             var cachedDepartments = BuildReferenceDataCache().GetDepartments(orgId.Value, activeOnly);
-            return new SelectList(cachedDepartments.OrderBy(x => x.Name).ToList(), "Id", "Name", selectedDepartmentId);
+            return new SelectList(cachedDepartments.OrderBy(x => x.Name).Select(x => new SelectListItem { Value = x.Id.ToString(), Text = GradeDisplay.ToYear(x.Name) }).ToList(), "Value", "Text", selectedDepartmentId);
         }
 
         /// <summary>rel1009g: every active department in tree order with "Parent > Child" labels (Asset Requests).</summary>
@@ -436,7 +436,7 @@ namespace AssetManagement.Web.Controllers
                 : BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList();
             var items = AssetManagement.Application.Helpers.DepartmentTreeHelper
                 .BuildTreeOptions(departments, false)
-                .Select(x => new SelectListItem { Value = x.Key.ToString(), Text = x.Value })
+                .Select(x => new SelectListItem { Value = x.Key.ToString(), Text = GradeDisplay.ToYear(x.Value) })
                 .ToList();
             return new SelectList(items, "Value", "Text", selectedDepartmentId);
         }
@@ -569,7 +569,7 @@ namespace AssetManagement.Web.Controllers
                     items.Add(new SelectListItem
                     {
                         Value = child.Id.ToString(),
-                        Text = grades[child.ParentDepartmentId.Value].Name + " \u2192 " + child.Name,
+                        Text = GradeDisplay.ToYear(grades[child.ParentDepartmentId.Value].Name + " \u2192 " + child.Name),
                         Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
                     });
                 }
@@ -586,7 +586,7 @@ namespace AssetManagement.Web.Controllers
                         items.Add(new SelectListItem
                         {
                             Value = child.Id.ToString(),
-                            Text = section.Title + " \u2192 " + child.Name,
+                            Text = GradeDisplay.ToYear(section.Title + " \u2192 " + child.Name),
                             Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
                         });
                     }
@@ -632,7 +632,7 @@ namespace AssetManagement.Web.Controllers
                         items.Add(new SelectListItem
                         {
                             Value = child.Id.ToString(),
-                            Text = section.Title + " \u2192 " + child.Name,
+                            Text = GradeDisplay.ToYear(section.Title + " \u2192 " + child.Name),
                             Selected = selectedDepartmentId.HasValue && child.Id == selectedDepartmentId.Value
                         });
                     }
@@ -644,7 +644,7 @@ namespace AssetManagement.Web.Controllers
                         items.Add(new SelectListItem
                         {
                             Value = parent.Id.ToString(),
-                            Text = parent.Name,
+                            Text = GradeDisplay.ToYear(parent.Name),
                             Selected = selectedDepartmentId.HasValue && parent.Id == selectedDepartmentId.Value
                         });
                     }
@@ -1272,7 +1272,7 @@ namespace AssetManagement.Web.Controllers
                     vm.Items.Add(new DepartmentSelectOptionVm
                     {
                         Value = item.Department.Id.ToString(),
-                        Text = item.Department.Name + (kindFilter.HasValue ? string.Empty : " (" + DescribeDepartmentKind(item.Department.DepartmentKind) + ")"),
+                        Text = GradeDisplay.ToYear(item.Department.Name) + (kindFilter.HasValue ? string.Empty : " (" + DescribeDepartmentKind(item.Department.DepartmentKind) + ")"),
                         Selected = selectedDepartmentId.HasValue && item.Department.Id == selectedDepartmentId.Value
                     });
                 }
@@ -1290,7 +1290,7 @@ namespace AssetManagement.Web.Controllers
                 case DepartmentKind.SubDepartment:
                     return "sub-department";
                 case DepartmentKind.Class:
-                    return "class";
+                    return "classroom";
                 case DepartmentKind.Room:
                     return "room";
                 default:

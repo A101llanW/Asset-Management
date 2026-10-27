@@ -75,7 +75,7 @@
                                 <div class="fw-semibold text-dark small mt-1">@item.AssetName</div>
                             </td>
                             <td class="text-muted small">@(string.IsNullOrWhiteSpace(item.ToUserName) ? DisplayText.Empty : item.ToUserName)</td>
-                            <td class="text-muted small">@(string.IsNullOrWhiteSpace(item.ToDepartmentName) ? DisplayText.Empty : item.ToDepartmentName)</td>
+                            <td class="text-muted small">@(string.IsNullOrWhiteSpace(item.ToDepartmentName) ? DisplayText.Empty : GradeDisplay.ToYear(item.ToDepartmentName))</td>
                             <td>
                                 <span class="badge rounded-pill" style="background:hsla(200,85%,52%,.10);color:var(--am-primary-strong);font-weight:600;font-size:.78rem;">@item.AssignmentType</span>
                             </td>
