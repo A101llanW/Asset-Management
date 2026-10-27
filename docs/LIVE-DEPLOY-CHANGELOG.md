@@ -1,5 +1,13 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 15:22 EAT - No-department users: default Assets/Assignments lists open org-wide - STAGED, NOT PUBLISHED
+
+- Commit (branch fix/no-dept-org-scope, local only, not pushed): d9a2eb0 on top of 31f1d6e. QA found the default Assets list showed 'No assets yet' for no-department users (ListRoleDefaultsHelper fell back to 'in my custody'). No-department tenant members now skip the list defaults (whole organisation, never another tenant), like Assets.ViewAll users. Same for Assignments list and batch-assign from filter. Users with a department unchanged.
+- DB migration/script: none. Config keys: none.
+- Tests: 1174 total, 1167 passed, 0 failed, 7 skipped (+13 new in NoDepartmentListDefaultsTests).
+- Stage: C:\Users\allan\Desktop\Staged_nodept2_d9a2eb0 (Release, root Web.config removed). Web.dll SHA256 E332B3C293E7BE0A6B47A2E204DE53979D6BA646745CC7F9F19FC3C87AA44BDF.
+- NOT published to localhost:8080, Desktop\publish not changed, not copied to live.
+
 ## 2026-10-27 14:50 EAT - No-department users get organisation-wide scope - PUBLISHED to localhost:8080 (local IIS only, NOT live)
 
 - Commits (branch fix/no-dept-org-scope, local only, not pushed): 998ca7b on top of main b0a3b7b. A user with no department now sees their whole organisation (requisitions incl. New requisition department list, assets, reports, QR scan, print log, Users list); never another organisation. Users with a department unchanged. Fixes the PurchaseRequests/Create "no ViewData item ... 'DepartmentId'" crash.
