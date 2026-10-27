@@ -8,6 +8,12 @@ namespace AssetManagement.Web.ViewModels
     {
         public AssetScanLookupVm Lookup { get; set; }
 
+        /// <summary>rel1027: viewer-filtered scan card (null when nothing was found).</summary>
+        public AssetScanCardVm Card { get; set; }
+
+        /// <summary>rel1027: AssetScan/Photo?code=TAG when the asset has a photo.</summary>
+        public string PhotoUrl { get; set; }
+
         public bool IsPublicScan { get; set; }
 
         public bool CanViewAssetDetails { get; set; }

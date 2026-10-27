@@ -97,9 +97,56 @@
         );
     }
 
+    // rel1027: viewer-filtered card from the server (same rows as _ScanLookupResult.cshtml).
+    function renderCardRows(rows) {
+        return (rows || []).map(function (row) {
+            return '<div class="am-scan-detail-row" data-am-scan-row="' + escapeHtml(row.Key) + '"><dt>' +
+                escapeHtml(row.Label) + "</dt><dd>" + escapeHtml(row.Value) + "</dd></div>";
+        }).join("");
+    }
+
+    function renderCard(data) {
+        var card = data.Card;
+        var photo = data.PhotoUrl
+            ? '<div class="am-scan-card-photo"><img src="' + escapeHtml(data.PhotoUrl) + '" alt="Photo of ' + escapeHtml(card.AssetName) + '" loading="lazy" /></div>'
+            : "";
+        var restricted = card.RestrictedRows && card.RestrictedRows.length
+            ? '<div class="am-scan-card-restricted mt-3"><div class="small text-muted mb-1">Visible to you because you are signed in with permission</div>' +
+              '<dl class="am-scan-details-grid am-scan-card-grid mb-0">' + renderCardRows(card.RestrictedRows) + "</dl></div>"
+            : "";
+        var actions = "";
+        if (data.CanViewAssetDetails || data.CanOpenQuickActions) {
+            actions = '<div class="am-scan-result-actions mt-4">';
+            if (data.CanViewAssetDetails && data.DetailsUrl) {
+                actions += '<a class="btn btn-primary btn-lg w-100" href="' + escapeHtml(data.DetailsUrl) + '" data-am-scan-details-link="1">View full details</a>';
+            }
+            if (data.CanOpenQuickActions && data.QuickActionsUrl) {
+                actions += '<a class="btn ' + (data.CanViewAssetDetails ? "btn-outline-secondary w-100 mt-2" : "btn-primary btn-lg w-100") +
+                    '" href="' + escapeHtml(data.QuickActionsUrl) + '">Quick actions</a>';
+            }
+            actions += "</div>";
+        }
+
+        return (
+            '<div class="am-scan-result am-scan-card card card-kpi mt-4 am-fade-in border-0" data-am-scan-card="1">' + photo +
+            '<div class="am-scan-result-header">' +
+            '<div class="am-scan-result-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+            '<div class="am-scan-result-title-wrap"><h5 class="am-scan-result-name mb-0">' + escapeHtml(card.AssetName) + "</h5>" +
+            '<span class="am-tag-pill am-tag-pill--sm mt-1">' + escapeHtml(card.AssetTag) + "</span></div>" +
+            '<span class="badge bg-' + escapeHtml(data.StatusBadgeClass || "secondary") + ' badge-status ms-auto">' + escapeHtml(card.StatusText) + "</span>" +
+            "</div>" +
+            '<div class="am-scan-result-body"><dl class="am-scan-details-grid am-scan-card-grid">' + renderCardRows(card.Rows) + "</dl>" +
+            restricted + actions + "</div></div>"
+        );
+    }
+
     function renderResult(data) {
         if (data.SearchResults && data.SearchResults.Assets && data.SearchResults.Assets.length) {
             return renderSearchResults(data);
+        }
+
+        if (data.Found && data.Card) {
+            return renderCard(data);
         }
 
         if (data.Found) {
@@ -198,6 +245,23 @@
             input.value = "";
         }
 
+        // rel1027: details-first layout (scanned asset at the top, search below). Never scroll down to the search box, and do
+        // not pop the phone keyboard; desktop barcode scanners keep focus without the page jumping.
+        if (config.detailsFirst) {
+            var isTouch = window.matchMedia("(max-width: 767.98px)").matches || ("ontouchstart" in window);
+            if (isTouch) {
+                return;
+            }
+
+            try {
+                input.focus({ preventScroll: true });
+            } catch (e) {
+                input.focus();
+            }
+            input.select();
+            return;
+        }
+
         input.focus();
         input.select();
     }
@@ -227,6 +291,9 @@
                 var host = document.querySelector(config.resultHostSelector);
                 if (host) {
                     host.innerHTML = renderResult(data);
+                    if (config.detailsFirst && data.Found && host.scrollIntoView) {
+                        host.scrollIntoView({ block: "start" });
+                    }
                 }
 
                 refocusInput(!!data.Found);

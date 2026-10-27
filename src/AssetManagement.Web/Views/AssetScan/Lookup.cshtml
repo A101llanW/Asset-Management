@@ -8,16 +8,29 @@
         : "~/Views/Shared/_Layout.cshtml";
 }
 
+@{
+    // rel1027 (Allan): when a specific asset was scanned / found, its details come FIRST (no scrolling on a phone) and the
+    // lookup panel sits below; a plain lookup (no asset) keeps the search at the top. Same for signed-in and signed-out viewers.
+    var scanResultFirst = Model.Lookup != null && Model.Lookup.Found && Model.Card != null;
+}
+
+@if (scanResultFirst)
+{
+    <div id="am-scan-result-host" class="am-scan-result-host--first" data-am-scan-order="details-first">
+        @Html.Partial("_ScanLookupResult", Model)
+    </div>
+}
+
 @if (!Model.IsPublicScan)
 {
     @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
     {
-        Title = "Scan & Search",
+        Title = scanResultFirst ? "Look up another asset" : "Scan & Search",
         Subtitle = "Scan a label or search by tag, serial number, custodian, department, or asset name."
     })
 }
 
-<div class="am-scan-panel am-scan-panel--premium">
+<div class="am-scan-panel am-scan-panel--premium" data-am-scan-panel="1">
     <div class="am-scan-panel-inner">
 
         <div class="am-scan-icon-wrap" aria-hidden="true">
@@ -68,7 +81,7 @@
                 </div>
                 <label class="visually-hidden" for="code">Scan or type code</label>
                 <input class="am-scan-input form-control form-control-lg" id="code" name="code"
-                       type="text" autofocus="autofocus" autocomplete="off" inputmode="text"
+                       type="text" autofocus="@(scanResultFirst ? null : "autofocus")" autocomplete="off" inputmode="text"
                        placeholder="Tag, serial, custodian, department..." value="@Model.InitialCode" />
             </div>
 
@@ -90,13 +103,16 @@
     </div>
 </div>
 
-<div id="am-scan-result-host">
-    @Html.Partial("_ScanLookupResult", Model)
-    @if (Model.SearchResults != null && Model.SearchResults.Assets != null && Model.SearchResults.Assets.Any())
-    {
-        @Html.Partial("_ScanSearchResults", Model.SearchResults)
-    }
-</div>
+@if (!scanResultFirst)
+{
+    <div id="am-scan-result-host">
+        @Html.Partial("_ScanLookupResult", Model)
+        @if (Model.SearchResults != null && Model.SearchResults.Assets != null && Model.SearchResults.Assets.Any())
+        {
+            @Html.Partial("_ScanSearchResults", Model.SearchResults)
+        }
+    </div>
+}
 
 @if (!Model.IsPublicScan && !string.IsNullOrWhiteSpace(Model.BulkPrintUrl))
 {
@@ -122,7 +138,8 @@
             resultHostSelector: "#am-scan-result-host",
             statusSelector: "#am-scan-status",
             lookupJsonUrl: "@Model.LookupJsonUrl",
-            hasInitialResult: @(Model.Lookup != null && Model.Lookup.Found ? "true" : "false")
+            hasInitialResult: @(Model.Lookup != null && Model.Lookup.Found ? "true" : "false"),
+            detailsFirst: @(scanResultFirst ? "true" : "false")
         });
 
         AmAssetScanCamera.init({

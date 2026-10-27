@@ -186,7 +186,24 @@ namespace AssetManagement.Application.Services
                 Brand = match.Brand,
                 Model = match.Model,
                 CategoryName = match.CategoryName,
-                CustodianName = match.CustodianName
+                CustodianName = match.CustodianName,
+                CustodianUserId = match.CustodianUserId,
+                CustodianPersonName = match.CustodianPersonName,
+                CustodianEmail = match.CustodianEmail,
+                AssetTypeName = match.AssetTypeName,
+                AssetSubTypeName = match.AssetSubTypeName,
+                Condition = match.Condition,
+                PurchaseDate = match.PurchaseDate,
+                ReceivedDate = match.ReceivedDate,
+                DepartmentId = match.DepartmentId,
+                Section = match.Section,
+                OrganizationUsesPrep = match.OrganizationUsesPrep,
+                PhotoFilePath = match.PhotoFilePath,
+                PhotoContentType = match.PhotoContentType,
+                AcquisitionCost = match.AcquisitionCost,
+                Currency = match.Currency,
+                SupplierName = match.SupplierName,
+                LocationPath = match.LocationPath ?? new System.Collections.Generic.List<AssetScanLocationLevel>()
             };
         }
 

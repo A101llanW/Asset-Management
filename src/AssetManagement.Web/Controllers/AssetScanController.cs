@@ -364,6 +364,23 @@ namespace AssetManagement.Web.Controllers
                     : null,
             };
 
+            if (lookup.Found)
+            {
+                var viewer = new AssetScanViewer
+                {
+                    IsSignedIn = isAuthenticated,
+                    CanViewAssetDetails = canViewDetails,
+                    CanViewFinancials = isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Financials.View"),
+                    CanViewSuppliers = isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Suppliers.View")
+                };
+                pageModel.Card = AssetScanCardBuilder.Build(lookup, viewer);
+                pageModel.StatusBadgeClass = StatusHtmlHelpers.ToBadgeClass(lookup.CurrentStatus);
+                if (pageModel.Card != null && pageModel.Card.HasPhoto)
+                {
+                    pageModel.PhotoUrl = TenantUrlHelper.TenantRouteUrl(Url, "Photo", "AssetScan", new { code = lookup.AssetTag });
+                }
+            }
+
             if (pageModel.CanViewAssetDetails)
             {
                 pageModel.StatusBadgeClass = StatusHtmlHelpers.ToBadgeClass(lookup.CurrentStatus);
@@ -383,10 +400,12 @@ namespace AssetManagement.Web.Controllers
         {
             try
             {
+                // rel1027: details for every viewer (the QR scan page is public); AssetScanCardBuilder filters what is shown.
+                // Department scope still applies to signed-in users with Assets.View, as before.
                 return _assetService.LookupByScanCode(
                     term,
                     applyDepartmentScope: canViewDetails,
-                    includeDetails: canViewDetails);
+                    includeDetails: true);
             }
             catch (BusinessException ex)
             {
@@ -399,10 +418,16 @@ namespace AssetManagement.Web.Controllers
             var lookup = page.Lookup;
             if (page.IsPublicScan)
             {
+                // rel1027: the viewer-filtered card only (no e-mail, cost, supplier or ids for signed-out viewers).
                 return new
                 {
                     Found = lookup.Found,
-                    Message = lookup.Message
+                    Message = lookup.Message,
+                    Card = ToCardPayload(page.Card),
+                    StatusBadgeClass = page.Card == null ? null : page.StatusBadgeClass,
+                    PhotoUrl = page.PhotoUrl,
+                    CanViewAssetDetails = false,
+                    CanOpenQuickActions = false
                 };
             }
 
@@ -453,8 +478,78 @@ namespace AssetManagement.Web.Controllers
                 CanOpenQuickActions = page.CanOpenQuickActions,
                 DetailsUrl = page.DetailsUrl,
                 QuickActionsUrl = page.QuickActionsUrl,
-                EmptyDisplay = DisplayText.Empty
+                EmptyDisplay = DisplayText.Empty,
+                Card = ToCardPayload(page.Card),
+                PhotoUrl = page.PhotoUrl
             };
+        }
+
+        private static object ToCardPayload(AssetScanCardVm card)
+        {
+            if (card == null)
+            {
+                return null;
+            }
+
+            return new
+            {
+                card.AssetName,
+                card.AssetTag,
+                card.StatusText,
+                card.CustodianText,
+                Rows = card.Rows.Select(r => new { r.Key, r.Label, r.Value }).ToArray(),
+                RestrictedRows = card.RestrictedRows.Select(r => new { r.Key, r.Label, r.Value }).ToArray()
+            };
+        }
+
+        /// <summary>
+        /// rel1027: the asset photo shown on the scan card (same lookup and scope as the page; images only).
+        /// 404 when there is no photo. Public like Lookup, and rate-limited the same way.
+        /// </summary>
+        [HttpGet]
+        public ActionResult Photo(string code)
+        {
+            var term = ResolveLookupTerm(code, null);
+            if (string.IsNullOrWhiteSpace(term))
+            {
+                return HttpNotFound();
+            }
+
+            if (!TryAcquireScanLookup())
+            {
+                return new HttpStatusCodeResult(429, ScanRateLimitMessage);
+            }
+
+            var canViewDetails = User.Identity.IsAuthenticated
+                && _authorizationService != null
+                && _authorizationService.HasPermission(User.GetUserId(), "Assets.View");
+            var lookup = TryScanLookup(term, canViewDetails);
+            if (lookup == null || !lookup.Found || string.IsNullOrWhiteSpace(lookup.PhotoFilePath)
+                || !AssetScanPhotoRules.IsAllowedContentType(lookup.PhotoContentType))
+            {
+                return HttpNotFound();
+            }
+
+            var storage = DependencyResolver.Current.GetService<IFileStorageProvider>();
+            System.IO.Stream content;
+            try
+            {
+                content = storage == null ? null : storage.OpenRead(lookup.PhotoFilePath);
+            }
+            catch (Exception)
+            {
+                content = null;
+            }
+
+            if (content == null)
+            {
+                return HttpNotFound();
+            }
+
+            Response.Cache.SetCacheability(System.Web.HttpCacheability.Private);
+            Response.Cache.SetMaxAge(TimeSpan.FromMinutes(10));
+            Response.AddHeader("X-Content-Type-Options", "nosniff");
+            return File(content, lookup.PhotoContentType);
         }
 
         /// <summary>Department filter options for the bulk label print page (AssetLabels/BulkPrint).</summary>

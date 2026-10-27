@@ -520,7 +520,13 @@ namespace AssetManagement.Tests.Helpers
                 BarcodeOrQRCode = match.BarcodeOrQRCode,
                 SerialNumber = match.SerialNumber,
                 Brand = match.Brand,
-                Model = match.Model
+                Model = match.Model,
+                Condition = match.Condition,
+                PurchaseDate = match.PurchaseDate,
+                DepartmentId = match.DepartmentId,
+                CustodianUserId = match.CurrentCustodianId,
+                AcquisitionCost = match.AcquisitionCost,
+                Currency = match.Currency
             };
         }
     }
