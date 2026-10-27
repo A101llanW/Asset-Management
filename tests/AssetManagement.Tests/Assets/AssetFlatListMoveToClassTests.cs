@@ -128,6 +128,9 @@ namespace AssetManagement.Tests.Assets
             StringAssert.Contains("<option value=\"classroom\">Move to classroom</option>", toolbar);
             StringAssert.Contains("TargetClassDepartmentId", toolbar);
             StringAssert.Contains("var isFlat = !isGrouped && !isRoom;", toolbar);
+            // Razor: the classroom block sits inside the @if (canBulkEdit) code block, so it must be a plain `if`
+            // (an "@if" there is a parser error that breaks every list page that renders the toolbar).
+            Assert.IsFalse(Regex.IsMatch(toolbar, @"</div>\s*@if \(canBulkMoveToClass\)"), "classroom block must not use @if inside a code block");
             StringAssert.Contains("data-am-bulk-class", script);
             StringAssert.Contains("RelocateSelectedToClassDepartment(", controller);
             Assert.IsFalse(Regex.IsMatch(index + toolbar + script, @"9100|9101|BrowserPrint|window\.print", RegexOptions.IgnoreCase));

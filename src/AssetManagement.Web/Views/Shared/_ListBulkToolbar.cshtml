@@ -60,7 +60,7 @@
                     @Html.DropDownList("TargetDepartmentId", departments, string.Empty, new { @class = "form-select form-select-sm", form = "amBulkForm" })
                 }
                 </div>
-                @if (canBulkMoveToClass)
+                if (canBulkMoveToClass)
                 {
                     <div class="col-md-3 d-none" data-am-bulk-class>
                         <label class="form-label small mb-0" for="amBulkTargetClassDepartmentId">Classroom</label>
