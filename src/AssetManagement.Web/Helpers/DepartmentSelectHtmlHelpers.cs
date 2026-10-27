@@ -64,7 +64,9 @@ namespace AssetManagement.Web.Helpers
                         }
 
                         body.Append(">");
-                        body.Append(HttpUtility.HtmlEncode(AssetManagement.Application.Helpers.GradeDisplay.ToYear(item.Text ?? string.Empty)));
+                        // QA W5.6: option text is already display-ready (Year on names only); relabelling the whole
+                        // "CODE — Name" text here changed codes such as ACADEMIC-GRADE2HR.
+                        body.Append(HttpUtility.HtmlEncode(item.Text ?? string.Empty));
                         body.Append("</option>");
                     }
 

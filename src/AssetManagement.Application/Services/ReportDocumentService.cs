@@ -72,6 +72,9 @@ namespace AssetManagement.Application.Services
                 context.FilterSummary = BuildFilterSummary(summaryRequest);
             }
 
+            // QA W5.4: preview / PDF show "Year" for department names; the CSV keeps the stored names.
+            context.Rows = ReportYearLabels.Apply(context.Headers, context.Rows);
+
             var branding = ReportBrandingHelper.Resolve(_unitOfWork, _organizationScope, request.ApplicationBaseUrl);
             var html = ReportHtmlBuilder.BuildReportFragment(
                 context.Title,
@@ -1207,7 +1210,7 @@ namespace AssetManagement.Application.Services
             if (request.DepartmentIds != null && request.DepartmentIds.Count > 0)
             {
                 parts.Add((request.DepartmentIds.Count == 1 ? "Department: " : "Departments: ")
-                    + string.Join(", ", request.DepartmentIds.Select(id => ResolveDepartmentName(id))));
+                    + string.Join(", ", request.DepartmentIds.Select(id => GradeDisplay.ToYear(ResolveDepartmentName(id)))));
             }
 
             if (request.CategoryIds != null && request.CategoryIds.Count > 0)

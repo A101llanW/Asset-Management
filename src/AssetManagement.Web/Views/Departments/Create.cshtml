@@ -132,7 +132,7 @@
     </div>
     <div id="setup-class-single" style="display:none;">
         <div class="mb-3">
-            <label class="form-label" for="class-grade-select">Grade</label>
+            <label class="form-label" for="class-grade-select">Year</label>
             <select name="ParentDepartmentId" id="class-grade-select" class="form-select">
                 <option value="">-- Select year --</option>
                 @foreach (var grade in gradeOptions)
@@ -142,7 +142,7 @@
             </select>
         </div>
         <div class="mb-3">
-            <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
+            <label class="form-label" for="ClassTeacherUserId">Classroom teacher (optional)</label>
             @Html.DropDownListFor(
                 m => m.ClassTeacherUserId,
                 ViewBag.ClassTeacherUsers as System.Web.Mvc.SelectList ?? new System.Web.Mvc.SelectList(Enumerable.Empty<System.Web.Mvc.SelectListItem>()),
@@ -268,7 +268,7 @@
                 if (codeHelp) {
                     codeHelp.textContent = (isRoom && !lockedParentId) ? 'Independent rooms require a unique code.'
                         : isGradeOne ? 'Required and unique, up to 20 letters or digits (Prep = G00, Year 3 = G03).'
-                        : isClassOne ? 'Optional. Blank = generated from the grade code and the class name.'
+                        : isClassOne ? 'Optional. Blank = generated from the year code and the classroom name.'
                         : '';
                 }
             }
@@ -283,7 +283,7 @@
                 setDisabled(custRow, !isRoom);
             }
             if (nameLabel) {
-                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : (isGradeOne ? 'Grade name' : (isClassOne ? 'Class name' : 'Name')));
+                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : (isGradeOne ? 'Year name' : (isClassOne ? 'Classroom name' : 'Name')));
             }
             if (nameHelp) {
                 if (isSub) {

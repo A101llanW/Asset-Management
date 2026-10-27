@@ -506,7 +506,8 @@ namespace AssetManagement.Web.Controllers
                     groups.Add(groupVm);
                 }
 
-                var optionText = (dept.Name ?? string.Empty).Trim();
+                // Display only: Year wording on the name (codes are never in this text).
+                var optionText = GradeDisplay.ToYear((dept.Name ?? string.Empty).Trim());
                 if (dept.DepartmentKind != DepartmentKind.Room && dept.DepartmentKind != DepartmentKind.Class)
                 {
                     optionText += " (" + DescribeDepartmentKind(dept.DepartmentKind) + ")";
@@ -1326,9 +1327,10 @@ namespace AssetManagement.Web.Controllers
                 var option = new DepartmentSelectOptionVm
                 {
                     Value = dept.Id.ToString(),
+                    // QA W5.6: Year wording on the name only; the code keeps its stored value (ACADEMIC-GRADE2HR).
                     Text = string.IsNullOrWhiteSpace(dept.Code)
-                        ? dept.Name
-                        : dept.Code + " — " + dept.Name,
+                        ? GradeDisplay.ToYear(dept.Name)
+                        : dept.Code + " — " + GradeDisplay.ToYear(dept.Name),
                     Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
                 };
                 if (!dept.IsActive)

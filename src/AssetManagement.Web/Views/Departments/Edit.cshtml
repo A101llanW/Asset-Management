@@ -153,7 +153,7 @@
         <label class="form-label" for="department-section-select">Section</label>
         @Html.DropDownListFor(m => m.Section, sectionSelectList, new { @class = "form-select", id = "department-section-select" })
         @Html.ValidationMessageFor(m => m.Section, "", new { @class = "text-danger small" })
-        <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a grade's Section also moves its classes that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
+        <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a year's Section also moves its classrooms that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
     </div>
     if (isGrade)
     {

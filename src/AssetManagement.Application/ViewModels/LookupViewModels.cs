@@ -189,12 +189,15 @@ namespace AssetManagement.Application.ViewModels
         /// </summary>
         public int? LockedParentDepartmentId { get; set; }
 
+        [Display(Name = "Year number")]
         public int? GradeNumber { get; set; }
 
         public string SelectedStreams { get; set; }
 
+        [Display(Name = "From year")]
         public int BulkGradeFrom { get; set; } = 1;
 
+        [Display(Name = "To year")]
         public int BulkGradeTo { get; set; } = 6;
 
         public string BulkStreams { get; set; } = "A,B,C,D";

@@ -131,7 +131,7 @@
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3 border-bottom border-light">
                                     <span>
-                                        <span class="fw-bold text-dark">@dept.DepartmentName</span> 
+                                        <span class="fw-bold text-dark">@GradeDisplay.ToYear(dept.DepartmentName)</span> 
                                         <span class="badge bg-light text-muted ms-2 rounded-pill">@dept.AssetCount assets</span>
                                     </span>
                                     <strong class="text-primary">@Html.FormatCurrency(dept.BookValue, 0)</strong>

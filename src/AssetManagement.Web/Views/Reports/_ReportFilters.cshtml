@@ -54,7 +54,7 @@
                 {
                     <div class="form-check form-check-sm mb-0">
                         <input class="form-check-input" type="checkbox" value="@item.Id" id="dept-@key-@item.Id" />
-                        <label class="form-check-label small" for="dept-@key-@item.Id">@item.Name</label>
+                        <label class="form-check-label small" for="dept-@key-@item.Id">@GradeDisplay.ToYear(item.Name)</label>
                     </div>
                 }
             </div>
