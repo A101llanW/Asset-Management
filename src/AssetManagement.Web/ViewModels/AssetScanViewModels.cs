@@ -16,6 +16,9 @@ namespace AssetManagement.Web.ViewModels
 
         public bool IsPublicScan { get; set; }
 
+        /// <summary>rel1027: signed in, but the asset is outside the user's department scope; only the public card is shown.</summary>
+        public bool OutsideYourDepartments { get; set; }
+
         public bool CanViewAssetDetails { get; set; }
 
         public bool CanOpenQuickActions { get; set; }

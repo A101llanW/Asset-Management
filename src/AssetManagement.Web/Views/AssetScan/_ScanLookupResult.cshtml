@@ -66,6 +66,10 @@
                     }
                 </div>
             }
+            else if (Model.OutsideYourDepartments)
+            {
+                <p class="am-scan-card-signin small text-muted mt-3 mb-0" data-am-scan-outside-scope="1">This asset is outside your departments, so only the public details are shown.</p>
+            }
             else if (!Request.IsAuthenticated)
             {
                 <p class="am-scan-card-signin small text-muted mt-3 mb-0">Staff: sign in to see full details and actions for this asset.</p>

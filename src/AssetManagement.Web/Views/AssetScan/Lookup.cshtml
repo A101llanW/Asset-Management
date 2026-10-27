@@ -46,7 +46,7 @@
             </div>
         </div>
 
-        <h2 class="am-scan-heading">@(scanResultFirst ? "Look up another asset" : "Asset Lookup")</h2>
+        <h2 class="am-scan-heading">@(scanResultFirst && Model.IsPublicScan ? "Look up another asset" : "Asset Lookup")</h2>
         <p class="am-scan-subtext">Scan a label or search using any asset detail below.</p>
 
         <div class="am-scan-camera-section">

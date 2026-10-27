@@ -344,13 +344,29 @@ namespace AssetManagement.Web.Controllers
                 }
             }
 
+            // rel1027: a signed-in user whose department scope hides this asset still gets the PUBLIC card
+            // (same as a signed-out viewer: no names, e-mails, cost or supplier, no actions) instead of "not found".
+            var outsideScope = false;
+            if (!lookup.Found && canViewDetails && !string.IsNullOrWhiteSpace(term)
+                && (searchResults == null || searchResults.TotalCount == 0))
+            {
+                var unscoped = TryUnscopedScanLookup(term);
+                if (unscoped.Found)
+                {
+                    lookup = unscoped;
+                    searchResults = null;
+                    outsideScope = true;
+                }
+            }
+
             var pageModel = new AssetScanLookupPageVm
             {
                 Lookup = lookup,
+                OutsideYourDepartments = outsideScope,
                 SearchResults = searchResults,
                 IsPublicScan = !canViewDetails,
-                CanViewAssetDetails = lookup.Found && canViewDetails,
-                CanOpenQuickActions = lookup.Found
+                CanViewAssetDetails = lookup.Found && canViewDetails && !outsideScope,
+                CanOpenQuickActions = lookup.Found && !outsideScope
                     && AssetCustodyRules.HasAnyQuickAction(
                         lookup.CurrentStatus,
                         canAssign,
@@ -366,7 +382,7 @@ namespace AssetManagement.Web.Controllers
 
             if (lookup.Found)
             {
-                var viewer = new AssetScanViewer
+                var viewer = outsideScope ? AssetScanViewer.Anonymous : new AssetScanViewer
                 {
                     IsSignedIn = isAuthenticated,
                     CanViewAssetDetails = canViewDetails,
@@ -396,6 +412,18 @@ namespace AssetManagement.Web.Controllers
             return pageModel;
         }
 
+        private AssetScanLookupVm TryUnscopedScanLookup(string term)
+        {
+            try
+            {
+                return _assetService.LookupByScanCode(term, applyDepartmentScope: false, includeDetails: true);
+            }
+            catch (BusinessException ex)
+            {
+                return new AssetScanLookupVm { Found = false, Message = ex.Message };
+            }
+        }
+
         private AssetScanLookupVm TryScanLookup(string term, bool canViewDetails)
         {
             try
@@ -416,7 +444,7 @@ namespace AssetManagement.Web.Controllers
         private object ToJsonPayload(AssetScanLookupPageVm page)
         {
             var lookup = page.Lookup;
-            if (page.IsPublicScan)
+            if (page.IsPublicScan || page.OutsideYourDepartments)
             {
                 // rel1027: the viewer-filtered card only (no e-mail, cost, supplier or ids for signed-out viewers).
                 return new

@@ -355,5 +355,14 @@ namespace AssetManagement.Tests.Assets
             StringAssert.DoesNotContain("[Authorize]", before, "the QR target must stay reachable without login");
             StringAssert.Contains("AssetScanPhotoRules.IsAllowedContentType", controller);
         }
+
+        [Test]
+        public void SignedInOutsideScope_GetsThePublicCardOnly()
+        {
+            var controller = RepoFile("src", "AssetManagement.Web", "Controllers", "AssetScanController.cs");
+            StringAssert.Contains("outsideScope ? AssetScanViewer.Anonymous", controller, "out-of-scope viewers get the anonymous card (no names, cost, supplier)");
+            StringAssert.Contains("CanOpenQuickActions = lookup.Found && !outsideScope", controller);
+            StringAssert.Contains("page.IsPublicScan || page.OutsideYourDepartments", controller, "JSON for out-of-scope viewers is the public shape");
+        }
     }
 }
