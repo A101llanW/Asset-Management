@@ -1,4 +1,6 @@
-/* rel1009i: PO lines from a requisition - clamp order qty to outstanding, line/grand totals, sub-type filter by type. */
+/* rel1009i: PO lines from a requisition - clamp order qty to outstanding, line/grand totals, sub-type filter by type.
+   C3 (migration 108): a line pre-filled from the requisition shows its classification read-only with an Edit button;
+   the type / sub-type selects stay disabled (not posted) until Edit, and Cancel restores the prefill. */
 (function () {
     "use strict";
 
@@ -11,6 +13,10 @@
         var typeSelect = row.querySelector(".am-po-type");
         var subSelect = row.querySelector(".am-po-subtype");
         if (!typeSelect || !subSelect) {
+            return;
+        }
+        if (typeSelect.disabled) {
+            subSelect.disabled = true; // prefilled line not in Edit mode: nothing is posted
             return;
         }
         var typeId = typeSelect.value;
@@ -26,6 +32,39 @@
             }
         });
         subSelect.disabled = !typeId;
+        subSelect.required = subSelect.getAttribute("data-am-subtype-required") === "true" && !subSelect.disabled;
+    }
+
+    function setEditing(row, editing) {
+        var editor = row.querySelector(".am-po-class-editor");
+        var readonly = row.querySelector(".am-po-class-readonly");
+        if (!editor || editor.getAttribute("data-am-prefilled") !== "true") {
+            return;
+        }
+        var typeSelect = editor.querySelector(".am-po-type");
+        var subSelect = editor.querySelector(".am-po-subtype");
+        if (!editing) {
+            // Back to the requisition's classification; disabled selects are not posted.
+            if (typeSelect) {
+                typeSelect.value = editor.getAttribute("data-am-prefill-type") || "";
+            }
+            if (subSelect) {
+                subSelect.value = editor.getAttribute("data-am-prefill-subtype") || "";
+                subSelect.required = false;
+            }
+        }
+        if (typeSelect) {
+            typeSelect.disabled = !editing;
+            typeSelect.required = editing;
+        }
+        editor.classList.toggle("d-none", !editing);
+        if (readonly) {
+            readonly.classList.toggle("d-none", editing);
+        }
+        filterSubTypes(row);
+        if (editing && typeSelect) {
+            typeSelect.focus();
+        }
     }
 
     function recalc(table) {
@@ -68,13 +107,31 @@
             return;
         }
         table.addEventListener("input", function () { recalc(table); });
+        table.addEventListener("click", function (e) {
+            var target = e.target;
+            if (!target || !target.closest) {
+                return;
+            }
+            if (target.closest(".am-po-class-edit")) {
+                setEditing(target.closest("tr"), true);
+            } else if (target.closest(".am-po-class-cancel")) {
+                setEditing(target.closest("tr"), false);
+            }
+        });
         table.addEventListener("change", function (e) {
             if (e.target && e.target.classList.contains("am-po-type")) {
                 filterSubTypes(e.target.closest("tr"));
             }
             recalc(table);
         });
-        Array.prototype.forEach.call(table.querySelectorAll("tbody tr"), filterSubTypes);
+        Array.prototype.forEach.call(table.querySelectorAll("tbody tr"), function (row) {
+            var editor = row.querySelector(".am-po-class-editor");
+            var typeSelect = editor ? editor.querySelector(".am-po-type") : null;
+            if (typeSelect && editor.getAttribute("data-am-prefilled") === "true" && !typeSelect.disabled) {
+                typeSelect.required = true; // redisplay with Edit open
+            }
+            filterSubTypes(row);
+        });
         recalc(table);
         // A supplier offer "Select" (purchase-create.js) writes #UnitCost via jQuery without an input event.
         var observerTarget = document.getElementById("UnitCost");

@@ -598,12 +598,14 @@ namespace AssetManagement.Application.Services
                             }
 
                             createdAssets.Add(new ReceiveCreatedAssetVm { AssetId = assetId, AssetTag = asset?.AssetTag, SerialNumber = serial });
+                            plan.CreatedAssetIds.Add(assetId);
                         }
 
                         summary.Add(plan.Label + " x" + plan.Input.QuantityReceived + " -> "
                             + (plan.Destination == null ? "store (company custody)" : plan.Destination.Name)
                             + " [" + plan.Condition + "]"
-                            + (plan.NoSubTypesDefined ? " [no sub-type: type has none defined]" : string.Empty));
+                            + (plan.NoSubTypesDefined ? " [no sub-type: type has none defined]" : string.Empty)
+                            + (plan.ClassificationBefore != null ? " [classification changed at receiving]" : string.Empty));
                     }
 
                     // PO status: Received once nothing is outstanding (ReceivedDate stamped); otherwise Partially Received.
@@ -638,6 +640,21 @@ namespace AssetManagement.Application.Services
                     + " | " + string.Join("; ", summary)
                     + " | status " + statusText
                     + " | assets " + string.Join(",", createdAssets.Select(x => x.AssetId)));
+
+            // C3: one audit row per line whose classification the receiver changed (old vs new, PO line, receipt, assets).
+            foreach (var plan in plans.Where(x => x.ClassificationBefore != null))
+            {
+                _auditWriter?.Write(
+                    PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving,
+                    plan.Line != null ? nameof(PurchaseOrderLine) : nameof(PurchaseRecord),
+                    plan.Line != null ? plan.Line.Id.ToString() : purchase.Id.ToString(),
+                    ledger.DescribeForAudit(plan.ClassificationBefore),
+                    ledger.DescribeForAudit(plan.Classification)
+                        + " | PO " + (purchase.PurchaseOrderNumber ?? purchase.Id.ToString()) + " " + plan.Label
+                        + " | receipt " + (receivingId > 0 ? receivingId.ToString() : "?")
+                        + " | was from " + (PurchaseOrderLedger.DescribeSource(plan.ClassificationBefore.Source) ?? "purchase order")
+                        + " | assets " + string.Join(",", plan.CreatedAssetIds));
+            }
 
             NotifyRequisitionReceipt(request, purchase, createdAssets.Count, statusText);
             return new ReceiveResultVm { ReceivingId = receivingId, CreatedAssets = createdAssets };
@@ -680,7 +697,20 @@ namespace AssetManagement.Application.Services
             var input = plan.Input;
             if (classification != null && classification.HasType)
             {
-                // Source wins for the type (posted type is ignored) and for the sub-type when it has one.
+                // C3 (Allan 2026-10-27): the source classification is a prefill shown read-only with an Edit button. A
+                // posted type (only sent after Edit) that differs from it replaces it after validation and is audit-logged.
+                if (input.OverrideAssetTypeId.HasValue && input.OverrideAssetTypeId.Value > 0)
+                {
+                    var posted = new PurchaseLineClassification { AssetTypeId = input.OverrideAssetTypeId, AssetSubTypeId = input.OverrideAssetSubTypeId };
+                    if (!PurchaseOrderLedger.SameClassification(classification, posted))
+                    {
+                        var edited = ledger.ValidateEditedClassification(purchase.OrganizationId, input.OverrideAssetTypeId, input.OverrideAssetSubTypeId, plan.Label, PurchaseOrderLedger.SourceEditedAtReceiving);
+                        plan.ClassificationBefore = classification;
+                        return edited;
+                    }
+                }
+
+                // Otherwise the source wins for the type and for the sub-type when it has one.
                 return RequireSubType(ledger, classification, input.OverrideAssetSubTypeId, plan);
             }
 
@@ -858,6 +888,11 @@ namespace AssetManagement.Application.Services
 
             /// <summary>The line's type has no active sub-types, so the unit is received without one.</summary>
             public bool NoSubTypesDefined { get; set; }
+
+            /// <summary>C3: the PO line / requisition classification before the receiver changed it with Edit (null = not changed).</summary>
+            public PurchaseLineClassification ClassificationBefore { get; set; }
+
+            public IList<int> CreatedAssetIds { get; } = new List<int>();
         }
 
         private static IList<ReceiveAssetUnitVm> BuildReceiveUnits(AssetReceiveVm model)

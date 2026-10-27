@@ -79,6 +79,8 @@
                         <label class="form-label mb-1">Category / type / sub-type <span class="text-danger" title="Required">*</span></label>
                         @if (!line.NeedsClassification)
                         {
+                            var editing = line.ClassificationEdited;
+                            @:<div class="am-recv-class-readonly@(editing ? " d-none" : "")">
                             <div class="form-control-plaintext py-0 fw-medium am-classification-readonly">
                                 @(string.Join(" > ", new[] { line.AssetCategoryName, line.AssetTypeName, line.AssetSubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x))))
                                 @if (line.TypeHasNoSubTypes)
@@ -90,7 +92,7 @@
                             if (line.NeedsSubType)
                             {
                                 <label class="form-label mt-2 mb-1" for="receive-subtype-@i">Sub-type <span class="text-danger" title="Required">*</span></label>
-                                <select class="form-select am-po-subtype am-required-subtype" id="receive-subtype-@i" name="Lines[@i].OverrideAssetSubTypeId" data-am-type-id="@line.AssetTypeId" data-am-subtype-required="true" required="required" aria-label="Sub-type (required)">
+                                <select class="form-select am-po-subtype am-required-subtype" id="receive-subtype-@i" name="Lines[@i].OverrideAssetSubTypeId" data-am-type-id="@line.AssetTypeId" data-am-subtype-required="true" required="required" aria-label="Sub-type (required)" @(editing ? "disabled" : "")>
                                     <option value="">-- Sub-type (required) --</option>
                                     @foreach (var st in subTypeOptions.Where(s => line.AssetTypeId.HasValue && s.ParentId == line.AssetTypeId.Value))
                                     {
@@ -107,6 +109,52 @@
                                 <div class="invalid-feedback">Choose a sub-type: it is required to receive goods.</div>
                                 <div class="form-text">The source sets the type only; choose the sub-type. Add missing sub-types under Asset Categories first.</div>
                             }
+                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2 am-recv-class-edit">Edit</button>
+                            @:</div>
+                            <div class="am-recv-class-editor@(editing ? "" : " d-none")" data-am-prefill-type="@line.AssetTypeId" data-am-prefill-subtype="@line.AssetSubTypeId">
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <select class="form-select am-edit-type" name="Lines[@i].OverrideAssetTypeId" aria-label="Asset type" @(editing ? "" : "disabled")>
+                                            <option value="">-- Asset type --</option>
+                                            @foreach (var grp in typeOptions.GroupBy(t => t.GroupName ?? "Other"))
+                                            {
+                                                <optgroup label="@grp.Key">
+                                                    @foreach (var t in grp)
+                                                    {
+                                                        if ((editing ? line.OverrideAssetTypeId : line.AssetTypeId) == t.Id)
+                                                        {
+                                                            <option value="@t.Id" selected="selected">@t.Name</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@t.Id">@t.Name</option>
+                                                        }
+                                                    }
+                                                </optgroup>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <select class="form-select am-edit-subtype" name="Lines[@i].OverrideAssetSubTypeId" aria-label="Sub-type (required)" @(editing ? "" : "disabled")>
+                                            <option value="">-- Sub-type (required) --</option>
+                                            @foreach (var st in subTypeOptions)
+                                            {
+                                                if ((editing ? line.OverrideAssetSubTypeId : line.AssetSubTypeId) == st.Id)
+                                                {
+                                                    <option value="@st.Id" data-type-id="@st.ParentId" selected="selected">@st.Name</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@st.Id" data-type-id="@st.ParentId">@st.Name</option>
+                                                }
+                                            }
+                                        </select>
+                                        <div class="invalid-feedback">Choose a sub-type: it is required to receive goods.</div>
+                                    </div>
+                                </div>
+                                <div class="form-text">Category follows the type. The sub-type is required. The new asset gets this classification (the purchase order line keeps its own), and the change is recorded in the audit log.</div>
+                                <button type="button" class="btn btn-link btn-sm p-0 am-recv-class-cancel">Cancel (keep the purchase order's)</button>
+                            </div>
                         }
                         else
                         {

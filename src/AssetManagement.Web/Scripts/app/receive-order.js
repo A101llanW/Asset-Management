@@ -1,4 +1,6 @@
-/* rel1009i: receiving screen - per line destination / tag mode toggles, serial and tag counts vs quantity, qty clamp. */
+/* rel1009i: receiving screen - per line destination / tag mode toggles, serial and tag counts vs quantity, qty clamp.
+   C3 (migration 108): a classified line shows Edit; the editor's type / sub-type selects are disabled (not posted)
+   until Edit, and while editing the read-only sub-type select is disabled so only one value is posted. */
 (function () {
     "use strict";
 
@@ -44,9 +46,17 @@
             serialCount.className = "form-text am-serial-count" + (n > 0 && n !== qty ? " text-danger" : "");
         }
 
+        updateEditor(card, qty);
+
         // Sub-type is required: the type comes from the override select or, when a source set it, from data-am-type-id.
         var typeSelect = card.querySelector(".am-po-type");
         var subSelect = card.querySelector(".am-po-subtype");
+        if (subSelect && isEditing(card)) {
+            subSelect.disabled = true; // the Edit panel posts the classification instead
+            subSelect.required = false;
+            subSelect.classList.remove("is-invalid");
+            subSelect = null;
+        }
         if (typeSelect) {
             typeSelect.required = qty > 0;
         }
@@ -82,9 +92,65 @@
         }
     }
 
+    function isEditing(card) {
+        var editor = card.querySelector(".am-recv-class-editor");
+        return !!editor && !editor.classList.contains("d-none");
+    }
+
+    function updateEditor(card, qty) {
+        var editor = card.querySelector(".am-recv-class-editor");
+        if (!editor) {
+            return;
+        }
+        var editing = isEditing(card);
+        var typeSelect = editor.querySelector(".am-edit-type");
+        var subSelect = editor.querySelector(".am-edit-subtype");
+        typeSelect.disabled = !editing;
+        typeSelect.required = editing && qty > 0;
+        var typeId = typeSelect.value;
+        Array.prototype.forEach.call(subSelect.options, function (opt) {
+            if (!opt.value) {
+                return;
+            }
+            var show = !!typeId && opt.getAttribute("data-type-id") === typeId;
+            opt.hidden = !show;
+            opt.disabled = !show;
+            if (!show && opt.selected) {
+                subSelect.value = "";
+            }
+        });
+        // Sub-type is always required after Edit; the server rejects a type with no active sub-types.
+        subSelect.disabled = !editing || !typeId;
+        subSelect.required = !subSelect.disabled && qty > 0;
+        if (!subSelect.required || subSelect.value) {
+            subSelect.classList.remove("is-invalid");
+        }
+    }
+
+    function setEditing(card, editing) {
+        var editor = card.querySelector(".am-recv-class-editor");
+        var readonly = card.querySelector(".am-recv-class-readonly");
+        if (!editor) {
+            return;
+        }
+        if (!editing) {
+            editor.querySelector(".am-edit-type").value = editor.getAttribute("data-am-prefill-type") || "";
+            editor.querySelector(".am-edit-subtype").value = editor.getAttribute("data-am-prefill-subtype") || "";
+        }
+        editor.classList.toggle("d-none", !editing);
+        if (readonly) {
+            readonly.classList.toggle("d-none", editing);
+            var ro = readonly.querySelector(".am-po-subtype");
+            if (ro && !editing) {
+                ro.disabled = false; // updateLine re-applies its rules
+            }
+        }
+        updateLine(card);
+    }
+
     function flagMissingSubTypes(form) {
         var missing = 0;
-        Array.prototype.forEach.call(form.querySelectorAll(".am-po-subtype"), function (sel) {
+        Array.prototype.forEach.call(form.querySelectorAll(".am-po-subtype, .am-edit-subtype"), function (sel) {
             if (sel.required && !sel.disabled && !sel.value) {
                 sel.classList.add("is-invalid");
                 missing++;
@@ -102,6 +168,17 @@
         Array.prototype.forEach.call(cards, function (card) {
             card.addEventListener("input", function () { updateLine(card); });
             card.addEventListener("change", function () { updateLine(card); });
+            card.addEventListener("click", function (e) {
+                var target = e.target;
+                if (!target || !target.closest) {
+                    return;
+                }
+                if (target.closest(".am-recv-class-edit")) {
+                    setEditing(card, true);
+                } else if (target.closest(".am-recv-class-cancel")) {
+                    setEditing(card, false);
+                }
+            });
             updateLine(card);
         });
         form.addEventListener("submit", function (e) {

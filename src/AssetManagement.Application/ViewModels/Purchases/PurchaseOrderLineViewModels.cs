@@ -26,14 +26,29 @@ namespace AssetManagement.Application.ViewModels
 
         public decimal UnitCost { get; set; }
 
+        /// <summary>
+        /// Posted only when the user pressed Edit (the selects are disabled until then). C3: a value that differs from the
+        /// requisition prefill replaces it after server-side validation and is audit-logged.
+        /// </summary>
         public int? AssetTypeId { get; set; }
 
         public int? AssetSubTypeId { get; set; }
 
         public string ClassificationLabel { get; set; }
 
-        /// <summary>True when the requisition (the line's tagged asset or type / sub-type) fixes the classification (not editable on the PO).</summary>
-        public bool ClassificationLocked { get; set; }
+        /// <summary>
+        /// C3 (Allan 2026-10-27): the requisition (the line's type / sub-type or its tagged asset) pre-fills the
+        /// classification. Shown read-only with an Edit button; editable, never locked.
+        /// </summary>
+        public bool ClassificationPrefilled { get; set; }
+
+        /// <summary>The requisition's prefill (to show the read-only label and detect a change on redisplay).</summary>
+        public int? PrefilledAssetTypeId { get; set; }
+
+        public int? PrefilledAssetSubTypeId { get; set; }
+
+        /// <summary>Redisplay after a failed save: the user had opened Edit and chose a different classification.</summary>
+        public bool ClassificationEdited { get; set; }
     }
 
     public class PurchaseRequisitionOptionVm
