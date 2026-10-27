@@ -1,5 +1,14 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 19:31 EAT - No-department users: default Assets/Assignments lists open org-wide - PUBLISHED to localhost:8080 (local IIS only, NOT live)
+
+- Build: main a942731 (contains d9a2eb0), stage C:\Users\allan\Desktop\Staged_nodept2_d9a2eb0. Approved by Allan (t721u, 19:15 EAT: "Yes publish"). One UAC prompt, accepted.
+- Site C:\inetpub\AssetManagement Web.dll SHA256 E332B3C293E7BE0A6B47A2E204DE53979D6BA646745CC7F9F19FC3C87AA44BDF (was EA8B9017...1F9D). Web.config hash unchanged; Views web.configs and smtp.secrets.config unchanged; 295 files hash-verified, 0 mismatches.
+- DB migration/script: none. DB backup (COPY_ONLY, CHECKSUM, VERIFYONLY ok): AssetManagementModuleDb_pre_nodept2_20261027_191605.bak in the SQLEXPRESS Backup folder.
+- Site backup: C:\inetpub\_backups\AssetManagement_root_pre_nodept2_20261027_193122.
+- Smoke (HTTP GET only, no print routes/printer): /Account/Login, /nis/Account/Login, /A46138179/Account/Login = 200, no error page; /A46138179/Assets = 302 to login.
+- Desktop\publish refreshed from the stage (previous moved to Desktop\publish_old_20261027_193202). Not copied to live nanosoft.africa; live DB and NIS data untouched.
+
 ## 2026-10-27 15:22 EAT - No-department users: default Assets/Assignments lists open org-wide - STAGED, NOT PUBLISHED
 
 - Commit (branch fix/no-dept-org-scope, local only, not pushed): d9a2eb0 on top of 31f1d6e. QA found the default Assets list showed 'No assets yet' for no-department users (ListRoleDefaultsHelper fell back to 'in my custody'). No-department tenant members now skip the list defaults (whole organisation, never another tenant), like Assets.ViewAll users. Same for Assignments list and batch-assign from filter. Users with a department unchanged.
