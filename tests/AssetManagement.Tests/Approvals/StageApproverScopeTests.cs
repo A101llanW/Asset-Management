@@ -164,9 +164,9 @@ namespace AssetManagement.Tests.Approvals
             uow.Seed(new SystemSetting { Id = 2, SettingKey = "Approval.Purchase.StageRoleIds", SettingValue = Hod.ToString(), IsActive = true });
         }
 
-        private static int SubmitRequisition(PurchaseRequestService service, int departmentId, string requester)
+        private static int SubmitRequisition(FakeUnitOfWork uow, PurchaseRequestService service, int departmentId, string requester)
         {
-            return service.Submit(new PurchaseRequestCreateVm
+            return service.SubmitCompleted(uow, new PurchaseRequestCreateVm
             {
                 DepartmentId = departmentId,
                 ItemDescription = "Beakers",
@@ -183,7 +183,7 @@ namespace AssetManagement.Tests.Approvals
             HodRequisitionFlow(uow);
             var users = Users();
             var outbox = new CapturingOutbox();
-            var id = SubmitRequisition(Requisitions(uow, users, outbox), 10, "staff-sci");
+            var id = SubmitRequisition(uow, Requisitions(uow, users, outbox), 10, "staff-sci");
 
             var approvers = outbox.RecipientsOf("Purchase approval required");
             CollectionAssert.AreEquivalent(new[] { "hod-sci-1", "hod-sci-2" }, approvers);
@@ -207,7 +207,7 @@ namespace AssetManagement.Tests.Approvals
             HodRequisitionFlow(uow);
             var users = Users();
             var outbox = new CapturingOutbox();
-            var id = SubmitRequisition(Requisitions(uow, users, outbox), 11, "staff-lab");
+            var id = SubmitRequisition(uow, Requisitions(uow, users, outbox), 11, "staff-lab");
 
             CollectionAssert.AreEquivalent(new[] { "hod-sci-1", "hod-sci-2" }, outbox.RecipientsOf("Purchase approval required"));
             Assert.Throws<BusinessException>(() => Requisitions(uow, users, outbox, "hod-arts")
@@ -223,7 +223,7 @@ namespace AssetManagement.Tests.Approvals
             HodRequisitionFlow(uow);
             var users = Users();
             var outbox = new CapturingOutbox();
-            var id = SubmitRequisition(Requisitions(uow, users, outbox), 11, "staff-lab");
+            var id = SubmitRequisition(uow, Requisitions(uow, users, outbox), 11, "staff-lab");
 
             Func<string, int, PurchaseRequestService> scoped = (user, dept) => new PurchaseRequestService(
                 uow, new NoOpAuditWriter(), users, new StrictDepartmentScopeService(dept), new FakeOrganizationScopeService(organizationId: 1),

@@ -257,7 +257,7 @@ namespace AssetManagement.Tests.Requisitions
             var outbox = new CapturingOutbox();
             var service = BuildRequestService(unitOfWork, users, outbox);
 
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 50, ItemDescription = "Microscope", Justification = "Lab", Quantity = 1, Currency = "KES"
             }, "requester");
@@ -441,7 +441,7 @@ namespace AssetManagement.Tests.Requisitions
             var users = SeedUsers();
             var outbox = new CapturingOutbox();
             var service = BuildRequestService(unitOfWork, users, outbox);
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 3, ItemDescription = "Beakers", Justification = "Lab", Quantity = 1, Currency = "KES"
             }, "requester");
@@ -463,7 +463,7 @@ namespace AssetManagement.Tests.Requisitions
             room.CustomStageRoleIds = ProcManagerRole.ToString();
             var outbox = new CapturingOutbox();
             var service = BuildRequestService(unitOfWork, SeedUsers(), outbox);
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 3, ItemDescription = "Beakers", Justification = "Lab", Quantity = 1, Currency = "KES"
             }, "requester");
