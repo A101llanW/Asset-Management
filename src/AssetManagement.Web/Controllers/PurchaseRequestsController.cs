@@ -100,6 +100,64 @@ namespace AssetManagement.Web.Controllers
             return View(model);
         }
 
+        /// <summary>
+        /// Legacy single-item post (no Lines): the header fields become line 1, including the item / asset name
+        /// (migration 108), so the name the user typed is not lost.
+        /// </summary>
+        public static void EnsureLegacyLine(PurchaseRequestCreateVm model)
+        {
+            if (model == null || (model.Lines != null && model.Lines.Count > 0))
+            {
+                return;
+            }
+
+            model.Lines = new List<PurchaseRequestLineCreateVm>
+            {
+                new PurchaseRequestLineCreateVm
+                {
+                    ItemName = model.ItemName,
+                    Description = model.ItemDescription,
+                    Quantity = model.Quantity > 0 ? model.Quantity : 1
+                }
+            };
+        }
+
+        /// <summary>
+        /// Migration 108: tags are per line. An older link / asset request posting the header tag shows it on the first
+        /// line that has a description (the service drops blank rows, so a tag parked on a blank row 0 would be lost);
+        /// with no described line it goes to row 0 so the re-rendered form still shows it. When no line is tagged the
+        /// header tag is left in place for the service, which applies it to the first effective line.
+        /// </summary>
+        public static void MoveHeaderTagToLine(PurchaseRequestCreateVm model)
+        {
+            if (model == null || model.Lines == null || model.Lines.Count == 0)
+            {
+                return;
+            }
+
+            if (!model.TargetAssetId.HasValue || model.TargetAssetId.Value <= 0)
+            {
+                model.TargetAssetId = null;
+                return;
+            }
+
+            if (model.Lines.Any(x => x != null && x.TargetAssetId.HasValue && x.TargetAssetId.Value > 0))
+            {
+                model.TargetAssetId = null;
+                return;
+            }
+
+            var target = model.Lines.FirstOrDefault(x => x != null && !string.IsNullOrWhiteSpace(x.Description))
+                ?? model.Lines.FirstOrDefault(x => x != null);
+            if (target == null)
+            {
+                return;
+            }
+
+            target.TargetAssetId = model.TargetAssetId;
+            model.TargetAssetId = null;
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize("Purchases.Create")]
@@ -118,17 +176,7 @@ namespace AssetManagement.Web.Controllers
             // "Order by" was removed from the requisition page (Allan, 2026-10-09); never accept a posted value.
             model.OrderByUserId = null;
 
-            if (model.Lines == null || model.Lines.Count == 0)
-            {
-                model.Lines = new List<PurchaseRequestLineCreateVm>
-                {
-                    new PurchaseRequestLineCreateVm
-                    {
-                        Description = model.ItemDescription,
-                        Quantity = model.Quantity > 0 ? model.Quantity : 1
-                    }
-                };
-            }
+            EnsureLegacyLine(model);
 
             PopulateCreateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
@@ -435,20 +483,8 @@ namespace AssetManagement.Web.Controllers
             // Migration 108: tags are per line. An older link / asset request posting the header tag shows it on line 1.
             if (model != null)
             {
-                if (model.Lines == null || model.Lines.Count == 0)
-                {
-                    model.Lines = new List<PurchaseRequestLineCreateVm> { new PurchaseRequestLineCreateVm { Description = model.ItemDescription, Quantity = 1 } };
-                }
-
-                if (model.TargetAssetId.HasValue
-                    && model.TargetAssetId.Value > 0
-                    && !model.Lines.Any(x => x != null && x.TargetAssetId.HasValue && x.TargetAssetId.Value > 0)
-                    && model.Lines[0] != null)
-                {
-                    model.Lines[0].TargetAssetId = model.TargetAssetId;
-                }
-
-                model.TargetAssetId = null;
+                EnsureLegacyLine(model);
+                MoveHeaderTagToLine(model);
             }
 
             var lineTargetLabels = new Dictionary<int, string>();
