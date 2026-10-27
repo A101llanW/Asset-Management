@@ -125,7 +125,8 @@ namespace AssetManagement.Web.Controllers
                 AssetSubTypeId = PrintCandidateQuery.NormalizeId(assetSubTypeId),
                 Status = status,
                 Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-                OrganizationWide = true,
+                // Review fix S9: printable assets follow the user's department scope (Assets.ViewAll = whole organization).
+                OrganizationWide = false,
                 CreatedFromUtc = query.CreatedFromUtc,
                 CreatedToUtcExclusive = query.CreatedToUtcExclusive,
                 AssignedFromUtc = query.AssignedFromUtc,

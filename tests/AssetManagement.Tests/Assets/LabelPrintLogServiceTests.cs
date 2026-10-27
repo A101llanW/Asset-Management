@@ -424,6 +424,24 @@ namespace AssetManagement.Tests.Assets
                 .CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301 } }, "user-a"));
         }
 
+        [Test]
+        public void Scope_PrintCandidates_IsNotOrganizationWide()
+        {
+            var dir = TestContext.CurrentContext.TestDirectory;
+            while (dir != null && !File.Exists(Path.Combine(dir, "AssetManagementModule.sln")))
+            {
+                dir = Path.GetDirectoryName(dir);
+            }
+
+            Assert.IsNotNull(dir, "repo root");
+            var controller = File.ReadAllText(Path.Combine(dir, "src", "AssetManagement.Web", "Controllers", "AssetScanController.cs"));
+            var start = controller.IndexOf("public JsonResult PrintCandidates(", StringComparison.Ordinal);
+            var end = controller.IndexOf("GetAssetListPage(", start, StringComparison.Ordinal);
+            var body = controller.Substring(start, end - start);
+            StringAssert.Contains("OrganizationWide = false", body);
+            StringAssert.DoesNotContain("OrganizationWide = true", body);
+        }
+
         private sealed class FakeDeptScope : IDepartmentScopeService
         {
             public bool BypassesDepartmentScope { get; set; }
