@@ -8,6 +8,12 @@ namespace AssetManagement.Application.Contracts
         public int AssetId { get; set; }
         public string AssetTag { get; set; }
         public string AssetName { get; set; }
+
+        /// <summary>Asset's department (for the department scope of the print log).</summary>
+        public int? DepartmentId { get; set; }
+
+        /// <summary>True when the asset's department is an active Class department.</summary>
+        public bool DepartmentIsActiveClass { get; set; }
     }
 
     public class LabelPrintBatchCreate
@@ -56,6 +62,8 @@ namespace AssetManagement.Application.Contracts
         public string AssetTag { get; set; }
         public string AssetName { get; set; }
         public bool AssetIsActive { get; set; }
+        public int? DepartmentId { get; set; }
+        public bool DepartmentIsActiveClass { get; set; }
         public int PrintCount { get; set; }
         public DateTime? LastPrintedAtUtc { get; set; }
     }

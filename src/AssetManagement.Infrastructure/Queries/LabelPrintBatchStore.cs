@@ -35,7 +35,7 @@ namespace AssetManagement.Infrastructure.Queries
                 using (var connection = Open())
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = "SELECT a.[Id], a.[AssetTag], a.[AssetName] FROM [dbo].[Asset] a WHERE a.[OrganizationId] = @Org AND a.[IsActive] = 1 AND a.[Id] IN (" + AddIntList(command, "@a", chunk) + ")";
+                    command.CommandText = "SELECT a.[Id], a.[AssetTag], a.[AssetName], a.[DepartmentId], CAST(CASE WHEN d.[IsActive] = 1 AND d.[DepartmentKind] = 2 THEN 1 ELSE 0 END AS bit) FROM [dbo].[Asset] a LEFT JOIN [dbo].[Department] d ON d.[Id] = a.[DepartmentId] WHERE a.[OrganizationId] = @Org AND a.[IsActive] = 1 AND a.[Id] IN (" + AddIntList(command, "@a", chunk) + ")";
                     command.Parameters.Add("@Org", SqlDbType.Int).Value = organizationId;
                     using (var reader = command.ExecuteReader())
                     {
@@ -45,7 +45,9 @@ namespace AssetManagement.Infrastructure.Queries
                             {
                                 AssetId = reader.GetInt32(0),
                                 AssetTag = reader.IsDBNull(1) ? null : reader.GetString(1),
-                                AssetName = reader.IsDBNull(2) ? null : reader.GetString(2)
+                                AssetName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                                DepartmentId = reader.IsDBNull(3) ? (int?)null : reader.GetInt32(3),
+                                DepartmentIsActiveClass = !reader.IsDBNull(4) && reader.GetBoolean(4)
                             });
                         }
                     }
@@ -195,10 +197,12 @@ WHERE a.[Id] = @Asset AND a.[OrganizationId] = @Org
             using (var command = connection.CreateCommand())
             {
                 command.CommandText = @"
-SELECT i.[AssetId], COALESCE(a.[AssetTag], i.[AssetTag]), a.[AssetName], CAST(CASE WHEN a.[IsActive] = 1 AND a.[OrganizationId] = @Org THEN 1 ELSE 0 END AS bit), i.[PrintCount], i.[LastPrintedAt]
+SELECT i.[AssetId], COALESCE(a.[AssetTag], i.[AssetTag]), a.[AssetName], CAST(CASE WHEN a.[IsActive] = 1 AND a.[OrganizationId] = @Org THEN 1 ELSE 0 END AS bit), i.[PrintCount], i.[LastPrintedAt],
+       a.[DepartmentId], CAST(CASE WHEN d.[IsActive] = 1 AND d.[DepartmentKind] = 2 THEN 1 ELSE 0 END AS bit)
 FROM [dbo].[LabelPrintBatchItem] i
 INNER JOIN [dbo].[LabelPrintBatch] b ON b.[Id] = i.[BatchId] AND b.[OrganizationId] = @Org
 LEFT JOIN [dbo].[Asset] a ON a.[Id] = i.[AssetId]
+LEFT JOIN [dbo].[Department] d ON d.[Id] = a.[DepartmentId]
 WHERE i.[BatchId] = @Batch AND i.[OrganizationId] = @Org
 ORDER BY i.[SortOrder], i.[Id]";
                 command.Parameters.Add("@Org", SqlDbType.Int).Value = organizationId;
@@ -214,7 +218,9 @@ ORDER BY i.[SortOrder], i.[Id]";
                             AssetName = reader.IsDBNull(2) ? null : reader.GetString(2),
                             AssetIsActive = !reader.IsDBNull(3) && reader.GetBoolean(3),
                             PrintCount = reader.GetInt32(4),
-                            LastPrintedAtUtc = reader.IsDBNull(5) ? (DateTime?)null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)
+                            LastPrintedAtUtc = reader.IsDBNull(5) ? (DateTime?)null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc),
+                            DepartmentId = reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6),
+                            DepartmentIsActiveClass = !reader.IsDBNull(7) && reader.GetBoolean(7)
                         });
                     }
                 }

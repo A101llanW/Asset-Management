@@ -382,13 +382,15 @@ namespace AssetManagement.Web.Controllers
 
             if (lookup.Found)
             {
-                var viewer = outsideScope ? AssetScanViewer.Anonymous : new AssetScanViewer
-                {
-                    IsSignedIn = isAuthenticated,
-                    CanViewAssetDetails = canViewDetails,
-                    CanViewFinancials = isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Financials.View"),
-                    CanViewSuppliers = isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Suppliers.View")
-                };
+                // Review fix S6: signed out, signed in without Assets.View, or outside scope
+                // all get the public card; only Assets.View in scope sees the custodian, cost (Financials.View) and supplier.
+                var viewer = AssetScanViewer.Resolve(
+                    isAuthenticated,
+                    canViewDetails,
+                    outsideScope,
+                    isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Financials.View"),
+                    isAuthenticated && _authorizationService != null && _authorizationService.HasPermission(userId, "Suppliers.View"),
+                    HideSerialFromPublic());
                 pageModel.Card = AssetScanCardBuilder.Build(lookup, viewer);
                 pageModel.StatusBadgeClass = StatusHtmlHelpers.ToBadgeClass(lookup.CurrentStatus);
                 if (pageModel.Card != null && pageModel.Card.HasPhoto)
@@ -410,6 +412,19 @@ namespace AssetManagement.Web.Controllers
             }
 
             return pageModel;
+        }
+
+        /// <summary>
+        /// Review S8 switch: Web.config appSetting "AssetScan:HideSerialFromPublic" = "true" hides the serial number from
+        /// viewers without Assets.View. Missing or anything else = shown (current behaviour).
+        /// </summary>
+        public const string HideSerialFromPublicSetting = "AssetScan:HideSerialFromPublic";
+
+        private static bool HideSerialFromPublic()
+        {
+            bool value;
+            var raw = System.Configuration.ConfigurationManager.AppSettings[HideSerialFromPublicSetting];
+            return bool.TryParse((raw ?? string.Empty).Trim(), out value) && value;
         }
 
         private AssetScanLookupVm TryUnscopedScanLookup(string term)
@@ -552,8 +567,18 @@ namespace AssetManagement.Web.Controllers
                 && _authorizationService != null
                 && _authorizationService.HasPermission(User.GetUserId(), "Assets.View");
             var lookup = TryScanLookup(term, canViewDetails);
+            var mayViewAnyPhotoType = canViewDetails;
+            if ((lookup == null || !lookup.Found) && canViewDetails)
+            {
+                // Same as the page: outside the user's departments = the public card, so only the public photo type.
+                lookup = TryUnscopedScanLookup(term);
+                mayViewAnyPhotoType = false;
+            }
+
+            // Review fix S7: without Assets.View only "Asset photo..." documents are served (no serial-plate or location photos).
             if (lookup == null || !lookup.Found || string.IsNullOrWhiteSpace(lookup.PhotoFilePath)
-                || !AssetScanPhotoRules.IsAllowedContentType(lookup.PhotoContentType))
+                || !AssetScanPhotoRules.IsAllowedContentType(lookup.PhotoContentType)
+                || !AssetScanPhotoRules.MayServe(lookup.PhotoDocumentType, mayViewAnyPhotoType))
             {
                 return HttpNotFound();
             }

@@ -44,6 +44,7 @@ namespace AssetManagement.Tests.Assets
                 SupplierName = "Acme Furniture Ltd",
                 PhotoFilePath = "uploads/assets/42/photo.jpg",
                 PhotoContentType = "image/jpeg",
+                PhotoDocumentType = "Asset photo",
                 LocationPath = new List<AssetScanLocationLevel>
                 {
                     new AssetScanLocationLevel { Name = "Academics", Kind = DepartmentKind.Administrative },
@@ -356,11 +357,89 @@ namespace AssetManagement.Tests.Assets
             StringAssert.Contains("AssetScanPhotoRules.IsAllowedContentType", controller);
         }
 
+        // ---- review fixes S6 / S7 / S8 ----
+
+        [Test]
+        public void S6_SignedInWithoutAssetsView_GetsThePublicCard_NoCustodianCostOrSupplier()
+        {
+            var lookup = SampleLookup();
+            lookup.CustodianUserId = "u-1";
+            lookup.CustodianPersonName = "Jane Teacher";
+            var viewer = AssetScanViewer.Resolve(isAuthenticated: true, canViewDetails: false, outsideScope: false, canViewFinancials: true, canViewSuppliers: true, hideSerialFromPublic: false);
+
+            Assert.IsFalse(viewer.IsSignedIn);
+            Assert.IsFalse(viewer.CanViewAssetDetails);
+            var card = AssetScanCardBuilder.Build(lookup, viewer);
+            var text = AllText(card);
+            StringAssert.DoesNotContain("Jane Teacher", text);
+            StringAssert.DoesNotContain("teacher@example.com", text);
+            StringAssert.DoesNotContain("12,500", text);
+            StringAssert.DoesNotContain("Acme", text);
+            Assert.IsNull(Row(card, "custodian"));
+            Assert.AreEqual("In Room 12", Row(card, "where"));
+        }
+
+        [Test]
+        public void S6_Resolve_OnlyAssetsViewInScopeIsSignedIn()
+        {
+            Assert.IsFalse(AssetScanViewer.Resolve(false, false, false, true, true, false).IsSignedIn, "signed out");
+            Assert.IsFalse(AssetScanViewer.Resolve(true, true, true, true, true, false).IsSignedIn, "outside scope");
+            var full = AssetScanViewer.Resolve(true, true, false, true, false, false);
+            Assert.IsTrue(full.IsSignedIn);
+            Assert.IsTrue(full.CanViewAssetDetails);
+            Assert.IsTrue(full.CanViewFinancials);
+            Assert.IsFalse(full.CanViewSuppliers);
+
+            var lookup = SampleLookup();
+            lookup.CustodianUserId = "u-1";
+            lookup.CustodianPersonName = "Jane Teacher";
+            var card = AssetScanCardBuilder.Build(lookup, full);
+            Assert.AreEqual("Jane Teacher", Row(card, "custodian"));
+            StringAssert.Contains("12,500", AllText(card));
+        }
+
+        [TestCase("Asset photo", false, true)]
+        [TestCase("Asset photo 2", false, true)]
+        [TestCase("Serial plate photo", false, false)]
+        [TestCase("Location photo", false, false)]
+        [TestCase(null, false, false)]
+        [TestCase("Serial plate photo", true, true)]
+        [TestCase("Location photo", true, true)]
+        public void S7_PhotoType_PublicOnlyAssetPhoto(string documentType, bool canViewDetails, bool expected)
+        {
+            Assert.AreEqual(expected, AssetScanPhotoRules.MayServe(documentType, canViewDetails));
+            var lookup = SampleLookup();
+            lookup.PhotoDocumentType = documentType;
+            var viewer = canViewDetails ? AssetScanViewer.Resolve(true, true, false, false, false, false) : AssetScanViewer.Anonymous;
+            Assert.AreEqual(expected, AssetScanCardBuilder.Build(lookup, viewer).HasPhoto);
+        }
+
+        [Test]
+        public void S7_PhotoAction_ChecksTheDocumentType()
+        {
+            var controller = RepoFile("src", "AssetManagement.Web", "Controllers", "AssetScanController.cs");
+            StringAssert.Contains("AssetScanPhotoRules.MayServe(lookup.PhotoDocumentType, mayViewAnyPhotoType)", controller);
+            var repo = RepoFile("src", "AssetManagement.Infrastructure", "Repositories", "AssetScanLookupRepository.cs");
+            StringAssert.Contains("ph.[DocumentType] AS PhotoDocumentType", repo);
+        }
+
+        [Test]
+        public void S8_SerialSwitch_DefaultShowsSerial_TrueHidesItFromPublicOnly()
+        {
+            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Anonymous), "serial"), "default unchanged");
+            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, false, false, false, false, false)), "serial"));
+            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(false, false, false, false, false, true)), "serial"));
+            Assert.IsNull(Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, false, false, false, false, true)), "serial"));
+            Assert.AreEqual("SN-1", Row(AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Resolve(true, true, false, false, false, true)), "serial"), "Assets.View still sees it");
+            var controller = RepoFile("src", "AssetManagement.Web", "Controllers", "AssetScanController.cs");
+            StringAssert.Contains("\"AssetScan:HideSerialFromPublic\"", controller);
+        }
+
         [Test]
         public void SignedInOutsideScope_GetsThePublicCardOnly()
         {
             var controller = RepoFile("src", "AssetManagement.Web", "Controllers", "AssetScanController.cs");
-            StringAssert.Contains("outsideScope ? AssetScanViewer.Anonymous", controller, "out-of-scope viewers get the anonymous card (no names, cost, supplier)");
+            StringAssert.Contains("AssetScanViewer.Resolve(", controller, "signed-out, no-Assets.View and out-of-scope viewers get the anonymous card (no names, cost, supplier)");
             StringAssert.Contains("CanOpenQuickActions = lookup.Found && !outsideScope", controller);
             StringAssert.Contains("page.IsPublicScan || page.OutsideYourDepartments", controller, "JSON for out-of-scope viewers is the public shape");
         }

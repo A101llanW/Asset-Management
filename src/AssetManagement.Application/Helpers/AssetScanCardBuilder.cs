@@ -44,7 +44,9 @@ namespace AssetManagement.Application.Helpers
                 StatusText = Humanize(lookup.CurrentStatus.ToString()),
                 ConditionText = lookup.Condition.HasValue ? Humanize(lookup.Condition.Value.ToString()) : null,
                 CustodianText = CustodianText(lookup, viewer),
+                // Review fix S7: serial-plate and location photos only for Assets.View; everyone else gets "Asset photo..." only.
                 HasPhoto = !string.IsNullOrWhiteSpace(lookup.PhotoFilePath)
+                    && AssetScanPhotoRules.MayServe(lookup.PhotoDocumentType, viewer.IsSignedIn && viewer.CanViewAssetDetails)
             };
 
             card.Rows.Add(viewer.IsSignedIn
@@ -64,7 +66,11 @@ namespace AssetManagement.Application.Helpers
 
             AddIfSet(card.Rows, "category", "Category", JoinNonBlank(lookup.CategoryName, lookup.AssetTypeName, lookup.AssetSubTypeName));
             AddIfSet(card.Rows, "brand-model", "Brand / model", JoinWith(" / ", lookup.Brand, lookup.Model));
-            AddIfSet(card.Rows, "serial", "Serial no.", lookup.SerialNumber);
+            if (viewer.IsSignedIn || !viewer.HideSerialFromPublic)
+            {
+                // Review S8: unchanged by default; Web.config "AssetScan:HideSerialFromPublic" = true hides it from the public card.
+                AddIfSet(card.Rows, "serial", "Serial no.", lookup.SerialNumber);
+            }
             card.Rows.Add(new AssetScanCardRow("status", "Status", card.StatusText));
             AddIfSet(card.Rows, "condition", "Condition", card.ConditionText);
             AddIfSet(card.Rows, "received", "Date received", FormatDate(lookup.ReceivedDate ?? lookup.PurchaseDate));
@@ -190,6 +196,19 @@ namespace AssetManagement.Application.Helpers
         {
             return !string.IsNullOrWhiteSpace(contentType)
                 && AllowedContentTypes.Contains(contentType.Trim().ToLowerInvariant());
+        }
+
+        /// <summary>Review fix S7: the only photo type shown to viewers without Assets.View.</summary>
+        public static bool IsPublicDocumentType(string documentType)
+        {
+            return !string.IsNullOrWhiteSpace(documentType)
+                && documentType.Trim().StartsWith("Asset photo", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Assets.View (in scope) may see any scan photo type; everyone else only "Asset photo...".</summary>
+        public static bool MayServe(string documentType, bool canViewAssetDetails)
+        {
+            return canViewAssetDetails || IsPublicDocumentType(documentType);
         }
     }
 }

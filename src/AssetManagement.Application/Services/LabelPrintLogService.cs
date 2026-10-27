@@ -54,13 +54,25 @@ namespace AssetManagement.Application.Services
         private readonly IAuditWriter _auditWriter;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly Func<DateTime> _utcNow;
+        private readonly IDepartmentScopeService _departmentScope;
 
         public LabelPrintLogService(
             ILabelPrintBatchStore store,
             ILabelPrintDispatcher dispatcher,
             IAuditWriter auditWriter,
             IOrganizationScopeService organizationScope)
-            : this(store, dispatcher, auditWriter, organizationScope, null)
+            : this(store, dispatcher, auditWriter, organizationScope, (IDepartmentScopeService)null, null)
+        {
+        }
+
+        /// <summary>Production constructor (Autofac): the print log follows the user's department scope.</summary>
+        public LabelPrintLogService(
+            ILabelPrintBatchStore store,
+            ILabelPrintDispatcher dispatcher,
+            IAuditWriter auditWriter,
+            IOrganizationScopeService organizationScope,
+            IDepartmentScopeService departmentScope)
+            : this(store, dispatcher, auditWriter, organizationScope, departmentScope, null)
         {
         }
 
@@ -69,6 +81,17 @@ namespace AssetManagement.Application.Services
             ILabelPrintDispatcher dispatcher,
             IAuditWriter auditWriter,
             IOrganizationScopeService organizationScope,
+            Func<DateTime> utcNow)
+            : this(store, dispatcher, auditWriter, organizationScope, (IDepartmentScopeService)null, utcNow)
+        {
+        }
+
+        public LabelPrintLogService(
+            ILabelPrintBatchStore store,
+            ILabelPrintDispatcher dispatcher,
+            IAuditWriter auditWriter,
+            IOrganizationScopeService organizationScope,
+            IDepartmentScopeService departmentScope,
             Func<DateTime> utcNow)
         {
             if (store == null)
@@ -86,6 +109,7 @@ namespace AssetManagement.Application.Services
             _auditWriter = auditWriter;
             _organizationScope = organizationScope;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
+            _departmentScope = departmentScope;
         }
 
         public LabelPrintRecordResultVm RecordPrints(LabelPrintRecordRequestVm request, string userId)
@@ -111,13 +135,13 @@ namespace AssetManagement.Application.Services
             if (request.BatchId.HasValue && request.BatchId.Value > 0)
             {
                 batch = _store.GetBatch(organizationId, request.BatchId.Value);
-                if (batch == null || batch.OrganizationId != organizationId)
+                if (batch == null || batch.OrganizationId != organizationId || !IsBatchInScope(organizationId, batch, userId))
                 {
                     throw new BusinessException("The print batch was not found.");
                 }
             }
 
-            var assets = _store.GetPrintableAssets(organizationId, ids) ?? new List<LabelPrintAssetInfo>();
+            var assets = GetPrintableAssetsInScope(organizationId, ids);
             var byId = assets.GroupBy(a => a.AssetId).ToDictionary(g => g.Key, g => g.First());
             var prior = _store.GetPriorPrintCounts(organizationId, ids) ?? new Dictionary<int, int>();
             var mode = NormalizeMode(request.Mode);
@@ -192,13 +216,13 @@ namespace AssetManagement.Application.Services
             if (request.ReprintOfBatchId.HasValue && request.ReprintOfBatchId.Value > 0)
             {
                 original = _store.GetBatch(organizationId, request.ReprintOfBatchId.Value);
-                if (original == null || original.OrganizationId != organizationId)
+                if (original == null || original.OrganizationId != organizationId || !IsBatchInScope(organizationId, original, userId))
                 {
                     throw new BusinessException("The batch to reprint was not found.");
                 }
             }
 
-            var found = _store.GetPrintableAssets(organizationId, ids) ?? new List<LabelPrintAssetInfo>();
+            var found = GetPrintableAssetsInScope(organizationId, ids);
             var byId = found.GroupBy(a => a.AssetId).ToDictionary(g => g.Key, g => g.First());
             var ordered = ids.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
             if (ordered.Count == 0)
@@ -267,7 +291,7 @@ namespace AssetManagement.Application.Services
         {
             var organizationId = RequireOrganizationId();
             var batch = _store.GetBatch(organizationId, batchId);
-            if (batch == null || batch.OrganizationId != organizationId)
+            if (batch == null || batch.OrganizationId != organizationId || !IsBatchInScope(organizationId, batch, userId))
             {
                 throw new BusinessException("The print batch was not found.");
             }
@@ -284,8 +308,14 @@ namespace AssetManagement.Application.Services
                 return null;
             }
 
+            var items = _store.GetBatchItems(organizationId, batchId) ?? new List<LabelPrintBatchItemInfo>();
+            if (!IsBatchInScope(batch, items, userId))
+            {
+                return null;
+            }
+
             var vm = ToVm(batch, userId, canManageAll);
-            vm.Items = (_store.GetBatchItems(organizationId, batchId) ?? new List<LabelPrintBatchItemInfo>())
+            vm.Items = items
                 .Where(i => i.AssetIsActive)
                 .Select(i => new LabelPrintBatchItemVm { AssetId = i.AssetId, AssetTag = i.AssetTag, AssetName = i.AssetName, PrintCount = i.PrintCount })
                 .ToList();
@@ -298,6 +328,7 @@ namespace AssetManagement.Application.Services
             var safeTake = take <= 0 ? 25 : Math.Min(take, 100);
             return (_store.GetBatches(organizationId, includeCleared, safeTake) ?? new List<LabelPrintBatchInfo>())
                 .Where(b => b.OrganizationId == organizationId && (includeCleared || !b.IsCleared))
+                .Where(b => IsBatchInScope(organizationId, b, userId))
                 .Select(b => ToVm(b, userId, canManageAll))
                 .ToList();
         }
@@ -306,7 +337,7 @@ namespace AssetManagement.Application.Services
         {
             var organizationId = RequireOrganizationId();
             var batch = _store.GetBatch(organizationId, batchId);
-            if (batch == null || batch.OrganizationId != organizationId)
+            if (batch == null || batch.OrganizationId != organizationId || !IsBatchInScope(organizationId, batch, userId))
             {
                 throw new BusinessException("The print batch was not found.");
             }
@@ -349,6 +380,85 @@ namespace AssetManagement.Application.Services
                     Details = e.Details
                 }).ToList()
             };
+        }
+
+        /// <summary>
+        /// Review fix S9: department scope for the print log. Org-wide users (Assets.ViewAll / impersonation) see
+        /// everything; scoped users see assets in their own department (plus active Class departments when their
+        /// scope includes class assets), the same rule as <see cref="IDepartmentScopeService.ApplyAssetScope"/>.
+        /// No scope service wired (legacy construction / unit tests) means no extra filtering.
+        /// </summary>
+        public static bool IsAssetInScope(IDepartmentScopeService scope, int? departmentId, bool departmentIsActiveClass)
+        {
+            if (scope == null || scope.BypassesDepartmentScope)
+            {
+                return true;
+            }
+
+            var scoped = scope.ScopedDepartmentId;
+            if (!scoped.HasValue)
+            {
+                return false;
+            }
+
+            if (departmentId.HasValue && departmentId.Value == scoped.Value)
+            {
+                return true;
+            }
+
+            return departmentId.HasValue && departmentIsActiveClass && scope.IncludesClassDepartmentAssets;
+        }
+
+        /// <summary>
+        /// A batch is visible to a scoped user only when every asset in it is in their scope. An empty batch is
+        /// visible only to the person who sent it.
+        /// </summary>
+        public static bool IsBatchInScope(IDepartmentScopeService scope, LabelPrintBatchInfo batch, IList<LabelPrintBatchItemInfo> items, string userId)
+        {
+            if (batch == null)
+            {
+                return false;
+            }
+
+            if (scope == null || scope.BypassesDepartmentScope)
+            {
+                return true;
+            }
+
+            var list = items ?? new List<LabelPrintBatchItemInfo>();
+            if (list.Count == 0)
+            {
+                return !string.IsNullOrWhiteSpace(userId) && string.Equals(batch.CreatedById, userId, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return list.All(i => IsAssetInScope(scope, i.DepartmentId, i.DepartmentIsActiveClass));
+        }
+
+        private bool IsBatchInScope(LabelPrintBatchInfo batch, IList<LabelPrintBatchItemInfo> items, string userId)
+        {
+            return IsBatchInScope(_departmentScope, batch, items, userId);
+        }
+
+        private bool IsBatchInScope(int organizationId, LabelPrintBatchInfo batch, string userId)
+        {
+            if (batch == null)
+            {
+                return false;
+            }
+
+            if (_departmentScope == null || _departmentScope.BypassesDepartmentScope)
+            {
+                return true;
+            }
+
+            return IsBatchInScope(batch, _store.GetBatchItems(organizationId, batch.Id) ?? new List<LabelPrintBatchItemInfo>(), userId);
+        }
+
+        private IList<LabelPrintAssetInfo> GetPrintableAssetsInScope(int organizationId, ICollection<int> ids)
+        {
+            return (_store.GetPrintableAssets(organizationId, ids) ?? new List<LabelPrintAssetInfo>())
+                .Where(a => IsAssetInScope(_departmentScope, a.DepartmentId, a.DepartmentIsActiveClass))
+                .ToList();
         }
 
         public static bool CanClear(LabelPrintBatchInfo batch, string userId, bool canManageAll)

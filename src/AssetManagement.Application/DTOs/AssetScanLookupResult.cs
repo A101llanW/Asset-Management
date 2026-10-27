@@ -58,6 +58,8 @@ namespace AssetManagement.Application.DTOs
 
         public string PhotoContentType { get; set; }
 
+        public string PhotoDocumentType { get; set; }
+
         public decimal? AcquisitionCost { get; set; }
 
         public string Currency { get; set; }

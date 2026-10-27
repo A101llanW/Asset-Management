@@ -200,6 +200,7 @@ namespace AssetManagement.Application.Services
                 OrganizationUsesPrep = match.OrganizationUsesPrep,
                 PhotoFilePath = match.PhotoFilePath,
                 PhotoContentType = match.PhotoContentType,
+                PhotoDocumentType = match.PhotoDocumentType,
                 AcquisitionCost = match.AcquisitionCost,
                 Currency = match.Currency,
                 SupplierName = match.SupplierName,

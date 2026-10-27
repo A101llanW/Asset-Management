@@ -344,6 +344,100 @@ namespace AssetManagement.Tests.Assets
             Assert.AreEqual(2, _store.Batches[reprint.Id].PrintedCount);
         }
 
+        // ---- department scope (review fix S9) ----
+
+        private LabelPrintLogService ScopedService(FakeDeptScope scope)
+        {
+            return new LabelPrintLogService(_store, _dispatcher, _audit, new FakeOrganizationScopeService(Org), scope, () => Now);
+        }
+
+        private void AddScopedAssets()
+        {
+            _store.AddAsset(Org, 301, "D10-1", "Dept 10 desk", departmentId: 10);
+            _store.AddAsset(Org, 302, "D10-2", "Dept 10 chair", departmentId: 10);
+            _store.AddAsset(Org, 401, "D20-1", "Dept 20 desk", departmentId: 20);
+            _store.AddAsset(Org, 501, "C30-1", "Class 30 desk", departmentId: 30, departmentIsActiveClass: true);
+        }
+
+        [Test]
+        public void Scope_CreateBatch_DropsAssetsOutsideTheUsersDepartment()
+        {
+            AddScopedAssets();
+            var vm = ScopedService(new FakeDeptScope { ScopedDepartmentId = 10 })
+                .CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 401, 302 } }, "user-a");
+
+            CollectionAssert.AreEqual(new[] { 301, 302 }, vm.Items.Select(i => i.AssetId).ToArray());
+        }
+
+        [Test]
+        public void Scope_RecordPrints_SkipsAssetsOutsideTheUsersDepartment()
+        {
+            AddScopedAssets();
+            var result = ScopedService(new FakeDeptScope { ScopedDepartmentId = 10 })
+                .RecordPrints(new LabelPrintRecordRequestVm { AssetIds = new List<int> { 301, 401 } }, "user-a");
+
+            Assert.AreEqual(1, result.Items.Count);
+            Assert.AreEqual(301, result.Items[0].AssetId);
+            Assert.AreEqual(1, result.SkippedCount);
+        }
+
+        [Test]
+        public void Scope_GetBatchAndGetBatches_HideBatchesWithOutOfScopeAssets()
+        {
+            AddScopedAssets();
+            var orgWide = ScopedService(new FakeDeptScope { BypassesDepartmentScope = true });
+            var mine = orgWide.CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 302 } }, "admin");
+            var mixed = orgWide.CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 401 } }, "admin");
+            var other = orgWide.CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 401 } }, "admin");
+
+            var scoped = ScopedService(new FakeDeptScope { ScopedDepartmentId = 10 });
+            Assert.IsNotNull(scoped.GetBatch(mine.Id, "user-a", false));
+            Assert.IsNull(scoped.GetBatch(mixed.Id, "user-a", false));
+            Assert.IsNull(scoped.GetBatch(other.Id, "user-a", false));
+            CollectionAssert.AreEquivalent(new[] { mine.Id }, scoped.GetBatches(false, 25, "user-a", false).Select(b => b.Id).ToArray());
+            Assert.Throws<BusinessException>(() => scoped.ClearBatch(other.Id, "user-a", true));
+            Assert.Throws<BusinessException>(() => scoped.CompleteBatch(other.Id, false, "user-a"));
+
+            Assert.AreEqual(3, orgWide.GetBatches(false, 25, "admin", true).Count);
+        }
+
+        [Test]
+        public void Scope_ClassDepartmentAssets_FollowIncludesClassDepartmentAssets()
+        {
+            AddScopedAssets();
+            var withClass = ScopedService(new FakeDeptScope { ScopedDepartmentId = 10, IncludesClassDepartmentAssets = true })
+                .CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 501 } }, "user-a");
+            CollectionAssert.AreEqual(new[] { 301, 501 }, withClass.Items.Select(i => i.AssetId).ToArray());
+
+            var withoutClass = ScopedService(new FakeDeptScope { ScopedDepartmentId = 10 })
+                .CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 501 } }, "user-a");
+            CollectionAssert.AreEqual(new[] { 301 }, withoutClass.Items.Select(i => i.AssetId).ToArray());
+        }
+
+        [Test]
+        public void Scope_UserWithNoDepartment_SeesNothing()
+        {
+            AddScopedAssets();
+            var scope = new FakeDeptScope { ScopedDepartmentId = null };
+            Assert.IsFalse(LabelPrintLogService.IsAssetInScope(scope, 10, false));
+            Assert.Throws<BusinessException>(() => ScopedService(scope)
+                .CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301 } }, "user-a"));
+        }
+
+        private sealed class FakeDeptScope : IDepartmentScopeService
+        {
+            public bool BypassesDepartmentScope { get; set; }
+            public bool IncludesClassDepartmentAssets { get; set; }
+            public int? ScopedDepartmentId { get; set; }
+            public IQueryable<AssetManagement.Domain.Entities.Asset> ApplyAssetScope(IQueryable<AssetManagement.Domain.Entities.Asset> query) { return query; }
+            public IQueryable<AssetManagement.Domain.Entities.Department> ApplyDepartmentScope(IQueryable<AssetManagement.Domain.Entities.Department> query) { return query; }
+            public void EnsureCanAccessAsset(AssetManagement.Domain.Entities.Asset asset) { }
+            public void EnsureCanAccessDepartment(AssetManagement.Domain.Entities.Department department) { }
+            public void EnsureCanAccessDepartmentId(int departmentId) { }
+            public void EnsureCanCreateForRequisitionTarget(AssetManagement.Domain.Entities.Department department) { }
+            public int CountVisibleDepartments(bool activeOnly = true) { return 0; }
+        }
+
         // ---- history ----
 
         [Test]
@@ -558,9 +652,9 @@ namespace AssetManagement.Tests.Assets
             public readonly Dictionary<int, List<LabelPrintBatchItemInfo>> Items = new Dictionary<int, List<LabelPrintBatchItemInfo>>();
             public readonly Dictionary<int, AssetPrintHistory> History = new Dictionary<int, AssetPrintHistory>();
 
-            public void AddAsset(int org, int id, string tag, string name, bool isActive = true)
+            public void AddAsset(int org, int id, string tag, string name, bool isActive = true, int? departmentId = null, bool departmentIsActiveClass = false)
             {
-                _assets[id] = Tuple.Create(org, new LabelPrintAssetInfo { AssetId = id, AssetTag = tag, AssetName = name }, isActive);
+                _assets[id] = Tuple.Create(org, new LabelPrintAssetInfo { AssetId = id, AssetTag = tag, AssetName = name, DepartmentId = departmentId, DepartmentIsActiveClass = departmentIsActiveClass }, isActive);
             }
 
             public void SetActive(int id, bool isActive)
@@ -602,7 +696,7 @@ namespace AssetManagement.Tests.Assets
                     CreatedById = batch.CreatedById,
                     CreatedAtUtc = batch.CreatedAtUtc
                 };
-                Items[id] = batch.Assets.Select(a => new LabelPrintBatchItemInfo { AssetId = a.AssetId, AssetTag = a.AssetTag, AssetName = a.AssetName }).ToList();
+                Items[id] = batch.Assets.Select(a => new LabelPrintBatchItemInfo { AssetId = a.AssetId, AssetTag = a.AssetTag, AssetName = a.AssetName, DepartmentId = a.DepartmentId, DepartmentIsActiveClass = a.DepartmentIsActiveClass }).ToList();
                 return id;
             }
 

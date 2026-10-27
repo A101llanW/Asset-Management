@@ -57,6 +57,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string PhotoContentType { get; set; }
 
+        /// <summary>AssetDocument.DocumentType of the chosen photo ("Asset photo...", "Location photo", "Serial plate photo").</summary>
+        public string PhotoDocumentType { get; set; }
+
         public decimal? AcquisitionCost { get; set; }
 
         public string Currency { get; set; }
@@ -80,7 +83,34 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>Suppliers.View (signed in): supplier name.</summary>
         public bool CanViewSuppliers { get; set; }
 
+        /// <summary>
+        /// Review S8 switch (default false = unchanged, serial shown to everyone). When true, viewers without Assets.View
+        /// do not see the serial number. Set by Web.config appSetting "AssetScan:HideSerialFromPublic".
+        /// </summary>
+        public bool HideSerialFromPublic { get; set; }
+
         public static readonly AssetScanViewer Anonymous = new AssetScanViewer();
+
+        /// <summary>
+        /// Review fix S6: one place that decides the viewer. Signed out, signed in WITHOUT Assets.View, or outside the
+        /// user's departments all get the public (anonymous) card: no custodian name, cost or supplier.
+        /// </summary>
+        public static AssetScanViewer Resolve(bool isAuthenticated, bool canViewDetails, bool outsideScope, bool canViewFinancials, bool canViewSuppliers, bool hideSerialFromPublic)
+        {
+            if (!isAuthenticated || !canViewDetails || outsideScope)
+            {
+                return new AssetScanViewer { HideSerialFromPublic = hideSerialFromPublic };
+            }
+
+            return new AssetScanViewer
+            {
+                IsSignedIn = true,
+                CanViewAssetDetails = true,
+                CanViewFinancials = canViewFinancials,
+                CanViewSuppliers = canViewSuppliers,
+                HideSerialFromPublic = hideSerialFromPublic
+            };
+        }
     }
 
     public class AssetScanCardRow

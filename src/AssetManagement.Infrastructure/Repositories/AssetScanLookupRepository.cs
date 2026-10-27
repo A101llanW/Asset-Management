@@ -51,6 +51,7 @@ SELECT TOP 1
       WHERE dp.[OrganizationId] = a.[OrganizationId] AND dp.[IsActive] = 1 AND dp.[Section] = 1) THEN 1 ELSE 0 END AS OrganizationUsesPrep,
     ph.[FilePath] AS PhotoFilePath,
     ph.[ContentType] AS PhotoContentType,
+    ph.[DocumentType] AS PhotoDocumentType,
     a.[AcquisitionCost],
     a.[Currency],
     s.[SupplierName]
@@ -62,7 +63,7 @@ LEFT JOIN [AssetSubType] st ON st.[Id] = a.[AssetSubTypeId]
 LEFT JOIN [Supplier] s ON s.[Id] = a.[SupplierId]
 LEFT JOIN [Users] u ON u.[Id] = a.[CurrentCustodianId]
 OUTER APPLY (
-    SELECT TOP 1 doc.[FilePath], doc.[ContentType]
+    SELECT TOP 1 doc.[FilePath], doc.[ContentType], doc.[DocumentType]
     FROM [AssetDocument] doc
     WHERE doc.[AssetId] = a.[Id] AND doc.[OrganizationId] = a.[OrganizationId] AND doc.[IsActive] = 1
       AND doc.[ContentType] IN ('image/jpeg', 'image/pjpeg', 'image/png', 'image/gif')
@@ -219,6 +220,7 @@ WHERE a.[IsActive] = 1
                 OrganizationUsesPrep = Convert.ToInt32(record["OrganizationUsesPrep"]) == 1,
                 PhotoFilePath = GetString(record, "PhotoFilePath"),
                 PhotoContentType = GetString(record, "PhotoContentType"),
+                PhotoDocumentType = GetString(record, "PhotoDocumentType"),
                 AcquisitionCost = record["AcquisitionCost"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(record["AcquisitionCost"]),
                 Currency = GetString(record, "Currency"),
                 SupplierName = GetString(record, "SupplierName")
