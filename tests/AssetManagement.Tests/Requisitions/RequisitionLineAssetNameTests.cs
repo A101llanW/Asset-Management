@@ -8,6 +8,7 @@ using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
 using AssetManagement.Tests.Helpers;
+using AssetManagement.Web.Controllers;
 using NUnit.Framework;
 
 namespace AssetManagement.Tests.Requisitions
@@ -233,6 +234,59 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual("ICT-500", line.TargetAssetTag);
         }
 
+        [Test]
+        public void Submit_TypeWithoutSubTypes_UsesTheReceivingWording()
+        {
+            var uow = SeedRequisitionSetup();
+            uow.Seed(new AssetType { Id = 30, OrganizationId = 1, AssetCategoryId = 2, Name = "Shelves", IsActive = true });
+            var ex = Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(Form(NewLine("Shelf", "Shelf", 30, null)), "requester"));
+            Assert.AreEqual("Line 1: this asset type has no active sub-types yet. Add one under Asset Categories first; every requisitioned asset needs a sub-type.", ex.Message);
+        }
+
+        [Test]
+        public void Controller_LegacyPostWithoutLines_KeepsTheItemName()
+        {
+            var form = new PurchaseRequestCreateVm { DepartmentId = 5, Justification = "Term 3", Currency = "KES", ItemName = "Staff desk", ItemDescription = "Desk for the office", Quantity = 2, Lines = null };
+            PurchaseRequestsController.EnsureLegacyLine(form);
+            var line = form.Lines.Single();
+            Assert.AreEqual("Staff desk", line.ItemName);
+            Assert.AreEqual("Desk for the office", line.Description);
+            Assert.AreEqual(2, line.Quantity);
+
+            var uow = SeedRequisitionSetup();
+            line.AssetTypeId = DeskTypeId;
+            line.AssetSubTypeId = DeskSubTypeId;
+            var result = RequestService(uow).SubmitBatch(form, "requester");
+            Assert.AreEqual("Staff desk", LinesOf(uow, result.PrimaryId).Single().ItemName, "not replaced by the description");
+        }
+
+        [Test]
+        public void Controller_HeaderTag_GoesToTheFirstDescribedLine_NotABlankRow()
+        {
+            var form = Form(new PurchaseRequestLineCreateVm { Description = "  ", Quantity = 1 }, TaggedLine("Replacement laptop", "Laptop"));
+            form.Lines[1].TargetAssetId = null;
+            form.TargetAssetId = TaggedAssetId;
+            PurchaseRequestsController.MoveHeaderTagToLine(form);
+            Assert.IsNull(form.Lines[0].TargetAssetId);
+            Assert.AreEqual(TaggedAssetId, form.Lines[1].TargetAssetId);
+            Assert.IsNull(form.TargetAssetId);
+
+            var uow = SeedRequisitionSetup();
+            var result = RequestService(uow).SubmitBatch(form, "requester");
+            Assert.AreEqual(TaggedAssetId, LinesOf(uow, result.PrimaryId).Single().TargetAssetId, "the tag survives the blank row being dropped");
+
+            var empty = Form(new PurchaseRequestLineCreateVm { Description = "", Quantity = 1 });
+            empty.TargetAssetId = TaggedAssetId;
+            PurchaseRequestsController.MoveHeaderTagToLine(empty);
+            Assert.AreEqual(TaggedAssetId, empty.Lines[0].TargetAssetId, "no described line: row 0 keeps showing the tag");
+
+            var alreadyTagged = Form(NewLine("Desk", "Desk", DeskTypeId, DeskSubTypeId), TaggedLine("x", "Laptop"));
+            alreadyTagged.TargetAssetId = 999;
+            PurchaseRequestsController.MoveHeaderTagToLine(alreadyTagged);
+            Assert.IsNull(alreadyTagged.Lines[0].TargetAssetId, "line tags win over a header tag");
+            Assert.IsNull(alreadyTagged.TargetAssetId);
+        }
+
         // ---------------- PO carry-over and receiving ----------------
 
         private static FakeUnitOfWork SeedApprovedRequisition(bool legacyLines = false)
@@ -340,6 +394,36 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(20, lines[1].AssetSubTypeId);
             Assert.AreEqual(1, lines[1].AssetCategoryId);
             Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionLine, lines[1].ClassificationSource);
+        }
+
+        [Test]
+        public void Po_UsesTheApprovedLineClassification_WhenTheTaggedAssetWasReclassifiedAfterApproval()
+        {
+            var uow = SeedApprovedRequisition();
+            var asset = uow.Repository<Asset>().GetById(TaggedAssetId);
+            asset.AssetTypeId = 2;
+            asset.AssetSubTypeId = 20;
+
+            var purchases = TestServiceFactory.CreatePurchaseService(uow);
+            var draft = purchases.BuildFromRequisition(100);
+            Assert.AreEqual(1, draft.Lines[0].AssetTypeId, "stored (approved) line type, not the asset's current one");
+            Assert.AreEqual(10, draft.Lines[0].AssetSubTypeId);
+
+            var poLine = PoLines(uow, purchases.Create(Order()))[0];
+            Assert.AreEqual(1, poLine.AssetTypeId);
+            Assert.AreEqual(10, poLine.AssetSubTypeId);
+            Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionAsset, poLine.ClassificationSource);
+        }
+
+        [Test]
+        public void Ledger_TaggedLineWithoutStoredType_UsesTheAssetsCurrentClassification()
+        {
+            var uow = SeedApprovedRequisition();
+            var line = new PurchaseRequestLine { Id = 3, PurchaseRequestId = 100, LineNumber = 3, Description = "Laptop", Quantity = 1, TargetAssetId = TaggedAssetId };
+            var classification = new PurchaseOrderLedger(uow).FromRequisitionLine(line);
+            Assert.AreEqual(1, classification.AssetTypeId);
+            Assert.AreEqual(10, classification.AssetSubTypeId);
+            Assert.AreEqual(PurchaseOrderLedger.SourceRequisitionAsset, classification.Source);
         }
 
         [Test]
