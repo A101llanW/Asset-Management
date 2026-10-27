@@ -355,7 +355,9 @@ namespace AssetManagement.Web.Filters
                 id = filterContext.RouteData.Values["id"];
             }
 
-            return TenantUrlHelper.CreateTenantRedirect(requiredSlug, controllerName, actionName, id);
+            // QA 2026-10-27: an old tenantless QR link (/AssetScan/Lookup?code=TAG) keeps ?code= when a signed-in
+            // user is sent to their own tenant URL.
+            return TenantUrlHelper.CreateTenantRedirect(requiredSlug, controllerName, actionName, id, TenantUrlHelper.QueryToCarry(filterContext.HttpContext.Request));
         }
 
         private static bool IsWhitelisted(string controllerName, string actionName)

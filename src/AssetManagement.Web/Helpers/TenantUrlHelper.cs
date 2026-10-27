@@ -444,6 +444,55 @@ namespace AssetManagement.Web.Helpers
 
         }
 
+        /// <summary>
+        /// QA S1.8 / tenantless QR links (2026-10-27): same as <see cref="CreateTenantRedirect(string,string,string,object)"/>
+        /// but keeps the original query string (e.g. ?Section=Prep or ?code=TAG).
+        /// </summary>
+        public static ActionResult CreateTenantRedirect(string tenantSlug, string controller, string action, object id, string queryString)
+        {
+            if (!IsValidTenantSlug(tenantSlug))
+            {
+                return new RedirectResult(AppPathHelper.ToAppAbsolute("~/Account/Login"));
+            }
+
+            return new RedirectResult(AppendQueryString(BuildTenantPath(tenantSlug, controller, action, id), queryString));
+        }
+
+        /// <summary>Appends a raw query string ("?a=1" or "a=1") to a URL; blank queries leave the URL unchanged.</summary>
+        public static string AppendQueryString(string url, string queryString)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+
+            var query = (queryString ?? string.Empty).Trim().TrimStart('?');
+            if (query.Length == 0)
+            {
+                return url;
+            }
+
+            return url + (url.IndexOf('?') >= 0 ? "&" : "?") + query;
+        }
+
+        /// <summary>Query string to carry over on a redirect: GET / HEAD only (never re-posts form data).</summary>
+        public static string QueryToCarry(System.Web.HttpRequestBase request)
+        {
+            if (request == null || request.Url == null)
+            {
+                return null;
+            }
+
+            var method = request.HttpMethod ?? "GET";
+            if (!string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(method, "HEAD", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return request.Url.Query;
+        }
+
 
 
         public static ActionResult CreateTenantLoginRedirect(string tenantSlug, string returnUrl = null)

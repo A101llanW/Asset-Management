@@ -74,7 +74,8 @@ namespace AssetManagement.Web.Controllers
 
             if (TenantUrlHelper.IsValidTenantSlug(tenant))
             {
-                return TenantUrlHelper.CreateTenantRedirect(tenant, controllerName, "Index");
+                // QA S1.8: /{tenant}/Assets?Section=Prep keeps its filters on the way to Index.
+                return TenantUrlHelper.CreateTenantRedirect(tenant, controllerName, "Index", null, TenantUrlHelper.QueryToCarry(Request));
             }
 
             return RedirectToAction("Index");
