@@ -258,15 +258,20 @@ namespace AssetManagement.Application.Services
         }
 
         /// <summary>
-        /// Migration 108: the classification the requisition fixes for a line - the line's own tagged asset, then the
-        /// line's type / sub-type, then (legacy requisitions) the header's tagged asset. Null when none of these is set.
+        /// Migration 108: the classification the requisition fixes for a line - the line's stored (approved) type / sub-type,
+        /// then the line's tagged asset, then (legacy requisitions) the header's tagged asset. Null when none of these is set.
         /// </summary>
         public PurchaseLineClassification FixedClassification(PurchaseRequest request, PurchaseRequestLine requisitionLine)
         {
             return FromRequisitionLine(requisitionLine) ?? FromRequisitionAsset(request);
         }
 
-        /// <summary>Migration 108: the line's tagged asset (Source RequisitionAsset), else the line's type / sub-type.</summary>
+        /// <summary>
+        /// Migration 108: the STORED (approved) line type / sub-type first - for a tagged line that is the tagged asset's
+        /// classification at submit time, so reclassifying the asset after approval does not change the PO
+        /// (Source RequisitionAsset when tagged, RequisitionLine otherwise). Only a line with no stored type falls back
+        /// to the tagged asset's current classification.
+        /// </summary>
         public PurchaseLineClassification FromRequisitionLine(PurchaseRequestLine requisitionLine)
         {
             if (requisitionLine == null)
@@ -274,31 +279,39 @@ namespace AssetManagement.Application.Services
                 return null;
             }
 
-            if (requisitionLine.TargetAssetId.HasValue && requisitionLine.TargetAssetId.Value > 0)
-            {
-                var asset = _unitOfWork.Repository<Asset>().GetById(requisitionLine.TargetAssetId.Value);
-                if (asset != null && asset.AssetTypeId > 0)
-                {
-                    return Complete(new PurchaseLineClassification
-                    {
-                        AssetTypeId = asset.AssetTypeId,
-                        AssetSubTypeId = asset.AssetSubTypeId,
-                        Brand = asset.Brand,
-                        Model = asset.Model,
-                        Source = SourceRequisitionAsset
-                    });
-                }
-            }
+            var tagged = requisitionLine.TargetAssetId.HasValue && requisitionLine.TargetAssetId.Value > 0;
+            var asset = tagged ? _unitOfWork.Repository<Asset>().GetById(requisitionLine.TargetAssetId.Value) : null;
 
             if (requisitionLine.AssetTypeId.HasValue && requisitionLine.AssetTypeId.Value > 0)
             {
-                var classification = Complete(new PurchaseLineClassification
+                // Brand / model only describe the stored classification when the asset still has it.
+                var assetStillMatches = asset != null
+                    && asset.AssetTypeId == requisitionLine.AssetTypeId.Value
+                    && asset.AssetSubTypeId == requisitionLine.AssetSubTypeId;
+                var stored = Complete(new PurchaseLineClassification
                 {
                     AssetTypeId = requisitionLine.AssetTypeId,
                     AssetSubTypeId = requisitionLine.AssetSubTypeId,
-                    Source = SourceRequisitionLine
+                    Brand = assetStillMatches ? asset.Brand : null,
+                    Model = assetStillMatches ? asset.Model : null,
+                    Source = tagged ? SourceRequisitionAsset : SourceRequisitionLine
                 });
-                return classification != null && classification.HasType ? classification : null;
+                if (stored != null && stored.HasType)
+                {
+                    return stored;
+                }
+            }
+
+            if (asset != null && asset.AssetTypeId > 0)
+            {
+                return Complete(new PurchaseLineClassification
+                {
+                    AssetTypeId = asset.AssetTypeId,
+                    AssetSubTypeId = asset.AssetSubTypeId,
+                    Brand = asset.Brand,
+                    Model = asset.Model,
+                    Source = SourceRequisitionAsset
+                });
             }
 
             return null;
