@@ -30,7 +30,8 @@
     <div class="row g-3">
         <div class="col-md-6">
             @Html.LabelFor(m => m.AssetName, new { @class = "form-label" })
-            @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control" })
+            @Html.TextBoxFor(m => m.AssetName, new { @class = "form-control", maxlength = AssetManagement.Application.Helpers.AssetNameRules.MaxLength })
+            @Html.ValidationMessageFor(m => m.AssetName, "", new { @class = "text-danger small" })
         </div>
         <div class="col-md-3">
             @Html.LabelFor(m => m.AssetTag, new { @class = "form-label" })
