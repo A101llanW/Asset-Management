@@ -137,6 +137,10 @@ namespace AssetManagement.Tests.Organizations
             new ForeignKeyEdge("FK_LabelPrintBatch_ReprintOf", "LabelPrintBatch", "ReprintOfBatchId", "LabelPrintBatch", "NO_ACTION"),
             new ForeignKeyEdge("FK_LabelPrintBatchItem_Batch", "LabelPrintBatchItem", "BatchId", "LabelPrintBatch", "NO_ACTION"),
             new ForeignKeyEdge("FK_LabelPrintBatchItem_Asset", "LabelPrintBatchItem", "AssetId", "Asset", "NO_ACTION"),
+
+            // Migration 107_DepartmentSectionHeads.sql (section heads per Prep / Senior).
+            new ForeignKeyEdge("FK_Department_PrepHeadUser", "Department", "PrepHeadUserId", "Users", "NO_ACTION"),
+            new ForeignKeyEdge("FK_Department_SeniorHeadUser", "Department", "SeniorHeadUserId", "Users", "NO_ACTION"),
         };
     }
 }

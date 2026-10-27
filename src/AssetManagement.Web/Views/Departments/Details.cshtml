@@ -95,6 +95,26 @@
                     <dd class="col-sm-7">@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(Model.DepartmentKind)</dd>
                     <dt class="col-sm-5">Section</dt>
                     <dd class="col-sm-7">@AssetManagement.Application.Helpers.DepartmentSectionHelper.Label(Model.Section)</dd>
+                    @{
+                        var sectionHeadRows = ViewBag.SectionHeadRows as IList<AssetManagement.Application.Helpers.DepartmentSectionHeadRow>;
+                    }
+                    @if (sectionHeadRows != null)
+                    {
+                        foreach (var headRow in sectionHeadRows)
+                        {
+                            <dt class="col-sm-5">Head (@headRow.SectionLabel)</dt>
+                            <dd class="col-sm-7" data-am-section-head="@headRow.Section">
+                                @if (headRow.IsFallback)
+                                {
+                                    <span class="text-muted small">@headRow.Source</span>
+                                }
+                                else
+                                {
+                                    <span>@headRow.HeadName</span> <span class="text-muted small">(@headRow.Source)</span>
+                                }
+                            </dd>
+                        }
+                    }
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Users</dt>

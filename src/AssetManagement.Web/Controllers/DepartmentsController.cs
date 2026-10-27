@@ -209,6 +209,27 @@ namespace AssetManagement.Web.Controllers
                 ViewBag.ChildRooms = DepartmentOrgHierarchyDisplay.GetRoomsUnderSubDepartment(scopedDepartments, model.Id);
             }
 
+            // Migration 107: who approves the "Department Head" stage for each section of this unit.
+            var deptById = scopedDepartments.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+            var headUsers = BuildUserService();
+            ViewBag.SectionHeadRows = DepartmentSectionHeadDisplay.Build(
+                model,
+                pid =>
+                {
+                    DepartmentVm parent;
+                    return deptById.TryGetValue(pid, out parent) ? parent : _departmentService.GetById(pid);
+                },
+                uid =>
+                {
+                    var u = headUsers.GetById(uid);
+                    return u == null ? null : BuildUserLabel(u);
+                },
+                uid =>
+                {
+                    var u = headUsers.GetById(uid);
+                    return u != null && u.IsActive;
+                });
+
             return View(model);
         }
 
@@ -677,6 +698,16 @@ namespace AssetManagement.Web.Controllers
                 ids.Add(dept.RoomCustodianUserId.Trim());
             }
 
+            if (!string.IsNullOrWhiteSpace(dept.PrepHeadUserId))
+            {
+                ids.Add(dept.PrepHeadUserId.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.SeniorHeadUserId))
+            {
+                ids.Add(dept.SeniorHeadUserId.Trim());
+            }
+
             if (dept.Children == null)
             {
                 return;
@@ -706,6 +737,18 @@ namespace AssetManagement.Web.Controllers
                 && labels.TryGetValue(dept.RoomCustodianUserId.Trim(), out label))
             {
                 dept.RoomCustodianName = label;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.PrepHeadUserId)
+                && labels.TryGetValue(dept.PrepHeadUserId.Trim(), out label))
+            {
+                dept.PrepHeadName = label;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.SeniorHeadUserId)
+                && labels.TryGetValue(dept.SeniorHeadUserId.Trim(), out label))
+            {
+                dept.SeniorHeadName = label;
             }
 
             if (dept.Children == null)
@@ -774,6 +817,9 @@ namespace AssetManagement.Web.Controllers
                     : new List<RequisitionInheritPreviewVm>());
             ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
             ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);
+            // Migration 107: section heads can be ANY active user (whatever their role).
+            ViewBag.PrepHeadUsers = BuildActiveUserSelectList(model.PrepHeadUserId);
+            ViewBag.SeniorHeadUsers = BuildActiveUserSelectList(model.SeniorHeadUserId);
 
             if (DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
             {

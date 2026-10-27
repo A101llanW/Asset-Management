@@ -39,6 +39,12 @@ namespace AssetManagement.Application.Services
                 return string.Equals(actor, config.PurchaseOrderRaiserUserId.Trim(), StringComparison.OrdinalIgnoreCase);
             }
 
+            // Migration 107: a section head chosen for a Department Head raiser role raises regardless of own role.
+            if (raiserScope != null && raiserScope.BypassesRoleCheck)
+            {
+                return raiserScope.Contains(actor);
+            }
+
             return roleId.HasValue && roleId.Value == config.PurchaseOrderRaiserRoleId.Value
                 && ApprovalWorkflowHelper.IsInApproverScope(raiserScope, actor);
         }

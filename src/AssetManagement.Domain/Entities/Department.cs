@@ -75,6 +75,15 @@ namespace AssetManagement.Domain.Entities
         /// <summary>rel1018b (migration 104): use the room segment in derived tags here and below. Null = inherit.</summary>
         public bool? AssetTagUseRoomSegment { get; set; }
 
+        /// <summary>
+        /// Migration 107: optional head of this department for the Prep section (any active user, whatever their role).
+        /// Null = no Prep head here; the "Department Head" stage then looks further up, else uses the Department Head role holders.
+        /// </summary>
+        public string PrepHeadUserId { get; set; }
+
+        /// <summary>Migration 107: optional head of this department for the Senior school section (any active user). Null = not set.</summary>
+        public string SeniorHeadUserId { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }

@@ -171,6 +171,8 @@ INSERT #Checks (Category, SourceTable, SourceColumn, TargetTable) VALUES
  ('FK', 'Department',              'ParentDepartmentId',    'Department'),
  ('FK', 'Department',              'ClassTeacherUserId',    'Users'),
  ('FK', 'Department',              'RoomCustodianUserId',   'Users'),
+ ('FK', 'Department',              'PrepHeadUserId',        'Users'),
+ ('FK', 'Department',              'SeniorHeadUserId',      'Users'),
  ('FK', 'RolePermission',          'RoleId',                'Roles'),
  ('FK', 'RoleTemplate',            'SourceRoleId',          'Roles'),
  ('FK', 'UserInvitation',          'RoleId',                'Roles'),

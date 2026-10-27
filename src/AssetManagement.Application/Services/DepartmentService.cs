@@ -344,6 +344,8 @@ namespace AssetManagement.Application.Services
             var oldKind = entity.DepartmentKind;
             var oldParentId = entity.ParentDepartmentId;
             var oldSection = entity.Section;
+            var oldPrepHead = entity.PrepHeadUserId;
+            var oldSeniorHead = entity.SeniorHeadUserId;
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
@@ -383,6 +385,20 @@ namespace AssetManagement.Application.Services
                 entity.ClassTeacherUserId = null;
                 entity.RoomCustodianUserId = null;
             }
+
+            // Migration 107: one head per section (Prep / Senior school), any active user whatever their role.
+            // Classrooms and rooms never carry heads (they take their department's).
+            if (DepartmentSectionHeads.CanHaveSectionHeads(model.DepartmentKind))
+            {
+                entity.PrepHeadUserId = string.IsNullOrWhiteSpace(model.PrepHeadUserId) ? null : model.PrepHeadUserId.Trim();
+                entity.SeniorHeadUserId = string.IsNullOrWhiteSpace(model.SeniorHeadUserId) ? null : model.SeniorHeadUserId.Trim();
+            }
+            else
+            {
+                entity.PrepHeadUserId = null;
+                entity.SeniorHeadUserId = null;
+            }
+
             if (flowConfigurable)
             {
                 DepartmentRequisitionApprovalSettingsHelper.ApplyToDepartment(entity, model);
@@ -448,11 +464,19 @@ namespace AssetManagement.Application.Services
                 auditOld.Add("Section=" + oldSection);
             }
 
+            var headsChanged = !string.Equals(oldPrepHead ?? string.Empty, entity.PrepHeadUserId ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(oldSeniorHead ?? string.Empty, entity.SeniorHeadUserId ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            if (headsChanged)
+            {
+                auditOld.Add("PrepHead=" + (oldPrepHead ?? "-") + ";SeniorHead=" + (oldSeniorHead ?? "-"));
+            }
+
             WriteDepartmentAudit(
                 "Departments.Edit",
                 entity.Id.ToString(),
                 auditOld.Count > 0 ? string.Join(";", auditOld) : null,
-                oldSection != entity.Section ? entity.Name + ";Section=" + entity.Section : entity.Name);
+                (oldSection != entity.Section ? entity.Name + ";Section=" + entity.Section : entity.Name)
+                    + (headsChanged ? ";PrepHead=" + (entity.PrepHeadUserId ?? "-") + ";SeniorHead=" + (entity.SeniorHeadUserId ?? "-") : string.Empty));
             foreach (var follower in sectionFollowers)
             {
                 WriteDepartmentAudit(
@@ -675,6 +699,12 @@ namespace AssetManagement.Application.Services
             else if (model.DepartmentKind == DepartmentKind.Room)
             {
                 guard.EnsureUserInOrganization(organizationId, model.RoomCustodianUserId, "Room custodian", "Departments.Edit", nameof(Department), entityId);
+            }
+
+            if (DepartmentSectionHeads.CanHaveSectionHeads(model.DepartmentKind))
+            {
+                guard.EnsureUserInOrganization(organizationId, model.PrepHeadUserId, "Head (Prep)", "Departments.Edit", nameof(Department), entityId);
+                guard.EnsureUserInOrganization(organizationId, model.SeniorHeadUserId, "Head (Senior school)", "Departments.Edit", nameof(Department), entityId);
             }
 
             var custom = flowConfigurable
@@ -1246,7 +1276,9 @@ namespace AssetManagement.Application.Services
                 PurchaseOrderRaiserRoleId = entity.PurchaseOrderRaiserRoleId,
                 PurchaseOrderRaiserUserId = entity.PurchaseOrderRaiserUserId,
                 Section = entity.Section,
-                SortOrder = entity.SortOrder
+                SortOrder = entity.SortOrder,
+                PrepHeadUserId = entity.PrepHeadUserId,
+                SeniorHeadUserId = entity.SeniorHeadUserId
             };
         }
 

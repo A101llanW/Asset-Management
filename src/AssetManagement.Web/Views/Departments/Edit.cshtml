@@ -262,6 +262,31 @@
             new { @class = "form-select", id = "RoomCustodianUserId" })
         <div class="form-text">Optional. When set, Assign into this room can default To this person. Never required. Clearing does not reassign existing assets.</div>
     </div>
+    <div class="card mb-3 js-edit-section-heads" id="edit-section-heads" style="@(isClass || isRoom ? "display:none;" : null)">
+        <div class="card-body">
+            <h2 class="h6 card-title">Department heads by section</h2>
+            <p class="form-text mt-0">Optional. Prep and Senior school can have different heads (for example a different HOD Academics for each). Pick anyone, whatever their role. When a requisition, transfer or disposal reaches the <strong>Department Head</strong> approval stage, it goes to the head of the request's section, set here or on a parent department. Leave blank to keep the current rule (the users holding the Department Head role).</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="PrepHeadUserId">Head (Prep)</label>
+                    @Html.DropDownListFor(
+                        m => m.PrepHeadUserId,
+                        ViewBag.PrepHeadUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
+                        "-- Not set (use Department Head role) --",
+                        new { @class = "form-select", id = "PrepHeadUserId" })
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="SeniorHeadUserId">Head (Senior school)</label>
+                    @Html.DropDownListFor(
+                        m => m.SeniorHeadUserId,
+                        ViewBag.SeniorHeadUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
+                        "-- Not set (use Department Head role) --",
+                        new { @class = "form-select", id = "SeniorHeadUserId" })
+                </div>
+            </div>
+            <div class="form-text">The person still needs permission to open approvals (for example Purchases.Approve) through their role.</div>
+        </div>
+    </div>
     <div class="form-check mb-3">
         @Html.CheckBoxFor(m => m.IsRequisitionTarget, new { @class = "form-check-input" })
         @Html.LabelFor(m => m.IsRequisitionTarget, new { @class = "form-check-label" })
@@ -309,6 +334,9 @@
             var roomCustodian = document.getElementById('edit-room-custodian');
             var classTeacherSelect = document.getElementById('ClassTeacherUserId');
             var roomCustodianSelect = document.getElementById('RoomCustodianUserId');
+            var sectionHeads = document.getElementById('edit-section-heads');
+            var prepHeadSelect = document.getElementById('PrepHeadUserId');
+            var seniorHeadSelect = document.getElementById('SeniorHeadUserId');
             var submitButton = kindSelect && kindSelect.form
                 ? kindSelect.form.querySelector('.am-form-actions button[type="submit"]')
                 : null;
@@ -342,6 +370,10 @@
                 if (classParentSelect) { classParentSelect.disabled = !showClass; }
                 if (classTeacherSelect) { classTeacherSelect.disabled = !showClass; }
                 if (roomCustodianSelect) { roomCustodianSelect.disabled = !showRoom; }
+                var showHeads = !showRoom && !showClass;
+                if (sectionHeads) { sectionHeads.style.display = showHeads ? '' : 'none'; }
+                if (prepHeadSelect) { prepHeadSelect.disabled = !showHeads; }
+                if (seniorHeadSelect) { seniorHeadSelect.disabled = !showHeads; }
                 syncSubmitLabel();
             }
 

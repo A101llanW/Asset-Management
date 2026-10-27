@@ -86,6 +86,20 @@ namespace AssetManagement.Application.ViewModels
         [Range(0, 999)]
         [Display(Name = "Sort number")]
         public int? SortOrder { get; set; }
+
+        /// <summary>Migration 107: head for the Prep section (any active user, whatever their role). Null = not set (fallback).</summary>
+        [StringLength(128)]
+        [Display(Name = "Head (Prep)")]
+        public string PrepHeadUserId { get; set; }
+
+        public string PrepHeadName { get; set; }
+
+        /// <summary>Migration 107: head for the Senior school section (any active user, whatever their role). Null = not set (fallback).</summary>
+        [StringLength(128)]
+        [Display(Name = "Head (Senior school)")]
+        public string SeniorHeadUserId { get; set; }
+
+        public string SeniorHeadName { get; set; }
     }
 
     public class DepartmentChildMoveVm

@@ -87,7 +87,8 @@ namespace AssetManagement.Application.Services
             }
 
             var notificationSubject = subject + " (" + roleName + ")";
-            var notificationMessage = message + " Approver role: " + roleName + ".";
+            var notificationMessage = message + " Approver role: " + roleName
+                + (scope.Kind == StageApproverScopeKind.SectionHead ? " (you are the section head for this department)" : string.Empty) + ".";
             foreach (var userId in approverUserIds)
             {
                 AddNotification(

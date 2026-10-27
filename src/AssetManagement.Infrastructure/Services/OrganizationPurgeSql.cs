@@ -130,6 +130,9 @@ namespace AssetManagement.Infrastructure.Services
             // Department -> Users (class teacher, room custodian) must be cleared before Users go.
             NullColumn("Department", "ClassTeacherUserId"),
             NullColumn("Department", "RoomCustodianUserId"),
+            // Migration 107: section heads (Prep / Senior) also point at Users.
+            NullColumn("Department", "PrepHeadUserId"),
+            NullColumn("Department", "SeniorHeadUserId"),
             Delete("Users"),
             Delete("RolePermission"),
             Delete("Roles"),

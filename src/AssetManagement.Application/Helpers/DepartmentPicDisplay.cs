@@ -26,8 +26,21 @@ namespace AssetManagement.Application.Helpers
                 return FormatName(department.RoomCustodianName, department.RoomCustodianUserId, "Room custodian");
             }
 
-            // Admin / Sub / Grade: no ClassTeacher/RoomCustodian column value.
-            return Empty;
+            // Admin / Sub / Grade: show the section heads set on this unit (migration 107), if any.
+            var parts = new System.Collections.Generic.List<string>();
+            var prep = FormatName(department.PrepHeadName, department.PrepHeadUserId, "Head, Prep");
+            if (!string.IsNullOrEmpty(prep))
+            {
+                parts.Add(prep);
+            }
+
+            var senior = FormatName(department.SeniorHeadName, department.SeniorHeadUserId, "Head, Senior school");
+            if (!string.IsNullOrEmpty(senior))
+            {
+                parts.Add(senior);
+            }
+
+            return parts.Count == 0 ? Empty : string.Join("; ", parts.ToArray());
         }
 
         public const string Empty = "";

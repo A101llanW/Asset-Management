@@ -86,6 +86,8 @@ namespace AssetManagement.Tests.Organizations
         [TestCase("AssetDocumentRequirement", "DocumentId", "AssetDocument")]
         [TestCase("Department", "ClassTeacherUserId", "Users")]
         [TestCase("Department", "RoomCustodianUserId", "Users")]
+        [TestCase("Department", "PrepHeadUserId", "Users")]
+        [TestCase("Department", "SeniorHeadUserId", "Users")]
         [TestCase("Users", "DepartmentId", "Department")]
         [TestCase("SupplierCatalogItem", "TaggedAssetId", "Asset")]
         public void BackwardFkColumn_IsNulledBeforeItsTargetIsDeleted(string table, string column, string target)

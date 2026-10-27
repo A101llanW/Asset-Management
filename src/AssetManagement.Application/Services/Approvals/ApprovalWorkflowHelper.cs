@@ -149,6 +149,18 @@ namespace AssetManagement.Application.Services
                 return;
             }
 
+            // Migration 107: a section head (Prep / Senior) approves the Department Head stage whatever their own role.
+            if (approverScope != null && approverScope.BypassesRoleCheck)
+            {
+                if (!approverScope.Contains(actor))
+                {
+                    throw new BusinessException(
+                        "You are not configured to approve this stage. It is routed to the section head of the request's department.");
+                }
+
+                return;
+            }
+
             if (!approverRoleId.HasValue || approverRoleId.Value != expectedRoleId)
             {
                 throw new BusinessException("You are not configured to approve this stage.");
@@ -290,9 +302,19 @@ namespace AssetManagement.Application.Services
                         && string.Equals(NormalizeUserId(currentUserId), NormalizeUserId(stageUserId), StringComparison.OrdinalIgnoreCase));
             }
 
-            return bypassesApprovalRoleCheck
-                || (stageRoleId.HasValue && currentRoleId.HasValue && stageRoleId.Value == currentRoleId.Value
-                    && IsInApproverScope(approverScope, currentUserId));
+            if (bypassesApprovalRoleCheck)
+            {
+                return true;
+            }
+
+            // Migration 107: section head of the request's unit acts on the Department Head stage regardless of role.
+            if (approverScope != null && approverScope.BypassesRoleCheck)
+            {
+                return approverScope.Contains(currentUserId);
+            }
+
+            return stageRoleId.HasValue && currentRoleId.HasValue && stageRoleId.Value == currentRoleId.Value
+                && IsInApproverScope(approverScope, currentUserId);
         }
 
         public static bool CanUserActOnStage(
