@@ -9,8 +9,7 @@
 --   3. PurchaseOrderLine.ItemName NVARCHAR(200) NULL        copied from the requisition line when the PO is raised.
 --      PurchaseOrderLine already has AssetCategoryId / AssetTypeId / AssetSubTypeId (migration 098): no classification column added.
 --   4. SchemaMigrationHistory row.
--- PROVISIONAL: NVARCHAR(200) matches Asset.AssetName. The application limit is AssetNameRules.MaxLength (150 for now,
---   150 vs 200 pending Allan); either value fits these columns, so the decision needs no schema change.
+-- NVARCHAR(200) matches Asset.AssetName and the application limit AssetNameRules.MaxLength = 200 (final, Allan 2026-10-27).
 -- Rows created before 108 keep NULL ItemName / TargetAssetId and are NOT re-validated: the app falls back to the old
 --   rules (header TargetAssetId, description / sub-type / brand-model name).
 -- Must run BEFORE the matching code is published (the entity maps read the new columns).

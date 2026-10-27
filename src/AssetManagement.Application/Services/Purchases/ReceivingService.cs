@@ -894,7 +894,7 @@ namespace AssetManagement.Application.Services
         }
         private static string ResolveSuggestedAssetName(string itemName, string itemDescription, ReceiveContext context)
         {
-            // Migration 108: ItemName first; the description is now cut to AssetNameRules.MaxLength (was untruncated).
+            // Migration 108: ItemName first; the description is cut to AssetNameRules.MaxLength (200, the Asset.AssetName column size).
             return DefaultAssetName(itemName, itemDescription, context.AssetSubTypeName, context.Brand, context.Model);
         }
         private AssetSubTypeVm ResolveReceiveSubType(AssetReceiveVm model, ReceiveContext context)

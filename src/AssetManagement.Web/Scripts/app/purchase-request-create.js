@@ -23,7 +23,7 @@
     function getAssetNameMax() {
         var container = getLineItemsContainer();
         var max = container ? parseInt(container.getAttribute("data-am-asset-name-max"), 10) : NaN;
-        return isNaN(max) || max <= 0 ? 150 : max;
+        return isNaN(max) || max <= 0 ? 200 : max;
     }
 
     function isRowTagged(row) {

@@ -6,13 +6,12 @@ namespace AssetManagement.Application.Helpers
     /// The one place that decides how long an asset / item name may be. Used by every view-model attribute, the
     /// AssetService guard, the requisition line "Item / asset name", the PO line and receiving (name per line), and
     /// the JS maxlength (rendered from this constant). The DB columns (Asset.AssetName and the migration 108 ItemName
-    /// columns) are NVARCHAR(200), so any value up to 200 fits without a schema change.
+    /// columns) are NVARCHAR(200), the same as this limit.
     /// </summary>
     public static class AssetNameRules
     {
-        // TODO(Allan): 150 vs 200 is still pending Allan's decision. 150 matches the existing AssetCreateVm
-        // [StringLength(150)]; raising it to 200 is a one-line change here (no DB change needed).
-        public const int MaxLength = 150;
+        // Final (Allan, 2026-10-27 20:58 EAT): 200, the same as the Asset.AssetName and ItemName NVARCHAR(200) columns.
+        public const int MaxLength = 200;
 
         public const string DisplayName = "Asset name";
 

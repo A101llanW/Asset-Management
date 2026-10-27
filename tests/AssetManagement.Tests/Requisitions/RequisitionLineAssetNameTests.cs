@@ -576,7 +576,7 @@ namespace AssetManagement.Tests.Requisitions
             var uow = SeedAssetCatalog();
             var service = TestServiceFactory.CreateAssetService(uow);
             var id = service.Create(NewAsset("Staff laptop"));
-            var legacyName = new string('L', AssetNameRules.MaxLength + 20); // possible in the NVARCHAR(200) column
+            var legacyName = new string('L', AssetNameRules.MaxLength); // the NVARCHAR(200) column maximum
             uow.Repository<Asset>().GetById(id).AssetName = legacyName;
 
             var edit = Edit(uow, id, legacyName);
