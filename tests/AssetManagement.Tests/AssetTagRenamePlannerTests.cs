@@ -42,6 +42,22 @@ namespace AssetManagement.Tests
         }
 
         [Test]
+        public void Plan_HonoursSegmentSwitches()
+        {
+            var departments = Departments().ToDictionary(x => x.Id);
+            departments[1].AssetTagUseRoomSegment = false; // Science: department segment only
+            var candidates = new[] { C(1, "SCI-LAB1-001", 3), C(2, "SCI-001", 4), C(3, "OLD-9", 6) };
+            var plan = AssetTagRenamePlanner.BuildPlan(candidates, departments, new AssetTagPrefixResolver.Options(), p => 1, p => new HashSet<string>());
+            Assert.AreEqual(2, plan.Count, "SCI-001 already conforms");
+            Assert.AreEqual("SCI", plan.Single(x => x.AssetId == 1).Prefix);
+            Assert.AreEqual("LIB", plan.Single(x => x.AssetId == 3).Prefix);
+
+            var withSub = AssetTagRenamePlanner.BuildPlan(new[] { C(1, "SCI-LAB1-001", 3) }, Departments().ToDictionary(x => x.Id),
+                new AssetTagPrefixResolver.Options { UseSubDepartmentSegment = true }, p => 1, p => new HashSet<string>());
+            Assert.AreEqual("SCI-PHY-LAB1-001", withSub.Single().NewTag);
+        }
+
+        [Test]
         public void Subtree_IncludesSubDepartmentsAndRooms_NotSiblings()
         {
             var ids = AssetTagRenamePlanner.GetSubtree(1, Departments());

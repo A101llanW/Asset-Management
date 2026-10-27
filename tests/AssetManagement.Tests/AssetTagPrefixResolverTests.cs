@@ -116,5 +116,79 @@ namespace AssetManagement.Tests
             Assert.AreEqual(8, AssetTagHelper.GetNextSequence(assets, "SCI-LAB1-"));
             Assert.AreEqual("SCI-LAB1-1000", AssetTagPrefixResolver.FormatTag("SCI-LAB1", 1000));
         }
+
+        // ---- rel1018b: per-level segment switches ----
+
+        private static AssetTagPrefixResolver.Options Opt(bool dept = true, bool sub = false, bool room = true, string tenant = null)
+        {
+            return new AssetTagPrefixResolver.Options { TenantPrefix = tenant, UseDepartmentSegment = dept, UseSubDepartmentSegment = sub, UseRoomSegment = room };
+        }
+
+        [Test]
+        public void Segments_DefaultsMatchRel1018a()
+        {
+            var tree = Tree();
+            foreach (var id in new int?[] { 1, 2, 3, 4, 5, null })
+            {
+                Assert.AreEqual(AssetTagPrefixResolver.Resolve(id, tree, (string)null).Prefix, AssetTagPrefixResolver.ResolveWithOptions(id, tree, Opt()).Prefix, "id " + id);
+            }
+
+            Assert.AreEqual("SCI-LAB1", AssetTagPrefixResolver.ResolveWithOptions(3, tree, AssetTagPrefixResolver.GetOptions(new Dictionary<string, string>())).Prefix);
+        }
+
+        [Test]
+        public void Segments_TenantDefaults()
+        {
+            var tree = Tree();
+            Assert.AreEqual("SCI", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt(room: false)).Prefix, "dept + random");
+            Assert.AreEqual("SCI-PHY-LAB1", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt(sub: true)).Prefix, "dept + sub + room");
+            Assert.AreEqual("SCI-PHY", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt(sub: true, room: false)).Prefix);
+            Assert.AreEqual("LAB1", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt(dept: false)).Prefix, "room only");
+            Assert.AreEqual("SCI", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt(dept: false, room: false)).Prefix, "all off = department code");
+            Assert.AreEqual("SCI-PHY", AssetTagPrefixResolver.ResolveWithOptions(2, tree, Opt(sub: true)).Prefix, "sub-unit shown once, not twice");
+            Assert.AreEqual("SCI-STORE", AssetTagPrefixResolver.ResolveWithOptions(4, tree, Opt(sub: true)).Prefix, "no sub-department in the chain");
+        }
+
+        [Test]
+        public void Segments_PerNodeFlagsInheritAndNearestWins()
+        {
+            var tree = Tree();
+            tree[1].AssetTagUseRoomSegment = false;             // whole department: dept + random
+            Assert.AreEqual("SCI", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt()).Prefix);
+            Assert.AreEqual("SCI", AssetTagPrefixResolver.ResolveWithOptions(4, tree, Opt()).Prefix);
+            tree[4].AssetTagUseRoomSegment = true;              // room B opts back in
+            Assert.AreEqual("SCI-STORE", AssetTagPrefixResolver.ResolveWithOptions(4, tree, Opt()).Prefix);
+            Assert.AreEqual("SCI", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt()).Prefix, "sibling room unaffected");
+            tree[2].AssetTagUseSubDepartmentSegment = true;     // sub-department adds its code for its subtree
+            tree[2].AssetTagUseRoomSegment = true;
+            Assert.AreEqual("SCI-PHY-LAB1", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt()).Prefix);
+            tree[3].AssetTagUseSubDepartmentSegment = false;
+            Assert.AreEqual("SCI-LAB1", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt()).Prefix);
+            Assert.AreEqual(AssetTagPrefixResolver.SourceDerivedDefault, AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt()).Source);
+        }
+
+        [Test]
+        public void Segments_LiteralOverrideAndTenantPrefixStillWin()
+        {
+            var tree = Tree(phy: "PH");
+            tree[3].AssetTagUseRoomSegment = true;
+            tree[3].AssetTagUseSubDepartmentSegment = true;
+            Assert.AreEqual("PH", AssetTagPrefixResolver.ResolveWithOptions(3, tree, Opt()).Prefix);
+            Assert.AreEqual("NIS", AssetTagPrefixResolver.ResolveWithOptions(4, Tree(), Opt(sub: true, tenant: "nis")).Prefix);
+        }
+
+        [Test]
+        public void Segments_SettingsParsing()
+        {
+            var o = AssetTagPrefixResolver.GetOptions(new Dictionary<string, string>
+            {
+                { AssetTagPrefixResolver.UseDepartmentSegmentSettingKey, "False" },
+                { AssetTagPrefixResolver.UseSubDepartmentSegmentSettingKey, " true " },
+                { AssetTagPrefixResolver.UseRoomSegmentSettingKey, "junk" }
+            });
+            Assert.IsFalse(o.UseDepartmentSegment);
+            Assert.IsTrue(o.UseSubDepartmentSegment);
+            Assert.IsTrue(o.UseRoomSegment, "unparseable = default");
+        }
     }
 }

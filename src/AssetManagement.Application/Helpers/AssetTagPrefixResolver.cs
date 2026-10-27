@@ -26,6 +26,15 @@ namespace AssetManagement.Application.Helpers
         public const string TenantPrefixSettingKey = "AssetTag.Prefix.TenantDefault";
         public const string PrepPrefixSettingKey = "AssetTag.Prefix.Section.Prep";
         public const string SeniorPrefixSettingKey = "AssetTag.Prefix.Section.Senior";
+
+        // rel1018b: tenant defaults for the per-level "use this segment" switches (SystemSetting rows; missing = the default below).
+        public const string UseDepartmentSegmentSettingKey = "AssetTag.Segment.Department";
+        public const string UseSubDepartmentSegmentSettingKey = "AssetTag.Segment.SubDepartment";
+        public const string UseRoomSegmentSettingKey = "AssetTag.Segment.Room";
+        public const bool DefaultUseDepartmentSegment = true;
+        public const bool DefaultUseSubDepartmentSegment = false; // keeps the rel1018a shape TOPDEPT-ROOM (sub-unit only when there is no room)
+        public const bool DefaultUseRoomSegment = true;
+        public const int SubDepartmentSegmentLength = 8;
         public const int MaxPrefixLength = 20;
         public const int DepartmentSegmentLength = 6;
         public const int RoomSegmentLength = 8;
@@ -39,6 +48,58 @@ namespace AssetManagement.Application.Helpers
         public const string SourceTenantDefault = "Tenant default prefix";
         public const string SourceDerivedDefault = "Derived default (department + room)";
         public const string SourceFallback = "Fallback (no department)";
+
+        /// <summary>rel1018b: tenant-level inputs (tenant prefix + segment defaults).</summary>
+        public sealed class Options
+        {
+            public string TenantPrefix { get; set; }
+            public bool UseDepartmentSegment { get; set; } = DefaultUseDepartmentSegment;
+            public bool UseSubDepartmentSegment { get; set; } = DefaultUseSubDepartmentSegment;
+            public bool UseRoomSegment { get; set; } = DefaultUseRoomSegment;
+
+            /// <summary>Migration 106: optional prefix per school section. Missing section = no section prefix for it.</summary>
+            public IDictionary<DepartmentSection, string> SectionPrefixes { get; set; }
+        }
+
+        /// <summary>The three per-level switches after inheritance.</summary>
+        public sealed class SegmentFlags
+        {
+            public bool UseDepartment { get; set; }
+            public bool UseSubDepartment { get; set; }
+            public bool UseRoom { get; set; }
+        }
+
+        public static Options GetOptions(IDictionary<string, string> settings)
+        {
+            return new Options
+            {
+                TenantPrefix = GetTenantPrefix(settings),
+                UseDepartmentSegment = ReadBool(settings, UseDepartmentSegmentSettingKey, DefaultUseDepartmentSegment),
+                UseSubDepartmentSegment = ReadBool(settings, UseSubDepartmentSegmentSettingKey, DefaultUseSubDepartmentSegment),
+                UseRoomSegment = ReadBool(settings, UseRoomSegmentSettingKey, DefaultUseRoomSegment),
+                SectionPrefixes = GetSectionPrefixes(settings)
+            };
+        }
+
+        private static bool ReadBool(IDictionary<string, string> settings, string key, bool fallback)
+        {
+            string value;
+            bool parsed;
+            return settings != null && settings.TryGetValue(key, out value) && value != null && bool.TryParse(value.Trim(), out parsed) ? parsed : fallback;
+        }
+
+        /// <summary>For each switch, the nearest node (the asset's own node first, then each parent) with a value decides; else the tenant default.</summary>
+        public static SegmentFlags ResolveFlags(IList<Department> chain, Options options)
+        {
+            options = options ?? new Options();
+            chain = chain ?? new List<Department>();
+            return new SegmentFlags
+            {
+                UseDepartment = chain.Select(x => x.AssetTagUseDepartmentSegment).FirstOrDefault(x => x.HasValue) ?? options.UseDepartmentSegment,
+                UseSubDepartment = chain.Select(x => x.AssetTagUseSubDepartmentSegment).FirstOrDefault(x => x.HasValue) ?? options.UseSubDepartmentSegment,
+                UseRoom = chain.Select(x => x.AssetTagUseRoomSegment).FirstOrDefault(x => x.HasValue) ?? options.UseRoomSegment
+            };
+        }
 
         public sealed class Resolution
         {
@@ -146,15 +207,30 @@ namespace AssetManagement.Application.Helpers
 
         public static Resolution Resolve(int? departmentId, IDictionary<int, Department> departments, string tenantPrefix)
         {
-            return Resolve(departmentId, departments, tenantPrefix, null);
+            return ResolveWithOptions(departmentId, departments, new Options { TenantPrefix = tenantPrefix });
         }
 
+        /// <summary>Migration 106 overload: tenant prefix + section prefixes, default segment switches.</summary>
         public static Resolution Resolve(
             int? departmentId,
             IDictionary<int, Department> departments,
             string tenantPrefix,
             IDictionary<DepartmentSection, string> sectionPrefixes)
         {
+            return ResolveWithOptions(departmentId, departments, new Options { TenantPrefix = tenantPrefix, SectionPrefixes = sectionPrefixes });
+        }
+
+        /// <summary>
+        /// Precedence (rel1018b + migration 106): 1) nearest literal override = whole prefix (switches and section prefix do not
+        /// apply to it); 2) section prefix of the asset's own unit (Prep / Senior school) in place of the department segment,
+        /// followed by the sub-department / room segments switched on for this node; 3) tenant-wide prefix; 4) derived prefix
+        /// from the department / sub-department / room segments switched on for this node.
+        /// </summary>
+        public static Resolution ResolveWithOptions(int? departmentId, IDictionary<int, Department> departments, Options options)
+        {
+            options = options ?? new Options();
+            var tenantPrefix = options.TenantPrefix;
+            var sectionPrefixes = options.SectionPrefixes;
             var chain = GetChain(departmentId, departments);
             for (var i = 0; i < chain.Count; i++)
             {
@@ -188,7 +264,7 @@ namespace AssetManagement.Application.Helpers
                 && sectionPrefixes.TryGetValue(chain[0].Section, out sectionPrefix)
                 && NormalizePrefix(sectionPrefix) != null)
             {
-                return DeriveWithSectionPrefix(chain, NormalizePrefix(sectionPrefix));
+                return DeriveWithSectionPrefix(chain, NormalizePrefix(sectionPrefix), ResolveFlags(chain, options));
             }
 
             var tenant = NormalizePrefix(tenantPrefix);
@@ -197,65 +273,147 @@ namespace AssetManagement.Application.Helpers
                 return new Resolution { Prefix = tenant, Source = SourceTenantDefault };
             }
 
-            return Derive(chain);
+            return Derive(chain, ResolveFlags(chain, options));
         }
 
         /// <summary>
-        /// SECTIONPREFIX-ROOM (e.g. PP-GALA): the section prefix replaces the department part. The room segment comes from the
-        /// nearest Room/Class node, else the asset's own node (8 characters; a top department 6). It is not repeated when it equals
-        /// the section prefix and is shortened so the whole prefix stays within MaxPrefixLength.
+        /// SECTIONPREFIX-ROOM (e.g. PP-GALA) with default switches: the section prefix replaces the department segment.
         /// </summary>
         public static Resolution DeriveWithSectionPrefix(IList<Department> chain, string sectionPrefix)
         {
-            var node = chain.FirstOrDefault(x => IsRoomKind(x.DepartmentKind)) ?? chain[0];
-            var isTop = ReferenceEquals(node, chain[chain.Count - 1]) && !IsRoomKind(node.DepartmentKind);
-            var segment = Segment(node, isTop ? DepartmentSegmentLength : RoomSegmentLength);
-            var prefix = sectionPrefix;
-            if (!string.Equals(segment, sectionPrefix, StringComparison.OrdinalIgnoreCase))
+            return DeriveWithSectionPrefix(chain, sectionPrefix, new SegmentFlags { UseDepartment = DefaultUseDepartmentSegment, UseSubDepartment = DefaultUseSubDepartmentSegment, UseRoom = DefaultUseRoomSegment });
+        }
+
+        /// <summary>
+        /// SECTIONPREFIX [-SUB(8)] [-ROOM(8)]: the section prefix takes the place of the department segment and the
+        /// sub-department / room segments follow the per-level switches (same slot rules as <see cref="Derive(IList{Department}, SegmentFlags)"/>).
+        /// When no sub/room segment applies (e.g. an asset held by the top department) and the department switch is on,
+        /// the department segment (6) follows the prefix so the tag still names the place (PP-PREP). A segment equal to the
+        /// previous one is not repeated, and the last segment is shortened so the whole prefix stays within MaxPrefixLength.
+        /// </summary>
+        public static Resolution DeriveWithSectionPrefix(IList<Department> chain, string sectionPrefix, SegmentFlags flags)
+        {
+            flags = flags ?? new SegmentFlags { UseDepartment = true, UseRoom = true };
+            var top = chain[chain.Count - 1];
+            var roomNode = chain.FirstOrDefault(x => IsRoomKind(x.DepartmentKind) && !ReferenceEquals(x, top));
+            var subNode = chain.Take(chain.Count - 1).FirstOrDefault(x => !IsRoomKind(x.DepartmentKind));
+            var roomSlot = roomNode ?? (chain.Count > 1 ? chain[0] : null);
+            if (roomNode == null && flags.UseSubDepartment && ReferenceEquals(roomSlot, subNode))
             {
-                var room = Math.Max(0, MaxPrefixLength - sectionPrefix.Length - 1);
-                if (room > 0)
+                roomSlot = null;
+            }
+
+            var parts = new List<KeyValuePair<string, Department>>();
+            if (flags.UseSubDepartment && subNode != null)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(subNode, SubDepartmentSegmentLength), subNode));
+            }
+
+            if (flags.UseRoom && roomSlot != null)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(roomSlot, RoomSegmentLength), roomSlot));
+            }
+
+            if (parts.Count == 0 && flags.UseDepartment)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(top, IsRoomKind(top.DepartmentKind) ? RoomSegmentLength : DepartmentSegmentLength), top));
+            }
+
+            var prefix = sectionPrefix;
+            var lastSegment = sectionPrefix;
+            Department sourceNode = parts.Count == 0 ? chain[0] : parts[parts.Count - 1].Value;
+            foreach (var part in parts)
+            {
+                if (string.Equals(part.Key, lastSegment, StringComparison.OrdinalIgnoreCase))
                 {
-                    prefix = sectionPrefix + "-" + (segment.Length > room ? segment.Substring(0, room) : segment);
+                    continue;
                 }
+
+                var room = MaxPrefixLength - prefix.Length - 1;
+                if (room <= 0)
+                {
+                    break;
+                }
+
+                var segment = part.Key.Length > room ? part.Key.Substring(0, room) : part.Key;
+                prefix = prefix + "-" + segment;
+                lastSegment = part.Key;
             }
 
             return new Resolution
             {
                 Prefix = NormalizePrefix(prefix) ?? FallbackPrefix,
                 Source = SourceSectionPrefix,
-                SourceDepartmentId = node.Id,
-                SourceDepartmentName = node.Name
+                SourceDepartmentId = sourceNode.Id,
+                SourceDepartmentName = sourceNode.Name
             };
         }
 
         public static Resolution Derive(IList<Department> chain)
+        {
+            return Derive(chain, new SegmentFlags { UseDepartment = DefaultUseDepartmentSegment, UseSubDepartment = DefaultUseSubDepartmentSegment, UseRoom = DefaultUseRoomSegment });
+        }
+
+        /// <summary>
+        /// DEPT(6) [-SUB(8)] [-ROOM(8)] from the switched-on levels. SUB = nearest non-room node below the top department.
+        /// With the room switch on and no room, the asset's own sub-unit fills the room slot (rel1018a behaviour) unless
+        /// the sub-department segment already shows it. Equal adjacent segments are collapsed. All switches off = the
+        /// department segment anyway (a prefix cannot be empty).
+        /// </summary>
+        public static Resolution Derive(IList<Department> chain, SegmentFlags flags)
         {
             if (chain == null || chain.Count == 0)
             {
                 return new Resolution { Prefix = FallbackPrefix, Source = SourceFallback };
             }
 
+            flags = flags ?? new SegmentFlags { UseDepartment = true, UseRoom = true };
             var top = chain[chain.Count - 1];
-            var deptSegment = Segment(top, DepartmentSegmentLength);
-            // The room is the nearest Room/Class node; otherwise the asset's own sub-unit when it is below the top department.
-            var room = chain.FirstOrDefault(x => IsRoomKind(x.DepartmentKind)) ?? (chain.Count > 1 ? chain[0] : null);
-            var prefix = deptSegment;
-            if (room != null && !ReferenceEquals(room, top))
+            var roomNode = chain.FirstOrDefault(x => IsRoomKind(x.DepartmentKind) && !ReferenceEquals(x, top));
+            var subNode = chain.Take(chain.Count - 1).FirstOrDefault(x => !IsRoomKind(x.DepartmentKind));
+            var roomSlot = roomNode ?? (chain.Count > 1 ? chain[0] : null);
+            if (roomNode == null && flags.UseSubDepartment && ReferenceEquals(roomSlot, subNode))
             {
-                var roomSegment = Segment(room, RoomSegmentLength);
-                if (!string.Equals(roomSegment, deptSegment, StringComparison.OrdinalIgnoreCase))
+                roomSlot = null;
+            }
+
+            var parts = new List<KeyValuePair<string, Department>>();
+            if (flags.UseDepartment)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(top, DepartmentSegmentLength), top));
+            }
+
+            if (flags.UseSubDepartment && subNode != null)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(subNode, SubDepartmentSegmentLength), subNode));
+            }
+
+            if (flags.UseRoom && roomSlot != null)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(roomSlot, RoomSegmentLength), roomSlot));
+            }
+
+            if (parts.Count == 0)
+            {
+                parts.Add(new KeyValuePair<string, Department>(Segment(top, DepartmentSegmentLength), top));
+            }
+
+            var segments = new List<string>();
+            foreach (var part in parts)
+            {
+                if (segments.Count == 0 || !string.Equals(segments[segments.Count - 1], part.Key, StringComparison.OrdinalIgnoreCase))
                 {
-                    prefix = deptSegment + "-" + roomSegment;
+                    segments.Add(part.Key);
                 }
             }
 
+            var last = parts[parts.Count - 1].Value;
             return new Resolution
             {
-                Prefix = NormalizePrefix(prefix) ?? FallbackPrefix,
+                Prefix = NormalizePrefix(string.Join("-", segments)) ?? FallbackPrefix,
                 Source = SourceDerivedDefault,
-                SourceDepartmentId = (room ?? top).Id,
-                SourceDepartmentName = (room ?? top).Name
+                SourceDepartmentId = last.Id,
+                SourceDepartmentName = last.Name
             };
         }
 

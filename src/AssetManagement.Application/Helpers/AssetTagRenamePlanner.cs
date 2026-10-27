@@ -88,6 +88,22 @@ namespace AssetManagement.Application.Helpers
             LevelOptions levels,
             IDictionary<DepartmentSection, string> sectionPrefixes)
         {
+            return BuildPlan(candidates, departments, new AssetTagPrefixResolver.Options { TenantPrefix = tenantPrefix, SectionPrefixes = sectionPrefixes }, peekNext, takenTags, levels);
+        }
+
+        /// <summary>
+        /// rel1018b + migration 106: honours the per-level segment switches (tenant defaults in options, per-node flags on the
+        /// departments) and the section prefixes in options. When levels is set the three-level page boxes build the prefix instead.
+        /// </summary>
+        public static List<AssetTagRenamePlanItem> BuildPlan(
+            IEnumerable<AssetTagRenameCandidate> candidates,
+            IDictionary<int, Department> departments,
+            AssetTagPrefixResolver.Options options,
+            Func<string, int> peekNext,
+            Func<string, ISet<string>> takenTags,
+            LevelOptions levels = null)
+        {
+            options = options ?? new AssetTagPrefixResolver.Options();
             var items = new List<AssetTagRenamePlanItem>();
             var nextByPrefix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var takenByPrefix = new Dictionary<string, ISet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -99,8 +115,8 @@ namespace AssetManagement.Application.Helpers
                 .ThenBy(x => x.AssetId))
             {
                 var prefix = levels == null
-                    ? AssetTagPrefixResolver.Resolve(candidate.DepartmentId, departments, tenantPrefix, sectionPrefixes).Prefix
-                    : BuildLevelPrefix(candidate.DepartmentId, departments, tenantPrefix, levels);
+                    ? AssetTagPrefixResolver.ResolveWithOptions(candidate.DepartmentId, departments, options).Prefix
+                    : BuildLevelPrefix(candidate.DepartmentId, departments, options.TenantPrefix, levels);
                 if (AlreadyConforms(candidate.AssetTag, prefix))
                 {
                     continue;

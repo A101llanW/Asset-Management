@@ -236,7 +236,7 @@ namespace AssetManagement.Web.Controllers
             plan = AssetTagRenamePlanner.BuildPlan(
                 candidates,
                 byId,
-                AssetTagPrefixResolver.GetTenantPrefix(settings),
+                AssetTagPrefixResolver.GetOptions(settings),
                 prefix => store.PeekNext(organizationId, prefix),
                 prefix => store.GetTakenTags(organizationId, prefix),
                 levels);

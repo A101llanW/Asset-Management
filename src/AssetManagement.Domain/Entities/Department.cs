@@ -66,6 +66,15 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Optional explicit sort number (Grades). Null = derive from the code (G05 = 5), so Prep (G00) sorts first.</summary>
         public int? SortOrder { get; set; }
 
+        /// <summary>rel1018b (migration 104): use the top-department segment in derived tags here and below. Null = inherit (parent, then tenant setting).</summary>
+        public bool? AssetTagUseDepartmentSegment { get; set; }
+
+        /// <summary>rel1018b (migration 104): use the sub-department segment in derived tags here and below. Null = inherit.</summary>
+        public bool? AssetTagUseSubDepartmentSegment { get; set; }
+
+        /// <summary>rel1018b (migration 104): use the room segment in derived tags here and below. Null = inherit.</summary>
+        public bool? AssetTagUseRoomSegment { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }

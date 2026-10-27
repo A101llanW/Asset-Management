@@ -77,10 +77,8 @@ namespace AssetManagement.Web.Controllers
 
             var departmentRepository = UnitOfWork.Repository<Department>();
             var departments = departmentRepository.GetAll().ToDictionary(x => x.Id);
-            var posted = (model.Rows ?? new List<AssetTagOverrideRowVm>())
-                .Where(x => x != null && departments.ContainsKey(x.DepartmentId)) // ids from another tenant are not in the scoped list and are ignored
-                .GroupBy(x => x.DepartmentId)
-                .ToDictionary(g => g.Key, g => g.First().Override);
+            var postedRows = PostedTagRows(model, departments);
+            var posted = postedRows.ToDictionary(x => x.Key, x => x.Value.Override);
             foreach (var pair in posted)
             {
                 if (!string.IsNullOrWhiteSpace(pair.Value) && AssetTagPrefixResolver.NormalizePrefix(pair.Value) == null)
@@ -91,11 +89,14 @@ namespace AssetManagement.Web.Controllers
 
             if (!ModelState.IsValid)
             {
-                var invalid = BuildAssetTagSettings(posted);
+                var invalid = BuildAssetTagSettings(postedRows);
                 invalid.Enabled = model.Enabled;
                 invalid.TenantPrefix = model.TenantPrefix;
                 invalid.PrepPrefix = model.PrepPrefix;
                 invalid.SeniorPrefix = model.SeniorPrefix;
+                invalid.UseDepartmentSegment = model.UseDepartmentSegment;
+                invalid.UseSubDepartmentSegment = model.UseSubDepartmentSegment;
+                invalid.UseRoomSegment = model.UseRoomSegment;
                 return View(invalid);
             }
 
@@ -107,22 +108,37 @@ namespace AssetManagement.Web.Controllers
                 settings.ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase));
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.PrepPrefixSettingKey, prepPrefix ?? string.Empty, "Asset tag prefix for Prep units (used with the room, e.g. PP-GALA-001). Blank = no Prep prefix. Overrides on a department/room still win.");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.SeniorPrefixSettingKey, seniorPrefix ?? string.Empty, "Asset tag prefix for Senior school units. Blank = no Senior school prefix (existing behaviour).");
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.UseDepartmentSegmentSettingKey, model.UseDepartmentSegment.ToString(), "Derived asset tags include the top-department segment unless a department/sub-department/room says otherwise (rel1018b).");
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.UseSubDepartmentSegmentSettingKey, model.UseSubDepartmentSegment.ToString(), "Derived asset tags include the sub-department segment unless a node says otherwise (rel1018b).");
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.UseRoomSegmentSettingKey, model.UseRoomSegment.ToString(), "Derived asset tags include the room segment unless a node says otherwise (rel1018b).");
 
             var changes = new List<string>();
-            foreach (var pair in posted)
+            foreach (var pair in postedRows)
             {
                 var department = departments[pair.Key];
-                var next = AssetTagPrefixResolver.NormalizePrefix(pair.Value);
+                var row = pair.Value;
+                var next = AssetTagPrefixResolver.NormalizePrefix(row.Override);
                 var current = AssetTagPrefixResolver.NormalizePrefix(department.AssetTagPrefix);
-                if (string.Equals(next, current, StringComparison.Ordinal))
+                var nextDept = ParseTriState(row.UseDepartment);
+                var nextSub = ParseTriState(row.UseSubDepartment);
+                var nextRoom = ParseTriState(row.UseRoom);
+                if (string.Equals(next, current, StringComparison.Ordinal)
+                    && nextDept == department.AssetTagUseDepartmentSegment
+                    && nextSub == department.AssetTagUseSubDepartmentSegment
+                    && nextRoom == department.AssetTagUseRoomSegment)
                 {
                     continue;
                 }
 
+                changes.Add(department.Id + ":" + (current ?? "-") + "->" + (next ?? "-")
+                    + " seg[" + TriStateText(department.AssetTagUseDepartmentSegment) + TriStateText(department.AssetTagUseSubDepartmentSegment) + TriStateText(department.AssetTagUseRoomSegment)
+                    + "->" + TriStateText(nextDept) + TriStateText(nextSub) + TriStateText(nextRoom) + "]");
                 department.AssetTagPrefix = next;
+                department.AssetTagUseDepartmentSegment = nextDept;
+                department.AssetTagUseSubDepartmentSegment = nextSub;
+                department.AssetTagUseRoomSegment = nextRoom;
                 department.UpdatedAt = DateTime.UtcNow;
                 departmentRepository.Update(department);
-                changes.Add(department.Id + ":" + (current ?? "-") + "->" + (next ?? "-"));
             }
 
             UnitOfWork.SaveChanges();
@@ -134,6 +150,7 @@ namespace AssetManagement.Web.Controllers
                 "enabled=" + model.Enabled + "; tenant=" + (tenantPrefix ?? "(derived)")
                     + "; prepPrefix=" + (prepPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.Prep) ? previousSectionPrefixes[DepartmentSection.Prep] : "none") + ")"
                     + "; seniorPrefix=" + (seniorPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? previousSectionPrefixes[DepartmentSection.SeniorSchool] : "none") + ")"
+                    + "; segments(D/S/R)=" + model.UseDepartmentSegment + "/" + model.UseSubDepartmentSegment + "/" + model.UseRoomSegment
                     + "; overrides=" + (changes.Count == 0 ? "unchanged" : string.Join(", ", changes)));
             TempData["SuccessMessage"] = "Asset tag prefix settings saved. Existing tags are unchanged; new assets use the new prefix.";
             return RedirectToAction("AssetTags");
@@ -162,11 +179,7 @@ namespace AssetManagement.Web.Controllers
                 return Json(new { ok = true, enabled = false, nextTag = "(random 10-character tag)", source = "Structured tags are off" }, JsonRequestBehavior.AllowGet);
             }
 
-            var resolution = AssetTagPrefixResolver.Resolve(
-                departmentId,
-                departments,
-                AssetTagPrefixResolver.GetTenantPrefix(settings),
-                AssetTagPrefixResolver.GetSectionPrefixes(settings));
+            var resolution = AssetTagPrefixResolver.ResolveWithOptions(departmentId, departments, AssetTagPrefixResolver.GetOptions(settings));
             var store = DependencyResolver.Current.GetService<IAssetTagSequenceStore>();
             var next = store == null ? 1 : store.PeekNext(organizationId.Value, resolution.Prefix);
             return Json(new
@@ -180,20 +193,104 @@ namespace AssetManagement.Web.Controllers
             }, JsonRequestBehavior.AllowGet);
         }
 
-        private AssetTagSettingsVm BuildAssetTagSettings(IDictionary<int, string> pendingOverrides)
+        /// <summary>
+        /// rel1018b: effective prefix of every node for the UNSAVED form (overrides, switches, tenant defaults). Read-only:
+        /// works on detached copies of the tenant's departments, nothing is saved. Used to auto-fill the boxes below a node.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult AssetTagEffective(AssetTagSettingsVm model)
+        {
+            model = model ?? new AssetTagSettingsVm();
+            var departments = UnitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id);
+            var postedRows = PostedTagRows(model, departments);
+            var copies = departments.Values.ToDictionary(x => x.Id, x =>
+            {
+                AssetTagOverrideRowVm row;
+                var pending = postedRows.TryGetValue(x.Id, out row);
+                return new Department
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    Code = x.Code,
+                    ParentDepartmentId = x.ParentDepartmentId,
+                    DepartmentKind = x.DepartmentKind,
+                    Section = x.Section,
+                    IsActive = x.IsActive,
+                    AssetTagPrefix = pending ? row.Override : x.AssetTagPrefix,
+                    AssetTagUseDepartmentSegment = pending ? ParseTriState(row.UseDepartment) : x.AssetTagUseDepartmentSegment,
+                    AssetTagUseSubDepartmentSegment = pending ? ParseTriState(row.UseSubDepartment) : x.AssetTagUseSubDepartmentSegment,
+                    AssetTagUseRoomSegment = pending ? ParseTriState(row.UseRoom) : x.AssetTagUseRoomSegment
+                };
+            });
+            var options = new AssetTagPrefixResolver.Options
+            {
+                TenantPrefix = AssetTagPrefixResolver.NormalizePrefix(model.TenantPrefix),
+                UseDepartmentSegment = model.UseDepartmentSegment,
+                UseSubDepartmentSegment = model.UseSubDepartmentSegment,
+                UseRoomSegment = model.UseRoomSegment,
+                SectionPrefixes = PostedSectionPrefixes(model)
+            };
+            var rows = copies.Values.Where(x => x.IsActive).Select(x =>
+            {
+                var r = AssetTagPrefixResolver.ResolveWithOptions(x.Id, copies, options);
+                return new { id = x.Id, prefix = r.Prefix, source = r.Source + (r.SourceDepartmentName == null || r.SourceDepartmentId == x.Id ? string.Empty : " (" + r.SourceDepartmentName + ")") };
+            }).ToList();
+            return Json(new { ok = true, rows });
+        }
+
+        /// <summary>Section prefixes (Prep / Senior school) as typed on the unsaved form; blank or unusable = none for that section.</summary>
+        private static IDictionary<DepartmentSection, string> PostedSectionPrefixes(AssetTagSettingsVm model)
+        {
+            var result = new Dictionary<DepartmentSection, string>();
+            var prep = AssetTagPrefixResolver.NormalizePrefix(model.PrepPrefix);
+            var senior = AssetTagPrefixResolver.NormalizePrefix(model.SeniorPrefix);
+            if (prep != null) { result[DepartmentSection.Prep] = prep; }
+            if (senior != null) { result[DepartmentSection.SeniorSchool] = senior; }
+            return result;
+        }
+
+        private static Dictionary<int, AssetTagOverrideRowVm> PostedTagRows(AssetTagSettingsVm model, IDictionary<int, Department> departments)
+        {
+            return (model.Rows ?? new List<AssetTagOverrideRowVm>())
+                .Where(x => x != null && departments.ContainsKey(x.DepartmentId)) // ids from another tenant are not in the scoped list and are ignored
+                .GroupBy(x => x.DepartmentId)
+                .ToDictionary(g => g.Key, g => g.First());
+        }
+
+        internal static bool? ParseTriState(string value)
+        {
+            bool parsed;
+            return !string.IsNullOrWhiteSpace(value) && bool.TryParse(value.Trim(), out parsed) ? parsed : (bool?)null;
+        }
+
+        private static string TriStateText(bool? value)
+        {
+            return value.HasValue ? (value.Value ? "Y" : "N") : "-";
+        }
+
+        private static string TriStateValue(bool? value)
+        {
+            return value.HasValue ? (value.Value ? "true" : "false") : string.Empty;
+        }
+
+        private AssetTagSettingsVm BuildAssetTagSettings(IDictionary<int, AssetTagOverrideRowVm> pendingRows)
         {
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(UnitOfWork.Repository<SystemSetting>().GetAll())
                 .ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase);
             var departments = UnitOfWork.Repository<Department>().GetAll().Where(x => x.IsActive).ToList();
             var byId = departments.ToDictionary(x => x.Id);
-            var tenantPrefix = AssetTagPrefixResolver.GetTenantPrefix(settings);
-            var sectionPrefixes = AssetTagPrefixResolver.GetSectionPrefixes(settings);
+            var options = AssetTagPrefixResolver.GetOptions(settings);
+            var sectionPrefixes = options.SectionPrefixes;
             var model = new AssetTagSettingsVm
             {
                 Enabled = AssetTagPrefixResolver.IsEnabled(settings),
-                TenantPrefix = tenantPrefix,
+                TenantPrefix = options.TenantPrefix,
                 PrepPrefix = sectionPrefixes.ContainsKey(DepartmentSection.Prep) ? sectionPrefixes[DepartmentSection.Prep] : null,
-                SeniorPrefix = sectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? sectionPrefixes[DepartmentSection.SeniorSchool] : null
+                SeniorPrefix = sectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? sectionPrefixes[DepartmentSection.SeniorSchool] : null,
+                UseDepartmentSegment = options.UseDepartmentSegment,
+                UseSubDepartmentSegment = options.UseSubDepartmentSegment,
+                UseRoomSegment = options.UseRoomSegment
             };
 
             var children = departments.ToLookup(x => x.ParentDepartmentId.HasValue && byId.ContainsKey(x.ParentDepartmentId.Value) ? x.ParentDepartmentId : null);
@@ -209,16 +306,21 @@ namespace AssetManagement.Web.Controllers
                     }
 
                     var label = parentLabel == null ? node.Name : parentLabel + " > " + node.Name;
-                    var resolution = AssetTagPrefixResolver.Resolve(node.Id, byId, tenantPrefix, sectionPrefixes);
-                    string pending;
+                    var resolution = AssetTagPrefixResolver.ResolveWithOptions(node.Id, byId, options);
+                    AssetTagOverrideRowVm pending = null;
+                    var hasPending = pendingRows != null && pendingRows.TryGetValue(node.Id, out pending);
                     model.Rows.Add(new AssetTagOverrideRowVm
                     {
                         DepartmentId = node.Id,
+                        ParentDepartmentId = parentId,
+                        UseDepartment = hasPending ? pending.UseDepartment : TriStateValue(node.AssetTagUseDepartmentSegment),
+                        UseSubDepartment = hasPending ? pending.UseSubDepartment : TriStateValue(node.AssetTagUseSubDepartmentSegment),
+                        UseRoom = hasPending ? pending.UseRoom : TriStateValue(node.AssetTagUseRoomSegment),
                         Label = label,
                         Depth = depth,
                         KindLabel = node.DepartmentKind.ToString(),
                         IsRoom = AssetTagPrefixResolver.IsRoomKind(node.DepartmentKind),
-                        Override = pendingOverrides != null && pendingOverrides.TryGetValue(node.Id, out pending) ? pending : node.AssetTagPrefix,
+                        Override = hasPending ? pending.Override : node.AssetTagPrefix,
                         EffectivePrefix = resolution.Prefix,
                         EffectiveSource = resolution.Source + (resolution.SourceDepartmentName == null || resolution.SourceDepartmentId == node.Id ? string.Empty : " (" + resolution.SourceDepartmentName + ")")
                     });

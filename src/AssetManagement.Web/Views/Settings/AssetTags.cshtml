@@ -1,6 +1,7 @@
 @model AssetManagement.Web.ViewModels.AssetTagSettingsVm
 @{
     ViewBag.Title = "Asset tag prefix";
+    var triStates = new[] { new { V = "", T = "inherit" }, new { V = "true", T = "yes" }, new { V = "false", T = "no" } };
 }
 
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -96,33 +97,61 @@
                     <div class="form-text" id="previewResult">Preview uses the saved settings and does not reserve a number.</div>
                 </div>
             </div>
+            <div class="mt-3">
+                <div class="form-label mb-1">Segments used in derived tags (defaults; any department, sub-department or room below can change them for itself and everything under it)</div>
+                <div class="form-check form-check-inline">
+                    @Html.CheckBoxFor(m => m.UseDepartmentSegment, new { @class = "form-check-input js-tag-input", id = "useDeptSeg" })
+                    <label class="form-check-label" for="useDeptSeg">Department code</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    @Html.CheckBoxFor(m => m.UseSubDepartmentSegment, new { @class = "form-check-input js-tag-input", id = "useSubSeg" })
+                    <label class="form-check-label" for="useSubSeg">Sub-department code</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    @Html.CheckBoxFor(m => m.UseRoomSegment, new { @class = "form-check-input js-tag-input", id = "useRoomSeg" })
+                    <label class="form-check-label" for="useRoomSeg">Room code</label>
+                </div>
+                <div class="form-text">Used only when no override box applies (an override is the whole prefix) and the tenant-wide prefix is blank. If every segment is off, the department code is used.</div>
+            </div>
         </div>
     </div>
 
     <div class="card mb-3">
-        <div class="card-header">Overrides (most specific wins: room, then nearest sub-department, then department, then the tenant default)</div>
+        <div class="card-header">Overrides (most specific wins: room, then nearest sub-department, then department, then the tenant default). Segment switches: "inherit" follows the parent, then the tenant default. Select a row to fill the boxes below it with their current effective prefixes.</div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0 align-middle">
                 <thead>
-                    <tr><th>Department / room</th><th>Kind</th><th style="width:220px">Override prefix</th><th>Effective prefix (saved)</th><th>From</th></tr>
+                    <tr><th>Department / room</th><th>Kind</th><th style="width:200px">Override prefix</th><th title="Use the department code">Dept</th><th title="Use the sub-department code">Sub-dept</th><th title="Use the room code">Room</th><th>Effective prefix</th><th>From</th></tr>
                 </thead>
                 <tbody>
                     @for (var i = 0; i < Model.Rows.Count; i++)
                     {
-                        <tr>
+                        <tr class="js-tag-row" data-id="@Model.Rows[i].DepartmentId" data-parent="@Model.Rows[i].ParentDepartmentId">
                             <td style="padding-left:@(8 + Model.Rows[i].Depth * 18)px">
                                 @Html.HiddenFor(m => m.Rows[i].DepartmentId)
-                                @Model.Rows[i].Label
+                                <a href="#" class="js-tag-select" title="Select: fill the boxes below with their effective prefixes">@Model.Rows[i].Label</a>
                             </td>
                             <td>@Model.Rows[i].KindLabel</td>
-                            <td>@Html.TextBoxFor(m => m.Rows[i].Override, new { @class = "form-control form-control-sm text-uppercase", maxlength = "20", placeholder = "inherit" })</td>
-                            <td><code>@Model.Rows[i].EffectivePrefix-###</code></td>
-                            <td class="small text-muted">@Model.Rows[i].EffectiveSource</td>
+                            <td>@Html.TextBoxFor(m => m.Rows[i].Override, new { @class = "form-control form-control-sm text-uppercase js-tag-input js-tag-override", maxlength = "20", placeholder = Model.Rows[i].EffectivePrefix ?? "inherit" })</td>
+                            @foreach (var seg in new[] { "UseDepartment", "UseSubDepartment", "UseRoom" })
+                            {
+                                var current = seg == "UseDepartment" ? Model.Rows[i].UseDepartment : seg == "UseSubDepartment" ? Model.Rows[i].UseSubDepartment : Model.Rows[i].UseRoom;
+                                <td>
+                                    <select name="Rows[@i].@seg" class="form-select form-select-sm js-tag-input" style="width:auto">
+                                        @foreach (var t in triStates)
+                                        {
+                                            <option value="@t.V" @(string.Equals(current ?? "", t.V, StringComparison.OrdinalIgnoreCase) ? "selected" : "")>@t.T</option>
+                                        }
+                                    </select>
+                                </td>
+                            }
+                            <td><code class="js-tag-effective">@Model.Rows[i].EffectivePrefix</code>-XXXXXX</td>
+                            <td class="small text-muted js-tag-source">@Model.Rows[i].EffectiveSource</td>
                         </tr>
                     }
                     @if (Model.Rows.Count == 0)
                     {
-                        <tr><td colspan="5" class="text-muted">No departments yet.</td></tr>
+                        <tr><td colspan="8" class="text-muted">No departments yet.</td></tr>
                     }
                 </tbody>
             </table>
@@ -148,6 +177,59 @@
                         result.textContent = 'Next tag: ' + data.nextTag + ' (' + data.source + (data.sourceDepartment ? ': ' + data.sourceDepartment : '') + ')';
                     })
                     .catch(function () { result.textContent = 'Preview failed.'; });
+            });
+
+            // rel1018b: live effective prefixes for the unsaved form, and auto-fill of the boxes below a selected node.
+            var form = document.getElementById('assetTagForm');
+            var effectiveUrl = '@Url.Action("AssetTagEffective", "Settings")';
+            var rows = Array.prototype.slice.call(document.querySelectorAll('.js-tag-row'));
+            var byId = {};
+            rows.forEach(function (r) { byId[r.getAttribute('data-id')] = r; });
+            function descendants(id) {
+                var out = [], stack = [id];
+                while (stack.length) {
+                    var cur = stack.pop();
+                    rows.forEach(function (r) { if (r.getAttribute('data-parent') === cur) { out.push(r); stack.push(r.getAttribute('data-id')); } });
+                }
+                return out;
+            }
+            var pending = null, selectedId = null;
+            function refresh() {
+                return fetch(effectiveUrl, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.ok) { return; }
+                        data.rows.forEach(function (x) {
+                            var row = byId[String(x.id)];
+                            if (!row) { return; }
+                            row.querySelector('.js-tag-effective').textContent = x.prefix;
+                            row.querySelector('.js-tag-source').textContent = x.source;
+                            row.querySelector('.js-tag-override').placeholder = x.prefix;
+                        });
+                        if (selectedId) { fillBelow(selectedId); }
+                    });
+            }
+            function fillBelow(id) {
+                rows.forEach(function (r) { r.classList.remove('table-active'); });
+                byId[id].classList.add('table-active');
+                descendants(id).forEach(function (r) {
+                    r.classList.add('table-active');
+                    var box = r.querySelector('.js-tag-override');
+                    // Shown as the box's grey value; it stays "inherit" (not saved as an override) unless you type in the box.
+                    box.placeholder = r.querySelector('.js-tag-effective').textContent;
+                });
+            }
+            form.addEventListener('change', function (e) {
+                if (!e.target.classList.contains('js-tag-input')) { return; }
+                clearTimeout(pending);
+                pending = setTimeout(refresh, 250);
+            });
+            document.querySelectorAll('.js-tag-select').forEach(function (a) {
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    selectedId = a.closest('tr').getAttribute('data-id');
+                    refresh();
+                });
             });
         })();
     </script>
