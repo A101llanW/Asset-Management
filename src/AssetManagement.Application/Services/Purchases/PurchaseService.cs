@@ -338,9 +338,11 @@ namespace AssetManagement.Application.Services
             int? selectedTypeId,
             int? selectedSubTypeId)
         {
-            // Classification precedence: the requisition's existing asset (fixed), then a type chosen on the PO,
-            // then the supplier catalog item; otherwise none and Receiving asks for it.
-            var classification = ledger.FromRequisitionAsset(request);
+            // Classification precedence (migration 108): what the requisition fixes for this line - the line's tagged
+            // asset, then the line's type / sub-type, then a legacy header tag - then a type chosen on the PO, then the
+            // supplier catalog item; otherwise none and Receiving asks for it. Before 108 only the header asset was
+            // read here, so a type picked on a requisition line was dropped at the PO (the "type at PO" gap).
+            var classification = ledger.FixedClassification(request, requisitionLine);
             if (classification == null && selectedTypeId.HasValue && selectedTypeId.Value > 0)
             {
                 var type = _unitOfWork.Repository<AssetType>().GetById(selectedTypeId.Value);
@@ -374,6 +376,7 @@ namespace AssetManagement.Application.Services
             return new PurchaseOrderLine
             {
                 PurchaseRequestLineId = requisitionLine == null ? (int?)null : requisitionLine.Id,
+                ItemName = AssetNameRules.Normalize(requisitionLine == null ? null : requisitionLine.ItemName),
                 Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
                 Quantity = quantity,
                 UnitCost = unitCost,
@@ -406,15 +409,25 @@ namespace AssetManagement.Application.Services
 
             var ledger = new PurchaseOrderLedger(_unitOfWork);
             var lines = ledger.BuildRequisitionDraft(request);
-            var fixedClassification = ledger.FromRequisitionAsset(request);
+            var requisitionLines = ledger.GetRequisitionLines(request.Id).ToDictionary(x => x.Id);
             foreach (var line in lines)
             {
+                PurchaseRequestLine requisitionLine = null;
+                if (line.PurchaseRequestLineId.HasValue)
+                {
+                    requisitionLines.TryGetValue(line.PurchaseRequestLineId.Value, out requisitionLine);
+                }
+
+                var fixedClassification = ledger.FixedClassification(request, requisitionLine);
                 if (fixedClassification != null)
                 {
                     line.AssetTypeId = fixedClassification.AssetTypeId;
                     line.AssetSubTypeId = fixedClassification.AssetSubTypeId;
                     line.ClassificationLocked = true;
-                    line.ClassificationLabel = DescribeClassification(fixedClassification) + " (from the requisition's existing asset)";
+                    line.ClassificationLabel = DescribeClassification(fixedClassification)
+                        + (fixedClassification.Source == PurchaseOrderLedger.SourceRequisitionLine
+                            ? " (from the requisition line)"
+                            : " (from the requisition's existing asset)");
                 }
             }
 

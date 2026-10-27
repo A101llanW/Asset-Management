@@ -38,6 +38,8 @@ namespace AssetManagement.Application.Services
     {
         public const string SourcePurchaseOrderLine = "PurchaseOrderLine";
         public const string SourceRequisitionAsset = "RequisitionAsset";
+        /// <summary>Migration 108: the type / sub-type chosen on the requisition line (untagged lines must have one).</summary>
+        public const string SourceRequisitionLine = "RequisitionLine";
         public const string SourceSelectedOnOrder = "SelectedOnOrder";
         public const string SourceSupplierCatalog = "SupplierCatalog";
 
@@ -54,6 +56,8 @@ namespace AssetManagement.Application.Services
             {
                 case SourceRequisitionAsset:
                     return "Requisition's existing asset";
+                case SourceRequisitionLine:
+                    return "Requisition line";
                 case SourceSelectedOnOrder:
                     return "Purchase order line";
                 case SourceSupplierCatalog:
@@ -205,6 +209,7 @@ namespace AssetManagement.Application.Services
                 {
                     PurchaseRequestLineId = line.Id,
                     LineNumber = line.LineNumber,
+                    ItemName = line.ItemName,
                     Description = line.Description,
                     RequisitionQuantity = line.Quantity,
                     AlreadyOrdered = ordered,
@@ -228,14 +233,98 @@ namespace AssetManagement.Application.Services
                 });
             }
 
-            var fromAsset = FromRequisitionAsset(request);
-            if (fromAsset != null)
+            // Migration 108: a PO line saved without a type (older PO, or the PO was raised before the requisition
+            // line carried one) still gets the requisition line's own tag / type before the header-level fallbacks.
+            var requisitionLine = GetRequisitionLine(line);
+            var fixedClassification = FixedClassification(request, requisitionLine);
+            if (fixedClassification != null)
             {
-                return fromAsset;
+                return fixedClassification;
             }
 
             return FromSupplierCatalog(purchase == null ? 0 : purchase.SupplierId, string.IsNullOrWhiteSpace(description) ? request?.ItemDescription : description)
                 ?? new PurchaseLineClassification();
+        }
+
+        /// <summary>The requisition line a PO line was raised from (null for legacy / unlinked lines).</summary>
+        public PurchaseRequestLine GetRequisitionLine(PurchaseOrderLine line)
+        {
+            if (line == null || !line.PurchaseRequestLineId.HasValue || line.PurchaseRequestLineId.Value <= 0)
+            {
+                return null;
+            }
+
+            return _unitOfWork.Repository<PurchaseRequestLine>().GetById(line.PurchaseRequestLineId.Value);
+        }
+
+        /// <summary>
+        /// Migration 108: the classification the requisition fixes for a line - the line's own tagged asset, then the
+        /// line's type / sub-type, then (legacy requisitions) the header's tagged asset. Null when none of these is set.
+        /// </summary>
+        public PurchaseLineClassification FixedClassification(PurchaseRequest request, PurchaseRequestLine requisitionLine)
+        {
+            return FromRequisitionLine(requisitionLine) ?? FromRequisitionAsset(request);
+        }
+
+        /// <summary>Migration 108: the line's tagged asset (Source RequisitionAsset), else the line's type / sub-type.</summary>
+        public PurchaseLineClassification FromRequisitionLine(PurchaseRequestLine requisitionLine)
+        {
+            if (requisitionLine == null)
+            {
+                return null;
+            }
+
+            if (requisitionLine.TargetAssetId.HasValue && requisitionLine.TargetAssetId.Value > 0)
+            {
+                var asset = _unitOfWork.Repository<Asset>().GetById(requisitionLine.TargetAssetId.Value);
+                if (asset != null && asset.AssetTypeId > 0)
+                {
+                    return Complete(new PurchaseLineClassification
+                    {
+                        AssetTypeId = asset.AssetTypeId,
+                        AssetSubTypeId = asset.AssetSubTypeId,
+                        Brand = asset.Brand,
+                        Model = asset.Model,
+                        Source = SourceRequisitionAsset
+                    });
+                }
+            }
+
+            if (requisitionLine.AssetTypeId.HasValue && requisitionLine.AssetTypeId.Value > 0)
+            {
+                var classification = Complete(new PurchaseLineClassification
+                {
+                    AssetTypeId = requisitionLine.AssetTypeId,
+                    AssetSubTypeId = requisitionLine.AssetSubTypeId,
+                    Source = SourceRequisitionLine
+                });
+                return classification != null && classification.HasType ? classification : null;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Migration 108: the name the received asset should get by default - the PO line's ItemName, then its
+        /// requisition line's ItemName, then (legacy PO without lines) the single requisition line's ItemName.
+        /// Null when none is set (older rows): callers fall back to description / sub-type / brand-model.
+        /// </summary>
+        public string ResolveItemName(PurchaseRequest request, PurchaseOrderLine line)
+        {
+            var name = AssetNameRules.Normalize(line == null ? null : line.ItemName);
+            if (name != null)
+            {
+                return name;
+            }
+
+            var requisitionLine = GetRequisitionLine(line);
+            if (requisitionLine == null && line == null && request != null)
+            {
+                var lines = GetRequisitionLines(request.Id);
+                requisitionLine = lines.Count == 1 ? lines[0] : null;
+            }
+
+            return AssetNameRules.Normalize(requisitionLine == null ? null : requisitionLine.ItemName);
         }
 
         public PurchaseLineClassification FromRequisitionAsset(PurchaseRequest request)
@@ -406,6 +495,7 @@ namespace AssetManagement.Application.Services
             {
                 Id = id,
                 LineNumber = lineNumber,
+                ItemName = ResolveItemName(request, line),
                 Description = string.IsNullOrWhiteSpace(description) ? "Purchased item" : description,
                 Ordered = ordered,
                 Received = received,

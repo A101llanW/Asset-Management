@@ -140,7 +140,13 @@ else
                                 <input type="hidden" name="Lines[@i].PurchaseRequestLineId" value="@(line.PurchaseRequestLineId.HasValue ? line.PurchaseRequestLineId.Value.ToString() : "")" />
                                 <input type="hidden" name="Lines[@i].LineNumber" value="@line.LineNumber" />
                             </td>
-                            <td>@line.Description</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(line.ItemName))
+                                {
+                                    <div class="fw-semibold">@line.ItemName</div>
+                                }
+                                @line.Description
+                            </td>
                             <td class="text-end">@line.RequisitionQuantity</td>
                             <td class="text-end">@line.AlreadyOrdered</td>
                             <td class="text-end fw-semibold">@line.Outstanding</td>

@@ -11,6 +11,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int LineNumber { get; set; }
 
+        /// <summary>Migration 108: the requisition line's item / asset name (copied to the PO line; never taken from the post).</summary>
+        public string ItemName { get; set; }
+
         public string Description { get; set; }
 
         public int RequisitionQuantity { get; set; }
@@ -29,7 +32,7 @@ namespace AssetManagement.Application.ViewModels
 
         public string ClassificationLabel { get; set; }
 
-        /// <summary>True when the requisition's existing asset fixes the classification (not editable on the PO).</summary>
+        /// <summary>True when the requisition (the line's tagged asset or type / sub-type) fixes the classification (not editable on the PO).</summary>
         public bool ClassificationLocked { get; set; }
     }
 
@@ -58,6 +61,9 @@ namespace AssetManagement.Application.ViewModels
         public int? PurchaseRequestLineId { get; set; }
 
         public int LineNumber { get; set; }
+
+        /// <summary>Migration 108: default name for the received asset (PO line, then requisition line); null on older rows.</summary>
+        public string ItemName { get; set; }
 
         public string Description { get; set; }
 
