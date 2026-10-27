@@ -112,11 +112,12 @@ namespace AssetManagement.Application.Services
             {
                 new[]
                 {
-                    "AssetTag", "AssetName", "Status", "Category", "Department", "Custodian",
+                    "AssetTag", "AssetName", "Status", "Category", "Department", ReportSectionColumn.Header, "Custodian",
                     "AcquisitionCost", "PurchaseDate", "SerialNumber"
                 }
             };
             var displayRows = new List<IList<string>>();
+            var sections = ReportSectionColumn.LoadSections(_unitOfWork.Repository<Department>().GetAll());
             decimal totalValue = 0m;
             var unpricedCount = 0;
             var statusCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -154,6 +155,7 @@ namespace AssetManagement.Application.Services
                     statusKey,
                     asset.CategoryName ?? string.Empty,
                     asset.DepartmentName ?? string.Empty,
+                    ReportSectionColumn.Label(asset.DepartmentId, sections),
                     asset.CurrentCustodianId ?? string.Empty,
                     AssetPriceRules.Format(asset.AcquisitionCost),
                     asset.PurchaseDate.HasValue ? asset.PurchaseDate.Value.ToString("yyyy-MM-dd") : string.Empty,
@@ -169,7 +171,7 @@ namespace AssetManagement.Application.Services
             }
 
             // Preview/PDF show the custodian's name; the CSV keeps the raw user id.
-            ApplyUserLabels(displayRows, 5);
+            ApplyUserLabels(displayRows, 6);
 
             return new ReportBuildContext
             {
@@ -181,7 +183,7 @@ namespace AssetManagement.Application.Services
                 PeriodLabel = period.Label,
                 FilterSummary = BuildFilterSummary(request),
                 FooterNote = exportResult.Truncated ? exportResult.WarningMessage : "Purchase date used for period filtering.",
-                Headers = new List<string> { "Tag", "Name", "Status", "Category", "Department", "Custodian", "Cost", "Purchased", "Serial" },
+                Headers = new List<string> { "Tag", "Name", "Status", "Category", "Department", ReportSectionColumn.Header, "Custodian", "Cost", "Purchased", "Serial" },
                 Rows = displayRows,
                 CsvRows = csvRows,
                 Stats = new List<ReportStatCard>

@@ -271,10 +271,11 @@ namespace AssetManagement.Application.Services
             {
                 new[]
                 {
-                    "AssetTag", "AssetName", "Status", "Category", "Department", "Custodian",
+                    "AssetTag", "AssetName", "Status", "Category", "Department", ReportSectionColumn.Header, "Custodian",
                     "AcquisitionCost", "PurchaseDate", "SerialNumber"
                 }
             };
+            var sections = ReportSectionColumn.LoadSections(_unitOfWork.Repository<Department>().GetAll());
 
             var exportResult = _assetQueryService.StreamExport(new AssetFilterVm(), "tag", "asc", asset =>
             {
@@ -285,6 +286,7 @@ namespace AssetManagement.Application.Services
                     asset.CurrentStatus.ToString(),
                     asset.CategoryName ?? string.Empty,
                     asset.DepartmentName ?? string.Empty,
+                    ReportSectionColumn.Label(asset.DepartmentId, sections),
                     asset.CurrentCustodianId ?? string.Empty,
                     CurrencyFormatter.Format(asset.AcquisitionCost),
                     asset.PurchaseDate.HasValue ? asset.PurchaseDate.Value.ToString("yyyy-MM-dd") : string.Empty,

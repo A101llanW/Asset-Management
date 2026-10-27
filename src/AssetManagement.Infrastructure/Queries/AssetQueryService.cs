@@ -938,6 +938,7 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     string name;
                     row.Row.CategoryName = row.CategoryId.HasValue && categoryNames.TryGetValue(row.CategoryId.Value, out name) ? name : null;
                     row.Row.DepartmentName = row.DepartmentId.HasValue && departmentNames.TryGetValue(row.DepartmentId.Value, out name) ? name : null;
+                    row.Row.DepartmentId = row.DepartmentId;
                 }
             }
 

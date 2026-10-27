@@ -15,6 +15,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string DepartmentName { get; set; }
 
+        /// <summary>QA S1.10: department id, so exports can add the department's Section (Prep / Senior school).</summary>
+        public int? DepartmentId { get; set; }
+
         public string CurrentCustodianId { get; set; }
 
         public decimal? AcquisitionCost { get; set; }
