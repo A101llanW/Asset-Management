@@ -108,7 +108,7 @@ namespace AssetManagement.Tests.Security
         }
 
         [Test]
-        public void DepartmentScope_NoDepartmentUser_SeesZeroAssets()
+        public void DepartmentScope_NoDepartmentUser_SeesWholeOrganization()
         {
             var unitOfWork = new Mock<IUnitOfWork>();
             var roleRepo = new Mock<IRepository<Role>>();
@@ -138,7 +138,8 @@ namespace AssetManagement.Tests.Security
                 new Asset { Id = 2, DepartmentId = 20, IsActive = true, AssetTag = "A2", CurrentStatus = AssetStatus.InStore }
             };
 
-            Assert.AreEqual(0, service.ApplyAssetScope(assets.AsQueryable()).Count());
+            // 2026-10-27 (Allan): no department means organization-wide (the repository keeps the tenant filter).
+            Assert.AreEqual(2, service.ApplyAssetScope(assets.AsQueryable()).Count());
         }
     }
 }

@@ -50,12 +50,33 @@ namespace AssetManagement.Application.Services
         }
 
         /// <summary>
+        /// True when the signed-in user is a member of the current organization with no department. Such a user
+        /// gets organization-wide scope (see <see cref="AssetManagement.Application.Security.DepartmentScopeRules"/>).
+        /// </summary>
+        public bool IsUnassignedOrganizationWide
+        {
+            get
+            {
+                EnsureProfileLoaded();
+                return AssetManagement.Application.Security.DepartmentScopeRules.IsUnassignedMember(_profile);
+            }
+        }
+
+        /// <summary>
         /// Organization-wide scope is a capability (Assets.ViewAll), not a role name. Platform support
         /// impersonation keeps its bypass. Company Admin holds every tenant permission, so it is unchanged.
+        /// A tenant member with no department is organization-wide too (2026-10-27): before, every list was empty
+        /// and every Ensure* threw "not assigned to a department". Still tenant-bounded (repositories and SQL keep
+        /// the OrganizationId filter); permissions still decide which modules and actions the user can use.
         /// </summary>
         private bool ResolveBypassesDepartmentScope()
         {
             if (_organizationScope != null && _organizationScope.IsImpersonating())
+            {
+                return true;
+            }
+
+            if (IsUnassignedOrganizationWide)
             {
                 return true;
             }

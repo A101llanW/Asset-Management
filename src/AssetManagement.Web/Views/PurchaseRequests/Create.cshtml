@@ -1,7 +1,7 @@
 @model AssetManagement.Application.ViewModels.PurchaseRequestCreateVm
 @{
     ViewBag.Title = "New requisition";
-    var departments = ViewBag.Departments as SelectList;
+    var departments = ViewBag.Departments as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
     var departmentGroups = ViewBag.DepartmentGroups as IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index");
     var approvalSummary = ViewBag.PurchaseApprovalSummary as string;

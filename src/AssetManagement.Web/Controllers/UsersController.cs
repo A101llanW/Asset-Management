@@ -33,12 +33,10 @@ namespace AssetManagement.Web.Controllers
 
         public ActionResult Index(string search = null, int? roleId = null, int? departmentId = null, bool? isActive = null, string sort = "name", string direction = "asc", int page = 1, int pageSize = 10)
         {
+            // A Users.ViewDepartment holder with no department is organization-wide (DepartmentScopeRules): they
+            // list every user of the current organization instead of getting a 403.
             var isDepartmentScoped = IsDepartmentScopedUserAccess();
             var scopedDepartmentId = isDepartmentScoped ? GetScopedDepartmentIdOrDeny() : null;
-            if (isDepartmentScoped && !scopedDepartmentId.HasValue)
-            {
-                return new HttpStatusCodeResult(403, "Your account is not assigned to a department.");
-            }
 
             var roles = _roleService.GetRoles().ToList();
             var departments = BuildDepartmentService().GetAll().ToList();
@@ -394,7 +392,9 @@ namespace AssetManagement.Web.Controllers
 
         private bool IsDepartmentScopedUserAccess()
         {
-            return !HasUsersViewPermission() && HasUsersViewDepartmentPermission();
+            return !HasUsersViewPermission()
+                && HasUsersViewDepartmentPermission()
+                && !IsCurrentUserUnassignedMember();
         }
 
         private bool HasUsersViewPermission()
@@ -427,6 +427,12 @@ namespace AssetManagement.Web.Controllers
             if (!HasUsersViewDepartmentPermission())
             {
                 return false;
+            }
+
+            // No department: organization-wide. GetById is organization-scoped, so this never crosses tenants.
+            if (IsCurrentUserUnassignedMember())
+            {
+                return true;
             }
 
             var departmentId = GetScopedDepartmentIdOrDeny();

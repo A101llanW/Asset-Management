@@ -241,6 +241,16 @@ namespace AssetManagement.Web.Controllers
             return GetCurrentUserProfile()?.DepartmentId;
         }
 
+        /// <summary>
+        /// The signed-in user is a member of the current organization and has no department, so they get
+        /// organization-wide scope (DepartmentScopeRules, same rule as DepartmentScopeService). False when there is
+        /// no profile in this organization (anonymous or another tenant), so it never widens across tenants.
+        /// </summary>
+        protected bool IsCurrentUserUnassignedMember()
+        {
+            return AssetManagement.Application.Security.DepartmentScopeRules.IsUnassignedMember(GetCurrentUserProfile());
+        }
+
         protected SelectList BuildActiveUserSelectList(string selectedUserId = null, int? departmentId = null)
         {
             var users = (departmentId.HasValue ? GetActiveUsersForDepartment(departmentId) : GetActiveUsers())

@@ -419,10 +419,14 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
                 GetActiveDepartments());
-            ViewBag.DepartmentGroups = canCreateForAnyDepartment
+            var departmentGroups = canCreateForAnyDepartment
                 ? BuildRequisitionDepartmentGroups(departmentId)
                 : null;
-            ViewBag.Departments = canCreateForAnyDepartment
+            ViewBag.DepartmentGroups = departmentGroups;
+            // Never leave the DepartmentId dropdown without a list: with no groups (e.g. a department scope that
+            // returned nothing) the view used to fall through to DropDownListFor with a null SelectList, which
+            // throws "There is no ViewData item of type IEnumerable<SelectListItem> that has the key 'DepartmentId'".
+            ViewBag.Departments = departmentGroups != null && departmentGroups.Count > 0
                 ? null
                 : BuildDepartmentSelectList(departmentId);
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
