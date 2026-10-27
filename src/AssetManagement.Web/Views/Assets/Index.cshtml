@@ -16,6 +16,8 @@
     var moveToClassSourceIds = ViewBag.MoveToClassSourceDepartmentIds as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
     var roomDepartmentGroups = ViewBag.RoomDepartmentGroups as System.Collections.Generic.IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
     var canRelocateToRoom = canRelocateAsset && roomDepartmentGroups != null && roomDepartmentGroups.Any(g => g.Items != null && g.Items.Count > 0);
+    // Allan, 2026-10-27: Move to classroom in the grouped AND flat views (only active classrooms are offered).
+    var canMoveToClass = canRelocateAsset && classDepartments != null && classDepartments.Any();
     // Asset move rules: Move to room only for assets in a room, sub-department or class (or company custody).
     var moveToRoomSourceIds = ViewBag.MoveToRoomSourceDepartmentIds as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
     var departments = ViewBag.Departments as System.Web.Mvc.SelectList;
@@ -349,42 +351,8 @@ else if (isGrouped && groupedPage != null)
         StartItem = groupedPage.TotalCount == 0 ? 0 : ((groupedPage.Page - 1) * groupedPage.PageSize) + 1,
         EndItem = Math.Min(groupedPage.Page * groupedPage.PageSize, groupedPage.TotalCount)
     })
-    if (canRelocateAsset && classDepartments != null && classDepartments.Any())
+    if (canMoveToClass)
     {
-        <div class="modal fade" id="amRelocateClassModal" tabindex="-1" aria-labelledby="amRelocateClassModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    @using (Html.BeginForm("RelocateToClass", "Assets", FormMethod.Post, new { id = "amRelocateClassForm" }))
-                    {
-                        @Html.AntiForgeryToken()
-                        @Html.Hidden("assetId", "", new { id = "amRelocateAssetId" })
-                        @Html.Hidden("Search", listFilter.Search ?? Model.Search)
-                        @Html.Hidden("DepartmentId", listFilter.DepartmentId)
-                        @Html.Hidden("Section", listFilter.Section)
-                        @Html.Hidden("Status", listFilter.Status)
-                        @Html.Hidden("sort", currentSort)
-                        @Html.Hidden("direction", currentDirection)
-                        @Html.Hidden("page", Model.Page)
-                        @Html.Hidden("pageSize", Model.PageSize)
-                        @Html.Hidden("view", "grouped")
-                        @Html.Hidden("groupBy", groupBy)
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to classroom</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another classroom.</p>
-                            <label class="form-label" for="targetDepartmentId">Target classroom</label>
-                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select classroom --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Move asset</button>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
         <div class="modal fade" id="amRelocateGroupModal" tabindex="-1" aria-labelledby="amRelocateGroupModalLabel" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -480,6 +448,15 @@ else
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 ms-1" data-am-relocate-room-open data-asset-id="@item.Id" data-asset-tag="@item.AssetTag">Move to room</button>
                                 }
+                                @if (canMoveToClass
+                                    && (!item.DepartmentId.HasValue || moveToClassSourceIds.Contains(item.DepartmentId.Value))
+                                    && string.IsNullOrWhiteSpace(item.CurrentCustodianId)
+                                    && (item.CurrentStatus == AssetStatus.InStore
+                                        || item.CurrentStatus == AssetStatus.Received
+                                        || item.CurrentStatus == AssetStatus.Returned))
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 ms-1" data-am-relocate-class-open data-asset-id="@item.Id" data-asset-tag="@item.AssetTag">Move to classroom</button>
+                                }
                             </td>
                         </tr>
                     }
@@ -496,6 +473,45 @@ else
         StartItem = Model.StartItem,
         EndItem = Model.EndItem
     })
+}
+
+@if (canMoveToClass)
+{
+    @* Single-asset Move to classroom: used by the grouped unit rows (assets-grouped.js) and the flat list rows. *@
+    <div class="modal fade" id="amRelocateClassModal" tabindex="-1" aria-labelledby="amRelocateClassModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                @using (Html.BeginForm("RelocateToClass", "Assets", FormMethod.Post, new { id = "amRelocateClassForm" }))
+                {
+                    @Html.AntiForgeryToken()
+                    @Html.Hidden("assetId", "", new { id = "amRelocateAssetId" })
+                    @Html.Hidden("Search", listFilter.Search ?? Model.Search)
+                    @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                    @Html.Hidden("Section", listFilter.Section)
+                    @Html.Hidden("Status", listFilter.Status)
+                    @Html.Hidden("sort", currentSort)
+                    @Html.Hidden("direction", currentDirection)
+                    @Html.Hidden("page", Model.Page)
+                    @Html.Hidden("pageSize", Model.PageSize)
+                    @Html.Hidden("view", listViewMode)
+                    @Html.Hidden("groupBy", groupBy)
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to classroom</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another classroom.</p>
+                        <label class="form-label" for="targetDepartmentId">Target classroom</label>
+                        @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select classroom --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Move asset</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
 }
 
 @if (canRelocateToRoom)
@@ -574,6 +590,26 @@ else
 }
 
 @section scripts {
+    @if (canMoveToClass && !isGrouped && !isRoomView)
+    {
+        <script>
+            (function () {
+                // Flat list rows: Move to classroom (grouped unit rows are wired by assets-grouped.js).
+                document.addEventListener("click", function (e) {
+                    var btn = e.target.closest ? e.target.closest("[data-am-relocate-class-open]") : null;
+                    if (!btn) { return; }
+                    var modal = document.getElementById("amRelocateClassModal");
+                    var idInput = document.getElementById("amRelocateAssetId");
+                    var tag = document.getElementById("amRelocateAssetTag");
+                    var target = document.getElementById("targetDepartmentId");
+                    if (idInput) { idInput.value = btn.getAttribute("data-asset-id") || ""; }
+                    if (tag) { tag.textContent = btn.getAttribute("data-asset-tag") || ""; }
+                    if (target) { target.value = ""; }
+                    if (modal && window.bootstrap) { bootstrap.Modal.getOrCreateInstance(modal).show(); }
+                });
+            })();
+        </script>
+    }
     @if (canRelocateToRoom)
     {
         <script>
@@ -641,7 +677,7 @@ else
                 groupBy: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(groupBy)),
                 canBulkEdit: @(canBulkEdit ? "true" : "false"),
                 canSelect: @(canSelectGroups ? "true" : "false"),
-                canMoveToClass: @(canRelocateAsset && classDepartments != null && classDepartments.Any() ? "true" : "false"),
+                canMoveToClass: @(canMoveToClass ? "true" : "false"),
                 canMoveToRoom: @(canRelocateToRoom ? "true" : "false"),
                 unassignedLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Unassigned)),
                 emptyLabel: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(DisplayText.Empty)),

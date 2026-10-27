@@ -678,6 +678,55 @@ namespace AssetManagement.Application.Services
             return RelocateGroupToDepartmentOfKind(assetName, assetSubTypeId, groupDepartmentId, status, targetDepartmentId, actorUserId, DepartmentKind.Room);
         }
 
+        /// <summary>
+        /// Flat asset list bulk "Move to classroom" (Allan, 2026-10-27): each selected asset goes through the same
+        /// single-asset checks as "Move to classroom" (active classroom target, classroom-to-classroom only for
+        /// moves, scope, no custodian, relocatable status, no blocking workflow). Refused assets are skipped
+        /// with a message; the rest share one movement batch.
+        /// </summary>
+        public AssetBulkActionResultVm RelocateSelectedToClassDepartment(
+            IList<int> assetIds,
+            int targetDepartmentId,
+            string actorUserId)
+        {
+            var ids = (assetIds ?? new List<int>()).Where(x => x > 0).Distinct().ToList();
+            if (ids.Count == 0)
+            {
+                throw new BusinessException("Select at least one asset.");
+            }
+
+            if (targetDepartmentId <= 0)
+            {
+                throw new BusinessException("Target classroom is required.");
+            }
+
+            var messages = new List<string>();
+            var processed = 0;
+            var skipped = 0;
+            var batchId = AssetMovementRecorder.NewBatchId();
+            foreach (var assetId in ids)
+            {
+                try
+                {
+                    RelocateToDepartmentOfKind(assetId, targetDepartmentId, actorUserId, DepartmentKind.Class, batchId);
+                    processed++;
+                }
+                catch (BusinessException ex)
+                {
+                    skipped++;
+                    var asset = _unitOfWork.Repository<Asset>().GetById(assetId);
+                    messages.Add((asset != null ? asset.AssetTag : "Asset #" + assetId) + ": " + ex.Message);
+                }
+            }
+
+            return new AssetBulkActionResultVm
+            {
+                ProcessedCount = processed,
+                SkippedCount = skipped,
+                Messages = messages
+            };
+        }
+
         private AssetBulkActionResultVm RelocateGroupToDepartmentOfKind(
             string assetName,
             int? assetSubTypeId,

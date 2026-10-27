@@ -8,6 +8,10 @@
     // rel1022a: whole-group selection + "Send to printing" in the grouped and by-room views.
     var isRoom = string.Equals(ViewBag.ListViewMode as string, "room", System.StringComparison.OrdinalIgnoreCase);
     var canSendToPrint = (isGrouped || isRoom) && Html.HasPermission("Assets.View");
+    // Allan, 2026-10-27: flat list bulk "Move to classroom" (same rules as the single-asset move; active classrooms only).
+    var isFlat = !isGrouped && !isRoom;
+    var bulkClassDepartments = ViewBag.ClassDepartments as System.Web.Mvc.SelectList;
+    var canBulkMoveToClass = isFlat && (ViewBag.CanRelocateAsset as bool? ?? false) && bulkClassDepartments != null && bulkClassDepartments.Any();
     var groupByOption = AssetListGroupBy.Options.FirstOrDefault(o => string.Equals(o.Value, groupBy, System.StringComparison.OrdinalIgnoreCase));
     var registerViewLabel = isRoom ? "Asset register, grouped by room"
         : isGrouped ? "Asset register, grouped " + (groupByOption != null ? groupByOption.Label.ToLowerInvariant() : groupBy)
@@ -37,6 +41,10 @@
                     <select class="form-select form-select-sm" name="Action" form="amBulkForm" data-am-bulk-action>
                         <option value="">Select</option>
                         <option value="department">Move to department</option>
+                        @if (canBulkMoveToClass)
+                        {
+                            <option value="classroom">Move to classroom</option>
+                        }
                         <option value="status">Update status</option>
                         <option value="maintenance">Mark under maintenance</option>
                     </select>
@@ -52,6 +60,13 @@
                     @Html.DropDownList("TargetDepartmentId", departments, string.Empty, new { @class = "form-select form-select-sm", form = "amBulkForm" })
                 }
                 </div>
+                @if (canBulkMoveToClass)
+                {
+                    <div class="col-md-3 d-none" data-am-bulk-class>
+                        <label class="form-label small mb-0" for="amBulkTargetClassDepartmentId">Classroom</label>
+                        @Html.DropDownList("TargetClassDepartmentId", bulkClassDepartments, "-- Select classroom --", new { @class = "form-select form-select-sm", form = "amBulkForm", id = "amBulkTargetClassDepartmentId" })
+                    </div>
+                }
                 <div class="col-md-3 d-none" data-am-bulk-status>
                     <label class="form-label small mb-0">Status</label>
                     <select class="form-select form-select-sm" name="TargetStatus" form="amBulkForm">
@@ -83,6 +98,7 @@
         using (Html.BeginForm("Bulk", "Assets", FormMethod.Post, new { id = "amBulkForm" }))
         {
             @Html.AntiForgeryToken()
+            <input type="hidden" name="view" value="@(ViewBag.ListViewMode as string)" />
             <div id="amBulkAssetIds"></div>
         }
     }

@@ -10,6 +10,7 @@
     var submitBtn = toolbar.querySelector("[data-am-bulk-submit]");
     var deptBlock = toolbar.querySelector("[data-am-bulk-dept]");
     var statusBlock = toolbar.querySelector("[data-am-bulk-status]");
+    var classBlock = toolbar.querySelector("[data-am-bulk-class]");
     var master = document.querySelector("[data-am-bulk-master]");
 
     function getCheckboxes() {
@@ -56,6 +57,10 @@
         }
         if (statusBlock) {
             statusBlock.classList.toggle("d-none", action !== "status");
+        }
+        if (classBlock) {
+            // Flat list bulk "Move to classroom" (2026-10-27).
+            classBlock.classList.toggle("d-none", action !== "classroom");
         }
         syncHiddenIds();
     }

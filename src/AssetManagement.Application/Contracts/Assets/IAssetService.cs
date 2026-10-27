@@ -75,6 +75,12 @@ namespace AssetManagement.Application.Contracts
             int targetDepartmentId,
             string actorUserId);
 
+        /// <summary>Flat-list bulk "Move to classroom": moves each selected asset with the single-asset rules; refused ones are skipped.</summary>
+        AssetBulkActionResultVm RelocateSelectedToClassDepartment(
+            IList<int> assetIds,
+            int targetDepartmentId,
+            string actorUserId);
+
         void UpdateStatus(int id, AssetStatus status);
 
         void Delete(int id);

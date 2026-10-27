@@ -326,18 +326,24 @@ namespace AssetManagement.Web.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize("Assets.Edit")]
-        public ActionResult Bulk(AssetBulkActionRequestVm request)
+        public ActionResult Bulk(AssetBulkActionRequestVm request, string view = null)
         {
             if (request == null)
             {
                 TempData["Error"] = "Bulk action request is required.";
-                return RedirectToAction("Index");
+                return RedirectToBulkList(view);
             }
 
             request.PermissionCodes = BuildBulkPermissionCodes();
             try
             {
-                var result = _assetBulkService.Execute(request, User.GetUserId());
+                // Allan, 2026-10-27: flat-list bulk "Move to classroom" uses the single-asset classroom move rules.
+                var result = string.Equals((request.Action ?? string.Empty).Trim(), "classroom", StringComparison.OrdinalIgnoreCase)
+                    ? _assetService.RelocateSelectedToClassDepartment(
+                        request.AssetIds,
+                        request.TargetClassDepartmentId ?? 0,
+                        User.GetUserId())
+                    : _assetBulkService.Execute(request, User.GetUserId());
                 TempData["Message"] = "Bulk action completed: " + result.ProcessedCount + " updated, " + result.SkippedCount + " skipped.";
                 if (result.Messages != null && result.Messages.Count > 0)
                 {
@@ -347,6 +353,18 @@ namespace AssetManagement.Web.Controllers
             catch (BusinessException ex)
             {
                 TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToBulkList(view);
+        }
+
+        // Back to the view the bulk form was posted from (flat / grouped / room); no view = the default.
+        private ActionResult RedirectToBulkList(string view)
+        {
+            var normalized = (view ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalized == "flat" || normalized == "grouped" || normalized == "room")
+            {
+                return RedirectToAction("Index", new { view = normalized });
             }
 
             return RedirectToAction("Index");
@@ -363,7 +381,8 @@ namespace AssetManagement.Web.Controllers
             string direction = "asc",
             int page = 1,
             int pageSize = 10,
-            string view = "grouped")
+            string view = "grouped",
+            string groupBy = null)
         {
             try
             {
@@ -375,6 +394,7 @@ namespace AssetManagement.Web.Controllers
                 TempData["Error"] = ex.Message;
             }
 
+            // Flat list (2026-10-27) posts view=flat; return to the same view.
             filter = filter ?? new AssetFilterVm();
             return RedirectToAction("Index", new
             {
@@ -386,7 +406,8 @@ namespace AssetManagement.Web.Controllers
                 direction,
                 page,
                 pageSize,
-                view
+                view,
+                groupBy
             });
         }
 

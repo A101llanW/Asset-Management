@@ -11,6 +11,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int? TargetDepartmentId { get; set; }
 
+        /// <summary>Target for the flat-list bulk action "classroom" (Move to classroom).</summary>
+        public int? TargetClassDepartmentId { get; set; }
+
         public AssetStatus? TargetStatus { get; set; }
 
         public string Notes { get; set; }
