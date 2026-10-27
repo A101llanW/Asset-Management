@@ -2,6 +2,8 @@
 -- Expected: every row in the first result says PASS, and the last line says RESULT = ALL_PASS.
 -- Safe to run as often as you like.
 SET NOCOUNT ON;
+-- Review S4: set this to prep_rows_106_would_match from 01 (11 expected on live). 09 FAILs if the Prep count differs.
+DECLARE @ExpectedPrep INT = 11;
 
 DECLARE @r TABLE ([check] NVARCHAR(200), [state] NVARCHAR(200), [pass] BIT);
 
@@ -40,6 +42,17 @@ INSERT INTO @r SELECT N'each history name appears once (no duplicates from re-ru
     FROM (SELECT [ScriptName] FROM [dbo].[SchemaMigrationHistory]
           WHERE [ScriptName] IN (N'104_AssetTagSegmentToggles.sql', N'105_LabelPrintBatchLog.sql', N'106_DepartmentSection.sql', N'107_DepartmentSectionHeads.sql')
           GROUP BY [ScriptName] HAVING COUNT(*) > 1) d;
+
+IF COL_LENGTH(N'dbo.Department', N'Section') IS NOT NULL
+BEGIN
+    DECLARE @prepCount INT;
+    EXEC sp_executesql N'SELECT @n = COUNT(*) FROM [dbo].[Department] WHERE [Section] = 1;', N'@n INT OUTPUT', @n = @prepCount OUTPUT;
+    INSERT INTO @r SELECT N'Prep rows (Section = 1) = @ExpectedPrep from 01',
+        CONVERT(NVARCHAR(10), @prepCount) + N' (expected ' + CONVERT(NVARCHAR(10), @ExpectedPrep) + N')',
+        CASE WHEN @prepCount = @ExpectedPrep THEN 1 ELSE 0 END;
+END
+ELSE
+    INSERT INTO @r SELECT N'Prep rows (Section = 1) = @ExpectedPrep from 01', N'Section column missing', 0;
 
 SELECT [check], [state], CASE [pass] WHEN 1 THEN N'PASS' ELSE N'FAIL' END AS result FROM @r;
 

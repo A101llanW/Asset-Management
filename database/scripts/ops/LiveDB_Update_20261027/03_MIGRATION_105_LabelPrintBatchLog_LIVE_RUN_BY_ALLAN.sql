@@ -1,9 +1,30 @@
 -- 03  Migration 105 (label print batch log tables).  LIVE_RUN_BY_ALLAN.  Idempotent; re-run = no-op.
 -- Expected result: 'Commands completed successfully.'
 -- Source: database/scripts/004_Migrations/105_LabelPrintBatchLog.sql (commit 488e78c), unchanged below the guard batch.
+-- Guard (review S5): right database AND a COPY_ONLY full backup of THIS database (script 00) finished in the
+-- last 2 hours (msdb.dbo.backupset, taken after the database was created/restored). Otherwise nothing runs.
+-- Run in SSMS or sqlcmd only, NOT the web Sys/Database console: the guards rely on GO batches and SET NOEXEC.
+SET NOEXEC OFF;
+GO
+DECLARE @guardMsg NVARCHAR(2000) = NULL;
 IF DB_NAME() NOT LIKE N'AssetManagementModuleDb%'
+    SET @guardMsg = N'NOT RUN: connect to the AssetManagementModuleDb database first (current database: ' + DB_NAME() + N').';
+ELSE
 BEGIN
-    RAISERROR(N'NOT RUN: connect to the AssetManagementModuleDb database first.', 16, 1);
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM msdb.dbo.backupset b
+                       WHERE b.[database_name] = DB_NAME() AND b.[type] = 'D' AND b.[is_copy_only] = 1
+                         AND b.[backup_finish_date] >= DATEADD(HOUR, -2, GETDATE())
+                         AND b.[backup_start_date] >= (SELECT d.[create_date] FROM sys.databases d WHERE d.[name] = DB_NAME()))
+            SET @guardMsg = N'NOT RUN: no COPY_ONLY full backup of ' + DB_NAME() + N' finished in the last 2 hours (msdb.dbo.backupset). Run 00 first.';
+    END TRY
+    BEGIN CATCH
+        SET @guardMsg = N'NOT RUN: cannot read msdb.dbo.backupset to confirm the 00 backup: ' + ERROR_MESSAGE();
+    END CATCH
+END
+IF @guardMsg IS NOT NULL
+BEGIN
+    RAISERROR(N'%s', 16, 1, @guardMsg);
     SET NOEXEC ON;
 END
 GO

@@ -6,7 +6,11 @@
 --   104_AssetTagSegmentToggles.sql    present (history row Id 107 on live), 3 columns present
 --   105 / 106 / 107                   absent
 --   RESULT = READY
--- If 104 turns out to be ABSENT, RESULT = READY_104_MISSING: that is fine, 02 adds it (guarded).
+-- Review S1: the 104 state is split in two:
+--   READY_104_MISSING       the 3 columns are ABSENT: 02 adds them and the history row, marked
+--                           Checksum = 'LiveDB_20261027:added-columns' (only this case may later use 99d).
+--   READY_104_HISTORY_ONLY  the 3 columns are PRESENT but there is no history row: 02 only adds the history row
+--                           (Checksum = 'LiveDB_20261027:history-only'); 99d will refuse, the columns stay.
 -- RESULT = STOP_*: do not continue; see README "If something fails".
 -- RESULT = ALREADY_APPLIED: 105-107 are already there; re-running 02-05 is harmless (no-op) but not needed; run 09.
 -- Note: two different scripts carry the number 104. 104_widen_auditlog_entityid.sql (AuditLog.EntityId -> 450 chars)
@@ -41,25 +45,37 @@ DECLARE @auditWidth INT = (SELECT [max_length] / 2 FROM sys.columns WHERE [objec
 SELECT N'103 history row' AS [check], CASE @h103 WHEN 1 THEN N'present' ELSE N'ABSENT' END AS [state], N'must be present' AS expected
 UNION ALL SELECT N'104_AssetTagSegmentToggles history row', CASE @h104 WHEN 1 THEN N'present' ELSE N'absent' END, N'present on live if 21 Oct run happened; absent is OK (02 adds it)'
 UNION ALL SELECT N'104 tag-segment columns (of 3)', CONVERT(NVARCHAR(10), @c104), N'3 (or 0 if 104 never ran)'
+UNION ALL SELECT N'104 history Checksum (marker)', ISNULL((SELECT TOP 1 ISNULL([Checksum], N'(NULL)') FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'104_AssetTagSegmentToggles.sql'), N'(no row)'), N'info: LiveDB_20261027:added-columns only if 02 added the columns'
 UNION ALL SELECT N'104_widen_auditlog_entityid (no history row) AuditLog.EntityId chars', CONVERT(NVARCHAR(10), @auditWidth), N'info only: 450 = widened, 100 = not widened; not touched by this run'
 UNION ALL SELECT N'105 history row / tables (of 2)', CASE @h105 WHEN 1 THEN N'present' ELSE N'absent' END + N' / ' + CONVERT(NVARCHAR(10), @o105), N'absent / 0'
 UNION ALL SELECT N'106 history row / columns (of 2)', CASE @h106 WHEN 1 THEN N'present' ELSE N'absent' END + N' / ' + CONVERT(NVARCHAR(10), @c106), N'absent / 0'
 UNION ALL SELECT N'107 history row / columns (of 2)', CASE @h107 WHEN 1 THEN N'present' ELSE N'absent' END + N' / ' + CONVERT(NVARCHAR(10), @c107), N'absent / 0';
 
--- Rows the guarded 106 data fix would mark as Prep (ID AND exact name must both match; 0-11).
+-- Review S3: the 11 IDs the guarded 106 data fix looks at, each with its live name and whether it matches.
+-- The match tolerates a straight (') or curly (U+2019) apostrophe, the same rule 04 uses ('Prep Counsellor's Room', 1587).
+DECLARE @prep TABLE ([Id] INT PRIMARY KEY, [ExpectedName] NVARCHAR(120));
+INSERT INTO @prep VALUES
+    (1614, N'Prep'), (1582, N'Prep Lunch Area'), (1583, N'Prep Music Room'), (1584, N'Prep Art Room'),
+    (1585, N'Prep Sports Office'), (1586, N'Prep Learning Support'), (1587, N'Prep Counsellor''s Room'),
+    (1588, N'Prep Reception'), (1589, N'Prep Field'), (1590, N'Prep ICT Lab'), (1591, N'Prep Library');
+SELECT p.[Id], p.[ExpectedName], d.[Name] AS live_name, d.[DepartmentKind] AS live_kind, d.[ParentDepartmentId] AS live_parent,
+       CASE WHEN d.[Id] IS NULL THEN N'NO (id not found)'
+            WHEN REPLACE(d.[Name], NCHAR(8217), N'''') = p.[ExpectedName] THEN N'YES'
+            ELSE N'NO (name differs)' END AS [matches],
+       CASE WHEN d.[Name] LIKE N'%' + NCHAR(8217) + N'%' THEN N'curly apostrophe (U+2019) - tolerated'
+            WHEN d.[Name] LIKE N'%''%' THEN N'straight apostrophe' ELSE N'' END AS apostrophe_note
+FROM @prep p LEFT JOIN [dbo].[Department] d ON d.[Id] = p.[Id]
+ORDER BY CASE WHEN p.[Id] = 1614 THEN 0 ELSE 1 END, p.[Id];
+
 SELECT COUNT(*) AS prep_rows_106_would_match
-FROM [dbo].[Department] d
-WHERE (d.[Id] = 1614 AND d.[Name] = N'Prep')
-   OR (d.[Id] = 1582 AND d.[Name] = N'Prep Lunch Area')
-   OR (d.[Id] = 1583 AND d.[Name] = N'Prep Music Room')
-   OR (d.[Id] = 1584 AND d.[Name] = N'Prep Art Room')
-   OR (d.[Id] = 1585 AND d.[Name] = N'Prep Sports Office')
-   OR (d.[Id] = 1586 AND d.[Name] = N'Prep Learning Support')
-   OR (d.[Id] = 1587 AND d.[Name] = N'Prep Counsellor''s Room')
-   OR (d.[Id] = 1588 AND d.[Name] = N'Prep Reception')
-   OR (d.[Id] = 1589 AND d.[Name] = N'Prep Field')
-   OR (d.[Id] = 1590 AND d.[Name] = N'Prep ICT Lab')
-   OR (d.[Id] = 1591 AND d.[Name] = N'Prep Library');
+FROM @prep p INNER JOIN [dbo].[Department] d ON d.[Id] = p.[Id] AND REPLACE(d.[Name], NCHAR(8217), N'''') = p.[ExpectedName];
+-- ^ write this number into @ExpectedPrep at the top of 09 (11 expected on live).
+
+-- Review S3: every unit whose parent is 1614 (the Prep grade). Expected on live: NONE (checked read-only 27 Oct).
+-- 106 does not mark children; if rows appear here they stay Senior until changed on Departments > Edit.
+SELECT c.[Id], c.[Name], c.[DepartmentKind], c.[IsActive]
+FROM [dbo].[Department] c WHERE c.[ParentDepartmentId] = 1614 ORDER BY c.[Id];
+SELECT COUNT(*) AS children_of_1614 FROM [dbo].[Department] WHERE [ParentDepartmentId] = 1614;
 
 SELECT CASE
     WHEN @h103 = 0 THEN N'STOP_103_MISSING'
@@ -67,6 +83,7 @@ SELECT CASE
     WHEN @h105 = 1 AND @h106 = 1 AND @h107 = 1 AND @o105 = 2 AND @c106 = 2 AND @c107 = 2 THEN N'ALREADY_APPLIED'
     WHEN (@h105 = 0 AND @o105 > 0) OR (@h106 = 0 AND @c106 > 0) OR (@h107 = 0 AND @c107 > 0)
       OR (@h105 = 1 AND @o105 <> 2) OR (@h106 = 1 AND @c106 <> 2) OR (@h107 = 1 AND @c107 <> 2) THEN N'STOP_PARTIAL_105_107'
-    WHEN @h104 = 0 OR @c104 = 0 THEN N'READY_104_MISSING'
+    WHEN @c104 = 0 THEN N'READY_104_MISSING'
+    WHEN @h104 = 0 AND @c104 = 3 THEN N'READY_104_HISTORY_ONLY'
     ELSE N'READY' END AS [RESULT];
 GO
