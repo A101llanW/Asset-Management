@@ -349,6 +349,56 @@ namespace AssetManagement.Application.Services
         }
 
         /// <summary>Audit text: "Category (#id) > Type (#id) > Sub-type (#id)", or "none".</summary>
+        /// <summary>C3 override trail (migration 108) on a PO line: who / when (UTC) / the classification it replaced.</summary>
+        public static void StampOverride(PurchaseOrderLine line, PurchaseLineClassification before, string userId, DateTime atUtc)
+        {
+            before = before ?? new PurchaseLineClassification();
+            line.ClassificationOverriddenById = userId;
+            line.ClassificationOverriddenAt = atUtc;
+            line.OriginalAssetCategoryId = before.AssetCategoryId;
+            line.OriginalAssetTypeId = before.AssetTypeId;
+            line.OriginalAssetSubTypeId = before.AssetSubTypeId;
+        }
+
+        /// <summary>C3 override trail (migration 108) on a receipt: "original" = the PO line's classification.</summary>
+        public static void StampOverride(PurchaseOrderLineReceipt receipt, PurchaseLineClassification before, string userId, DateTime atUtc)
+        {
+            before = before ?? new PurchaseLineClassification();
+            receipt.ClassificationOverriddenById = userId;
+            receipt.ClassificationOverriddenAt = atUtc;
+            receipt.OriginalAssetCategoryId = before.AssetCategoryId;
+            receipt.OriginalAssetTypeId = before.AssetTypeId;
+            receipt.OriginalAssetSubTypeId = before.AssetSubTypeId;
+        }
+
+        /// <summary>"Category > Type > Sub-type" by name (missing parts skipped); null when nothing is set.
+        /// Without a category id the type's category is used.</summary>
+        public string DescribeNames(int? categoryId, int? typeId, int? subTypeId)
+        {
+            if ((!categoryId.HasValue || categoryId.Value <= 0) && typeId.HasValue && typeId.Value > 0)
+            {
+                categoryId = _unitOfWork.Repository<AssetType>().GetById(typeId.Value)?.AssetCategoryId;
+            }
+
+            var parts = new List<string>();
+            if (categoryId.HasValue && categoryId.Value > 0)
+            {
+                parts.Add(_unitOfWork.Repository<AssetCategory>().GetById(categoryId.Value)?.Name ?? "#" + categoryId.Value);
+            }
+
+            if (typeId.HasValue && typeId.Value > 0)
+            {
+                parts.Add(_unitOfWork.Repository<AssetType>().GetById(typeId.Value)?.Name ?? "#" + typeId.Value);
+            }
+
+            if (subTypeId.HasValue && subTypeId.Value > 0)
+            {
+                parts.Add(_unitOfWork.Repository<AssetSubType>().GetById(subTypeId.Value)?.Name ?? "#" + subTypeId.Value);
+            }
+
+            return parts.Count == 0 ? null : string.Join(" > ", parts);
+        }
+
         public string DescribeForAudit(PurchaseLineClassification classification)
         {
             if (classification == null || !classification.HasType)
@@ -635,7 +685,16 @@ namespace AssetManagement.Application.Services
                 AssetSubTypeName = classification.AssetSubTypeId.HasValue ? _unitOfWork.Repository<AssetSubType>().GetById(classification.AssetSubTypeId.Value)?.Name : null,
                 Brand = classification.Brand,
                 Model = classification.Model,
-                ClassificationSource = classification.HasType ? classification.Source : null
+                ClassificationSource = classification.HasType ? classification.Source : null,
+                ClassificationOverride = line != null && line.ClassificationOverriddenAt.HasValue
+                    ? new ClassificationOverrideVm
+                    {
+                        ChangedById = line.ClassificationOverriddenById,
+                        ChangedAtUtc = line.ClassificationOverriddenAt,
+                        OldClassification = DescribeNames(line.OriginalAssetCategoryId, line.OriginalAssetTypeId, line.OriginalAssetSubTypeId),
+                        NewClassification = DescribeNames(line.AssetCategoryId, line.AssetTypeId, line.AssetSubTypeId)
+                    }
+                    : null
             };
         }
 

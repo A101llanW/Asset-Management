@@ -23,6 +23,29 @@ namespace AssetManagement.Application.ViewModels
         public string ReceivedById { get; set; }
 
         public string Notes { get; set; }
+
+        /// <summary>C3 (migration 108): set when the classification was changed at receiving; null otherwise.</summary>
+        public ClassificationOverrideVm ClassificationOverride { get; set; }
+    }
+
+    /// <summary>C3 (migration 108): who changed a classification, when (UTC), and old -> new (by name).</summary>
+    public class ClassificationOverrideVm
+    {
+        public string ChangedById { get; set; }
+
+        /// <summary>Display name when the user is known; falls back to the id.</summary>
+        public string ChangedByName { get; set; }
+
+        public DateTime? ChangedAtUtc { get; set; }
+
+        public string OldClassification { get; set; }
+
+        public string NewClassification { get; set; }
+
+        public string ChangedByDisplay
+        {
+            get { return string.IsNullOrWhiteSpace(ChangedByName) ? (string.IsNullOrWhiteSpace(ChangedById) ? "unknown user" : ChangedById) : ChangedByName; }
+        }
     }
 
     public class PurchaseReceiveDetailVm

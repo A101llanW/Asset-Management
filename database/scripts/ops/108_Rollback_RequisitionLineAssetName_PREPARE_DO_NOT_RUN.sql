@@ -2,7 +2,8 @@
 -- Purpose: undo 108_requisition_line_asset_name.sql. ONLY after the previous build (without the ItemName /
 --   per-line TargetAssetId columns) is live again; the current build reads these columns and breaks requisitions,
 --   purchase orders and receiving if they disappear first.
--- Effect: requisition / PO line item names and per-line asset tags are LOST (header PurchaseRequest.TargetAssetId
+-- Effect: requisition / PO line item names, per-line asset tags and the C3 classification override trail
+--   (who / when / original classification on PO lines and receipts; the AuditLog rows stay) are LOST (header PurchaseRequest.TargetAssetId
 --   is untouched). Take a COPY_ONLY backup first.
 -- To run on purpose: sqlcmd -E -S <server> -i this_file.sql -v DbName="<database>" ConfirmRollback="YES"
 :on error exit
@@ -42,6 +43,26 @@ IF COL_LENGTH(N'dbo.PurchaseRequestLine', N'ItemName') IS NOT NULL
     ALTER TABLE [dbo].[PurchaseRequestLine] DROP COLUMN [ItemName];
 IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ItemName') IS NOT NULL
     ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [ItemName];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetSubTypeId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [OriginalAssetSubTypeId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetTypeId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [OriginalAssetTypeId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetCategoryId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [OriginalAssetCategoryId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'ClassificationOverriddenAt') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [ClassificationOverriddenAt];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'ClassificationOverriddenById') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [ClassificationOverriddenById];
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'OriginalAssetSubTypeId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [OriginalAssetSubTypeId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'OriginalAssetTypeId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [OriginalAssetTypeId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'OriginalAssetCategoryId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [OriginalAssetCategoryId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ClassificationOverriddenAt') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [ClassificationOverriddenAt];
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ClassificationOverriddenById') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [ClassificationOverriddenById];
 DELETE FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'108_requisition_line_asset_name.sql';
 COMMIT TRANSACTION;
 PRINT N'108 rollback done.';

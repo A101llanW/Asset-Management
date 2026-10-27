@@ -8,7 +8,14 @@
 --      The tag only supplies the classification and pre-fills the name; receiving always creates a NEW asset.
 --   3. PurchaseOrderLine.ItemName NVARCHAR(200) NULL        copied from the requisition line when the PO is raised.
 --      PurchaseOrderLine already has AssetCategoryId / AssetTypeId / AssetSubTypeId (migration 098): no classification column added.
---   4. SchemaMigrationHistory row.
+--   4. C3 override trail (who / when / classification before the change), on BOTH tables, all NULL = never changed:
+--      ClassificationOverriddenById NVARCHAR(128) NULL (user id, like AssetReceiving.ReceivedById),
+--      ClassificationOverriddenAt DATETIME NULL (UTC, like 098's CreatedAt),
+--      OriginalAssetCategoryId / OriginalAssetTypeId / OriginalAssetSubTypeId INT NULL (snapshot ids, no FK on purpose:
+--      they record history and must not block deleting or purging a type).
+--      PurchaseOrderLine: set when the buyer edits the prefilled classification on the PO ("original" = the prefill).
+--      PurchaseOrderLineReceipt: set when it is edited at receiving ("original" = the PO line's; the asset gets the new one).
+--   5. SchemaMigrationHistory row.
 -- NVARCHAR(200) matches Asset.AssetName and the application limit AssetNameRules.MaxLength = 200 (final, Allan 2026-10-27).
 -- Rows created before 108 keep NULL ItemName / TargetAssetId and are NOT re-validated: the app falls back to the old
 --   rules (header TargetAssetId, description / sub-type / brand-model name).
@@ -16,7 +23,8 @@
 -- Idempotent: every step is guarded; re-running is a no-op.
 -- Rollback (see database/scripts/ops/108_Rollback_RequisitionLineAssetName_PREPARE_DO_NOT_RUN.sql):
 --   DROP INDEX IX_PurchaseRequestLine_TargetAssetId; DROP CONSTRAINT FK_PurchaseRequestLine_TargetAsset;
---   DROP COLUMN PurchaseRequestLine.ItemName, PurchaseRequestLine.TargetAssetId, PurchaseOrderLine.ItemName
+--   DROP COLUMN PurchaseRequestLine.ItemName, PurchaseRequestLine.TargetAssetId, PurchaseOrderLine.ItemName,
+--   and the five C3 override columns on PurchaseOrderLine and on PurchaseOrderLineReceipt
 --   (only after redeploying the previous build);
 --   DELETE FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'108_requisition_line_asset_name.sql';
 SET NOCOUNT ON;
@@ -47,6 +55,57 @@ END
 IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ItemName') IS NULL
 BEGIN
     ALTER TABLE [dbo].[PurchaseOrderLine] ADD [ItemName] NVARCHAR(200) NULL;
+END
+
+-- C3 classification override trail (Allan 2026-10-27 21:20 EAT): who / when / the classification before the change.
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ClassificationOverriddenById') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLine] ADD [ClassificationOverriddenById] NVARCHAR(128) NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ClassificationOverriddenAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLine] ADD [ClassificationOverriddenAt] DATETIME NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'OriginalAssetCategoryId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLine] ADD [OriginalAssetCategoryId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'OriginalAssetTypeId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLine] ADD [OriginalAssetTypeId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'OriginalAssetSubTypeId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLine] ADD [OriginalAssetSubTypeId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'ClassificationOverriddenById') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [ClassificationOverriddenById] NVARCHAR(128) NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'ClassificationOverriddenAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [ClassificationOverriddenAt] DATETIME NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetCategoryId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [OriginalAssetCategoryId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetTypeId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [OriginalAssetTypeId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetSubTypeId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [OriginalAssetSubTypeId] INT NULL;
 END
 
 IF NOT EXISTS (SELECT 1 FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'108_requisition_line_asset_name.sql')

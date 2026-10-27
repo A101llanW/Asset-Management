@@ -226,6 +226,13 @@ namespace AssetManagement.Application.Services
                         line.LineNumber = ++lineNumber;
                         line.CreatedAt = DateTime.UtcNow;
                         line.IsActive = true;
+                        var edit = classificationEdits.FirstOrDefault(x => ReferenceEquals(x.Line, line));
+                        if (edit != null)
+                        {
+                            // C3 override trail (migration 108): who, when and the prefilled classification it replaced.
+                            PurchaseOrderLedger.StampOverride(line, edit.Before, actingUserId, line.CreatedAt);
+                        }
+
                         _unitOfWork.Repository<PurchaseOrderLine>().Add(line);
                         createdLines.Add(line);
                     }
@@ -253,7 +260,7 @@ namespace AssetManagement.Application.Services
                     + " | " + string.Join("; ", createdLines.Select(x => "L" + x.LineNumber + " x" + x.Quantity)));
 
             // C3: every classification changed from the requisition prefill gets its own audit row (old vs new).
-            foreach (var edit in classificationEdits)
+            foreach (var edit in classificationEdits.Where(x => createdLines.Contains(x.Line)))
             {
                 _auditWriter?.Write(
                     PurchaseOrderLedger.AuditActionClassificationEditedOnOrder,
@@ -539,7 +546,14 @@ namespace AssetManagement.Application.Services
         public PurchaseOrderStatusVm GetOrderStatus(int purchaseRecordId)
         {
             var purchase = _unitOfWork.Repository<PurchaseRecord>().GetById(purchaseRecordId);
-            return purchase == null ? null : new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+            if (purchase == null)
+            {
+                return null;
+            }
+
+            var status = new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+            ClassificationOverrideNames.Fill(_userService, status.Lines.Select(x => x.ClassificationOverride));
+            return status;
         }
 
         public RequisitionOrderSummaryVm GetRequisitionOrderSummary(int purchaseRequestId)

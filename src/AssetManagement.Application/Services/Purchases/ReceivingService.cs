@@ -21,6 +21,7 @@ namespace AssetManagement.Application.Services
         private readonly IOutboxWriter _outboxWriter;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
+        private readonly IUserService _userService;
 
         public ReceivingService(
             IUnitOfWork unitOfWork,
@@ -28,8 +29,10 @@ namespace AssetManagement.Application.Services
             IAssetService assetService,
             IOutboxWriter outboxWriter,
             IOrganizationScopeService organizationScope,
-            IAuditWriter auditWriter = null)
+            IAuditWriter auditWriter = null,
+            IUserService userService = null)
         {
+            _userService = userService;
             _unitOfWork = unitOfWork;
             _assetSubTypeService = assetSubTypeService;
             _assetService = assetService;
@@ -105,10 +108,19 @@ namespace AssetManagement.Application.Services
             var assets = _unitOfWork.Repository<Asset>().GetAll()
                 .Where(x => assetIds.Contains(x.Id))
                 .ToDictionary(x => x.Id, x => x);
-            return receivings.Select(x =>
+            // C3 (migration 108): receipts whose classification was changed at receiving carry who / when / original.
+            var overridden = _unitOfWork.Repository<PurchaseOrderLineReceipt>()
+                .Find(x => x.PurchaseRecordId == purchaseRecordId && x.IsActive)
+                .Where(x => x.ClassificationOverriddenAt.HasValue)
+                .GroupBy(x => x.AssetReceivingId)
+                .ToDictionary(x => x.Key, x => x.First());
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var list = receivings.Select(x =>
             {
                 Asset asset;
                 assets.TryGetValue(x.AssetId, out asset);
+                PurchaseOrderLineReceipt receipt;
+                overridden.TryGetValue(x.Id, out receipt);
                 return new AssetReceivingListVm
                 {
                     Id = x.Id,
@@ -119,9 +131,20 @@ namespace AssetManagement.Application.Services
                     QuantityReceived = x.QuantityReceived,
                     ConditionOnReceipt = x.ConditionOnReceipt,
                     ReceivedById = x.ReceivedById,
-                    Notes = x.Notes
+                    Notes = x.Notes,
+                    ClassificationOverride = receipt == null
+                        ? null
+                        : new ClassificationOverrideVm
+                        {
+                            ChangedById = receipt.ClassificationOverriddenById,
+                            ChangedAtUtc = receipt.ClassificationOverriddenAt,
+                            OldClassification = ledger.DescribeNames(receipt.OriginalAssetCategoryId, receipt.OriginalAssetTypeId, receipt.OriginalAssetSubTypeId),
+                            NewClassification = asset == null ? null : ledger.DescribeNames(null, asset.AssetTypeId, asset.AssetSubTypeId)
+                        }
                 };
             }).ToList();
+            ClassificationOverrideNames.Fill(_userService, list.Select(x => x.ClassificationOverride));
+            return list;
         }
         public ReceiveResultVm Receive(AssetReceiveVm model, string receivedById)
         {
@@ -583,7 +606,7 @@ namespace AssetManagement.Application.Services
                             receivingId = receiving.Id;
                             if (plan.Line != null)
                             {
-                                _unitOfWork.Repository<PurchaseOrderLineReceipt>().Add(new PurchaseOrderLineReceipt
+                                var receipt = new PurchaseOrderLineReceipt
                                 {
                                     OrganizationId = purchase.OrganizationId,
                                     PurchaseRecordId = purchase.Id,
@@ -593,7 +616,14 @@ namespace AssetManagement.Application.Services
                                     QuantityReceived = 1,
                                     CreatedAt = now,
                                     IsActive = true
-                                });
+                                };
+                                if (plan.ClassificationBefore != null)
+                                {
+                                    // C3 override trail (migration 108): who / when / the PO line classification it replaced.
+                                    PurchaseOrderLedger.StampOverride(receipt, plan.ClassificationBefore, receivedById, now);
+                                }
+
+                                _unitOfWork.Repository<PurchaseOrderLineReceipt>().Add(receipt);
                                 _unitOfWork.SaveChanges();
                             }
 

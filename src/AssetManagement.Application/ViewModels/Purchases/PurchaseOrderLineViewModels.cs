@@ -109,6 +109,9 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>PO line, requisition asset, supplier catalog; NULL when no source has a classification.</summary>
         public string ClassificationSource { get; set; }
 
+        /// <summary>C3 (migration 108): set when the buyer changed the prefilled classification on the PO; null otherwise.</summary>
+        public ClassificationOverrideVm ClassificationOverride { get; set; }
+
         public bool HasClassification
         {
             get { return AssetTypeId.HasValue && AssetTypeId.Value > 0; }
