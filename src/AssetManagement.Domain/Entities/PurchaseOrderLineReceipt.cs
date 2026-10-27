@@ -33,5 +33,13 @@ namespace AssetManagement.Domain.Entities
         public int? OriginalAssetTypeId { get; set; }
 
         public int? OriginalAssetSubTypeId { get; set; }
+
+        /// <summary>Migration 108 (C3): the classification the change set, as recorded at receiving (snapshot ids, no FK),
+        /// so the trail does not follow later reclassification of the asset. NULL on rows stamped before these columns.</summary>
+        public int? NewAssetCategoryId { get; set; }
+
+        public int? NewAssetTypeId { get; set; }
+
+        public int? NewAssetSubTypeId { get; set; }
     }
 }

@@ -42,6 +42,9 @@ namespace AssetManagement.Application.ViewModels
 
         public string NewClassification { get; set; }
 
+        /// <summary>True when "new" was not recorded (older receipt) and shows the asset's CURRENT classification instead.</summary>
+        public bool NewIsCurrentFallback { get; set; }
+
         public string ChangedByDisplay
         {
             get { return string.IsNullOrWhiteSpace(ChangedByName) ? (string.IsNullOrWhiteSpace(ChangedById) ? "unknown user" : ChangedById) : ChangedByName; }

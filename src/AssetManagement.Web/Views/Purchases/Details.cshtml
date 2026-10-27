@@ -16,7 +16,7 @@
         <div class="small text-warning-emphasis mt-1 am-class-override">
             <i class="bi bi-pencil-square" aria-hidden="true"></i>
             Classification changed @place by <strong>@change.ChangedByDisplay</strong>@(change.ChangedAtUtc.HasValue ? ", " + AssetManagement.Application.Helpers.KenyaTimeHelper.FormatUtc(change.ChangedAtUtc.Value) + " EAT" : string.Empty):
-            <span class="text-decoration-line-through">@(change.OldClassification ?? "none")</span> &rarr; <span>@(change.NewClassification ?? "none")</span>
+            <span class="text-decoration-line-through">@(change.OldClassification ?? "none")</span> &rarr; <span>@(change.NewIsCurrentFallback ? "current: " : string.Empty)@(change.NewClassification ?? "none")</span>
         </div>
     }
 }

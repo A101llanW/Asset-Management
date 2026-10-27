@@ -139,7 +139,12 @@ namespace AssetManagement.Application.Services
                             ChangedById = receipt.ClassificationOverriddenById,
                             ChangedAtUtc = receipt.ClassificationOverriddenAt,
                             OldClassification = ledger.DescribeNames(receipt.OriginalAssetCategoryId, receipt.OriginalAssetTypeId, receipt.OriginalAssetSubTypeId),
-                            NewClassification = asset == null ? null : ledger.DescribeNames(null, asset.AssetTypeId, asset.AssetSubTypeId)
+                            // Persisted "new" (108 New* columns); rows stamped before them fall back to the asset's
+                            // current classification, labelled as such.
+                            NewClassification = receipt.NewAssetTypeId.HasValue
+                                ? ledger.DescribeNames(receipt.NewAssetCategoryId, receipt.NewAssetTypeId, receipt.NewAssetSubTypeId)
+                                : (asset == null ? null : ledger.DescribeNames(null, asset.AssetTypeId, asset.AssetSubTypeId)),
+                            NewIsCurrentFallback = !receipt.NewAssetTypeId.HasValue && asset != null
                         }
                 };
             }).ToList();
@@ -621,7 +626,7 @@ namespace AssetManagement.Application.Services
                                 if (plan.ClassificationBefore != null)
                                 {
                                     // C3 override trail (migration 108): who / when / the PO line classification it replaced.
-                                    PurchaseOrderLedger.StampOverride(receipt, plan.ClassificationBefore, receivedById, now);
+                                    PurchaseOrderLedger.StampOverride(receipt, plan.ClassificationBefore, plan.Classification, receivedById, now);
                                 }
 
                                 _unitOfWork.Repository<PurchaseOrderLineReceipt>().Add(receipt);

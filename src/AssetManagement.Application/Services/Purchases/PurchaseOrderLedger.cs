@@ -348,7 +348,6 @@ namespace AssetManagement.Application.Services
             return aType == bType && aSub == bSub;
         }
 
-        /// <summary>Audit text: "Category (#id) > Type (#id) > Sub-type (#id)", or "none".</summary>
         /// <summary>C3 override trail (migration 108) on a PO line: who / when (UTC) / the classification it replaced.</summary>
         public static void StampOverride(PurchaseOrderLine line, PurchaseLineClassification before, string userId, DateTime atUtc)
         {
@@ -360,10 +359,15 @@ namespace AssetManagement.Application.Services
             line.OriginalAssetSubTypeId = before.AssetSubTypeId;
         }
 
-        /// <summary>C3 override trail (migration 108) on a receipt: "original" = the PO line's classification.</summary>
-        public static void StampOverride(PurchaseOrderLineReceipt receipt, PurchaseLineClassification before, string userId, DateTime atUtc)
+        /// <summary>C3 override trail (migration 108) on a receipt: "original" = the PO line's classification, "new" = the
+        /// classification the received asset got (persisted, so the trail does not follow later reclassification).</summary>
+        public static void StampOverride(PurchaseOrderLineReceipt receipt, PurchaseLineClassification before, PurchaseLineClassification after, string userId, DateTime atUtc)
         {
             before = before ?? new PurchaseLineClassification();
+            after = after ?? new PurchaseLineClassification();
+            receipt.NewAssetCategoryId = after.AssetCategoryId;
+            receipt.NewAssetTypeId = after.AssetTypeId;
+            receipt.NewAssetSubTypeId = after.AssetSubTypeId;
             receipt.ClassificationOverriddenById = userId;
             receipt.ClassificationOverriddenAt = atUtc;
             receipt.OriginalAssetCategoryId = before.AssetCategoryId;
@@ -399,6 +403,7 @@ namespace AssetManagement.Application.Services
             return parts.Count == 0 ? null : string.Join(" > ", parts);
         }
 
+        /// <summary>Audit text: "Category (#id) > Type (#id) > Sub-type (#id)", or "none".</summary>
         public string DescribeForAudit(PurchaseLineClassification classification)
         {
             if (classification == null || !classification.HasType)

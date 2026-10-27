@@ -3,7 +3,7 @@
 --   per-line TargetAssetId columns) is live again; the current build reads these columns and breaks requisitions,
 --   purchase orders and receiving if they disappear first.
 -- Effect: requisition / PO line item names, per-line asset tags and the C3 classification override trail
---   (who / when / original classification on PO lines and receipts; the AuditLog rows stay) are LOST (header PurchaseRequest.TargetAssetId
+--   (who / when / original and, on receipts, new classification; the AuditLog rows stay) are LOST (header PurchaseRequest.TargetAssetId
 --   is untouched). Take a COPY_ONLY backup first.
 -- To run on purpose: sqlcmd -E -S <server> -i this_file.sql -v DbName="<database>" ConfirmRollback="YES"
 :on error exit
@@ -43,6 +43,12 @@ IF COL_LENGTH(N'dbo.PurchaseRequestLine', N'ItemName') IS NOT NULL
     ALTER TABLE [dbo].[PurchaseRequestLine] DROP COLUMN [ItemName];
 IF COL_LENGTH(N'dbo.PurchaseOrderLine', N'ItemName') IS NOT NULL
     ALTER TABLE [dbo].[PurchaseOrderLine] DROP COLUMN [ItemName];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'NewAssetSubTypeId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [NewAssetSubTypeId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'NewAssetTypeId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [NewAssetTypeId];
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'NewAssetCategoryId') IS NOT NULL
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [NewAssetCategoryId];
 IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetSubTypeId') IS NOT NULL
     ALTER TABLE [dbo].[PurchaseOrderLineReceipt] DROP COLUMN [OriginalAssetSubTypeId];
 IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetTypeId') IS NOT NULL

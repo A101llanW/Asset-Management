@@ -14,9 +14,12 @@
 --      OriginalAssetCategoryId / OriginalAssetTypeId / OriginalAssetSubTypeId INT NULL (snapshot ids, no FK on purpose:
 --      they record history and must not block deleting or purging a type).
 --      PurchaseOrderLine: set when the buyer edits the prefilled classification on the PO ("original" = the prefill).
---      PurchaseOrderLineReceipt: set when it is edited at receiving ("original" = the PO line's; the asset gets the new one).
+--      PurchaseOrderLineReceipt: set when it is edited at receiving ("original" = the PO line's; the asset gets the new one),
+--      plus NewAssetCategoryId / NewAssetTypeId / NewAssetSubTypeId INT NULL (the classification set at receiving, snapshot
+--      ids, no FK) so the trail shows what was set even if the asset is reclassified later. A PO line needs no New* columns:
+--      its own AssetCategoryId / AssetTypeId / AssetSubTypeId are written once when the PO is raised.
 --   5. SchemaMigrationHistory row.
--- NVARCHAR(200) matches Asset.AssetName and the application limit AssetNameRules.MaxLength = 200 (final, Allan 2026-10-27).
+-- NVARCHAR(200) matches Asset.AssetName and the application limit AssetNameRules.MaxLength = 200 (pending Allan's confirmation (relayed by PM 20:58 EAT)).
 -- Rows created before 108 keep NULL ItemName / TargetAssetId and are NOT re-validated: the app falls back to the old
 --   rules (header TargetAssetId, description / sub-type / brand-model name).
 -- Must run BEFORE the matching code is published (the entity maps read the new columns).
@@ -24,7 +27,7 @@
 -- Rollback (see database/scripts/ops/108_Rollback_RequisitionLineAssetName_PREPARE_DO_NOT_RUN.sql):
 --   DROP INDEX IX_PurchaseRequestLine_TargetAssetId; DROP CONSTRAINT FK_PurchaseRequestLine_TargetAsset;
 --   DROP COLUMN PurchaseRequestLine.ItemName, PurchaseRequestLine.TargetAssetId, PurchaseOrderLine.ItemName,
---   and the five C3 override columns on PurchaseOrderLine and on PurchaseOrderLineReceipt
+--   the five C3 override columns on PurchaseOrderLine and on PurchaseOrderLineReceipt, and the three New* receipt columns
 --   (only after redeploying the previous build);
 --   DELETE FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'108_requisition_line_asset_name.sql';
 SET NOCOUNT ON;
@@ -106,6 +109,21 @@ END
 IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'OriginalAssetSubTypeId') IS NULL
 BEGIN
     ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [OriginalAssetSubTypeId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'NewAssetCategoryId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [NewAssetCategoryId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'NewAssetTypeId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [NewAssetTypeId] INT NULL;
+END
+
+IF COL_LENGTH(N'dbo.PurchaseOrderLineReceipt', N'NewAssetSubTypeId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PurchaseOrderLineReceipt] ADD [NewAssetSubTypeId] INT NULL;
 END
 
 IF NOT EXISTS (SELECT 1 FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'108_requisition_line_asset_name.sql')
