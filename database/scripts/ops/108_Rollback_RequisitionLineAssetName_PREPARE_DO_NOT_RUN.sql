@@ -18,6 +18,19 @@ USE [$(DbName)];
 GO
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+-- Guard repeated INSIDE the drop batch: in SSMS without SQLCMD mode the batches above fail (":on error exit", USE [$(DbName)])
+-- but this batch would still run in whatever database is current. Unsubstituted variables stay literal "$(...)",
+-- never equal YES / DB_NAME(), so the batch stops here. N'$' + N'(' avoids sqlcmd treating the check itself as a variable.
+IF LEFT(N'$(DbName)', 2) = N'$' + N'(' OR LEFT(N'$(ConfirmRollback)', 2) = N'$' + N'('
+BEGIN
+    RAISERROR (N'108 rollback NOT run: sqlcmd variables DbName / ConfirmRollback were not substituted (use sqlcmd -v or SSMS SQLCMD Mode).', 16, 1);
+    RETURN;
+END
+IF N'$(ConfirmRollback)' <> N'YES' OR DB_NAME() <> N'$(DbName)'
+BEGIN
+    RAISERROR (N'108 rollback NOT run: ConfirmRollback is not YES or the current database is not $(DbName).', 16, 1);
+    RETURN;
+END
 BEGIN TRANSACTION;
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'dbo.PurchaseRequestLine') AND [name] = N'IX_PurchaseRequestLine_TargetAssetId')
     DROP INDEX [IX_PurchaseRequestLine_TargetAssetId] ON [dbo].[PurchaseRequestLine];
