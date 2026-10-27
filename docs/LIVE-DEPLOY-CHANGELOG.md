@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 09:10 - main: print log (105) + Prep/Senior Section (106) + heads per section (107) + tag segment switches (104) + Year/Classroom labels + required sub-type + QR scan card (`488e78c`) - NOT PUBLISHED (built + tested locally only; staged, not deployed)
+
+- **Status:** NOT PUBLISHED. Local main only, not pushed, no PR. localhost:8080 runs `488e78c`. Live untouched. No print job sent.
+- **What and why:** merged feat/print-log-bulk (105), feat/section-prep (106), tag segment switches 5e3101a (104, WITHOUT the random-code commit cf4a3fc, which is parked on `hold/tag-random-code`), feature/grade-to-year-labels (display wording only), fix/subtype-required-receiving; added separate Prep / Senior heads per department, any active user whatever the role (107, Departments > Edit > Heads per section); QR scan page card (public; signed-out viewers see no names, e-mails, cost, financial, insurance or supplier data; custodian and "View full details" only when signed in; details above the lookup panel after a scan; QR URL unchanged).
+- **Commits:** 4428bbb, 6dd912a, 5e3101a, 3abcce4, d8a1e51, 0ed1ac9, e31bad8, 217e5df, 756c90a, 488e78c. Backup tag `backup/main-pre-merge-20261027` (8f6bff4).
+- **DB migration/script:** 104_AssetTagSegmentToggles (may already be on live since 2026-10-21, history row Id 107), 105_LabelPrintBatchLog, 106_DepartmentSection, 107_DepartmentSectionHeads. Live run pack: `database/scripts/ops/LiveDB_Update_20261027/` (= Desktop\LiveDB_Update_20261027_NOT_RUN): 00 COPY_ONLY backup, 01 pre-checks, 02 104 (only what is missing), 03-05 = 105-107, 09 verify, 99a-d rollbacks DO_NOT_RUN. Tested on a scratch restore (104 absent and 104 present), including a re-run. The two scripts numbered 104 keep their names; nothing renumbered.
+- **Config/Web.config keys:** none (no config file changed since rel1019g).
+- **IIS/server steps (local):** robocopy mirror to C:\inetpub\AssetManagement (elevated), IIS backup `_merge20261027\inetpub_AssetManagement_backup_20261027_0826`. Local DB backup before migrations: `AssetManagementModuleDb_pre_mig104to107_20261027_082328.bak`.
+- **Live-deploy steps:** run the LiveDB pack in order (README_RUN_ORDER.txt), then copy Desktop\publish (STAGED_README.txt; configs excluded).
+- **Verify:** 09 = ALL_PASS; login; Departments > Edit shows Heads per section; Assets list Section filter; scan a QR signed out (no names/cost) and signed in.
+- **Rollback:** previous site files first, then 99a -> 99b -> 99c (-> 99d only if 02 added 104 that day); last resort the 00 backup.
 ## Standing rule
 
 **Local (SoT + localhost IIS + `.\SQLEXPRESS`) is NOT live/production.**  
