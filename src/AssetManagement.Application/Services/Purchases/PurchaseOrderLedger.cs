@@ -424,7 +424,9 @@ namespace AssetManagement.Application.Services
             return (string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()) + " (#" + id + ")";
         }
 
-        private static bool InOrganization(int? rowOrganizationId, int? organizationId)
+        /// <summary>A shared row (OrganizationId NULL) is in every organisation. Callers pass a resolved organisation
+        /// (the record's, else the current tenant's); only when neither is known is the row accepted.</summary>
+        internal static bool InOrganization(int? rowOrganizationId, int? organizationId)
         {
             return !rowOrganizationId.HasValue || !organizationId.HasValue || rowOrganizationId.Value == organizationId.Value;
         }

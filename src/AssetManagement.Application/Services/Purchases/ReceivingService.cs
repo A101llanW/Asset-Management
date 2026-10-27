@@ -726,6 +726,8 @@ namespace AssetManagement.Application.Services
         {
             var classification = ledger.ResolveClassification(purchase, request, plan.Line, plan.Description);
             var input = plan.Input;
+            // The type / sub-type must belong to the PO's organisation; a PO without one uses the current tenant's.
+            var organizationId = ReceiveOrganizationId(purchase);
             if (classification != null && classification.HasType)
             {
                 // C3 (Allan 2026-10-27): the source classification is a prefill shown read-only with an Edit button. A
@@ -735,14 +737,14 @@ namespace AssetManagement.Application.Services
                     var posted = new PurchaseLineClassification { AssetTypeId = input.OverrideAssetTypeId, AssetSubTypeId = input.OverrideAssetSubTypeId };
                     if (!PurchaseOrderLedger.SameClassification(classification, posted))
                     {
-                        var edited = ledger.ValidateEditedClassification(purchase.OrganizationId, input.OverrideAssetTypeId, input.OverrideAssetSubTypeId, plan.Label, PurchaseOrderLedger.SourceEditedAtReceiving);
+                        var edited = ledger.ValidateEditedClassification(organizationId, input.OverrideAssetTypeId, input.OverrideAssetSubTypeId, plan.Label, PurchaseOrderLedger.SourceEditedAtReceiving);
                         plan.ClassificationBefore = classification;
                         return edited;
                     }
                 }
 
                 // Otherwise the source wins for the type and for the sub-type when it has one.
-                return RequireSubType(ledger, classification, input.OverrideAssetSubTypeId, plan);
+                return RequireSubType(ledger, classification, input.OverrideAssetSubTypeId, plan, organizationId);
             }
 
             if (!input.OverrideAssetTypeId.HasValue || input.OverrideAssetTypeId.Value <= 0)
@@ -751,13 +753,19 @@ namespace AssetManagement.Application.Services
             }
 
             var type = _unitOfWork.Repository<AssetType>().GetById(input.OverrideAssetTypeId.Value);
-            if (type == null || !type.IsActive)
+            if (type == null || !type.IsActive || !PurchaseOrderLedger.InOrganization(type.OrganizationId, organizationId))
             {
                 throw new BusinessException("The selected asset type was not found (" + plan.Label + ").");
             }
 
             var chosen = ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, Source = "ReceiverOverride" });
-            return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan);
+            return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan, organizationId);
+        }
+
+        /// <summary>The organisation a receipt's classification must belong to: the PO's, else the current tenant's.</summary>
+        private int? ReceiveOrganizationId(PurchaseRecord purchase)
+        {
+            return purchase.OrganizationId ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId());
         }
 
         /// <summary>
@@ -792,7 +800,7 @@ namespace AssetManagement.Application.Services
         /// Categories (the live trigger would reject the receipt anyway). Legacy assets without a sub-type are listed by
         /// the asset list's "Missing sub-type" filter.
         /// </summary>
-        private PurchaseLineClassification RequireSubType(PurchaseOrderLedger ledger, PurchaseLineClassification classification, int? postedSubTypeId, ReceiveLinePlan plan)
+        private PurchaseLineClassification RequireSubType(PurchaseOrderLedger ledger, PurchaseLineClassification classification, int? postedSubTypeId, ReceiveLinePlan plan, int? organizationId)
         {
             if (classification.AssetSubTypeId.HasValue && classification.AssetSubTypeId.Value > 0)
             {
@@ -810,6 +818,11 @@ namespace AssetManagement.Application.Services
             }
 
             var subType = _unitOfWork.Repository<AssetSubType>().GetById(postedSubTypeId.Value);
+            if (subType != null && !PurchaseOrderLedger.InOrganization(subType.OrganizationId, organizationId))
+            {
+                throw new BusinessException("The selected sub-type was not found (" + plan.Label + ").");
+            }
+
             EnsureReceiveSubType(subType == null ? (int?)null : subType.Id, subType == null ? (int?)null : subType.AssetTypeId, classification.AssetTypeId.Value, plan.Label, subType == null || subType.IsActive);
             classification.AssetSubTypeId = subType.Id;
             return ledger.Complete(classification);

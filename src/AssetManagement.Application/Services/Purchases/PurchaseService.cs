@@ -398,8 +398,9 @@ namespace AssetManagement.Application.Services
             }
             else if (prefill == null && selectedTypeId.HasValue && selectedTypeId.Value > 0)
             {
+                // organizationId is resolved by Create (current tenant, else the requisition's; required).
                 var type = _unitOfWork.Repository<AssetType>().GetById(selectedTypeId.Value);
-                if (type == null || !type.IsActive)
+                if (type == null || !type.IsActive || !PurchaseOrderLedger.InOrganization(type.OrganizationId, organizationId))
                 {
                     throw new BusinessException("The selected asset type was not found.");
                 }
@@ -407,7 +408,12 @@ namespace AssetManagement.Application.Services
                 if (selectedSubTypeId.HasValue && selectedSubTypeId.Value > 0)
                 {
                     var subType = _unitOfWork.Repository<AssetSubType>().GetById(selectedSubTypeId.Value);
-                    if (subType == null || subType.AssetTypeId != type.Id)
+                    if (subType == null || !PurchaseOrderLedger.InOrganization(subType.OrganizationId, organizationId))
+                    {
+                        throw new BusinessException("The selected sub-type was not found.");
+                    }
+
+                    if (subType.AssetTypeId != type.Id)
                     {
                         throw new BusinessException("The selected sub-type does not belong to the selected asset type.");
                     }
