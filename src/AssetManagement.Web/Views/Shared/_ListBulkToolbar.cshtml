@@ -5,10 +5,17 @@
     var departments = ViewBag.Departments as System.Web.Mvc.SelectList;
     var isGrouped = string.Equals(ViewBag.ListViewMode as string, "grouped", System.StringComparison.OrdinalIgnoreCase);
     var groupBy = AssetListGroupBy.Normalize(ViewBag.GroupBy as string);
+    // rel1022a: whole-group selection + "Send to printing" in the grouped and by-room views.
+    var isRoom = string.Equals(ViewBag.ListViewMode as string, "room", System.StringComparison.OrdinalIgnoreCase);
+    var canSendToPrint = (isGrouped || isRoom) && Html.HasPermission("Assets.View");
+    var groupByOption = AssetListGroupBy.Options.FirstOrDefault(o => string.Equals(o.Value, groupBy, System.StringComparison.OrdinalIgnoreCase));
+    var registerViewLabel = isRoom ? "Asset register, grouped by room"
+        : isGrouped ? "Asset register, grouped " + (groupByOption != null ? groupByOption.Label.ToLowerInvariant() : groupBy)
+        : "Asset register";
 }
-@if (canBulkEdit || isGrouped)
+@if (canBulkEdit || isGrouped || canSendToPrint)
 {
-    <div class="card card-kpi mb-3 am-bulk-toolbar" data-am-bulk-toolbar>
+    <div class="card card-kpi mb-3 am-bulk-toolbar" data-am-bulk-toolbar data-am-register-view-label="@registerViewLabel">
         <div class="card-body py-2">
             <div class="row g-2 align-items-end">
                 @if (isGrouped)
@@ -59,6 +66,16 @@
                 </div>
                 }
             </div>
+            @if (canSendToPrint)
+            {
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-2" data-am-group-selection-bar>
+                    <span class="small text-muted">Tick a whole @(isRoom ? "room" : "group") or single units@(canBulkEdit ? ", then apply a bulk action (Move to department keeps the usual move rules)," : "") or send them to label printing.</span>
+                    <span class="small fw-medium" data-am-selection-count></span>
+                    <span class="small" data-am-selection-status role="status" aria-live="polite"></span>
+                    <button type="button" class="btn btn-sm btn-outline-success ms-auto" data-am-send-to-print disabled
+                            title="Creates one print batch and opens Bulk Label Print with these assets queued. Nothing prints until you print there.">Send to printing</button>
+                </div>
+            }
         </div>
     </div>
     if (canBulkEdit)
@@ -67,6 +84,17 @@
         {
             @Html.AntiForgeryToken()
             <div id="amBulkAssetIds"></div>
+        }
+    }
+    if (canSendToPrint)
+    {
+        using (Html.BeginForm("QueueFromRegister", "AssetLabels", FormMethod.Post, new { id = "amSendToPrintForm" }))
+        {
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="groupLabel" value="" />
+            <input type="hidden" name="filterDescription" value="" />
+            <input type="hidden" name="returnUrl" value="" />
+            <div data-am-send-to-print-ids data-am-ids-name="assetIds"></div>
         }
     }
 }

@@ -331,7 +331,9 @@
 
         button.disabled = true;
         // Same template as the preview: the ZPL URL carries the template chosen in the picker right now.
-        var zplUrl = buildZplUrl(config.zplUrl, getSelectedCodeType(root), getSelectedTemplateId(root));
+        var printedCodeType = getSelectedCodeType(root);
+        var printedTemplateId = getSelectedTemplateId(root);
+        var zplUrl = buildZplUrl(config.zplUrl, printedCodeType, printedTemplateId);
         loadScript(resolveBrowserPrintSdkUrl())
             .then(function (browserPrint) {
                 return fetchText(zplUrl).then(function (zpl) {
@@ -341,6 +343,10 @@
             .then(function () {
                 button.disabled = false;
                 pollPrinterStatus(root, config);
+                // rel1022a: the printer accepted the label; log it on the asset's audit trail (server never prints).
+                if (window.AmLabelPrintLog) {
+                    window.AmLabelPrintLog.recordFromButton(button, 'Zebra', { templateId: printedTemplateId, codeType: printedCodeType });
+                }
             })
             .catch(function (error) {
                 button.disabled = false;

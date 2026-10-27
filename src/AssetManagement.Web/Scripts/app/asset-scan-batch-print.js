@@ -8,6 +8,8 @@
     var isPrinting = false;
     var printSession = null;
     var panelEventsBound = false;
+    // rel1022a: where the current queue came from (a register batch to reuse, or an earlier batch being reprinted).
+    var queueContext = null;
 
     function escapeHtml(text) {
         if (!text) {
@@ -32,8 +34,185 @@
             enabled: true,
             printCandidatesUrl: panel.getAttribute("data-print-candidates-url"),
             labelPrintConfigUrlTemplate: panel.getAttribute("data-label-print-config-url-template"),
-            labelZplUrlTemplate: panel.getAttribute("data-label-zpl-url-template")
+            labelZplUrlTemplate: panel.getAttribute("data-label-zpl-url-template"),
+            recordPrintUrl: panel.getAttribute("data-print-log-record-url"),
+            createBatchUrl: panel.getAttribute("data-print-log-create-batch-url"),
+            completeBatchUrl: panel.getAttribute("data-print-log-complete-batch-url"),
+            initialBatch: parseJsonAttribute(panel, "data-am-print-initial-batch")
         };
+    }
+
+    function parseJsonAttribute(node, name) {
+        var raw = node ? node.getAttribute(name) : null;
+        if (!raw) {
+            return null;
+        }
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // ---- rel1022a: print log (never blocks printing; the server never contacts the printer) ----
+
+    function warnLog(message) {
+        if (window.console && window.console.warn) {
+            window.console.warn(message);
+        }
+    }
+
+    function selectedText(selector) {
+        var select = document.querySelector(selector);
+        if (!select || !select.value || select.selectedIndex < 0) {
+            return "";
+        }
+        return (select.options[select.selectedIndex].text || "").trim();
+    }
+
+    function inputValue(selector) {
+        var input = document.querySelector(selector);
+        return input && input.value ? String(input.value).trim() : "";
+    }
+
+    // Human-readable filter used for the queue, stored on the batch ("group/filter used").
+    function describeFilters() {
+        var parts = [];
+        var add = function (label, value) { if (value) { parts.push(label + ": " + value); } };
+        add("Purchase order", selectedText("[data-am-scan-batch-po]"));
+        add("Department", selectedText("[data-am-scan-batch-dept]"));
+        add("Status", selectedText("[data-am-scan-batch-status]"));
+        add("Category", selectedText("[data-am-scan-batch-category]"));
+        add("Type", selectedText("[data-am-scan-batch-type]"));
+        add("Sub-type", selectedText("[data-am-scan-batch-subtype]"));
+        add("Search", inputValue("[data-am-scan-batch-search]"));
+        var from = inputValue("[data-am-scan-batch-from]");
+        var to = inputValue("[data-am-scan-batch-to]");
+        if (from || to) {
+            parts.push((selectedText("[data-am-scan-batch-date-field]") || "Date") + ": " + (from || "...") + " to " + (to || "..."));
+        }
+        return parts.join("; ");
+    }
+
+    function describeGroup() {
+        return selectedText("[data-am-scan-batch-subtype]")
+            || selectedText("[data-am-scan-batch-type]")
+            || selectedText("[data-am-scan-batch-category]")
+            || selectedText("[data-am-scan-batch-po]")
+            || selectedText("[data-am-scan-batch-dept]")
+            || "Bulk label print";
+    }
+
+    function queueMatchesBatch(items, batch) {
+        if (!batch || !batch.itemIds) {
+            return false;
+        }
+        for (var i = 0; i < items.length; i++) {
+            if (!batch.itemIds[String(items[i].id)]) {
+                return false;
+            }
+        }
+        return items.length > 0;
+    }
+
+    // Resolves to { id, isReprint } or null. A failure is logged to the console only; printing goes on.
+    function ensurePrintBatch(items, codeType, templateId) {
+        if (!window.AmLabelPrintLog || !config.createBatchUrl) {
+            return Promise.resolve(null);
+        }
+
+        var context = queueContext;
+        if (context && context.batchId && queueMatchesBatch(items, context)) {
+            return Promise.resolve({ id: context.batchId, isReprint: !!context.isReprint });
+        }
+
+        var groupLabel = context && context.groupLabel ? context.groupLabel : describeGroup();
+        var filter = context && context.filterDescription ? context.filterDescription : describeFilters();
+        return window.AmLabelPrintLog.post(config.createBatchUrl, {
+            assetIds: items.map(function (item) { return item.id; }),
+            groupLabel: groupLabel,
+            filterDescription: filter,
+            reprintOfBatchId: context && context.reprintOfBatchId ? context.reprintOfBatchId : "",
+            templateId: templateId || "",
+            codeType: codeType || ""
+        }, getPanel()).then(function (body) {
+            return body && body.batch ? { id: body.batch.id, isReprint: !!body.batch.isReprint } : null;
+        }).catch(function (error) {
+            warnLog("Print batch was not logged: " + (error && error.message ? error.message : error));
+            return null;
+        });
+    }
+
+    function recordPrinted(session, item) {
+        if (!session || !window.AmLabelPrintLog || !config.recordPrintUrl) {
+            return;
+        }
+        (session.batchPromise || Promise.resolve(null)).then(function (batch) {
+            return window.AmLabelPrintLog.post(config.recordPrintUrl, {
+                assetIds: [item.id],
+                batchId: batch ? batch.id : "",
+                source: "Bulk",
+                mode: "Zebra",
+                templateId: session.templateId || "",
+                codeType: session.codeType || "",
+                reprint: batch && batch.isReprint ? "true" : ""
+            }, getPanel());
+        }).catch(function (error) {
+            warnLog("Label print was not logged for " + item.tag + ": " + (error && error.message ? error.message : error));
+        });
+    }
+
+    function completePrintBatch(session, stoppedEarly, printedCount) {
+        if (!session || !session.batchPromise) {
+            return;
+        }
+        session.batchPromise.then(function (batch) {
+            if (!batch) {
+                return null;
+            }
+            if (!printedCount) {
+                // Nothing came out (printer not ready, stopped at once): retrying reuses this batch record.
+                var itemIds = {};
+                session.items.forEach(function (item) { itemIds[String(item.id)] = true; });
+                queueContext = {
+                    batchId: batch.id,
+                    isReprint: batch.isReprint,
+                    itemIds: itemIds,
+                    groupLabel: queueContext && queueContext.groupLabel,
+                    filterDescription: queueContext && queueContext.filterDescription
+                };
+            }
+            if (!window.AmLabelPrintLog || !config.completeBatchUrl) {
+                return null;
+            }
+            return window.AmLabelPrintLog.post(config.completeBatchUrl, {
+                batchId: batch.id,
+                stoppedEarly: stoppedEarly ? "true" : "false"
+            }, getPanel());
+        }).catch(function (error) {
+            warnLog("Print batch completion was not logged: " + (error && error.message ? error.message : error));
+        });
+    }
+
+    // Loads a batch (from the register, or "Reprint group" in the batch log) into the queue. Never auto-prints.
+    function loadBatch(batch, options) {
+        if (!batch || isPrinting) {
+            return false;
+        }
+        var reprint = !!(options && options.reprint);
+        while (queue.length) {
+            removeFromQueue(queue[0].id);
+        }
+        var itemIds = {};
+        (batch.items || []).forEach(function (item) {
+            itemIds[String(item.id)] = true;
+            addToQueue({ id: item.id, tag: item.tag, name: item.name });
+        });
+        queueContext = reprint
+            ? { reprintOfBatchId: batch.id, groupLabel: batch.groupLabel, filterDescription: batch.filterDescription }
+            : { batchId: batch.id, isReprint: !!batch.isReprint, itemIds: itemIds, groupLabel: batch.groupLabel, filterDescription: batch.filterDescription };
+        syncActionButtons();
+        return true;
     }
 
     function getCodeType() {
@@ -650,6 +829,12 @@
 
         printSession = null;
         isPrinting = false;
+        completePrintBatch(session, stoppedEarly || printedCount < total, printedCount);
+        if (printedCount > 0) {
+            // The run used up its context: the next run is a new batch (each asset is still marked as a reprint
+            // on the server when it was printed before).
+            queueContext = null;
+        }
 
         if (stoppedEarly && printedCount < total) {
             setProgress(printedCount, total, "Stopped after " + printedCount + " of " + total + " labels.");
@@ -731,6 +916,8 @@
             stopped: false,
             pauseWaiters: []
         };
+        // rel1022a: one batch record per print run (reuses a batch sent from the register).
+        printSession.batchPromise = ensurePrintBatch(items, codeType, templateId);
 
         setProgress(0, total, "Preparing printer...");
 
@@ -764,6 +951,7 @@
                         }
 
                         var item = printSession.items[printSession.index];
+                        var currentSession = printSession;
                         setProgress(printSession.index, printSession.total, "Printing " + item.tag + "...");
                         var zplUrl = buildZplUrl(item.labelZplUrl, printSession.codeType, printSession.templateId);
 
@@ -782,6 +970,7 @@
                                     return;
                                 }
 
+                                recordPrinted(currentSession, item);
                                 removeFromQueue(item.id);
                                 printSession.index += 1;
                                 setProgress(
@@ -917,6 +1106,7 @@
             while (queue.length) {
                 removeFromQueue(queue[0].id);
             }
+            queueContext = null;
         }
     }
 
@@ -1103,6 +1293,10 @@
             config.printCandidatesUrl = config.printCandidatesUrl || panelConfig.printCandidatesUrl;
             config.labelPrintConfigUrlTemplate = config.labelPrintConfigUrlTemplate || panelConfig.labelPrintConfigUrlTemplate;
             config.labelZplUrlTemplate = config.labelZplUrlTemplate || panelConfig.labelZplUrlTemplate;
+            config.recordPrintUrl = config.recordPrintUrl || panelConfig.recordPrintUrl;
+            config.createBatchUrl = config.createBatchUrl || panelConfig.createBatchUrl;
+            config.completeBatchUrl = config.completeBatchUrl || panelConfig.completeBatchUrl;
+            config.initialBatch = config.initialBatch || panelConfig.initialBatch;
         }
 
         if (!config.enabled || !panel) {
@@ -1113,6 +1307,11 @@
         syncClassificationOptions(panel, null);
         renderQueue();
         syncActionButtons();
+
+        // rel1022a: "Send to printing" from the Asset register arrives with ?batchId= and its assets queued.
+        if (config.initialBatch && config.initialBatch.items && config.initialBatch.items.length) {
+            loadBatch(config.initialBatch, { reprint: false });
+        }
 
         // rel1014a: "Send to Bulk Label Print" from a purchase receipt arrives with ?purchaseId= preselected.
         if (panel.getAttribute("data-am-scan-batch-autoload") === "true") {
@@ -1138,6 +1337,8 @@
         init: init,
         addToQueue: addToQueue,
         removeFromQueue: removeFromQueue,
-        getQueue: function () { return queue.slice(); }
+        getQueue: function () { return queue.slice(); },
+        loadBatch: loadBatch,
+        isPrinting: function () { return isPrinting; }
     };
 })(window);

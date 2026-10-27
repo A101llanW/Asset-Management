@@ -43,7 +43,9 @@
         }
 
         if (submitBtn) {
-            submitBtn.disabled = ids.length === 0 || !actionSelect || !actionSelect.value;
+            // rel1022a: a ticked whole group (asset-group-selection.js) counts even before its units are loaded.
+            var groupSelected = !!(window.AmAssetGroupSelection && window.AmAssetGroupSelection.hasSelection());
+            submitBtn.disabled = (ids.length === 0 && !groupSelected) || !actionSelect || !actionSelect.value;
         }
     }
 
@@ -82,7 +84,8 @@
 
     if (form) {
         form.addEventListener("submit", function (event) {
-            if (selectedIds().length === 0) {
+            var groupSelected = !!(window.AmAssetGroupSelection && window.AmAssetGroupSelection.hasSelection());
+            if (selectedIds().length === 0 && !groupSelected) {
                 event.preventDefault();
             }
         });

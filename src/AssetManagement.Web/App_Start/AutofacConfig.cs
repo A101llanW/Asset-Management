@@ -61,6 +61,10 @@ namespace AssetManagement.Web.App_Start
             builder.RegisterType<OperationsQueryRepository>().As<IOperationsQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetTagSequenceStore>().As<IAssetTagSequenceStore>().InstancePerHttpRequest();
             builder.RegisterType<AssetTagRenameStore>().As<IAssetTagRenameStore>().InstancePerHttpRequest();
+            // rel1022a: label print log. The dispatcher never contacts a printer (the browser prints via Zebra Browser Print).
+            builder.RegisterType<LabelPrintBatchStore>().As<ILabelPrintBatchStore>().InstancePerHttpRequest();
+            builder.RegisterType<AssetManagement.Application.Services.LabelPrint.ClientBrowserPrintDispatcher>().As<ILabelPrintDispatcher>().SingleInstance();
+            builder.RegisterType<LabelPrintLogService>().As<ILabelPrintLogService>().InstancePerHttpRequest();
             builder.RegisterType<CatalogQueryRepository>().As<ICatalogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AuditLogQueryRepository>().As<IAuditLogQueryRepository>().InstancePerHttpRequest();
             builder.RegisterType<AssetMovementQueryRepository>().As<IAssetMovementQueryRepository>().InstancePerHttpRequest();

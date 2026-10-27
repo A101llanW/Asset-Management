@@ -23,6 +23,8 @@ namespace AssetManagement.Application.Helpers
                 "Assets.UpdateStatus",
                 "Assets.RelocateClass",
                 "Assets.RelocateRoom",
+                "Assets.LabelPrint",
+                "Assets.LabelReprint",
                 "Assets.Edit.Department",
                 "Assets.AcknowledgeReceipt",
                 "Assets.RequestReturn",

@@ -131,6 +131,12 @@ namespace AssetManagement.Tests.Organizations
             new ForeignKeyEdge("FK_Users_Organization", "Users", "OrganizationId", "Organization", "NO_ACTION"),
             new ForeignKeyEdge("FK_WebhookDelivery_Subscription", "WebhookDelivery", "WebhookSubscriptionId", "WebhookSubscription", "NO_ACTION"),
             new ForeignKeyEdge("FK_WebhookSubscription_Organization", "WebhookSubscription", "OrganizationId", "Organization", "NO_ACTION"),
+
+            // rel1022a, migration 105_LabelPrintBatchLog.sql (checked on a scratch restore 2026-10-22).
+            new ForeignKeyEdge("FK_LabelPrintBatch_Organization", "LabelPrintBatch", "OrganizationId", "Organization", "NO_ACTION"),
+            new ForeignKeyEdge("FK_LabelPrintBatch_ReprintOf", "LabelPrintBatch", "ReprintOfBatchId", "LabelPrintBatch", "NO_ACTION"),
+            new ForeignKeyEdge("FK_LabelPrintBatchItem_Batch", "LabelPrintBatchItem", "BatchId", "LabelPrintBatch", "NO_ACTION"),
+            new ForeignKeyEdge("FK_LabelPrintBatchItem_Asset", "LabelPrintBatchItem", "AssetId", "Asset", "NO_ACTION"),
         };
     }
 }
