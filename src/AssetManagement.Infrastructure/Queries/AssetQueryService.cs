@@ -1165,6 +1165,12 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
                     clauses.Add("a.[DepartmentId] = @FilterDepartmentId");
                 }
 
+                if (filter.Section.HasValue)
+                {
+                    // Prep / Senior school (migration 106): assets whose own department is in that section (same tenant).
+                    clauses.Add("a.[DepartmentId] IN (SELECT sd.[Id] FROM [Department] sd WHERE sd.[OrganizationId] = a.[OrganizationId] AND sd.[Section] = @FilterSection)");
+                }
+
                 if (filter.CreatedFromUtc.HasValue)
                 {
                     clauses.Add("a.[CreatedAt] >= @CreatedFromUtc");
@@ -1253,6 +1259,8 @@ FROM [Asset] a" + whereClause + " OPTION (MAXDOP 1)";
 
             SqlQueryHelper.AddParameter(command, "@FilterDepartmentId",
                 filter.DepartmentId.HasValue ? (object)filter.DepartmentId.Value : DBNull.Value);
+            SqlQueryHelper.AddParameter(command, "@FilterSection",
+                filter.Section.HasValue ? (object)(int)filter.Section.Value : DBNull.Value);
             SqlQueryHelper.AddParameter(command, "@CategoryId",
                 filter.CategoryId.HasValue ? (object)filter.CategoryId.Value : DBNull.Value);
             if (filter.DepartmentIds != null)

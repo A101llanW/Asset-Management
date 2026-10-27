@@ -6,6 +6,10 @@ namespace AssetManagement.Web.ViewModels
     {
         public bool Enabled { get; set; } = true;
         public string TenantPrefix { get; set; }
+        /// <summary>Optional prefix for Prep units (migration 106). Blank = no section prefix: nothing changes for Prep.</summary>
+        public string PrepPrefix { get; set; }
+        /// <summary>Optional prefix for Senior school units. Blank = no section prefix: nothing changes for Senior school.</summary>
+        public string SeniorPrefix { get; set; }
         public List<AssetTagOverrideRowVm> Rows { get; set; } = new List<AssetTagOverrideRowVm>();
         /// <summary>Three-level prefix preview (read-only; does not change the saved settings).</summary>
         public int? LevelScopeId { get; set; }

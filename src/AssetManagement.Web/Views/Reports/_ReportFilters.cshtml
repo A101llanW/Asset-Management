@@ -60,6 +60,18 @@
             </div>
         </div>
     }
+    @if (Model.SupportsDepartmentFilter)
+    {
+        <div class="col-md-4">
+            <label class="form-label small mb-1" for="section-@key">Section</label>
+            <select class="form-select form-select-sm am-report-section" id="section-@key" data-report-key="@key">
+                <option value="">All sections</option>
+                <option value="Prep">Prep</option>
+                <option value="SeniorSchool">Senior school</option>
+            </select>
+            <div class="form-text small mb-0">Combines with the departments ticked.</div>
+        </div>
+    }
     @if (Model.SupportsCategoryFilter)
     {
         <div class="col-md-4">

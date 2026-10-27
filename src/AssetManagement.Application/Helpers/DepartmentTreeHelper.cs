@@ -110,7 +110,8 @@ namespace AssetManagement.Application.Helpers
         }
 
         /// <summary>
-        /// Requisition targets in tree order at any depth: Grades (by code), then Administrative, then other roots;
+        /// Requisition targets in tree order at any depth: Prep section first, then Senior school; within a section
+        /// Grades (by sort number, then code), then Administrative, then other roots;
         /// children by code/name under their parent. A non-target parent is skipped but its children are still walked.
         /// </summary>
         public static IList<KeyValuePair<int, string>> BuildRequisitionOptions(IEnumerable<DepartmentVm> departments)
@@ -132,7 +133,9 @@ namespace AssetManagement.Application.Helpers
                 .ToDictionary(g => g.Key, g => SortSiblings(g).ToList());
             var roots = list
                 .Where(x => !x.ParentDepartmentId.HasValue || !lookup.ContainsKey(x.ParentDepartmentId.Value))
-                .OrderBy(x => RootRank(x.DepartmentKind))
+                .OrderBy(x => DepartmentSectionHelper.Rank(x.Section))
+                .ThenBy(x => RootRank(x.DepartmentKind))
+                .ThenBy(x => x.DepartmentKind == DepartmentKind.Grade ? DepartmentSectionHelper.EffectiveSortNumber(x.SortOrder, x.Code) : 0)
                 .ThenBy(x => x.DepartmentKind == DepartmentKind.Grade ? (x.Code ?? x.Name) : x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var result = new List<KeyValuePair<int, string>>();

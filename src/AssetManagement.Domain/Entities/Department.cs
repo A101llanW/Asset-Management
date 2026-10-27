@@ -60,6 +60,12 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Optional asset tag prefix override for this department, sub-department or room (rel1013a, migration 102). Null = inherit.</summary>
         public string AssetTagPrefix { get; set; }
 
+        /// <summary>School section (Prep / Senior school). Migration 106; existing rows default to Senior school (0).</summary>
+        public DepartmentSection Section { get; set; }
+
+        /// <summary>Optional explicit sort number (Grades). Null = derive from the code (G05 = 5), so Prep (G00) sorts first.</summary>
+        public int? SortOrder { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }

@@ -21,6 +21,16 @@ namespace AssetManagement.Application.Services
             }
 
             request.NormalizeMultiSelectFilters();
+            // Section filter (Prep / Senior school): every builder filters on DepartmentIds, so the section is
+            // resolved to the department ids inside it (intersected with any explicit departments). The summary
+            // line is rebuilt afterwards from the request as the user posted it.
+            ReportExportRequestVm summaryRequest = null;
+            if (request.Section.HasValue)
+            {
+                summaryRequest = CopyForSummary(request);
+                ApplySectionFilter(request);
+            }
+
             var reportType = (request.ReportType ?? string.Empty).Trim().ToLowerInvariant();
             var period = request.SupportsDateRange()
                 ? ReportPeriodHelper.ResolveRange(request.PeriodPreset, request.FromDate, request.ToDate)
@@ -55,6 +65,11 @@ namespace AssetManagement.Application.Services
                     break;
                 default:
                     throw new InvalidOperationException("Unknown report type: " + reportType);
+            }
+
+            if (summaryRequest != null)
+            {
+                context.FilterSummary = BuildFilterSummary(summaryRequest);
             }
 
             var branding = ReportBrandingHelper.Resolve(_unitOfWork, _organizationScope, request.ApplicationBaseUrl);
@@ -1136,6 +1151,44 @@ namespace AssetManagement.Application.Services
             };
         }
 
+        /// <summary>
+        /// Narrows DepartmentIds to the departments in request.Section. An empty list means "all" to every builder, so a
+        /// section with no matching department yields the sentinel id -1 (matches nothing) instead of widening to all.
+        /// </summary>
+        private void ApplySectionFilter(ReportExportRequestVm request)
+        {
+            var section = request.Section.Value;
+            var sectionIds = _unitOfWork.Repository<Department>().GetAll()
+                .Where(x => x.Section == section)
+                .Select(x => x.Id)
+                .Distinct()
+                .ToList();
+            var effective = DepartmentSectionHelper.IntersectForReport(sectionIds, request.DepartmentIds);
+
+            request.DepartmentIds = effective;
+            request.DepartmentId = effective.Count == 1 ? effective[0] : (int?)null;
+        }
+
+        private static ReportExportRequestVm CopyForSummary(ReportExportRequestVm request)
+        {
+            return new ReportExportRequestVm
+            {
+                ReportType = request.ReportType,
+                PeriodPreset = request.PeriodPreset,
+                FromDate = request.FromDate,
+                ToDate = request.ToDate,
+                DepartmentId = request.DepartmentId,
+                Section = request.Section,
+                CategoryId = request.CategoryId,
+                DepartmentIds = request.DepartmentIds == null ? null : new List<int>(request.DepartmentIds),
+                CategoryIds = request.CategoryIds == null ? null : new List<int>(request.CategoryIds),
+                Status = request.Status,
+                SortBy = request.SortBy,
+                SortDirection = request.SortDirection,
+                ApplicationBaseUrl = request.ApplicationBaseUrl
+            };
+        }
+
         private static bool InIds(List<int> ids, int? id)
         {
             return id.HasValue && ids.Contains(id.Value);
@@ -1144,6 +1197,11 @@ namespace AssetManagement.Application.Services
         private string BuildFilterSummary(ReportExportRequestVm request)
         {
             var parts = new List<string>();
+            if (request.Section.HasValue)
+            {
+                parts.Add("Section: " + DepartmentSectionHelper.Label(request.Section));
+            }
+
             if (request.DepartmentIds != null && request.DepartmentIds.Count > 0)
             {
                 parts.Add((request.DepartmentIds.Count == 1 ? "Department: " : "Departments: ")

@@ -11,6 +11,9 @@ namespace AssetManagement.Application.ViewModels
 
         public int? DepartmentId { get; set; }
 
+        /// <summary>School section filter (Prep / Senior school): assets whose own department is in that section. Null = all sections.</summary>
+        public DepartmentSection? Section { get; set; }
+
         public int? CategoryId { get; set; }
 
         /// <summary>Optional multi-select department filter (reports). Applied as IN (...) when non-empty.</summary>

@@ -6,6 +6,7 @@ using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Domain.Enums;
 using AssetManagement.Web.ViewModels;
 
 namespace AssetManagement.Web.Controllers
@@ -62,6 +63,18 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("TenantPrefix", "Use letters, digits and hyphens only.");
             }
 
+            var prepPrefix = AssetTagPrefixResolver.NormalizePrefix(model.PrepPrefix);
+            if (!string.IsNullOrWhiteSpace(model.PrepPrefix) && prepPrefix == null)
+            {
+                ModelState.AddModelError("PrepPrefix", "Prep prefix: use letters, digits and hyphens only.");
+            }
+
+            var seniorPrefix = AssetTagPrefixResolver.NormalizePrefix(model.SeniorPrefix);
+            if (!string.IsNullOrWhiteSpace(model.SeniorPrefix) && seniorPrefix == null)
+            {
+                ModelState.AddModelError("SeniorPrefix", "Senior school prefix: use letters, digits and hyphens only.");
+            }
+
             var departmentRepository = UnitOfWork.Repository<Department>();
             var departments = departmentRepository.GetAll().ToDictionary(x => x.Id);
             var posted = (model.Rows ?? new List<AssetTagOverrideRowVm>())
@@ -81,6 +94,8 @@ namespace AssetManagement.Web.Controllers
                 var invalid = BuildAssetTagSettings(posted);
                 invalid.Enabled = model.Enabled;
                 invalid.TenantPrefix = model.TenantPrefix;
+                invalid.PrepPrefix = model.PrepPrefix;
+                invalid.SeniorPrefix = model.SeniorPrefix;
                 return View(invalid);
             }
 
@@ -88,6 +103,10 @@ namespace AssetManagement.Web.Controllers
             var settings = ApprovalWorkflowSettingsHelper.ToDictionary(settingRepository.GetAll());
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.EnabledSettingKey, model.Enabled.ToString(), "Generate structured PREFIX-NNN asset tags (false = legacy random 10-character tags).");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.TenantPrefixSettingKey, tenantPrefix ?? string.Empty, "Tenant-wide asset tag prefix used when no department/sub-department/room override applies. Blank = derived DEPT-ROOM.");
+            var previousSectionPrefixes = AssetTagPrefixResolver.GetSectionPrefixes(
+                settings.ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase));
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.PrepPrefixSettingKey, prepPrefix ?? string.Empty, "Asset tag prefix for Prep units (used with the room, e.g. PP-GALA-001). Blank = no Prep prefix. Overrides on a department/room still win.");
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.SeniorPrefixSettingKey, seniorPrefix ?? string.Empty, "Asset tag prefix for Senior school units. Blank = no Senior school prefix (existing behaviour).");
 
             var changes = new List<string>();
             foreach (var pair in posted)
@@ -112,7 +131,10 @@ namespace AssetManagement.Web.Controllers
                 nameof(SystemSetting),
                 AssetTagPrefixResolver.TenantPrefixSettingKey,
                 null,
-                "enabled=" + model.Enabled + "; tenant=" + (tenantPrefix ?? "(derived)") + "; overrides=" + (changes.Count == 0 ? "unchanged" : string.Join(", ", changes)));
+                "enabled=" + model.Enabled + "; tenant=" + (tenantPrefix ?? "(derived)")
+                    + "; prepPrefix=" + (prepPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.Prep) ? previousSectionPrefixes[DepartmentSection.Prep] : "none") + ")"
+                    + "; seniorPrefix=" + (seniorPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? previousSectionPrefixes[DepartmentSection.SeniorSchool] : "none") + ")"
+                    + "; overrides=" + (changes.Count == 0 ? "unchanged" : string.Join(", ", changes)));
             TempData["SuccessMessage"] = "Asset tag prefix settings saved. Existing tags are unchanged; new assets use the new prefix.";
             return RedirectToAction("AssetTags");
         }
@@ -140,7 +162,11 @@ namespace AssetManagement.Web.Controllers
                 return Json(new { ok = true, enabled = false, nextTag = "(random 10-character tag)", source = "Structured tags are off" }, JsonRequestBehavior.AllowGet);
             }
 
-            var resolution = AssetTagPrefixResolver.Resolve(departmentId, departments, AssetTagPrefixResolver.GetTenantPrefix(settings));
+            var resolution = AssetTagPrefixResolver.Resolve(
+                departmentId,
+                departments,
+                AssetTagPrefixResolver.GetTenantPrefix(settings),
+                AssetTagPrefixResolver.GetSectionPrefixes(settings));
             var store = DependencyResolver.Current.GetService<IAssetTagSequenceStore>();
             var next = store == null ? 1 : store.PeekNext(organizationId.Value, resolution.Prefix);
             return Json(new
@@ -161,10 +187,13 @@ namespace AssetManagement.Web.Controllers
             var departments = UnitOfWork.Repository<Department>().GetAll().Where(x => x.IsActive).ToList();
             var byId = departments.ToDictionary(x => x.Id);
             var tenantPrefix = AssetTagPrefixResolver.GetTenantPrefix(settings);
+            var sectionPrefixes = AssetTagPrefixResolver.GetSectionPrefixes(settings);
             var model = new AssetTagSettingsVm
             {
                 Enabled = AssetTagPrefixResolver.IsEnabled(settings),
-                TenantPrefix = tenantPrefix
+                TenantPrefix = tenantPrefix,
+                PrepPrefix = sectionPrefixes.ContainsKey(DepartmentSection.Prep) ? sectionPrefixes[DepartmentSection.Prep] : null,
+                SeniorPrefix = sectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? sectionPrefixes[DepartmentSection.SeniorSchool] : null
             };
 
             var children = departments.ToLookup(x => x.ParentDepartmentId.HasValue && byId.ContainsKey(x.ParentDepartmentId.Value) ? x.ParentDepartmentId : null);
@@ -180,7 +209,7 @@ namespace AssetManagement.Web.Controllers
                     }
 
                     var label = parentLabel == null ? node.Name : parentLabel + " > " + node.Name;
-                    var resolution = AssetTagPrefixResolver.Resolve(node.Id, byId, tenantPrefix);
+                    var resolution = AssetTagPrefixResolver.Resolve(node.Id, byId, tenantPrefix, sectionPrefixes);
                     string pending;
                     model.Rows.Add(new AssetTagOverrideRowVm
                     {

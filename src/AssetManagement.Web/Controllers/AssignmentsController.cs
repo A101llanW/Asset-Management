@@ -431,6 +431,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     Status = filter.Status,
                     DepartmentId = filter.DepartmentId,
+                    Section = filter.Section,
                     UnassignedOnly = filter.UnassignedOnly,
                     Search = filter.Search
                 });

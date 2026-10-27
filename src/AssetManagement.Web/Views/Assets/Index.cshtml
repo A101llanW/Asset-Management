@@ -67,6 +67,13 @@
                 <div class="col-12 col-sm-6 col-lg-3">
                     @Html.DropDownList("DepartmentId", departments, "All departments", new { @class = "form-select" })
                 </div>
+                @{ var sectionOptions = ViewBag.Sections as System.Web.Mvc.SelectList; }
+                @if (sectionOptions != null)
+                {
+                    <div class="col-6 col-sm-3 col-lg-auto">
+                        @Html.DropDownList("Section", sectionOptions, "All sections", new { @class = "form-select", aria_label = "Section", id = "amAssetFilterSection" })
+                    </div>
+                }
                 <div class="col-6 col-sm-3 col-lg-auto">
                     @Html.DropDownList("Status", statuses, "All statuses", new { @class = "form-select", aria_label = "Status" })
                 </div>
@@ -111,7 +118,7 @@
                 @if (canAssignAssets)
                 {
                     <div class="col-md-8 text-md-end">
-                        <a class="btn btn-outline-primary btn-sm" href="@Url.Action("BatchCreate", "Assignments", new { fromFilter = true, Status = AssetStatus.InStore, UnassignedOnly = true, DepartmentId = listFilter.DepartmentId, Search = listFilter.Search, returnUrl = Request.RawUrl })">Open in-store unassigned assign grid</a>
+                        <a class="btn btn-outline-primary btn-sm" href="@Url.Action("BatchCreate", "Assignments", new { fromFilter = true, Status = AssetStatus.InStore, UnassignedOnly = true, DepartmentId = listFilter.DepartmentId, Section = listFilter.Section, Search = listFilter.Search, returnUrl = Request.RawUrl })">Open in-store unassigned assign grid</a>
                     </div>
                 }
             </div>
@@ -123,7 +130,7 @@
 {
     <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4" role="alert">
         <span>These assets have no custodian. Assign each row to a person in one step.</span>
-        <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { fromFilter = true, Status = listFilter.Status ?? AssetStatus.InStore, UnassignedOnly = true, DepartmentId = listFilter.DepartmentId, Search = listFilter.Search, returnUrl = Request.RawUrl })">Assign these units</a>
+        <a class="btn btn-primary btn-sm am-click-spark" href="@Url.Action("BatchCreate", "Assignments", new { fromFilter = true, Status = listFilter.Status ?? AssetStatus.InStore, UnassignedOnly = true, DepartmentId = listFilter.DepartmentId, Section = listFilter.Section, Search = listFilter.Search, returnUrl = Request.RawUrl })">Assign these units</a>
     </div>
 }
 
@@ -343,6 +350,7 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("assetId", "", new { id = "amRelocateAssetId" })
                         @Html.Hidden("Search", listFilter.Search ?? Model.Search)
                         @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                        @Html.Hidden("Section", listFilter.Section)
                         @Html.Hidden("Status", listFilter.Status)
                         @Html.Hidden("sort", currentSort)
                         @Html.Hidden("direction", currentDirection)
@@ -379,6 +387,7 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("groupStatus", "", new { id = "amRelocateGroupStatus" })
                         @Html.Hidden("Search", listFilter.Search ?? Model.Search)
                         @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                        @Html.Hidden("Section", listFilter.Section)
                         @Html.Hidden("Status", listFilter.Status)
                         @Html.Hidden("sort", currentSort)
                         @Html.Hidden("direction", currentDirection)
@@ -490,6 +499,7 @@ else
                     @Html.Hidden("assetId", "", new { id = "amRelocateRoomAssetId" })
                     @Html.Hidden("Search", listFilter.Search ?? Model.Search)
                     @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                        @Html.Hidden("Section", listFilter.Section)
                     @Html.Hidden("Status", listFilter.Status)
                     @Html.Hidden("sort", currentSort)
                     @Html.Hidden("direction", currentDirection)
@@ -526,6 +536,7 @@ else
                     @Html.Hidden("groupStatus", "", new { id = "amRelocateRoomGroupStatus" })
                     @Html.Hidden("Search", listFilter.Search ?? Model.Search)
                     @Html.Hidden("DepartmentId", listFilter.DepartmentId)
+                        @Html.Hidden("Section", listFilter.Section)
                     @Html.Hidden("Status", listFilter.Status)
                     @Html.Hidden("sort", currentSort)
                     @Html.Hidden("direction", currentDirection)
@@ -628,6 +639,7 @@ else
                 listFilter: {
                     search: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(listFilter.Search ?? "")),
                     departmentId: @(listFilter.DepartmentId.HasValue ? listFilter.DepartmentId.Value.ToString() : "null"),
+                    section: @Html.Raw(listFilter.Section.HasValue ? Newtonsoft.Json.JsonConvert.SerializeObject(DepartmentSectionHelper.ToQueryValue(listFilter.Section.Value)) : "null"),
                     status: @(listFilter.Status.HasValue ? ((int)listFilter.Status.Value).ToString() : "null")
                 }
             };

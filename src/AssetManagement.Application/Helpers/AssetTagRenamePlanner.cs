@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Helpers
 {
@@ -74,6 +75,19 @@ namespace AssetManagement.Application.Helpers
             Func<string, ISet<string>> takenTags,
             LevelOptions levels)
         {
+            return BuildPlan(candidates, departments, tenantPrefix, peekNext, takenTags, levels, null);
+        }
+
+        /// <summary>Same as above; sectionPrefixes (Prep / Senior school) only applies on the single-prefix path (levels == null), exactly as for new tags.</summary>
+        public static List<AssetTagRenamePlanItem> BuildPlan(
+            IEnumerable<AssetTagRenameCandidate> candidates,
+            IDictionary<int, Department> departments,
+            string tenantPrefix,
+            Func<string, int> peekNext,
+            Func<string, ISet<string>> takenTags,
+            LevelOptions levels,
+            IDictionary<DepartmentSection, string> sectionPrefixes)
+        {
             var items = new List<AssetTagRenamePlanItem>();
             var nextByPrefix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var takenByPrefix = new Dictionary<string, ISet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -85,7 +99,7 @@ namespace AssetManagement.Application.Helpers
                 .ThenBy(x => x.AssetId))
             {
                 var prefix = levels == null
-                    ? AssetTagPrefixResolver.Resolve(candidate.DepartmentId, departments, tenantPrefix).Prefix
+                    ? AssetTagPrefixResolver.Resolve(candidate.DepartmentId, departments, tenantPrefix, sectionPrefixes).Prefix
                     : BuildLevelPrefix(candidate.DepartmentId, departments, tenantPrefix, levels);
                 if (AlreadyConforms(candidate.AssetTag, prefix))
                 {

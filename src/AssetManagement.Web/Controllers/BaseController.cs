@@ -596,6 +596,19 @@ namespace AssetManagement.Web.Controllers
             return new SelectList(items, "Value", "Text", selectedDepartmentId);
         }
 
+        /// <summary>Prep / Senior school options (Prep first). Values are the enum names so ?Section=Prep binds directly.</summary>
+        protected static SelectList BuildSectionSelectList(AssetManagement.Domain.Enums.DepartmentSection? selected)
+        {
+            var items = AssetManagement.Application.Helpers.DepartmentSectionHelper.Options()
+                .Select(x => new { Value = AssetManagement.Application.Helpers.DepartmentSectionHelper.ToQueryValue(x.Key), Text = x.Value })
+                .ToList();
+            return new SelectList(
+                items,
+                "Value",
+                "Text",
+                selected.HasValue ? AssetManagement.Application.Helpers.DepartmentSectionHelper.ToQueryValue(selected.Value) : null);
+        }
+
         protected SelectList BuildAssetFilterDepartmentSelectList(int? selectedDepartmentId = null)
         {
             var sections = BuildDepartmentService().GetTreeSections().ToList();

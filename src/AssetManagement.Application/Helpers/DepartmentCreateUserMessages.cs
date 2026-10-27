@@ -17,6 +17,16 @@ namespace AssetManagement.Application.Helpers
                 return "Room created.";
             }
 
+            if (string.Equals(mode, DepartmentSetupModes.Grade, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Grade created.";
+            }
+
+            if (string.Equals(mode, DepartmentSetupModes.Class, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Class created.";
+            }
+
             return "Department created.";
         }
 
@@ -31,6 +41,16 @@ namespace AssetManagement.Application.Helpers
             if (string.Equals(mode, DepartmentSetupModes.Room, StringComparison.OrdinalIgnoreCase))
             {
                 return "Next step: review the room details, then assign users or assets to this room.";
+            }
+
+            if (string.Equals(mode, DepartmentSetupModes.Grade, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Next step: add classes (streams) under this grade, then assign users or assets to them.";
+            }
+
+            if (string.Equals(mode, DepartmentSetupModes.Class, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Next step: review the class details, then assign users or assets to this class.";
             }
 
             if (string.Equals(mode, DepartmentSetupModes.GradeStreams, StringComparison.OrdinalIgnoreCase)

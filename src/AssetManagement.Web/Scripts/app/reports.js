@@ -103,6 +103,7 @@
         setValue('.am-report-to', payload.ToDate);
         setChecked('.am-report-department', payload.DepartmentIds || (payload.DepartmentId ? [payload.DepartmentId] : []));
         setChecked('.am-report-category', payload.CategoryIds || (payload.CategoryId ? [payload.CategoryId] : []));
+        setValue('.am-report-section', payload.Section);
         setValue('.am-report-status', payload.Status);
         setValue('.am-report-sort', payload.SortBy);
         setValue('.am-report-sort-direction', payload.SortDirection);
@@ -219,6 +220,11 @@
         var deptIds = checkedValues('.am-report-department', reportKey);
         if (deptIds.length) {
             payload.DepartmentIds = deptIds;
+        }
+
+        var section = document.querySelector('.am-report-section[data-report-key="' + reportKey + '"]');
+        if (section && section.value) {
+            payload.Section = section.value;
         }
 
         var catIds = checkedValues('.am-report-category', reportKey);

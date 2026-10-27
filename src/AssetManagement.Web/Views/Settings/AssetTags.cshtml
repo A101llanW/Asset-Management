@@ -50,6 +50,24 @@
     @Html.AntiForgeryToken()
     @Html.ValidationSummary(false, "", new { @class = "text-danger" })
 
+    <div class="card mb-3" id="sectionPrefixCard">
+        <div class="card-header">Section prefixes (Prep / Senior school)</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="PrepPrefix">Prep prefix (optional)</label>
+                    @Html.TextBoxFor(m => m.PrepPrefix, new { @class = "form-control text-uppercase", maxlength = "20", placeholder = "e.g. PP" })
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="SeniorPrefix">Senior school prefix (optional)</label>
+                    @Html.TextBoxFor(m => m.SeniorPrefix, new { @class = "form-control text-uppercase", maxlength = "20", placeholder = "blank = as today" })
+                </div>
+                <div class="col-md-4">
+                    <div class="form-text">With a Prep prefix of PP, a new asset in the Prep room Gala is tagged PP-GALA-001, so Prep tags never mix with Senior tags such as G2-G2A-001. A prefix set on a department, sub-department or room (the table below) still wins; a section prefix wins over the tenant-wide prefix. Blank = nothing changes. Existing tags are never changed here.</div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="card mb-3">
         <div class="card-header">Tenant default</div>
         <div class="card-body">

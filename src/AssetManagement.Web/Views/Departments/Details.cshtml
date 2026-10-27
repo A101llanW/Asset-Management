@@ -43,6 +43,16 @@
         });
         tertiaryCreateLabel = "Create room";
     }
+    else if (canCreateDepartment && Model.DepartmentKind == DepartmentKind.Grade && Model.IsActive)
+    {
+        secondaryCreateUrl = Url.Action("Create", new
+        {
+            setupMode = DepartmentService.SetupModeClass,
+            parentId = Model.Id,
+            returnUrl = Request.RawUrl
+        });
+        secondaryCreateLabel = "Create class";
+    }
     else if (canCreateDepartment && isSubDepartment)
     {
         secondaryCreateUrl = Url.Action("Create", new
@@ -83,6 +93,8 @@
                     <dd class="col-sm-7">@Model.Code</dd>
                     <dt class="col-sm-5">Kind</dt>
                     <dd class="col-sm-7">@DepartmentOrgHierarchyDisplay.FormatDepartmentKind(Model.DepartmentKind)</dd>
+                    <dt class="col-sm-5">Section</dt>
+                    <dd class="col-sm-7">@AssetManagement.Application.Helpers.DepartmentSectionHelper.Label(Model.Section)</dd>
                     <dt class="col-sm-5">Status</dt>
                     <dd class="col-sm-7"><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(Model.IsActive) badge-status">@(Model.IsActive ? "Active" : "Inactive")</span></dd>
                     <dt class="col-sm-5">Users</dt>

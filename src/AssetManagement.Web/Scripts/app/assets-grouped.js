@@ -202,6 +202,9 @@
         if (listFilter.departmentId != null) {
             params.push("DepartmentId=" + encodeURIComponent(String(listFilter.departmentId)));
         }
+        if (listFilter.section) {
+            params.push("Section=" + encodeURIComponent(String(listFilter.section)));
+        }
         if (listFilter.status != null) {
             params.push("Status=" + encodeURIComponent(String(listFilter.status)));
         }

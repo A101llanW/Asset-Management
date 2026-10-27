@@ -113,6 +113,7 @@ namespace AssetManagement.Web.Controllers
                 .Select(section => new DepartmentTreeSectionVm
                 {
                     Title = section.Title,
+                    SectionGroup = section.SectionGroup,
                     Items = section.Items
                         .Where(item => DepartmentOrgHierarchyDisplay.IsNodeOrDescendantInSet(item, visibleIds))
                         .ToList()
@@ -461,6 +462,47 @@ namespace AssetManagement.Web.Controllers
                 ? null
                 : setupMode.Trim();
 
+            if (string.Equals(normalizedMode, DepartmentService.SetupModeGrade, StringComparison.OrdinalIgnoreCase))
+            {
+                // Single Grade (Prep, a non G## grade, Form 1...). No parent; Section chosen on the form.
+                return new DepartmentCreateContext
+                {
+                    SetupMode = DepartmentService.SetupModeGrade,
+                    ShowSetupModePicker = false,
+                    InitialModel = new DepartmentCreateVm
+                    {
+                        SetupMode = DepartmentService.SetupModeGrade,
+                        Section = DepartmentSection.SeniorSchool
+                    }
+                };
+            }
+
+            if (string.Equals(normalizedMode, DepartmentService.SetupModeClass, StringComparison.OrdinalIgnoreCase))
+            {
+                // Single Class under an existing Grade. parentId (optional) preselects the grade and its Section.
+                DepartmentVm grade = null;
+                if (parentId.HasValue && parentId.Value > 0)
+                {
+                    grade = _departmentService.GetById(parentId.Value);
+                    if (grade == null || !grade.IsActive || grade.DepartmentKind != DepartmentKind.Grade)
+                    {
+                        return null;
+                    }
+                }
+
+                return new DepartmentCreateContext
+                {
+                    SetupMode = DepartmentService.SetupModeClass,
+                    ShowSetupModePicker = false,
+                    InitialModel = new DepartmentCreateVm
+                    {
+                        SetupMode = DepartmentService.SetupModeClass,
+                        ParentDepartmentId = grade == null ? (int?)null : grade.Id,
+                        Section = grade == null ? DepartmentSection.SeniorSchool : DepartmentSectionHelper.Normalize(grade.Section)
+                    }
+                };
+            }
+
             if (parentId.HasValue && parentId.Value > 0)
             {
                 var parent = _departmentService.GetById(parentId.Value);
@@ -567,6 +609,8 @@ namespace AssetManagement.Web.Controllers
             ViewBag.SetupModes = BuildSetupModeSelectList(context.SetupMode, context.ShowSetupModePicker);
             ViewBag.AdminParentDepartments = BuildAdminParentDepartmentSelectList(context.InitialModel.ParentDepartmentId);
             ViewBag.ShowSetupModePicker = context.ShowSetupModePicker;
+            ViewBag.SectionOptions = BuildSectionSelectList(context.InitialModel == null ? null : context.InitialModel.Section);
+            ViewBag.GradeOptions = BuildGradeOptions();
             ViewBag.LockedParentDepartmentId = context.LockedParentDepartmentId;
             ViewBag.LockedParentName = context.LockedParentName;
             ViewBag.CreateSetupMode = context.SetupMode;
@@ -711,6 +755,7 @@ namespace AssetManagement.Web.Controllers
                 model,
                 model.ParentDepartmentId);
             ViewBag.DepartmentKindSelectList = BuildDepartmentKindSelectList(model.DepartmentKind);
+            ViewBag.SectionOptions = BuildSectionSelectList(model.Section);
             var stored = model.Id > 0 ? _departmentService.GetById(model.Id) : null;
             ViewBag.OriginalDepartmentKind = DepartmentKindSelectListBuilder.ToOptionValue(
                 stored != null ? stored.DepartmentKind : model.DepartmentKind);
@@ -934,6 +979,17 @@ namespace AssetManagement.Web.Controllers
             ModelState.Remove("PurchaseOrderRaiserUserId");
         }
 
+        /// <summary>Active grades for the Create class picker: Prep first, then Senior school, by sort number. Carries each grade's Section so the form can follow the grade.</summary>
+        private IList<DepartmentVm> BuildGradeOptions()
+        {
+            return _departmentService.GetAll()
+                .Where(x => x.IsActive && x.DepartmentKind == DepartmentKind.Grade)
+                .OrderBy(x => DepartmentSectionHelper.Rank(x.Section))
+                .ThenBy(x => DepartmentSectionHelper.EffectiveSortNumber(x.SortOrder, x.Code))
+                .ThenBy(x => x.Name)
+                .ToList();
+        }
+
         private static SelectList BuildSetupModeSelectList(string selected, bool includeOrgModes)
         {
             var items = new System.Collections.Generic.List<object>
@@ -945,6 +1001,8 @@ namespace AssetManagement.Web.Controllers
             {
                 items.Add(new { Value = DepartmentService.SetupModeGradeStreams, Text = "Grade with class streams" });
                 items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk grades 1-6" });
+                items.Add(new { Value = DepartmentService.SetupModeGrade, Text = "Single grade (e.g. Prep)" });
+                items.Add(new { Value = DepartmentService.SetupModeClass, Text = "Single class under a grade" });
             }
 
             return new SelectList(items, "Value", "Text", selected);

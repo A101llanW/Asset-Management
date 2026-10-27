@@ -35,7 +35,11 @@ namespace AssetManagement.Application.Helpers
             }
 
             var departments = unitOfWork.Repository<Department>().GetAll().ToDictionary(x => x.Id);
-            var resolution = AssetTagPrefixResolver.Resolve(departmentId, departments, AssetTagPrefixResolver.GetTenantPrefix(settings));
+            var resolution = AssetTagPrefixResolver.Resolve(
+                departmentId,
+                departments,
+                AssetTagPrefixResolver.GetTenantPrefix(settings),
+                AssetTagPrefixResolver.GetSectionPrefixes(settings));
             var repository = unitOfWork.Repository<Asset>();
             int? fallbackNext = null;
 
