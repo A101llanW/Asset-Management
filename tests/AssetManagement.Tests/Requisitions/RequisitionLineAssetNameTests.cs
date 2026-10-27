@@ -823,6 +823,146 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(0, uow.Repository<PurchaseOrderLineReceipt>().GetAll().Count());
         }
 
+        // ---------------- Re-review fixes: organisation checks, persisted "new" on receipts ----------------
+
+        private static void SeedOtherOrganisationClassification(FakeUnitOfWork uow)
+        {
+            uow.Seed(new AssetType { Id = 4, OrganizationId = 2, Name = "Other org type", AssetCategoryId = 1, CreatedAt = DateTime.UtcNow, IsActive = true });
+            uow.Seed(new AssetSubType { Id = 40, OrganizationId = 2, AssetTypeId = 4, Name = "Other org sub", IsActive = true, CreatedAt = DateTime.UtcNow });
+            uow.Seed(new AssetSubType { Id = 12, OrganizationId = 2, AssetTypeId = 1, Name = "Other org laptop", IsActive = true, CreatedAt = DateTime.UtcNow });
+        }
+
+        private static void ClearPurchaseOrganisation(FakeUnitOfWork uow, int poId)
+        {
+            var po = uow.Repository<PurchaseRecord>().GetById(poId);
+            po.OrganizationId = null;
+            uow.Repository<PurchaseRecord>().Update(po);
+        }
+
+        [Test]
+        public void Receiving_EditOnAPoWithoutOrganisation_UsesTheCurrentTenant_OtherOrganisationIsRejected()
+        {
+            var uow = SeedApprovedRequisition();
+            SeedOtherOrganisationClassification(uow);
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            ClearPurchaseOrganisation(uow, poId);
+            var lines = PoLines(uow, poId);
+            var receiving = TestServiceFactory.CreateReceivingService(uow, new FakeOrganizationScopeService(organizationId: 1));
+            var before = uow.Repository<Asset>().GetAll().Count();
+
+            var foreignType = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 4, 40) }
+            }, "receiver"));
+            StringAssert.Contains("asset type was not found", foreignType.Message);
+
+            var foreignSub = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 12) }
+            }, "receiver"));
+            StringAssert.Contains("sub-type was not found", foreignSub.Message);
+            Assert.AreEqual(before, uow.Repository<Asset>().GetAll().Count());
+
+            receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 10) }
+            }, "receiver");
+            Assert.AreEqual(before + 1, uow.Repository<Asset>().GetAll().Count(), "shared (OrganizationId NULL) rows are still allowed");
+        }
+
+        [Test]
+        public void Receiving_UnclassifiedLine_TypeOrSubTypeOfAnotherOrganisation_IsRejected()
+        {
+            var uow = SeedApprovedRequisition(legacyLines: true);
+            SeedOtherOrganisationClassification(uow);
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            Assert.IsNull(lines[1].AssetTypeId, "legacy line: nothing to prefill, the receiver picks the type");
+            var receiving = TestServiceFactory.CreateReceivingService(uow);
+
+            var foreignType = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 4, 40) }
+            }, "receiver"));
+            StringAssert.Contains("asset type was not found", foreignType.Message);
+
+            var foreignSub = Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 12) }
+            }, "receiver"));
+            StringAssert.Contains("sub-type", foreignSub.Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseOrderLineReceipt>().GetAll().Count());
+        }
+
+        [Test]
+        public void PoCreate_UnprefilledLine_TypeOrSubTypeOfAnotherOrganisation_IsRejected()
+        {
+            var uow = SeedApprovedRequisition(legacyLines: true);
+            SeedOtherOrganisationClassification(uow);
+            var purchases = TestServiceFactory.CreatePurchaseService(uow);
+
+            var foreignType = Assert.Throws<BusinessException>(() => purchases.Create(Order(postedType2: 4)));
+            StringAssert.Contains("asset type was not found", foreignType.Message);
+
+            var order = Order(postedType2: 1);
+            order.Lines[1].AssetSubTypeId = 12;
+            var foreignSub = Assert.Throws<BusinessException>(() => purchases.Create(order));
+            StringAssert.Contains("sub-type was not found", foreignSub.Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseRecord>().GetAll().Count());
+        }
+
+        [Test]
+        public void Receiving_Edit_PersistsTheNewClassification_TrailDoesNotFollowALaterReclassification()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var receiving = TestServiceFactory.CreateReceivingService(uow);
+            var result = receiving.ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { EditedReceiveLine(lines[1].Id, 1, 1, 10) }
+            }, "receiver");
+
+            var receipt = uow.Repository<PurchaseOrderLineReceipt>().GetAll().Single(x => x.PurchaseRecordId == poId);
+            Assert.AreEqual(1, receipt.NewAssetCategoryId);
+            Assert.AreEqual(1, receipt.NewAssetTypeId);
+            Assert.AreEqual(10, receipt.NewAssetSubTypeId);
+
+            // The asset is reclassified later: the trail still shows what was set at receiving.
+            var asset = uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId);
+            asset.AssetTypeId = 2;
+            asset.AssetSubTypeId = 20;
+            uow.Repository<Asset>().Update(asset);
+            var shown = receiving.GetReceivingsForPurchase(poId).Single().ClassificationOverride;
+            Assert.AreEqual("IT > Laptop > Dell Latitude 5440", shown.NewClassification);
+            Assert.IsFalse(shown.NewIsCurrentFallback);
+
+            // A receipt stamped before the New* columns: falls back to the asset's CURRENT classification, labelled.
+            receipt.NewAssetCategoryId = null;
+            receipt.NewAssetTypeId = null;
+            receipt.NewAssetSubTypeId = null;
+            uow.Repository<PurchaseOrderLineReceipt>().Update(receipt);
+            var legacy = receiving.GetReceivingsForPurchase(poId).Single().ClassificationOverride;
+            Assert.AreEqual("IT > Printer > HP LaserJet", legacy.NewClassification);
+            Assert.IsTrue(legacy.NewIsCurrentFallback);
+        }
+
+        [Test]
+        public void Receiving_NotEdited_LeavesTheNewColumnsEmpty()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            TestServiceFactory.CreateReceivingService(uow).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { ReceiveLine(lines[1].Id, 1) }
+            }, "receiver");
+            var receipt = uow.Repository<PurchaseOrderLineReceipt>().GetAll().Single(x => x.PurchaseRecordId == poId);
+            Assert.IsNull(receipt.NewAssetTypeId);
+            Assert.IsNull(receipt.NewAssetSubTypeId);
+            Assert.IsNull(receipt.NewAssetCategoryId);
+        }
+
         private sealed class ClassificationAuditWriter : IAuditWriter
         {
             public List<Entry> Entries { get; } = new List<Entry>();
