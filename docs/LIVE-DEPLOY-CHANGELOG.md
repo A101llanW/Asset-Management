@@ -1,5 +1,15 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 ~12:16 EAT - Flat asset list: Move to classroom (per row + bulk) - STAGED, NOT PUBLISHED
+
+- Commits (main, local only, not pushed): 86f44d7 (flat-list Move to classroom per row and in bulk; same rules as 0d5ca73: classroom -> classroom/room, room/sub-department -> room only, inactive classrooms never offered and refused; bulk returns to the posted view), 7628d07 (Razor fix: bulk toolbar classroom block used "@if" inside a code block, Parser Error on the asset list; caught by the localhost smoke before anything moved). Backup tag backup/main-pre-flatmove-20261027_1159 (5fbf690).
+- DB migration/script: none. Config keys: none.
+- Bulk "Move to classroom" needs Assets.Edit (bulk endpoint); the per-row button needs Edit or Transfer.
+- localhost:8080 redeployed 12:07:33-12:07:48 EAT (86f44d7) and 12:14:33-12:14:51 EAT (7628d07); IIS backups _merge20261027\inetpub_AssetManagement_backup_20261027_1207 and _1214.
+- Smoke on Test-WF with temporary classrooms ZZSMK-X/Y (active) and Z (inactive), all removed afterwards (rows backed up to Bak_Smoke*10_20261027_121037 / _121519): 2678 active assets unchanged, 0 tag changes. No print job.
+- Desktop\publish rebuilt (old folder renamed publish_old_20261027_121616). Web.dll SHA256 53141F12...9069DD. Not copied to live.
+- Unit tests 1146 / 1139 passed / 7 skipped / 0 failed.
+
 ## 2026-10-27 ~10:30 EAT - QA fixes (Q7.2, scan texts, S1.8, tenantless QR, S1.10, N8.1, W5.x, P3.6/X9.4 move rule) - STAGED, NOT PUBLISHED
 
 - Commits (main, local only, not pushed): 936a968 (Q7.2 + scan texts), 7192b00 (S1.8 + tenantless QR), 49d1ea3 (S1.10), a475992 (N8.1), b3428ad (W5.1/W5.4/W5.9/W5.6 display wording; codes keep stored value), 0d5ca73 (P3.6/X9.4, Allan's decision: classroom -> classroom moves allowed as well as classroom -> room). Backup tag backup/main-pre-qa-fixes-20261027 (da8b0e1).
