@@ -31,11 +31,28 @@
         return !!(hidden && String(hidden.value || "").trim().length > 0);
     }
 
+    /* Read-only Category / Type / Sub-type of the tagged asset (QA 2026-10-28); blank when untagged. */
+    function setRowAssetClassification(row, classification) {
+        var c = classification || {};
+        var fields = [
+            [".am-line-asset-category", c.category],
+            [".am-line-asset-type", c.type],
+            [".am-line-asset-subtype", c.subType]
+        ];
+        for (var i = 0; i < fields.length; i++) {
+            var input = row.querySelector(fields[i][0]);
+            if (input) {
+                input.value = fields[i][1] || "";
+            }
+        }
+    }
+
     /* Tagged line: name optional (defaults to the asset's name, editable); classification from the asset. */
-    function setRowTagged(row, tagged) {
+    function setRowTagged(row, tagged, classification) {
         if (!row) {
             return;
         }
+        setRowAssetClassification(row, tagged ? classification : null);
         var nameInput = row.querySelector(".am-line-item-name");
         if (nameInput) {
             nameInput.required = !tagged;
@@ -425,6 +442,9 @@
                 selectButton.setAttribute("data-asset-id", item.id);
                 selectButton.setAttribute("data-asset-label", item.label || "");
                 selectButton.setAttribute("data-asset-name", item.assetName || "");
+                selectButton.setAttribute("data-asset-category", item.categoryName || "");
+                selectButton.setAttribute("data-asset-type", item.assetTypeName || "");
+                selectButton.setAttribute("data-asset-subtype", item.subTypeName || "");
                 if (item.departmentId) {
                     selectButton.setAttribute("data-department-id", item.departmentId);
                 }
@@ -604,7 +624,11 @@
                 displayInput.value = label;
             }
 
-            setRowTagged(row, true);
+            setRowTagged(row, true, {
+                category: button.getAttribute("data-asset-category") || "",
+                type: button.getAttribute("data-asset-type") || "",
+                subType: button.getAttribute("data-asset-subtype") || ""
+            });
             applyAssetToForm(button);
             hideModal(modal);
         }

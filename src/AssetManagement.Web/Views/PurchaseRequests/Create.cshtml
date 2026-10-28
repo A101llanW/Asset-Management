@@ -18,6 +18,8 @@
     var classificationMode = requisitionPolicies == null ? AssetManagement.Domain.Enums.RequisitionClassificationMode.Optional : requisitionPolicies.ClassificationMode;
     var lineClassificationRequired = classificationMode == AssetManagement.Domain.Enums.RequisitionClassificationMode.RequiredPerLine;
     var lineTargetLabels = ViewBag.LineTargetAssetLabels as IDictionary<int, string> ?? new Dictionary<int, string>();
+    // QA 2026-10-28: a tagged line shows the asset's Category / Type / Sub-type read-only (the server re-resolves them from the tag).
+    var lineTargetClassifications = ViewBag.LineTargetClassifications as IDictionary<int, string[]> ?? new Dictionary<int, string[]>();
     var assetNameMax = AssetManagement.Application.Helpers.AssetNameRules.MaxLength;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -114,6 +116,9 @@
                     var lineTargetId = line == null ? null : line.TargetAssetId;
                     var lineTagged = lineTargetId.HasValue && lineTargetId.Value > 0;
                     var lineTargetLabel = lineTargetLabels.ContainsKey(i) ? lineTargetLabels[i] : string.Empty;
+                    var lineTargetClass = lineTargetClassifications.ContainsKey(i) && lineTargetClassifications[i] != null && lineTargetClassifications[i].Length == 3
+                        ? lineTargetClassifications[i]
+                        : new[] { string.Empty, string.Empty, string.Empty };
                     <div class="purchase-line-item row g-2 align-items-end border rounded p-2" data-line-index="@i">
                         <div class="col-md-4">
                             <label class="form-label small mb-1" for="Lines_@(i)__ItemName">Item / asset name <span class="text-danger am-line-name-required@(lineTagged ? " d-none" : "")">*</span></label>
@@ -160,7 +165,7 @@
                             </div>
                         </div>
                         <div class="col-12 am-line-classification am-classification-picker@(lineTagged ? " am-line-classification-from-asset" : "")">
-                            <div class="row g-2">
+                            <div class="row g-2 am-line-pickers@(lineTagged ? " d-none" : "")">
                                 <div class="col-md-6">
                                     <select class="form-select form-select-sm am-pick-type" name="Lines[@i].AssetTypeId" data-field="AssetTypeId" aria-label="Type" data-selected="@(line == null ? null : line.AssetTypeId)"></select>
                                 </div>
@@ -168,7 +173,12 @@
                                     <select class="form-select form-select-sm am-pick-subtype" name="Lines[@i].AssetSubTypeId" data-field="AssetSubTypeId" aria-label="Sub-type" data-selected="@(line == null ? null : line.AssetSubTypeId)"></select>
                                 </div>
                             </div>
-                            <div class="small text-muted mt-1 am-line-from-asset@(lineTagged ? "" : " d-none")">Type and sub-type come from the tagged asset.</div>
+                            <div class="row g-2 am-line-asset-classification@(lineTagged ? "" : " d-none")">
+                                <div class="col-md-4"><label class="form-label small mb-1 d-block">Category<input type="text" class="form-control form-control-sm am-line-asset-category" readonly="readonly" placeholder="None" value="@lineTargetClass[0]" /></label></div>
+                                <div class="col-md-4"><label class="form-label small mb-1 d-block">Type<input type="text" class="form-control form-control-sm am-line-asset-type" readonly="readonly" placeholder="None" value="@lineTargetClass[1]" /></label></div>
+                                <div class="col-md-4"><label class="form-label small mb-1 d-block">Sub-type<input type="text" class="form-control form-control-sm am-line-asset-subtype" readonly="readonly" placeholder="None" value="@lineTargetClass[2]" /></label></div>
+                            </div>
+                            <div class="small text-muted mt-1 am-line-from-asset@(lineTagged ? "" : " d-none")">Category, type and sub-type come from the tagged asset (read-only).</div>
                             @Html.ValidationMessage("Lines[" + i + "].AssetSubTypeId", new { @class = "text-danger small" })
                             <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
                         </div>
@@ -225,11 +235,16 @@
 @section scripts {
     <template id="am-line-classification-template">
         <div class="col-12 am-line-classification am-classification-picker">
-            <div class="row g-2">
+            <div class="row g-2 am-line-pickers">
                 <div class="col-md-6"><select class="form-select form-select-sm am-pick-type" aria-label="Type" data-field="AssetTypeId"></select></div>
                 <div class="col-md-6"><select class="form-select form-select-sm am-pick-subtype" aria-label="Sub-type" data-field="AssetSubTypeId"></select></div>
             </div>
-            <div class="small text-muted mt-1 am-line-from-asset d-none">Type and sub-type come from the tagged asset.</div>
+            <div class="row g-2 am-line-asset-classification d-none">
+                <div class="col-md-4"><label class="form-label small mb-1 d-block">Category<input type="text" class="form-control form-control-sm am-line-asset-category" readonly="readonly" placeholder="None" /></label></div>
+                <div class="col-md-4"><label class="form-label small mb-1 d-block">Type<input type="text" class="form-control form-control-sm am-line-asset-type" readonly="readonly" placeholder="None" /></label></div>
+                <div class="col-md-4"><label class="form-label small mb-1 d-block">Sub-type<input type="text" class="form-control form-control-sm am-line-asset-subtype" readonly="readonly" placeholder="None" /></label></div>
+            </div>
+            <div class="small text-muted mt-1 am-line-from-asset d-none">Category, type and sub-type come from the tagged asset (read-only).</div>
             <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
         </div>
     </template>

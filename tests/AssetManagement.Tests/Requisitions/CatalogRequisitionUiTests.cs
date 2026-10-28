@@ -128,6 +128,17 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(LaptopTypeId, picker.SubTypes.Single().ParentId);
         }
 
+        [Test]
+        public void CatalogPicker_RequisitionableOnly_DropsTypesWithNoActiveSubTypes()
+        {
+            // QA 2026-10-28 (Office Chair, type 584 in Test-WF): Desk has no active sub-type, so it is not offered.
+            var picker = FlowService(Seed()).GetCatalogPicker().RequisitionableOnly();
+
+            CollectionAssert.AreEquivalent(new[] { LaptopTypeId }, picker.Types.Select(x => x.Id).ToArray());
+            CollectionAssert.AreEquivalent(new[] { 1, 2 }, picker.Categories.Select(x => x.Id).ToArray());
+            Assert.AreEqual(LaptopSubTypeId, picker.SubTypes.Single().Id);
+        }
+
         // ---- catalog node approval panel --------------------------------------------------------------------------
 
         [Test]

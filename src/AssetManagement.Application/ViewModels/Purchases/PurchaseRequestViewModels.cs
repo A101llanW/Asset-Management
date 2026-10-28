@@ -231,6 +231,47 @@ namespace AssetManagement.Application.ViewModels
             return "Line " + lineNumber + ": enter a description.";
         }
 
+        /// <summary>Rule C5: the wording PurchaseRequestService.SubmitBatch also uses.</summary>
+        public static string NoActiveSubTypesMessage(int lineNumber)
+        {
+            return "Line " + lineNumber + ": this asset type has no active sub-types yet. Add one under Asset Categories first; every requisitioned asset needs a sub-type.";
+        }
+
+        /// <summary>
+        /// Rule C5 message order (QA 2026-10-28): 0-based effective line indexes (the same indexes Validate uses for
+        /// "Lines[i].AssetSubTypeId") of untagged lines that picked their own type but no sub-type, where the type has
+        /// no active sub-types. The controller swaps the generic "choose the asset type and sub-type" for
+        /// NoActiveSubTypesMessage on those lines. A type the lookup does not know (null) keeps the generic message.
+        /// </summary>
+        public IList<int> FindUntaggedLinesWithTypeLackingSubTypes(Func<int, bool?> typeHasActiveSubTypes)
+        {
+            var result = new List<int>();
+            if (typeHasActiveSubTypes == null)
+            {
+                return result;
+            }
+
+            var effectiveLines = ResolveEffectiveLines();
+            for (var i = 0; i < effectiveLines.Count; i++)
+            {
+                var line = effectiveLines[i];
+                var tagged = line.TargetAssetId.HasValue || (i == 0 && TargetAssetId.HasValue && TargetAssetId.Value > 0);
+                var hasType = line.AssetTypeId.HasValue && line.AssetTypeId.Value > 0;
+                var hasSubType = line.AssetSubTypeId.HasValue && line.AssetSubTypeId.Value > 0;
+                if (tagged || !hasType || hasSubType)
+                {
+                    continue;
+                }
+
+                if (typeHasActiveSubTypes(line.AssetTypeId.Value) == false)
+                {
+                    result.Add(i);
+                }
+            }
+
+            return result;
+        }
+
         private static bool LineHasContent(PurchaseRequestLineCreateVm line)
         {
             return !string.IsNullOrWhiteSpace(line.ItemName)

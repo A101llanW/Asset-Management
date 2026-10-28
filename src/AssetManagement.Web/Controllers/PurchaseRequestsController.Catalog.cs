@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using System.Web.Script.Serialization;
@@ -51,6 +52,37 @@ namespace AssetManagement.Web.Controllers
             return View(batch);
         }
 
+        // Rule C5 lookup filled by PopulateCatalogPickers: every active type of the org, and those with active sub-types.
+        private ISet<int> _catalogPickerTypeIds;
+        private ISet<int> _catalogPickerTypeIdsWithSubTypes;
+
+        /// <summary>
+        /// Rule C5 message order (QA 2026-10-28): an untagged line whose type has no active sub-types gets the clear
+        /// "no active sub-types" message instead of the generic "choose the asset type and sub-type" from the view
+        /// model, before ModelState stops the post. PurchaseRequestService.SubmitBatch still rejects it as a backstop.
+        /// </summary>
+        private void ApplyNoActiveSubTypeMessages(PurchaseRequestCreateVm model)
+        {
+            if (model == null || _catalogPickerTypeIds == null || _catalogPickerTypeIdsWithSubTypes == null)
+            {
+                return;
+            }
+
+            var lines = model.FindUntaggedLinesWithTypeLackingSubTypes(typeId =>
+                _catalogPickerTypeIds.Contains(typeId) ? _catalogPickerTypeIdsWithSubTypes.Contains(typeId) : (bool?)null);
+            foreach (var index in lines)
+            {
+                var key = "Lines[" + index + "].AssetSubTypeId";
+                ModelState state;
+                if (ModelState.TryGetValue(key, out state))
+                {
+                    state.Errors.Clear();
+                }
+
+                ModelState.AddModelError(key, PurchaseRequestCreateVm.NoActiveSubTypesMessage(index + 1));
+            }
+        }
+
         private void PopulateCatalogPickers()
         {
             ViewBag.CatalogPickerJson = "{\"categories\":[],\"types\":[],\"subTypes\":[]}";
@@ -64,7 +96,11 @@ namespace AssetManagement.Web.Controllers
 
             try
             {
-                var picker = service.GetCatalogPicker();
+                var allTypes = service.GetCatalogPicker();
+                _catalogPickerTypeIds = new HashSet<int>(allTypes.Types.Select(x => x.Id));
+                _catalogPickerTypeIdsWithSubTypes = allTypes.TypeIdsWithSubTypes();
+                // Rule C5: a type with no active sub-types is not offered (Allan 2026-10-28 09:33 EAT).
+                var picker = allTypes.RequisitionableOnly();
                 ViewBag.RequisitionPolicies = service.GetPolicies();
                 ViewBag.CatalogPickerJson = new JavaScriptSerializer().Serialize(new
                 {

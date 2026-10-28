@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.ViewModels
@@ -14,6 +15,31 @@ namespace AssetManagement.Application.ViewModels
 
         /// <summary>ParentId = AssetTypeId.</summary>
         public IList<CatalogPickerItemVm> SubTypes { get; set; } = new List<CatalogPickerItemVm>();
+
+        /// <summary>
+        /// Rule C5 (Allan 2026-10-27, "should not be the case" 2026-10-28 09:33 EAT): a type with no active sub-types
+        /// cannot be requisitioned on an untagged line, so it is not offered. Returns a copy without those types
+        /// (categories and sub-types are kept; every kept sub-type belongs to a kept type). Tagged lines take their
+        /// classification from the tagged asset and never use this list.
+        /// </summary>
+        public CatalogPickerVm RequisitionableOnly()
+        {
+            var typeIdsWithSubTypes = TypeIdsWithSubTypes();
+            return new CatalogPickerVm
+            {
+                Categories = new List<CatalogPickerItemVm>(Categories ?? new List<CatalogPickerItemVm>()),
+                Types = (Types ?? new List<CatalogPickerItemVm>()).Where(x => x != null && typeIdsWithSubTypes.Contains(x.Id)).ToList(),
+                SubTypes = new List<CatalogPickerItemVm>(SubTypes ?? new List<CatalogPickerItemVm>())
+            };
+        }
+
+        /// <summary>Ids of the listed types that have at least one listed (active) sub-type.</summary>
+        public ISet<int> TypeIdsWithSubTypes()
+        {
+            return new HashSet<int>((SubTypes ?? new List<CatalogPickerItemVm>())
+                .Where(x => x != null && x.ParentId.HasValue)
+                .Select(x => x.ParentId.Value));
+        }
     }
 
     public class CatalogPickerItemVm

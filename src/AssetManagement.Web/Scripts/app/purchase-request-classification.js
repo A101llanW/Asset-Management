@@ -6,7 +6,11 @@
  * - Rows added/removed by purchase-request-create.js get a picker block and Lines[i].* names (MutationObserver).
  * - Line pickers show Type > Sub-type only (both required on an untagged line); the category follows from the type
  *   (the server derives it again and ignores any posted category). A line tagged to an existing asset takes its
- *   classification from the asset: its pickers are disabled (not posted) and a note is shown.
+ *   classification from the asset: its pickers are hidden and disabled (not posted; the server re-resolves the
+ *   classification from the tag) and the asset's Category / Type / Sub-type are shown read-only instead
+ *   (purchase-request-create.js fills them from the picked asset).
+ * - Rule C5 (QA 2026-10-28): a type with no active sub-types is never offered (the server already leaves it out of
+ *   the JSON; filtered again here so a stale page cannot offer it). The server still rejects one with a clear message.
  * - Live per-line approval path preview: POSTs the form (no file) to PreviewLinePaths; the server applies the same
  *   classification + resolution rules as submit. The server re-validates everything on submit.
  */
@@ -28,6 +32,14 @@
     catalog.categories = catalog.categories || [];
     catalog.types = catalog.types || [];
     catalog.subTypes = catalog.subTypes || [];
+    catalog.types = catalog.types.filter(function (t) {
+        for (var i = 0; i < catalog.subTypes.length; i++) {
+            if (String(catalog.subTypes[i].parentId) === String(t.id)) {
+                return true;
+            }
+        }
+        return false;
+    });
 
     var previewUrl = container.getAttribute("data-am-preview-lines-url") || "";
     // RequiredHeader: a line without its own type inherits the header type / sub-type, so line pickers stay optional.
@@ -74,6 +86,17 @@
 
     function isFromAsset(block) {
         return block.classList.contains("am-line-classification-from-asset");
+    }
+
+    function setHidden(el, hidden) {
+        if (!el) {
+            return;
+        }
+        if (hidden) {
+            el.classList.add("d-none");
+        } else {
+            el.classList.remove("d-none");
+        }
     }
 
     function typeLabel(typeItem) {
@@ -123,10 +146,9 @@
             sub.disabled = fromAsset || !typeItem;
             type.required = !fromAsset && !linesInheritHeader;
             sub.required = !fromAsset && !linesInheritHeader;
-            var note = block.querySelector(".am-line-from-asset");
-            if (note) {
-                note.classList.toggle("d-none", !fromAsset);
-            }
+            setHidden(block.querySelector(".am-line-from-asset"), !fromAsset);
+            setHidden(block.querySelector(".am-line-pickers"), fromAsset);
+            setHidden(block.querySelector(".am-line-asset-classification"), !fromAsset);
         } else {
             sub.disabled = !typeItem;
         }

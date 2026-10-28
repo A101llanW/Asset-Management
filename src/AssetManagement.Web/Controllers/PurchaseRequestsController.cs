@@ -181,6 +181,7 @@ namespace AssetManagement.Web.Controllers
             PopulateCreateLookups(model);
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             ViewBag.PurchaseApprovalSummary = BuildApprovalProcessSummary(ApprovalProcessCodes.Purchase);
+            ApplyNoActiveSubTypeMessages(model);
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -428,6 +429,7 @@ namespace AssetManagement.Web.Controllers
                 acquisitionCostDisplay = AssetPriceRules.Format(x.AcquisitionCost),
                 label = FormatTargetAssetLabel(x),
                 itemDescription = FormatTargetAssetItemDescription(x),
+                assetTypeName = string.IsNullOrWhiteSpace(x.AssetTypeName) ? "" : x.AssetTypeName,
                 subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "" : x.AssetSubTypeName,
                 quantityInStock = ResolveInStockQuantity(x, inStockLookup)
             }).ToList();
@@ -488,6 +490,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var lineTargetLabels = new Dictionary<int, string>();
+            var lineTargetClassifications = new Dictionary<int, string[]>();
             if (model != null)
             {
                 for (var i = 0; i < model.Lines.Count; i++)
@@ -495,12 +498,15 @@ namespace AssetManagement.Web.Controllers
                     var line = model.Lines[i];
                     if (line != null && line.TargetAssetId.HasValue && line.TargetAssetId.Value > 0)
                     {
-                        lineTargetLabels[i] = ResolveSelectedTargetAssetLabel(line.TargetAssetId);
+                        var asset = ResolveSelectedTargetAsset(line.TargetAssetId);
+                        lineTargetLabels[i] = asset == null ? string.Empty : FormatTargetAssetLabel(asset);
+                        lineTargetClassifications[i] = FormatTargetAssetClassification(asset);
                     }
                 }
             }
 
             ViewBag.LineTargetAssetLabels = lineTargetLabels;
+            ViewBag.LineTargetClassifications = lineTargetClassifications;
             ViewBag.SelectedTargetAssetLabel = string.Empty;
             var profile = GetCurrentUserProfile();
             ViewBag.RequestingAsDisplayName = profile == null
@@ -508,11 +514,11 @@ namespace AssetManagement.Web.Controllers
                 : BuildUserLabel(profile);
         }
 
-        private string ResolveSelectedTargetAssetLabel(int? assetId)
+        private AssetListVm ResolveSelectedTargetAsset(int? assetId)
         {
             if (!assetId.HasValue || assetId.Value <= 0)
             {
-                return string.Empty;
+                return null;
             }
 
             var page = BuildAssetService().GetAssetListPage(
@@ -521,8 +527,23 @@ namespace AssetManagement.Web.Controllers
                 "asc",
                 1,
                 500);
-            var match = page.Items.FirstOrDefault(x => x.Id == assetId.Value);
-            return match == null ? string.Empty : FormatTargetAssetLabel(match);
+            return page.Items.FirstOrDefault(x => x.Id == assetId.Value);
+        }
+
+        /// <summary>QA 2026-10-28: [Category, Type, Sub-type] of a tagged line's asset, shown read-only on the form.</summary>
+        public static string[] FormatTargetAssetClassification(AssetListVm asset)
+        {
+            if (asset == null)
+            {
+                return new[] { string.Empty, string.Empty, string.Empty };
+            }
+
+            return new[]
+            {
+                asset.CategoryName ?? string.Empty,
+                asset.AssetTypeName ?? string.Empty,
+                asset.AssetSubTypeName ?? string.Empty
+            };
         }
 
         private static string FormatAssetStatusLabel(AssetStatus status)
