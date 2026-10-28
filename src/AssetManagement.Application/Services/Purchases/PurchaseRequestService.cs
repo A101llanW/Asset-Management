@@ -280,6 +280,13 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Justification is required.");
             }
 
+            // Decision A (Allan 2026-10-28 08:39 EAT): never drop a filled-in row that has no description.
+            var missingDescriptions = model.FindLinesMissingDescription();
+            if (missingDescriptions.Count > 0)
+            {
+                throw new BusinessException(string.Join(" ", missingDescriptions.Select(PurchaseRequestCreateVm.MissingDescriptionMessage).ToArray()));
+            }
+
             var effectiveLines = model.ResolveEffectiveLines();
             if (effectiveLines.Count == 0)
             {
@@ -685,7 +692,8 @@ namespace AssetManagement.Application.Services
         /// Rules for NEW requisition lines (submit only; stored requisitions, POs and receipts are never re-checked):
         /// untagged line = item / asset name + asset type + sub-type required (category derived from the type);
         /// tagged line = name defaults to the tagged asset's name (editable), classification from the asset.
-        /// The line Description stays required exactly as before (blank-description rows are not lines).
+        /// The line Description stays required: untouched blank rows are ignored, and a filled-in row without one was
+        /// already rejected by SubmitBatch (decision A, PurchaseRequestCreateVm.FindLinesMissingDescription).
         /// </summary>
         private void EnsureNewLineRules(IList<ClassifiedLine> classified)
         {

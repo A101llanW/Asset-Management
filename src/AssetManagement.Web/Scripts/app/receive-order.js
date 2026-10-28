@@ -119,6 +119,11 @@
         var editing = isEditing(card);
         var typeSelect = editor.querySelector(".am-edit-type");
         var subSelect = editor.querySelector(".am-edit-subtype");
+        // Decision B: tells the server the panel is open, so blanks are rejected instead of falling back to the PO's.
+        var opened = editor.querySelector(".am-edit-opened");
+        if (opened) {
+            opened.disabled = !editing;
+        }
         typeSelect.disabled = !editing;
         typeSelect.required = editing && qty > 0;
         var typeId = typeSelect.value;
@@ -148,6 +153,10 @@
         }
         if (!typeSelect.required || typeSelect.value) {
             typeSelect.classList.remove("is-invalid");
+        }
+        var cleared = editor.querySelector(".am-edit-class-missing");
+        if (cleared && (!editing || (typeSelect.value && subSelect.value))) {
+            setHidden(cleared, true);
         }
     }
 
@@ -184,6 +193,37 @@
         return missing;
     }
 
+    // Decision B (Allan 2026-10-28 08:39 EAT): an open Edit panel with a blank type or sub-type blocks the submit on
+    // a line being received (both selects are flagged, even the sub-type that a blank type disables).
+    function flagClearedEditors(form) {
+        var missing = 0;
+        Array.prototype.forEach.call(form.querySelectorAll(".am-receive-line"), function (card) {
+            var editor = card.querySelector(".am-recv-class-editor");
+            if (!editor) {
+                return;
+            }
+            var qtyInput = card.querySelector(".am-receive-qty");
+            var qty = qtyInput ? parseInt(qtyInput.value, 10) : 0;
+            var typeSelect = editor.querySelector(".am-edit-type");
+            var subSelect = editor.querySelector(".am-edit-subtype");
+            var cleared = isEditing(card) && qty > 0 && (!typeSelect.value || !subSelect.value);
+            if (cleared) {
+                if (!typeSelect.value) {
+                    typeSelect.classList.add("is-invalid");
+                }
+                if (!subSelect.value) {
+                    subSelect.classList.add("is-invalid");
+                }
+                missing++;
+            }
+            var message = editor.querySelector(".am-edit-class-missing");
+            if (message) {
+                setHidden(message, !cleared);
+            }
+        });
+        return missing;
+    }
+
     function init() {
         var form = document.getElementById("receive-order-form");
         if (!form) {
@@ -207,7 +247,8 @@
             updateLine(card);
         });
         form.addEventListener("submit", function (e) {
-            if (flagMissingSubTypes(form) > 0) {
+            var missing = flagMissingSubTypes(form) + flagClearedEditors(form);
+            if (missing > 0) {
                 e.preventDefault();
             }
         });

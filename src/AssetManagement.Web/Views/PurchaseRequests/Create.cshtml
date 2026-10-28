@@ -135,6 +135,7 @@
                                    value="@(line == null ? "" : line.Description)"
                                    required="required"
                                    maxlength="2000" />
+                            @Html.ValidationMessage("Lines[" + i + "].Description", new { @class = "text-danger small" })
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small mb-1">Qty to order</label>

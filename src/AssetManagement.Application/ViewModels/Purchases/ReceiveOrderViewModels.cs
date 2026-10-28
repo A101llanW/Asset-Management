@@ -119,6 +119,13 @@ namespace AssetManagement.Application.ViewModels
 
         public int? OverrideAssetSubTypeId { get; set; }
 
+        /// <summary>
+        /// Decision B (Allan 2026-10-28 08:39 EAT): true only while the Edit panel is open (a hidden input that is disabled,
+        /// so not posted, otherwise). With it set, a blank type or sub-type is rejected instead of falling back to the
+        /// PO line's classification; without it the PO values stand.
+        /// </summary>
+        public bool ClassificationEditOpened { get; set; }
+
         /// <summary>Bulk paste: one serial per line (blank = no serials).</summary>
         public string SerialNumbersText { get; set; }
 

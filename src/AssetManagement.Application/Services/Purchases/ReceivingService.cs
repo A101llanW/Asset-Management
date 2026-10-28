@@ -736,6 +736,15 @@ namespace AssetManagement.Application.Services
             var organizationId = ReceiveOrganizationId(purchase);
             if (classification != null && classification.HasType)
             {
+                // Decision B (Allan 2026-10-28 08:39 EAT): Edit opened and the type or sub-type blanked is an error; the
+                // PO line's classification is used only when the panel was not opened (or Cancel was pressed).
+                if (input.ClassificationEditOpened
+                    && (!input.OverrideAssetTypeId.HasValue || input.OverrideAssetTypeId.Value <= 0
+                        || !input.OverrideAssetSubTypeId.HasValue || input.OverrideAssetSubTypeId.Value <= 0))
+                {
+                    throw new BusinessException(EditPanelClearedMessage(plan.Label));
+                }
+
                 // C3 (Allan 2026-10-27): the source classification is a prefill shown read-only with an Edit button. A
                 // posted type (only sent after Edit) that differs from it replaces it after validation and is audit-logged.
                 if (input.OverrideAssetTypeId.HasValue && input.OverrideAssetTypeId.Value > 0)
@@ -766,6 +775,13 @@ namespace AssetManagement.Application.Services
 
             var chosen = ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, Source = "ReceiverOverride" });
             return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan, organizationId);
+        }
+
+        /// <summary>Decision B: the Edit panel was opened and its type or sub-type left blank.</summary>
+        public static string EditPanelClearedMessage(string label)
+        {
+            return "Choose the asset type and sub-type (" + label + "): every receipt needs a category, type and sub-type. "
+                + "Pick them again in the Edit panel, or press Cancel to keep the purchase order's.";
         }
 
         /// <summary>The organisation a receipt's classification must belong to: the PO's, else the current tenant's.</summary>

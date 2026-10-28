@@ -138,10 +138,86 @@ namespace AssetManagement.Tests.Requisitions
         [Test]
         public void Submit_DescriptionStaysMandatory()
         {
+            // Decision A (Allan 2026-10-28 08:39 EAT): the filled-in row is named, not reported as "no items".
             var uow = SeedRequisitionSetup();
             var form = Form(NewLine("Desk", "  ", DeskTypeId, DeskSubTypeId));
-            Assert.IsTrue(form.Validate(null).Any(x => x.ErrorMessage == "Describe at least one item to order."));
-            Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(form, "requester"));
+            Assert.IsTrue(form.Validate(null).Any(x => x.ErrorMessage == "Line 1: enter a description."));
+            var ex = Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(form, "requester"));
+            Assert.AreEqual("Line 1: enter a description.", ex.Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count());
+
+            var nothing = Form(new PurchaseRequestLineCreateVm { Description = " ", Quantity = 1 });
+            Assert.IsTrue(nothing.Validate(null).Any(x => x.ErrorMessage == "Describe at least one item to order."), "a form with only blank rows");
+            Assert.AreEqual("Describe at least one item to order.", Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(nothing, "requester")).Message);
+        }
+
+        // ---------------- decision A (Allan 2026-10-28 08:39 EAT): no silently dropped lines ----------------
+
+        [Test]
+        public void DecisionA_FilledRowWithoutDescription_IsRejectedNamingTheRow_NothingSaved()
+        {
+            var uow = SeedRequisitionSetup();
+            var form = Form(NewLine("Desk", "Office desk", DeskTypeId, DeskSubTypeId), NewLine("Laptop", "", LaptopTypeId, LaptopSubTypeId));
+            var ex = Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(form, "requester"));
+            Assert.AreEqual("Line 2: enter a description.", ex.Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count(), "line 1 is not saved on its own");
+            Assert.AreEqual(0, uow.Repository<PurchaseRequestLine>().GetAll().Count());
+
+            var error = form.Validate(null).Single(x => x.ErrorMessage == "Line 2: enter a description.");
+            CollectionAssert.AreEqual(new[] { "Lines[1].Description" }, error.MemberNames.ToArray(), "shown under the row's description box");
+        }
+
+        [Test]
+        public void DecisionA_NameTypeSubTypeCategoryOrTagAlone_EachCountsAsAFilledRow()
+        {
+            var rows = new[]
+            {
+                new PurchaseRequestLineCreateVm { ItemName = "Chair", Quantity = 1 },
+                new PurchaseRequestLineCreateVm { AssetTypeId = DeskTypeId, Quantity = 1 },
+                new PurchaseRequestLineCreateVm { AssetSubTypeId = DeskSubTypeId, Quantity = 1 },
+                new PurchaseRequestLineCreateVm { AssetCategoryId = 2, Quantity = 1 },
+                new PurchaseRequestLineCreateVm { TargetAssetId = TaggedAssetId, Quantity = 1 }
+            };
+            foreach (var row in rows)
+            {
+                var uow = SeedRequisitionSetup();
+                var form = Form(NewLine("Desk", "Office desk", DeskTypeId, DeskSubTypeId), row);
+                var ex = Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(form, "requester"));
+                Assert.AreEqual("Line 2: enter a description.", ex.Message);
+                Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count());
+            }
+        }
+
+        [Test]
+        public void DecisionA_SeveralRows_AreAllNamed_InFormOrder()
+        {
+            var uow = SeedRequisitionSetup();
+            var form = Form(NewLine("Desk", null, DeskTypeId, DeskSubTypeId), NewLine("Desk 2", "Desk", DeskTypeId, DeskSubTypeId), NewLine("Laptop", "  ", LaptopTypeId, LaptopSubTypeId));
+            var ex = Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(form, "requester"));
+            Assert.AreEqual("Line 1: enter a description. Line 3: enter a description.", ex.Message);
+            Assert.AreEqual(2, form.Validate(null).Count(x => x.ErrorMessage.EndsWith(": enter a description.", StringComparison.Ordinal)));
+        }
+
+        [Test]
+        public void DecisionA_UntouchedBlankRow_IsStillIgnored()
+        {
+            var uow = SeedRequisitionSetup();
+            var form = Form(NewLine("Desk", "Office desk", DeskTypeId, DeskSubTypeId), new PurchaseRequestLineCreateVm { Description = "", Quantity = 1 }, null);
+            Assert.IsFalse(form.Validate(null).Any(x => x.ErrorMessage.EndsWith(": enter a description.", StringComparison.Ordinal) || x.ErrorMessage == "Describe at least one item to order."), "no errors for an untouched row");
+            var result = RequestService(uow).SubmitBatch(form, "requester");
+            Assert.AreEqual(1, LinesOf(uow, result.PrimaryId).Count);
+        }
+
+        [Test]
+        public void DecisionA_LegacySingleItemPost_NameWithoutDescription_IsLineOne()
+        {
+            var uow = SeedRequisitionSetup();
+            var service = new PurchaseRequestCreateVm { DepartmentId = 5, Justification = "Term 3", Currency = "KES", ItemName = "Desk", ItemDescription = " " };
+            Assert.AreEqual("Line 1: enter a description.", Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(service, "requester")).Message);
+
+            var viaController = new PurchaseRequestCreateVm { DepartmentId = 5, Justification = "Term 3", Currency = "KES", ItemName = "Desk", ItemDescription = "" };
+            PurchaseRequestsController.EnsureLegacyLine(viaController);
+            Assert.AreEqual("Line 1: enter a description.", Assert.Throws<BusinessException>(() => RequestService(uow).SubmitBatch(viaController, "requester")).Message);
             Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count());
         }
 
@@ -718,6 +794,81 @@ namespace AssetManagement.Tests.Requisitions
             }, "receiver");
             Assert.AreEqual(20, uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId).AssetSubTypeId);
             Assert.IsFalse(audit.Entries.Any(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving));
+        }
+
+        // ---------------- decision B (Allan 2026-10-28 08:39 EAT): Edit panel blanked at receiving ----------------
+
+        private static ReceiveOrderLineVm OpenedEditLine(int lineId, int? typeId, int? subTypeId)
+        {
+            var line = EditedReceiveLine(lineId, 1, typeId, subTypeId);
+            line.ClassificationEditOpened = true;
+            return line;
+        }
+
+        [Test]
+        public void DecisionB_EditOpened_TypeOrSubTypeBlanked_IsRejected_NoFallbackToThePoLine_NothingCreated()
+        {
+            var cases = new[]
+            {
+                new int?[] { null, null },
+                new int?[] { null, 20 },
+                new int?[] { 2, null },
+                new int?[] { 0, 0 }
+            };
+            foreach (var c in cases)
+            {
+                var uow = SeedApprovedRequisition();
+                var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+                var lines = PoLines(uow, poId);
+                var assetsBefore = uow.Repository<Asset>().GetAll().Count();
+                var ex = Assert.Throws<BusinessException>(() => TestServiceFactory.CreateReceivingService(uow).ReceiveOrder(new ReceiveOrderVm
+                {
+                    PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { OpenedEditLine(lines[1].Id, c[0], c[1]) }
+                }, "receiver"), "type " + c[0] + " / sub-type " + c[1]);
+                StringAssert.StartsWith("Choose the asset type and sub-type (line ", ex.Message);
+                StringAssert.Contains("category, type and sub-type", ex.Message);
+                Assert.AreEqual(assetsBefore, uow.Repository<Asset>().GetAll().Count());
+                Assert.AreEqual(0, uow.Repository<AssetReceiving>().GetAll().Count());
+                Assert.AreEqual(0, uow.Repository<PurchaseOrderLineReceipt>().GetAll().Count());
+            }
+        }
+
+        [Test]
+        public void DecisionB_PanelNotOpened_ThePoLineClassificationStands()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var result = TestServiceFactory.CreateReceivingService(uow).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { ReceiveLine(lines[1].Id, 1) }
+            }, "receiver");
+            var asset = uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId);
+            Assert.AreEqual(2, asset.AssetTypeId, "the PO line's type");
+            Assert.AreEqual(20, asset.AssetSubTypeId);
+            Assert.Greater(asset.CategoryId, 0, "category from the PO line's type");
+        }
+
+        [Test]
+        public void DecisionB_EditOpened_WithAFullClassification_IsAccepted()
+        {
+            var uow = SeedApprovedRequisition();
+            var poId = TestServiceFactory.CreatePurchaseService(uow).Create(Order());
+            var lines = PoLines(uow, poId);
+            var audit = new ClassificationAuditWriter();
+            var unchanged = TestServiceFactory.CreateReceivingService(uow, auditWriter: audit).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { OpenedEditLine(lines[0].Id, 1, 10) }
+            }, "receiver");
+            Assert.AreEqual(10, uow.Repository<Asset>().GetById(unchanged.CreatedAssets.Single().AssetId).AssetSubTypeId);
+            Assert.IsFalse(audit.Entries.Any(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving), "opened but unchanged is not an edit");
+
+            var edited = TestServiceFactory.CreateReceivingService(uow, auditWriter: audit).ReceiveOrder(new ReceiveOrderVm
+            {
+                PurchaseRecordId = poId, ReceivedDate = DateTime.UtcNow, Lines = new List<ReceiveOrderLineVm> { OpenedEditLine(lines[1].Id, 1, 10) }
+            }, "receiver");
+            Assert.AreEqual(1, uow.Repository<Asset>().GetById(edited.CreatedAssets.Single().AssetId).AssetTypeId);
+            Assert.AreEqual(1, audit.Entries.Count(x => x.Action == PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving));
         }
 
         // ---------------- C3 override trail (migration 108 columns) and C5 receive block ----------------

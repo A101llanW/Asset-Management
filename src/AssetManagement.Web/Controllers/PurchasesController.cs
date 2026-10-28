@@ -177,9 +177,11 @@ namespace AssetManagement.Web.Controllers
                 line.OverrideAssetTypeId = input.OverrideAssetTypeId;
                 line.OverrideAssetSubTypeId = input.OverrideAssetSubTypeId;
                 // C3: reopen the Edit panel when the receiver had changed a classified line's type / sub-type.
+                // Decision B: a panel the user opened stays open on redisplay, blanks included.
                 line.ClassificationEdited = !line.NeedsClassification
-                    && input.OverrideAssetTypeId.HasValue && input.OverrideAssetTypeId.Value > 0
-                    && (input.OverrideAssetTypeId != line.AssetTypeId || input.OverrideAssetSubTypeId != line.AssetSubTypeId);
+                    && (input.ClassificationEditOpened
+                        || (input.OverrideAssetTypeId.HasValue && input.OverrideAssetTypeId.Value > 0
+                            && (input.OverrideAssetTypeId != line.AssetTypeId || input.OverrideAssetSubTypeId != line.AssetSubTypeId)));
                 line.SerialNumbersText = input.SerialNumbersText;
                 line.TagMode = input.TagMode;
                 line.AssetTagsText = input.AssetTagsText;

@@ -148,8 +148,17 @@ namespace AssetManagement.Application.ViewModels
                     new[] { "Justification" });
             }
 
+            // Decision A (Allan 2026-10-28 08:39 EAT): a filled-in row without a description is an error, never dropped.
+            var missingDescriptions = FindLinesMissingDescription();
+            foreach (var lineNumber in missingDescriptions)
+            {
+                yield return new ValidationResult(
+                    MissingDescriptionMessage(lineNumber),
+                    new[] { "Lines[" + (lineNumber - 1) + "].Description" });
+            }
+
             var effectiveLines = ResolveEffectiveLines();
-            if (effectiveLines.Count == 0)
+            if (effectiveLines.Count == 0 && missingDescriptions.Count == 0)
             {
                 yield return new ValidationResult(
                     "Describe at least one item to order.",
@@ -187,6 +196,48 @@ namespace AssetManagement.Application.ViewModels
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Decision A (Allan 2026-10-28 08:39 EAT): a posted row with an item / asset name, category, type, sub-type or
+        /// tag but no Description is rejected naming the row (1-based, form order); it is never silently dropped.
+        /// Untouched blank rows are still ignored. Legacy single-item post: a name without a description is line 1.
+        /// </summary>
+        public IList<int> FindLinesMissingDescription()
+        {
+            var missing = new List<int>();
+            var lines = Lines ?? new List<PurchaseRequestLineCreateVm>();
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                if (line != null && string.IsNullOrWhiteSpace(line.Description) && LineHasContent(line))
+                {
+                    missing.Add(i + 1);
+                }
+            }
+
+            if (lines.All(x => x == null)
+                && string.IsNullOrWhiteSpace(ItemDescription)
+                && !string.IsNullOrWhiteSpace(ItemName))
+            {
+                missing.Add(1);
+            }
+
+            return missing;
+        }
+
+        public static string MissingDescriptionMessage(int lineNumber)
+        {
+            return "Line " + lineNumber + ": enter a description.";
+        }
+
+        private static bool LineHasContent(PurchaseRequestLineCreateVm line)
+        {
+            return !string.IsNullOrWhiteSpace(line.ItemName)
+                || (line.AssetCategoryId.HasValue && line.AssetCategoryId.Value > 0)
+                || (line.AssetTypeId.HasValue && line.AssetTypeId.Value > 0)
+                || (line.AssetSubTypeId.HasValue && line.AssetSubTypeId.Value > 0)
+                || (line.TargetAssetId.HasValue && line.TargetAssetId.Value > 0);
         }
 
         public IList<PurchaseRequestLineCreateVm> ResolveEffectiveLines()

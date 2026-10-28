@@ -112,6 +112,8 @@
                             <button type="button" class="btn btn-outline-secondary btn-sm mt-2 am-recv-class-edit">Edit</button>
                             @:</div>
                             <div class="am-recv-class-editor@(editing ? "" : " d-none")" data-am-prefill-type="@line.AssetTypeId" data-am-prefill-subtype="@line.AssetSubTypeId">
+                                @* Decision B (Allan 2026-10-28 08:39 EAT): posted only while the panel is open; blanks are then rejected, not replaced by the PO's. *@
+                                <input type="hidden" class="am-edit-opened" name="Lines[@i].ClassificationEditOpened" value="true" @(editing ? "" : "disabled") />
                                 <div class="row g-2">
                                     <div class="col-md-6">
                                         <select class="form-select am-edit-type" name="Lines[@i].OverrideAssetTypeId" aria-label="Asset type" @(editing ? "" : "disabled")>
@@ -154,6 +156,7 @@
                                         <div class="text-danger small am-edit-subtype-none d-none">This asset type has no sub-types yet. Add one under Asset Categories before receiving: every received asset needs a sub-type.</div>
                                     </div>
                                 </div>
+                                <div class="text-danger small am-edit-class-missing d-none">Choose the asset type and sub-type, or press Cancel to keep the purchase order's: every receipt needs a category, type and sub-type.</div>
                                 <div class="form-text">Category follows the type. The sub-type is required. The new asset gets this classification (the purchase order line keeps its own), and the change is recorded in the audit log.</div>
                                 <button type="button" class="btn btn-link btn-sm p-0 am-recv-class-cancel">Cancel (keep the purchase order's)</button>
                             </div>
