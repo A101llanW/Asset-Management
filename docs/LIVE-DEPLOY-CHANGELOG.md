@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 09:09 EAT - Browser-check fixes and decisions A/B merged to main and PUBLISHED to local IIS (localhost:8080), plus site-interactive.js cache-bust - LIVE NOT TOUCHED
+
+- Approval: Allan, 2026-10-28 09:05 EAT: "Yes, add the cache fix and publish locally". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed. No migration, no DB change.
+- main fast-forwarded e30175b..bcaaf01 (fix/reqname-browser-check: c957a8c bugs 1 and 4 plus the wrap; bcaaf01 decisions A and B, entries below), then 5247e14: Views/Shared/_Layout.cshtml loads site-interactive.js with ?v=<last-write ticks> (same pattern as am-animations.js), so browsers holding the old cached script pick up the submit-lock fix. Areas/Platform/Views/Shared/_PlatformLayout.cshtml still loads it without ?v= (not changed).
+- Release build 0 errors (226 warnings, unchanged). Tests: 1245 total, 1238 passed, 7 skipped, 0 failed. aspnet_compiler precompile exit 0.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement), one UAC prompt: staged at C:\Users\allan\Desktop\Staged_reqfix_5247e14 without the root Web.config. Add/overwrite only; root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3). 295 files hash-checked, 0 mismatches.
+  - AssetManagement.Web.dll 6D0EC6DD0F0D173CDADE4465326D68696F249E5A3C679C58BCAAD1E46B96F173 (was 58D6762B...AA0F, 9079437). Site backup C:\inetpub\_backups\AssetManagement_root_pre_reqfix_20261028_090931.
+  - Smoke 09:09 EAT (GET only): /Account/Login 200, /nis/Account/Login 200, /A46138179/Account/Login 200, /A46138179/Assets 302 to login. Served layout has site-interactive.js?v=. No new Application event-log errors.
+- Desktop\publish refreshed from the stage; previous copy kept as publish_old_20261028_091024.
+- LIVE: nothing published.
+
 ## 2026-10-28 08:50 EAT - Decisions A and B: a filled-in requisition row without a description is rejected naming the row; blanking the Edit panel at receiving is rejected - LOCAL BRANCH, NOT PUBLISHED
 
 - Brief: Allan via the PM, 2026-10-28 08:39 EAT. Same branch fix/reqname-browser-check, on top of c957a8c (bugs 1 and 4 plus the wrap, done). Local branch only: not merged to main, not published to IIS, not pushed, no PR, no schema change. Live not touched.
