@@ -1744,6 +1744,22 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
 
 #po-lines-table td:nth-child(2), #po-lines-card td:nth-child(2) { overflow-wrap: anywhere; word-break: break-word; }
 
+/* QA 2026-10-28 finding 3: the PO lines table must fit at 1024 px without horizontal scrolling and keep the qty / cost
+   inputs readable. Below xl the Requisition / Already ordered columns fold into small text under Outstanding (see the
+   views); the inputs get a floor so the table squeezes the free-text columns instead of them. */
+#po-lines-table .am-po-qty { min-width: 4.5rem; }
+#po-lines-table .am-po-cost { min-width: 7rem; }
+#po-lines-table .am-po-qty-col { width: 6rem; }
+#po-lines-table .am-po-cost-col { width: 8rem; }
+#po-lines-table .am-po-class-col { min-width: 180px; }
+#po-lines-table .am-po-class-editor .form-select { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+#po-lines-table .am-po-class-readonly .small,
+#po-lines-table .am-po-cost-hint { overflow-wrap: anywhere; }
+#po-lines-table .am-po-line-total,
+#po-lines-card .am-po-line-total { white-space: nowrap; }
+#po-lines-card .am-po-class-col { min-width: 160px; }
+#po-lines-card .am-po-class-cell { overflow-wrap: anywhere; }
+
 .am-scan-card-restricted {
     border-top: 1px dashed var(--am-border-soft);
     padding-top: 0.75rem;

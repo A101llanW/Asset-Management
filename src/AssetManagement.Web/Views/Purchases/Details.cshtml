@@ -159,14 +159,14 @@ else if (canSendToBulkPrint)
         <div class="card-header">Order lines@(orderStatus.IsLegacy ? " (legacy purchase record: one line)" : "")</div>
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
-                <thead><tr><th>#</th><th>Item</th><th>Classification</th><th class="text-end">Ordered</th><th class="text-end">Received</th><th class="text-end">Outstanding</th><th class="text-end">Unit cost</th></tr></thead>
+                <thead><tr><th>#</th><th>Item</th><th class="am-po-class-col">Classification</th><th class="text-end">Ordered</th><th class="text-end">Received</th><th class="text-end">Outstanding</th><th class="text-end">Unit cost</th></tr></thead>
                 <tbody>
                 @foreach (var line in orderStatus.Lines)
                 {
                     <tr>
                         <td>@line.LineNumber</td>
                         <td>@line.Description</td>
-                        <td class="small">
+                        <td class="small am-po-class-cell">
                             @if (line.HasClassification)
                             {
                                 @(string.Join(" > ", new[] { line.AssetCategoryName, line.AssetTypeName, line.AssetSubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x))))
@@ -180,7 +180,7 @@ else if (canSendToBulkPrint)
                         <td class="text-end">@line.Ordered</td>
                         <td class="text-end">@line.Received</td>
                         <td class="text-end fw-semibold">@line.Outstanding</td>
-                        <td class="text-end">@Html.FormatCurrency(line.UnitCost)</td>
+                        <td class="text-end am-po-line-total">@Html.FormatCurrency(line.UnitCost)</td>
                     </tr>
                 }
                 </tbody>
