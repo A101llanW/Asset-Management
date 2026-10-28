@@ -291,7 +291,7 @@
     {
         <script src="@Url.Content("~/Scripts/app/help-bot.js")"></script>
     }
-    <script src="@Url.Content("~/Scripts/app/site-interactive.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/site-interactive.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/site-interactive.js")).Ticks"></script>
     @if (Request.IsAuthenticated)
     {
         <script src="@Url.Content("~/Scripts/app/am-animations.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/am-animations.js")).Ticks"></script>
