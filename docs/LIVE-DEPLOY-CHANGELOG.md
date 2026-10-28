@@ -1,5 +1,15 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 13:30 EAT - Hidden how-to video page (/{tenant}/HelpVideos) with admin chunked upload; Process Assistant Help button hidden - LOCAL BRANCH ONLY, NOT PUBLISHED
+
+- Brief: Allan, 2026-10-28: "reactivate the hidden help page for uploading the video. Make it accessible while hiding that redirect 'help' button". Branch feat/hidden-help-videos (worktree CodexAsset-wt-helpvideos, on main 692e28e). Local branch only: not merged, not published to IIS, not pushed, no PR, no UAC. Migration 109 NOT applied to .\SQLEXPRESS. Web.config not changed. Nothing printed. Live not touched.
+- New page HelpVideosController (direct URL only, no nav link): every signed-in tenant user can watch; upload / replace / delete need Settings.Manage plus antiforgery. Catalog ported from master 64fdcbd (tenant topics only) plus Procurement topics hod-start-requisition and hod-approve-requisition. A tenant's own video wins over an all-tenant (global) one.
+- Files in ~/App_Data/HelpVideos/<orgId|global>/<guid>.mp4|webm (the publish robocopy excludes App_Data, so uploads survive deploys); metadata in dbo.HelpVideo (migration 109_HelpVideo.sql, rollback ops/109_Rollback_HelpVideo_PREPARE_DO_NOT_RUN.sql). mp4 / webm only, header-checked (ftyp / EBML), sanitized names, 500 MB max.
+- Upload in 4 MB chunks (help-videos-upload.js, IE11-safe XHR, retry, cancel, progress), so neither maxRequestLength (51200 KB) nor the default 30,000,000-byte maxAllowedContentLength needs raising. Streaming via HelpVideoStreamResult with HTTP Range (206 / 416), ETag / If-Range, HEAD; the org scope is checked before any byte is sent. Audit: HelpVideos.Upload / Replace / Delete; Stream and UploadChunk are excluded from AuditLogAttribute.
+- Views/Shared/_Layout.cshtml: the _HelpBot partial (Process Assistant Help button) and the help-bot.js include are wrapped in Razor comments (kept, easy to restore). Home/Help now redirects to the tenant HelpVideos page. OrganizationPurgeSql deletes HelpVideo rows. help-videos.css / help-videos-upload.js loaded with ?v=.
+- Tests: 63 new (HelpVideos/HelpVideoTests). Full suite 1336 total, 1329 passed, 7 skipped, 0 failed (main 692e28e baseline 1273 / 1266 / 7 / 0). Release build 0 errors (226 warnings, unchanged). node --check OK. aspnet_compiler precompile exit 0 (temporary folders deleted). Migration 109 tested on a throwaway LocalDB only (apply, re-apply no-op, CHECK / unique index, rollback guards, rollback, re-apply), then dropped.
+- LIVE: nothing published.
+
 ## 2026-10-28 13:15 EAT - QA six findings merged to main and PUBLISHED to local IIS (localhost:8080); receiving keeps the department default - LIVE NOT TOUCHED
 
 - Approval: Allan, 2026-10-28: "Keep the department default and reword the help text" and "Publish locally now". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed. No migration, no DB change.
