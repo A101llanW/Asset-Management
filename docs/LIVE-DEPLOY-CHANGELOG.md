@@ -1,5 +1,14 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 07:55 EAT - "Update all local": main brought up to date (e95b09f); no code change, local IIS already current - LIVE NOT TOUCHED
+
+- Approval: Allan, t20u, 2026-10-28 07:42 EAT: "update all local and publish". Local only: nothing pushed, no PR, no live DB or nanosoft.africa change, nothing printed.
+- Merged into main: integ/catreq-reports-multiselect c489b73 as merge e95b09f (changelog-only: the 2026-10-13 reports multi-select entry now says PUBLISHED-LOCAL via 592da5b, updated in place).
+- Not merged (listed for Allan): every other branch ahead of main is either stale WIP, parked, already on main in another form, or conflicts in code (git merge-tree): wip/tag-work-20261021, wip/rc-batch2-classteacher-2026-10-02, master, cursor/* (multi-row-assign, restore-antigravity-login, react-bits-ui-polish, keep-output-window-open), pr-5/pr-12/pr-13, hold/tag-random-code + feat/tag-random-code + feat/tag-level-toggle (random-code cf4a3fc is parked), feat/asset-tag-prefix-rel1013a, fix/testwf-a461-* (5), fix/reports-preview-dbnull, fix/purchase-request-self-approve, hotfix/edit-save-on-3d1e248. feature/convert-classes-to-rooms and hotfix/qa-1508-on-25c518e are already on main as equivalent patches. cursor/keep-output-window-open-37cb merges cleanly but makes Start-Dev.ps1 wait for Enter by default (would hang scripted runs), so left for Allan.
+- Fast-forwarded to e95b09f (clean worktrees, branch already merged): 18 branches. Worktrees with untracked files were left alone.
+- Code tree identical to 9079437 (only docs changed). Release build 0 errors (226 warnings). Tests: 1224 total, 1217 passed, 7 skipped, 0 failed. No new migrations, none run.
+- Local IIS not republished: it already runs the 9079437 build (Web.dll 58D6762B355255ECAB1CB680793540D5E01D226BC8B9700A3745A0F01689AA0F, Web.config 27426D6E...D4D3 unchanged). No UAC prompt needed.
+- LIVE: 108 NOT applied, nothing published.
 ## 2026-10-28 07:33 EAT - Migration 108 APPLIED LOCALLY and main 9079437 PUBLISHED to local IIS (localhost:8080) - LIVE NOT APPLIED
 
 - Approval: Allan, t18u, 2026-10-28 07:28 EAT: "proceed" (migration 108 on the local database and a local publish). Local only: nothing pushed, no PR, nanosoft.africa not touched, nothing printed.
