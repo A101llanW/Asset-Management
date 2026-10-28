@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 13:15 EAT - QA six findings merged to main and PUBLISHED to local IIS (localhost:8080); receiving keeps the department default - LIVE NOT TOUCHED
+
+- Approval: Allan, 2026-10-28: "Keep the department default and reword the help text" and "Publish locally now". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed. No migration, no DB change.
+- main fast-forwarded 43afe8f..a0e30a7 (fix/qa-six-findings: 6bae291, 2e6b046, 29eb5f7, 0b31ab2, 807f69e, 1727fc7, a0e30a7). a0e30a7 reverts the Store default from 29eb5f7: receiving defaults every line to the requesting department (Store when the requisition has none), and the help text says it can be changed to Store or another department / room.
+- Release build 0 errors (226 warnings, unchanged). Tests: 1273 total, 1266 passed, 7 skipped, 0 failed. node --check OK on the four changed scripts. aspnet_compiler precompile exit 0.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement), one UAC prompt: staged at C:\Users\allan\Desktop\Staged_qa6_a0e30a7 without the root Web.config. Add/overwrite only; root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3). 298 files hash-checked, 0 mismatches. Scripts/vendor/html2pdf.bundle.min.js deployed (85E6EE9C...049D65).
+  - AssetManagement.Web.dll 80A0C88E04ADB59DDF21F7BD07E4EEB3CBC4DC97CBE252D262FBE5133E5D746E (was 6D0EC6DD...F173, 5247e14). Site backup C:\inetpub\_backups\AssetManagement_root_pre_qa6_20261028_131502.
+  - Smoke 13:15 EAT (GET only): /Account/Login 200, /nis/Account/Login 200, /A46138179/Account/Login 200, /A46138179/Assets 302 to login. site-interactive.js?v= 200, Scripts/vendor/html2pdf.bundle.min.js 200. No new Application / System event-log warnings or errors, no 5xx in the IIS log.
+- Desktop\publish refreshed from the stage; previous copy kept as publish_old_20261028_131553.
+- LIVE: nothing published.
+
 ## 2026-10-28 09:51 EAT - QA six findings: types without sub-types hidden, tagged line shows its classification, PO table fits 1024 px, supplier price on every PO line, receiving keeps the department default with clearer help text, html2pdf vendored - LOCAL BRANCH, NOT PUBLISHED
 
 - Brief: Allan, 2026-10-28 09:33 EAT ("Fix" for each QA finding). Branch fix/qa-six-findings (worktree CodexAsset-wt-qa6, from main 43afe8f). Local branch only: not merged to main, not published to IIS, not pushed, no PR, no migration, no DB change, nothing printed. Live not touched.
