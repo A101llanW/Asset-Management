@@ -3,7 +3,10 @@ using System.Collections.Generic;
 
 namespace AssetManagement.Application.Contracts
 {
-    /// <summary>One uploaded how-to video (migration 109, table HelpVideo).</summary>
+    /// <summary>
+    /// One how-to video (migration 109, table HelpVideo): either an uploaded file (StoredFileName, ContentType,
+    /// SizeBytes) or an unlisted YouTube video (YouTubeVideoId; the file fields are null / 0).
+    /// </summary>
     public class HelpVideoInfo
     {
         public int Id { get; set; }
@@ -19,10 +22,21 @@ namespace AssetManagement.Application.Contracts
         public string StoredFileName { get; set; }
 
         public string ContentType { get; set; }
+
+        /// <summary>0 for a YouTube row.</summary>
         public long SizeBytes { get; set; }
+
+        /// <summary>11-character id of an unlisted YouTube video; null for an uploaded file.</summary>
+        public string YouTubeVideoId { get; set; }
+
         public string UploadedById { get; set; }
         public string UploadedByName { get; set; }
         public DateTime UploadedAtUtc { get; set; }
+
+        public bool IsYouTube
+        {
+            get { return !string.IsNullOrEmpty(YouTubeVideoId); }
+        }
 
         public bool IsGlobal
         {
@@ -39,6 +53,10 @@ namespace AssetManagement.Application.Contracts
         public string StoredFileName { get; set; }
         public string ContentType { get; set; }
         public long SizeBytes { get; set; }
+
+        /// <summary>Set for a YouTube row; the file fields are then left null / 0.</summary>
+        public string YouTubeVideoId { get; set; }
+
         public string UploadedById { get; set; }
         public DateTime UploadedAtUtc { get; set; }
     }
@@ -50,7 +68,7 @@ namespace AssetManagement.Application.Contracts
         /// <summary>True when an existing video of the same topic (same tenant) was replaced.</summary>
         public bool Replaced { get; set; }
 
-        /// <summary>Stored file of the replaced video, for the caller to delete from disk after the row is saved.</summary>
+        /// <summary>Stored file of the replaced video (null when it was a YouTube row), for the caller to delete from disk after the row is saved.</summary>
         public string PreviousStoredFileName { get; set; }
     }
 

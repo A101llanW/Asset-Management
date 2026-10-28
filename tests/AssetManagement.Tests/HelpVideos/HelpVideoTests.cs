@@ -397,7 +397,7 @@ namespace AssetManagement.Tests.HelpVideos
         {
             var type = typeof(AssetManagement.Web.Controllers.HelpVideosController);
             Assert.IsTrue(typeof(AssetManagement.Web.Controllers.BaseController).IsAssignableFrom(type), "TenantAuthorize via BaseController");
-            foreach (var name in new[] { "UploadStart", "UploadChunk", "UploadComplete", "UploadCancel", "Delete" })
+            foreach (var name in new[] { "UploadStart", "UploadChunk", "UploadComplete", "UploadCancel", "SetYouTube", "Delete" })
             {
                 var method = type.GetMethods().Single(m => m.Name == name);
                 var permission = method.GetCustomAttributes(typeof(AssetManagement.Web.Filters.PermissionAuthorizeAttribute), true);
@@ -454,6 +454,9 @@ namespace AssetManagement.Tests.HelpVideos
             var sql = Read("database", "scripts", "004_Migrations", "109_HelpVideo.sql");
             StringAssert.Contains("CREATE TABLE [dbo].[HelpVideo]", sql);
             StringAssert.Contains("N'109_HelpVideo.sql'", sql);
+            StringAssert.Contains("[YouTubeVideoId] VARCHAR(11) NULL", sql);
+            StringAssert.Contains("CONSTRAINT [CK_HelpVideo_Source]", sql);
+            StringAssert.Contains("CONSTRAINT [CK_HelpVideo_YouTubeVideoId]", sql);
             StringAssert.Contains("SET XACT_ABORT ON;", sql);
             StringAssert.Contains("COMMIT TRANSACTION;", sql);
             StringAssert.DoesNotContain("WHERE [OrganizationId] IS", sql.Substring(sql.IndexOf("CREATE UNIQUE", StringComparison.Ordinal)), "no filtered index");

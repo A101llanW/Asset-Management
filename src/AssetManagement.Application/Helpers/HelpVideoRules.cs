@@ -184,6 +184,92 @@ namespace AssetManagement.Application.Helpers
                 && Regex.IsMatch(storedFileName, "^[0-9a-f]{32}\\.(mp4|webm)$", RegexOptions.CultureInvariant);
         }
 
+        /// <summary>Privacy-enhanced embed host. Unlisted videos embed by id; no YouTube API / oEmbed call is made.</summary>
+        public const string YouTubeEmbedBase = "https://www.youtube-nocookie.com/embed/";
+
+        /// <summary>YouTube video ids are 11 characters of [A-Za-z0-9_-].</summary>
+        public static bool IsValidYouTubeId(string id)
+        {
+            return !string.IsNullOrEmpty(id) && Regex.IsMatch(id, "^[A-Za-z0-9_-]{11}$", RegexOptions.CultureInvariant);
+        }
+
+        /// <summary>
+        /// Video id from what an admin pastes: the bare id, or a youtu.be / youtube.com (watch?v=, embed/, shorts/, live/, v/)
+        /// / youtube-nocookie.com link. Other hosts, playlists and anything else return null. Purely local parsing.
+        /// </summary>
+        public static string ParseYouTubeId(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return null;
+            }
+
+            var text = input.Trim();
+            if (IsValidYouTubeId(text))
+            {
+                return text;
+            }
+
+            if (text.IndexOf("://", StringComparison.Ordinal) < 0)
+            {
+                text = "https://" + text;
+            }
+
+            Uri uri;
+            if (!Uri.TryCreate(text, UriKind.Absolute, out uri)
+                || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            {
+                return null;
+            }
+
+            var host = uri.Host.ToLowerInvariant();
+            if (host.StartsWith("www.", StringComparison.Ordinal))
+            {
+                host = host.Substring(4);
+            }
+            else if (host.StartsWith("m.", StringComparison.Ordinal))
+            {
+                host = host.Substring(2);
+            }
+
+            var segments = uri.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            string candidate = null;
+            if (host == "youtu.be")
+            {
+                candidate = segments.Length == 1 ? segments[0] : null;
+            }
+            else if (host == "youtube.com" || host == "youtube-nocookie.com")
+            {
+                if (segments.Length == 1 && string.Equals(segments[0], "watch", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var pair in uri.Query.TrimStart('?').Split('&'))
+                    {
+                        if (pair.StartsWith("v=", StringComparison.Ordinal))
+                        {
+                            candidate = pair.Substring(2);
+                            break;
+                        }
+                    }
+                }
+                else if (segments.Length == 2)
+                {
+                    var kind = segments[0].ToLowerInvariant();
+                    if (kind == "embed" || kind == "shorts" || kind == "live" || kind == "v")
+                    {
+                        candidate = segments[1];
+                    }
+                }
+            }
+
+            return IsValidYouTubeId(candidate) ? candidate : null;
+        }
+
+        /// <summary>https://www.youtube-nocookie.com/embed/{id}?rel=0 (Allan 2026-10-28), or null for an invalid id.</summary>
+        public static string YouTubeEmbedUrl(string id)
+        {
+            return IsValidYouTubeId(id) ? YouTubeEmbedBase + id + "?rel=0" : null;
+        }
+
         public static string FormatSize(long bytes)
         {
             if (bytes >= 1024L * 1024)

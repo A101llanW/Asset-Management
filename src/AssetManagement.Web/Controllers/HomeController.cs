@@ -20,9 +20,11 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Old /{tenant}/Home/Help address of the how-to page: sends the user to the hidden /{tenant}/HelpVideos page
-        /// (which asks for sign-in). Without a tenant in the URL there is no page to show.
+        /// Old /{tenant}/Home/Help address of the how-to page: sends the user to the hidden /{tenant}/HelpVideos page.
+        /// Without a tenant in the URL there is no page to show. [TenantAuthorize]: anonymous users go to the login page
+        /// and are never told where the hidden page is (HomeController itself is public).
         /// </summary>
+        [AssetManagement.Web.Filters.TenantAuthorize]
         public ActionResult Help()
         {
             var tenant = TenantUrlHelper.GetTenantToken(RouteData);

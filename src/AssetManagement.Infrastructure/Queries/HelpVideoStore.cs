@@ -13,7 +13,7 @@ namespace AssetManagement.Infrastructure.Queries
         private const string SelectColumns = @"v.[Id], v.[OrganizationId], v.[TopicSlug], v.[Title], v.[OriginalFileName], v.[StoredFileName],
 v.[ContentType], v.[SizeBytes], v.[UploadedById],
 COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(u.[FirstName], N'') + N' ' + ISNULL(u.[LastName], N''))), N''), u.[UserName]),
-v.[UploadedAt]
+v.[UploadedAt], v.[YouTubeVideoId]
 FROM [dbo].[HelpVideo] v
 LEFT JOIN [dbo].[Users] u ON u.[Id] = v.[UploadedById]";
 
@@ -84,7 +84,7 @@ LEFT JOIN [dbo].[Users] u ON u.[Id] = v.[UploadedById]";
                         if (reader.Read())
                         {
                             existingId = reader.GetInt32(0);
-                            previousFile = reader.GetString(1);
+                            previousFile = reader.IsDBNull(1) ? null : reader.GetString(1);
                         }
                     }
                 }
@@ -96,22 +96,25 @@ LEFT JOIN [dbo].[Users] u ON u.[Id] = v.[UploadedById]";
                     if (existingId.HasValue)
                     {
                         command.CommandText = @"UPDATE [dbo].[HelpVideo] SET [Title] = @Title, [OriginalFileName] = @Original, [StoredFileName] = @Stored,
-[ContentType] = @Type, [SizeBytes] = @Size, [UploadedById] = @By, [UploadedAt] = @At WHERE [Id] = @Id";
+[ContentType] = @Type, [SizeBytes] = @Size, [YouTubeVideoId] = @YouTube, [UploadedById] = @By, [UploadedAt] = @At WHERE [Id] = @Id";
                         command.Parameters.Add("@Id", SqlDbType.Int).Value = existingId.Value;
                     }
                     else
                     {
-                        command.CommandText = @"INSERT INTO [dbo].[HelpVideo] ([OrganizationId], [TopicSlug], [Title], [OriginalFileName], [StoredFileName], [ContentType], [SizeBytes], [UploadedById], [UploadedAt])
-VALUES (@Org, @Slug, @Title, @Original, @Stored, @Type, @Size, @By, @At); SELECT CAST(SCOPE_IDENTITY() AS int);";
+                        command.CommandText = @"INSERT INTO [dbo].[HelpVideo] ([OrganizationId], [TopicSlug], [Title], [OriginalFileName], [StoredFileName], [ContentType], [SizeBytes], [YouTubeVideoId], [UploadedById], [UploadedAt])
+VALUES (@Org, @Slug, @Title, @Original, @Stored, @Type, @Size, @YouTube, @By, @At); SELECT CAST(SCOPE_IDENTITY() AS int);";
                         command.Parameters.Add("@Org", SqlDbType.Int).Value = video.OrganizationId;
                         command.Parameters.Add("@Slug", SqlDbType.NVarChar, 80).Value = video.TopicSlug;
                     }
 
                     command.Parameters.Add("@Title", SqlDbType.NVarChar, 200).Value = video.Title;
-                    command.Parameters.Add("@Original", SqlDbType.NVarChar, 260).Value = video.OriginalFileName;
-                    command.Parameters.Add("@Stored", SqlDbType.NVarChar, 100).Value = video.StoredFileName;
-                    command.Parameters.Add("@Type", SqlDbType.NVarChar, 50).Value = video.ContentType;
-                    command.Parameters.Add("@Size", SqlDbType.BigInt).Value = video.SizeBytes;
+                    // A row is either a YouTube video (file columns NULL) or an uploaded file (YouTubeVideoId NULL): CK_HelpVideo_Source.
+                    var isYouTube = !string.IsNullOrEmpty(video.YouTubeVideoId);
+                    command.Parameters.Add("@Original", SqlDbType.NVarChar, 260).Value = isYouTube ? DBNull.Value : (object)video.OriginalFileName;
+                    command.Parameters.Add("@Stored", SqlDbType.NVarChar, 100).Value = isYouTube ? DBNull.Value : (object)video.StoredFileName;
+                    command.Parameters.Add("@Type", SqlDbType.NVarChar, 50).Value = isYouTube ? DBNull.Value : (object)video.ContentType;
+                    command.Parameters.Add("@Size", SqlDbType.BigInt).Value = isYouTube ? DBNull.Value : (object)video.SizeBytes;
+                    command.Parameters.Add("@YouTube", SqlDbType.VarChar, 11).Value = isYouTube ? (object)video.YouTubeVideoId : DBNull.Value;
                     command.Parameters.Add("@By", SqlDbType.NVarChar, 256).Value = (object)video.UploadedById ?? DBNull.Value;
                     command.Parameters.Add("@At", SqlDbType.DateTime2).Value = video.UploadedAtUtc;
                     if (existingId.HasValue)
@@ -182,13 +185,14 @@ VALUES (@Org, @Slug, @Title, @Original, @Stored, @Type, @Size, @By, @At); SELECT
                 OrganizationId = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1),
                 TopicSlug = reader.GetString(2),
                 Title = reader.GetString(3),
-                OriginalFileName = reader.GetString(4),
-                StoredFileName = reader.GetString(5),
-                ContentType = reader.GetString(6),
-                SizeBytes = reader.GetInt64(7),
+                OriginalFileName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StoredFileName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                ContentType = reader.IsDBNull(6) ? null : reader.GetString(6),
+                SizeBytes = reader.IsDBNull(7) ? 0 : reader.GetInt64(7),
                 UploadedById = reader.IsDBNull(8) ? null : reader.GetString(8),
                 UploadedByName = reader.IsDBNull(9) ? null : reader.GetString(9),
-                UploadedAtUtc = DateTime.SpecifyKind(reader.GetDateTime(10), DateTimeKind.Utc)
+                UploadedAtUtc = DateTime.SpecifyKind(reader.GetDateTime(10), DateTimeKind.Utc),
+                YouTubeVideoId = reader.IsDBNull(11) ? null : reader.GetString(11)
             };
         }
 

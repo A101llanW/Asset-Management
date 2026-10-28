@@ -66,6 +66,42 @@
             </form>
         </div>
     </section>
+
+    <section class="am-help-admin card" id="help-video-youtube">
+        <div class="card-body">
+            <h2 class="am-help-admin-title">Link a YouTube video</h2>
+            <p class="am-help-admin-note">
+                Upload the video to YouTube as <strong>Unlisted</strong>, then paste its Share link (https://youtu.be/...) or id.
+                It plays here from youtube-nocookie.com; only signed-in users see the link. Linking replaces the topic's current video.
+            </p>
+            <form method="post" action="@TenantUrlHelper.TenantRouteUrl(Url, "SetYouTube", "HelpVideos")">
+                @Html.AntiForgeryToken()
+                <div class="row">
+                    <div class="col-md-4 mb-2">
+                        <label for="help-video-yt-topic" class="form-label">Topic</label>
+                        <select id="help-video-yt-topic" name="topicSlug" class="form-select form-control" required>
+                            <option value="">Choose a topic</option>
+                            @foreach (var option in Model.TopicOptions)
+                            {
+                                <option value="@option.Slug">@option.Label@(option.HasVideo ? " (has a video)" : "")</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="help-video-yt-title" class="form-label">Title <span class="text-muted">(optional)</span></label>
+                        <input id="help-video-yt-title" name="title" type="text" maxlength="@HelpVideoRules.MaxTitleLength" class="form-control" placeholder="Defaults to the topic" />
+                    </div>
+                    <div class="col-md-5 mb-2">
+                        <label for="help-video-yt-url" class="form-label">YouTube link or id</label>
+                        <input id="help-video-yt-url" name="youTubeUrl" type="text" maxlength="200" class="form-control" placeholder="https://youtu.be/..." required autocomplete="off" />
+                    </div>
+                </div>
+                <div class="am-help-admin-actions">
+                    <button type="submit" class="btn btn-primary">Link video</button>
+                </div>
+            </form>
+        </div>
+    </section>
 }
 
 <div class="am-help-center">
@@ -96,7 +132,17 @@
                         var video = topic.Video;
                         <article class="am-help-topic" id="@topic.Id">
                             <div class="am-help-video" aria-label="@topic.Title video">
-                                @if (video != null)
+                                @if (video != null && video.IsYouTube)
+                                {
+                                    @* Unlisted YouTube video: embedded by id (no API / oEmbed call), privacy-enhanced host, rel=0. *@
+                                    <iframe src="@HelpVideoRules.YouTubeEmbedUrl(video.YouTubeVideoId)"
+                                            title="@(video.Title)"
+                                            loading="lazy"
+                                            referrerpolicy="strict-origin-when-cross-origin"
+                                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowfullscreen></iframe>
+                                }
+                                else if (video != null)
                                 {
                                     var streamUrl = TenantUrlHelper.TenantRouteUrl(Url, "Stream", "HelpVideos", new { id = video.Id });
                                     <video controls preload="metadata" playsinline>
@@ -121,7 +167,14 @@
                                 @if (video != null && canManage)
                                 {
                                     <div class="am-help-topic-meta">
-                                        <span>@video.OriginalFileName, @HelpVideoRules.FormatSize(video.SizeBytes)</span>
+                                        @if (video.IsYouTube)
+                                        {
+                                            <span>YouTube (keep it Unlisted)</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@video.OriginalFileName, @HelpVideoRules.FormatSize(video.SizeBytes)</span>
+                                        }
                                         <span>Uploaded @video.UploadedAtUtc.ToString("yyyy-MM-dd HH:mm") UTC@(string.IsNullOrWhiteSpace(video.UploadedByName) ? "" : " by " + video.UploadedByName)</span>
                                         @if (video.IsGlobal)
                                         {

@@ -17,6 +17,9 @@ namespace AssetManagement.Web.Controllers
     /// Every signed-in tenant user can watch ([TenantAuthorize] on BaseController); upload, replace and delete need
     /// Settings.Manage. Files: ~/App_Data/HelpVideos; list: table HelpVideo (migration 109).
     /// Uploads are chunked (4 MB) because IIS caps a request at 30,000,000 bytes and httpRuntime at 50 MB.
+    /// A topic can instead point at an unlisted YouTube video (Allan, 2026-10-28: "On yt, only users with the link should
+    /// be able to view"): only the id is stored and it is embedded from youtube-nocookie.com with rel=0. The id only ever
+    /// appears in this page's HTML, which (like every action here) is behind sign-in: anonymous requests get a 302 to login.
     /// </summary>
     public class HelpVideosController : BaseController
     {
@@ -59,7 +62,7 @@ namespace AssetManagement.Web.Controllers
             }
 
             var video = _store.GetVisibleById(organizationId.Value, id);
-            var path = video == null ? null : Files().GetExistingVideoPath(video.OrganizationId, video.StoredFileName);
+            var path = video == null || video.IsYouTube ? null : Files().GetExistingVideoPath(video.OrganizationId, video.StoredFileName);
             if (path == null)
             {
                 return HttpNotFound();
@@ -191,7 +194,8 @@ namespace AssetManagement.Web.Controllers
                 throw;
             }
 
-            if (saved.Replaced && !string.Equals(saved.PreviousStoredFileName, stored, StringComparison.OrdinalIgnoreCase))
+            if (saved.Replaced && !string.IsNullOrEmpty(saved.PreviousStoredFileName)
+                && !string.Equals(saved.PreviousStoredFileName, stored, StringComparison.OrdinalIgnoreCase))
             {
                 files.DeleteVideo(session.OrganizationId, saved.PreviousStoredFileName);
             }
@@ -220,6 +224,54 @@ namespace AssetManagement.Web.Controllers
             return Json(new { ok = true });
         }
 
+        /// <summary>Points a topic at an unlisted YouTube video (link or id). Replaces the tenant's video for that topic.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize(HelpVideoRules.ManagePermission)]
+        public ActionResult SetYouTube(string topicSlug, string title, string youTubeUrl)
+        {
+            var organizationId = ResolveCurrentOrganizationId();
+            if (!organizationId.HasValue || _store == null)
+            {
+                return NotFoundPage();
+            }
+
+            var slug = HelpVideoRules.NormalizeTopicSlug(topicSlug);
+            var videoId = HelpVideoRules.ParseYouTubeId(youTubeUrl);
+            if (slug == null || videoId == null)
+            {
+                TempData["Error"] = slug == null
+                    ? "Choose a topic for the video."
+                    : "That is not a YouTube video link. Paste the video's Share link (https://youtu.be/...) or its 11-character id.";
+                return RedirectToTenantAware("HelpVideos", "Index");
+            }
+
+            var displayTitle = HelpVideoRules.NormalizeTitle(title, TopicTitle(slug) ?? "How-to video");
+            var saved = _store.Save(new HelpVideoSave
+            {
+                OrganizationId = organizationId.Value,
+                TopicSlug = slug,
+                Title = displayTitle,
+                YouTubeVideoId = videoId,
+                UploadedById = User.GetUserId(),
+                UploadedAtUtc = DateTime.UtcNow
+            });
+
+            if (saved.Replaced && !string.IsNullOrEmpty(saved.PreviousStoredFileName))
+            {
+                Files().DeleteVideo(organizationId.Value, saved.PreviousStoredFileName);
+            }
+
+            AuditWriter.Write(
+                saved.Replaced ? HelpVideoRules.AuditReplace : HelpVideoRules.AuditUpload,
+                HelpVideoRules.AuditEntityType,
+                saved.Id.ToString(CultureInfo.InvariantCulture),
+                saved.Replaced && !string.IsNullOrEmpty(saved.PreviousStoredFileName) ? "StoredFileName=" + saved.PreviousStoredFileName : null,
+                "Topic=" + slug + "; Title=" + displayTitle + "; YouTube=" + videoId);
+            TempData["Message"] = "YouTube video linked to \"" + displayTitle + "\".";
+            return RedirectToTenantAware("HelpVideos", "Index");
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize(HelpVideoRules.ManagePermission)]
@@ -238,12 +290,17 @@ namespace AssetManagement.Web.Controllers
                 return RedirectToTenantAware("HelpVideos", "Index");
             }
 
-            Files().DeleteVideo(deleted.OrganizationId, deleted.StoredFileName);
+            if (!deleted.IsYouTube)
+            {
+                Files().DeleteVideo(deleted.OrganizationId, deleted.StoredFileName);
+            }
+
             AuditWriter.Write(
                 HelpVideoRules.AuditDelete,
                 HelpVideoRules.AuditEntityType,
                 deleted.Id.ToString(CultureInfo.InvariantCulture),
-                "Topic=" + deleted.TopicSlug + "; Title=" + deleted.Title + "; File=" + deleted.OriginalFileName,
+                "Topic=" + deleted.TopicSlug + "; Title=" + deleted.Title
+                    + (deleted.IsYouTube ? "; YouTube=" + deleted.YouTubeVideoId : "; File=" + deleted.OriginalFileName),
                 null);
             TempData["Message"] = "Video \"" + deleted.Title + "\" deleted.";
             return RedirectToTenantAware("HelpVideos", "Index");
@@ -260,6 +317,22 @@ namespace AssetManagement.Web.Controllers
             }
 
             return session;
+        }
+
+        private static string TopicTitle(string slug)
+        {
+            foreach (var group in HelpVideoCatalog.BuildGroups())
+            {
+                foreach (var topic in group.Topics)
+                {
+                    if (string.Equals(topic.Id, slug, StringComparison.Ordinal))
+                    {
+                        return topic.Title;
+                    }
+                }
+            }
+
+            return null;
         }
 
         private HelpVideoFiles Files()
