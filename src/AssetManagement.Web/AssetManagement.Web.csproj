@@ -182,6 +182,7 @@
     <Compile Include="Controllers\DatabaseConsoleController.cs" />
     <Compile Include="Controllers\DepartmentsController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
+    <Compile Include="Controllers\HelpVideosController.cs" />
     <Compile Include="Controllers\IncidentsController.cs" />
     <Compile Include="Controllers\MaintenanceController.cs" />
     <Compile Include="Controllers\NotificationsController.cs" />
@@ -252,6 +253,8 @@
     <Compile Include="Helpers\TenantResolutionHelper.cs" />
     <Compile Include="Helpers\TenantRouteConstraint.cs" />
     <Compile Include="Helpers\TenantUrlHelper.cs" />
+    <Compile Include="Helpers\HelpVideoFiles.cs" />
+    <Compile Include="Helpers\HelpVideoStreamResult.cs" />
     <Compile Include="Helpers\Mvc3HtmlHelpers.cs" />
     <Compile Include="Helpers\ListHtmlHelpers.cs" />
     <Compile Include="Helpers\ListRoleDefaultsHelper.cs" />
@@ -289,6 +292,7 @@
     <Compile Include="ViewModels\AssetTagSettingsVm.cs" />
     <Compile Include="ViewModels\AssetTagRenameVm.cs" />
     <Compile Include="ViewModels\AssetScanViewModels.cs" />
+    <Compile Include="ViewModels\HelpCenterViewModels.cs" />
     <Content Include="Web.config" />
     <Content Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
@@ -303,6 +307,7 @@
     <Content Include="Content\images\nanosoft-logo.jpg" />
     <Content Include="Content\css\auth-portal.css" />
     <Content Include="Content\css\site.css" />
+    <Content Include="Content\css\help-videos.css" />
     <Content Include="Content\css\am-animations.css" />
     <Content Include="Content\css\am-modules.css" />
     <Content Include="Content\css\fonts.css" />
@@ -315,6 +320,7 @@
     <Content Include="Scripts\bootstrap.bundle.min.js" />
     <Content Include="Scripts\jquery-3.7.1.min.js" />
     <Content Include="Scripts\app\help-bot.js" />
+    <Content Include="Scripts\app\help-videos-upload.js" />
     <Content Include="Scripts\app\permissions.js" />
     <Content Include="Scripts\app\role-template-save-modal.js" />
     <Content Include="Scripts\app\role-templates.js" />
@@ -450,6 +456,7 @@
     <Content Include="Views\Home\Privacy.cshtml" />
     <Content Include="Views\Home\Terms.cshtml" />
     <Content Include="Views\Home\Forbidden.cshtml" />
+    <Content Include="Views\HelpVideos\Index.cshtml" />
     <Content Include="Views\Departments\Create.cshtml" />
     <Content Include="Views\Departments\Details.cshtml" />
     <Content Include="Views\Departments\Edit.cshtml" />

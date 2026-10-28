@@ -27,6 +27,16 @@ namespace AssetManagement.Web.Filters
                 return;
             }
 
+            // Hidden how-to video page: video byte-range requests and 4 MB upload chunks would flood the HTTP audit log.
+            // Upload / replace / delete still write their own HelpVideos.* audit rows.
+            if (string.Equals(controller, "HelpVideos", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(action, "Stream", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(action, "UploadChunk", StringComparison.OrdinalIgnoreCase)))
+            {
+                base.OnActionExecuted(filterContext);
+                return;
+            }
+
             if (string.Equals(controller, "Dashboard", StringComparison.OrdinalIgnoreCase)
                 && (string.Equals(action, "GetImpersonationStatus", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(action, "GetMyImpersonationStatus", StringComparison.OrdinalIgnoreCase)

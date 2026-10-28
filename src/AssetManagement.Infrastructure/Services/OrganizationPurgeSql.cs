@@ -114,6 +114,7 @@ namespace AssetManagement.Infrastructure.Services
             Delete("PurchaseRequestGroup"), // migration 100: after PurchaseRequest (FK)
             Delete("CatalogRequisitionFlow"), // migration 100: no FK, catalog overrides
             Delete("AssetRequest"),
+            Delete("HelpVideo"), // migration 109: no FK; all-tenant rows (OrganizationId NULL) are kept
             // rel1022a (105): print batch items -> Asset/LabelPrintBatch; batches -> themselves (reprint link) and Organization.
             Delete("LabelPrintBatchItem"),
             NullColumn("LabelPrintBatch", "ReprintOfBatchId"),

@@ -59,6 +59,9 @@ namespace AssetManagement.Application.Helpers
                 { "LabelPrintBatch.Create", "Label print batch sent" },
                 { "LabelPrintBatch.Reprint", "Label print batch reprinted" },
                 { "LabelPrintBatch.Clear", "Label print batch cleared" },
+                { HelpVideoRules.AuditUpload, "Help video uploaded" },
+                { HelpVideoRules.AuditReplace, "Help video replaced" },
+                { HelpVideoRules.AuditDelete, "Help video deleted" },
                 { "Assets.Edit.Department", "Asset department changed" },
 
                 { "Assets.AcknowledgeReceipt", "Assignment receipt acknowledged" },

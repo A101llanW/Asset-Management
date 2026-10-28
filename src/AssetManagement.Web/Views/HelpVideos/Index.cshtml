@@ -1,0 +1,153 @@
+@model AssetManagement.Web.ViewModels.HelpCenterVm
+@using AssetManagement.Web.Helpers
+@using AssetManagement.Application.Helpers
+@{
+    ViewBag.Title = "How-to videos";
+    var groups = Model != null && Model.Groups != null
+        ? Model.Groups
+        : new System.Collections.Generic.List<AssetManagement.Web.ViewModels.HelpVideoGroupVm>();
+    var canManage = Model != null && Model.CanManage;
+}
+@* Hidden page (feat/hidden-help-videos, Allan 2026-10-28): reachable only at /{tenant}/HelpVideos, no menu link. *@
+<link rel="stylesheet" href="@Url.Content("~/Content/css/help-videos.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/help-videos.css")).Ticks" />
+
+@Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
+{
+    Title = "How-to videos",
+    Subtitle = "Short walkthroughs of the Asset Management module. Topics without a recording yet show \"Video coming soon\"."
+})
+
+@if (canManage)
+{
+    <section class="am-help-admin card" id="help-video-upload">
+        <div class="card-body">
+            <h2 class="am-help-admin-title">Upload a video</h2>
+            <p class="am-help-admin-note">
+                MP4 or WebM, up to @HelpVideoRules.FormatSize(Model.MaxFileBytes). Sent in @HelpVideoRules.FormatSize(Model.ChunkSizeBytes) pieces.
+                Uploading to a topic that already has a video replaces it.
+            </p>
+            <form id="help-video-upload-form"
+                  data-start-url="@TenantUrlHelper.TenantRouteUrl(Url, "UploadStart", "HelpVideos")"
+                  data-chunk-url="@TenantUrlHelper.TenantRouteUrl(Url, "UploadChunk", "HelpVideos")"
+                  data-complete-url="@TenantUrlHelper.TenantRouteUrl(Url, "UploadComplete", "HelpVideos")"
+                  data-cancel-url="@TenantUrlHelper.TenantRouteUrl(Url, "UploadCancel", "HelpVideos")"
+                  data-chunk-size="@Model.ChunkSizeBytes"
+                  data-max-bytes="@Model.MaxFileBytes"
+                  onsubmit="return false;">
+                @Html.AntiForgeryToken()
+                <div class="row">
+                    <div class="col-md-5 mb-2">
+                        <label for="help-video-topic" class="form-label">Topic</label>
+                        <select id="help-video-topic" name="topicSlug" class="form-select form-control" required>
+                            <option value="">Choose a topic</option>
+                            @foreach (var option in Model.TopicOptions)
+                            {
+                                <option value="@option.Slug">@option.Label@(option.HasVideo ? " (has a video)" : "")</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="help-video-title" class="form-label">Title <span class="text-muted">(optional)</span></label>
+                        <input id="help-video-title" name="title" type="text" maxlength="@HelpVideoRules.MaxTitleLength" class="form-control" placeholder="Defaults to the file name" />
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="help-video-file" class="form-label">Video file</label>
+                        <input id="help-video-file" name="file" type="file" accept="video/mp4,video/webm,.mp4,.webm" class="form-control" required />
+                    </div>
+                </div>
+                <div class="am-help-admin-actions">
+                    <button type="button" class="btn btn-primary" id="help-video-upload-button">Upload</button>
+                    <button type="button" class="btn btn-outline-secondary" id="help-video-cancel-button" hidden>Cancel</button>
+                    <span class="am-help-upload-status" id="help-video-upload-status" role="status" aria-live="polite"></span>
+                </div>
+                <div class="progress am-help-upload-progress" id="help-video-upload-progress" hidden>
+                    <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+                </div>
+            </form>
+        </div>
+    </section>
+}
+
+<div class="am-help-center">
+    <nav class="am-help-toc" aria-label="Help sections">
+        <h2 class="am-help-toc-title">Sections</h2>
+        <ol class="am-help-toc-list">
+            @foreach (var group in groups)
+            {
+                <li>
+                    <a href="#@group.Id">@group.Title</a>
+                </li>
+            }
+        </ol>
+    </nav>
+
+    <div class="am-help-groups">
+        @foreach (var group in groups)
+        {
+            <section class="am-help-group" id="@group.Id">
+                <header class="am-help-group-header">
+                    <h2 class="am-help-group-title">@group.Title</h2>
+                    <p class="am-help-group-summary">@group.Summary</p>
+                </header>
+
+                <div class="am-help-topics">
+                    @foreach (var topic in group.Topics)
+                    {
+                        var video = topic.Video;
+                        <article class="am-help-topic" id="@topic.Id">
+                            <div class="am-help-video" aria-label="@topic.Title video">
+                                @if (video != null)
+                                {
+                                    var streamUrl = TenantUrlHelper.TenantRouteUrl(Url, "Stream", "HelpVideos", new { id = video.Id });
+                                    <video controls preload="metadata" playsinline>
+                                        <source src="@streamUrl" type="@video.ContentType" />
+                                        <a href="@streamUrl">Download the video</a>
+                                    </video>
+                                }
+                                else
+                                {
+                                    <div class="am-help-video-placeholder">
+                                        <span class="am-help-video-badge">Video coming soon</span>
+                                        <span class="am-help-video-placeholder-label">@topic.Title</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="am-help-topic-copy">
+                                <h3 class="am-help-topic-title">@(video != null ? video.Title : topic.Title)</h3>
+                                @if (!string.IsNullOrWhiteSpace(topic.Outline))
+                                {
+                                    <p class="am-help-topic-outline">@topic.Outline</p>
+                                }
+                                @if (video != null && canManage)
+                                {
+                                    <div class="am-help-topic-meta">
+                                        <span>@video.OriginalFileName, @HelpVideoRules.FormatSize(video.SizeBytes)</span>
+                                        <span>Uploaded @video.UploadedAtUtc.ToString("yyyy-MM-dd HH:mm") UTC@(string.IsNullOrWhiteSpace(video.UploadedByName) ? "" : " by " + video.UploadedByName)</span>
+                                        @if (video.IsGlobal)
+                                        {
+                                            <span class="am-help-video-badge">All tenants</span>
+                                        }
+                                        else
+                                        {
+                                            <form method="post" class="am-help-delete-form" action="@TenantUrlHelper.TenantRouteUrl(Url, "Delete", "HelpVideos", new { id = video.Id })" onsubmit="return confirm('Delete this video?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+</div>
+
+@section scripts {
+    @if (canManage)
+    {
+        <script src="@Url.Content("~/Scripts/app/help-videos-upload.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/help-videos-upload.js")).Ticks"></script>
+    }
+}

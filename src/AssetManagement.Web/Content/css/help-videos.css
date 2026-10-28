@@ -1,0 +1,210 @@
+/* Hidden how-to video page (/{tenant}/HelpVideos). Layout ported from the old master Help page (64fdcbd site.css .am-help-*); upload panel and meta rows added. Loaded only by Views/HelpVideos/Index.cshtml. */
+
+.am-help-center {
+    display: grid;
+    grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+    gap: 1.5rem 2rem;
+    align-items: start;
+}
+
+.am-help-toc {
+    position: sticky;
+    top: 5.5rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--am-border-soft);
+    border-radius: 0.9rem;
+    background: var(--am-surface);
+    box-shadow: var(--am-shadow);
+}
+
+.am-help-toc-title {
+    margin: 0 0 0.65rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--am-muted);
+}
+
+.am-help-toc-list {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.am-help-toc-list li + li {
+    margin-top: 0.4rem;
+}
+
+.am-help-toc-list a {
+    color: var(--am-primary-contrast);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.am-help-toc-list a:hover,
+.am-help-toc-list a:focus {
+    color: var(--am-primary-strong);
+    text-decoration: underline;
+}
+
+.am-help-group {
+    margin-bottom: 2rem;
+    scroll-margin-top: 5.5rem;
+}
+
+.am-help-group-title {
+    margin: 0 0 0.35rem;
+    font-size: 1.35rem;
+}
+
+.am-help-group-summary {
+    margin: 0 0 1rem;
+    color: var(--am-muted);
+}
+
+.am-help-topics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+    gap: 1rem;
+}
+
+.am-help-topic {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--am-border-soft);
+    border-radius: 0.9rem;
+    background: var(--am-surface);
+    box-shadow: var(--am-shadow);
+}
+
+.am-help-video {
+    position: relative;
+    height: 0;
+    padding-bottom: 56.25%;
+    background: hsl(210, 40%, 18%);
+}
+
+.am-help-video iframe,
+.am-help-video video,
+.am-help-video-placeholder {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.am-help-video-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 1rem;
+    color: rgba(255, 255, 255, 0.82);
+    text-align: center;
+}
+
+.am-help-video-badge {
+    display: inline-flex;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.am-help-video-placeholder-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.am-help-topic-copy {
+    padding: 0.9rem 1rem 1.05rem;
+}
+
+.am-help-topic-title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+}
+
+.am-help-topic-outline {
+    margin: 0;
+    color: var(--am-muted);
+    font-size: 0.88rem;
+}
+
+@media (max-width: 767.98px) {
+    .am-help-center {
+        grid-template-columns: 1fr;
+    }
+
+    .am-help-toc {
+        position: static;
+    }
+}
+
+.am-help-admin {
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--am-border-soft);
+    border-radius: 0.9rem;
+    background: var(--am-surface);
+    box-shadow: var(--am-shadow);
+}
+
+.am-help-admin-title {
+    margin: 0 0 0.35rem;
+    font-size: 1.1rem;
+}
+
+.am-help-admin-note {
+    margin: 0 0 0.75rem;
+    color: var(--am-muted);
+    font-size: 0.88rem;
+}
+
+.am-help-admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+}
+
+.am-help-upload-status {
+    font-size: 0.88rem;
+}
+
+.am-help-upload-progress {
+    margin-top: 0.75rem;
+    height: 1.1rem;
+}
+
+.am-help-topic-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.6rem;
+    color: var(--am-muted);
+    font-size: 0.78rem;
+}
+
+.am-help-topic-meta .am-help-video-badge {
+    align-self: flex-start;
+    background: var(--am-surface);
+    border-color: var(--am-border-soft);
+    color: var(--am-muted);
+}
+
+.am-help-delete-form {
+    margin: 0.2rem 0 0;
+}

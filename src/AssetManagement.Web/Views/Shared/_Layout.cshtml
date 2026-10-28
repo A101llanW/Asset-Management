@@ -235,10 +235,14 @@
         @RenderBody()
     </main>
 
+    @* Process Assistant "Help" button hidden (Allan, 2026-10-28: "hiding that redirect 'help' button"); the how-to
+       videos are on the hidden direct-URL help page instead (see HomeController.Help). _HelpBot.cshtml and help-bot.js are kept; to bring the
+       button back, restore this block and the help-bot.js include below (it also needs appSetting ProcessAssistantEnabled=true).
     @if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
     {
         @Html.Partial("_HelpBot")
     }
+    *@
 
     @RenderSection("modals", required: false)
 
@@ -287,10 +291,12 @@
     <script src="@Url.Content("~/Scripts/jquery-3.7.1.min.js")"></script>
     <script src="@Url.Content("~/Scripts/bootstrap.bundle.min.js")"></script>
     <script src="@Url.Content("~/Scripts/app/permissions.js")"></script>
+    @* help-bot.js hidden with the Help button above (2026-10-28).
     @if (Request.IsAuthenticated && ProcessAssistantConfig.IsEnabled)
     {
         <script src="@Url.Content("~/Scripts/app/help-bot.js")"></script>
     }
+    *@
     <script src="@Url.Content("~/Scripts/app/site-interactive.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/site-interactive.js")).Ticks"></script>
     @if (Request.IsAuthenticated)
     {

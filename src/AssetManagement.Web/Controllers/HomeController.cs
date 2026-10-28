@@ -19,6 +19,21 @@ namespace AssetManagement.Web.Controllers
             return View();
         }
 
+        /// <summary>
+        /// Old /{tenant}/Home/Help address of the how-to page: sends the user to the hidden /{tenant}/HelpVideos page
+        /// (which asks for sign-in). Without a tenant in the URL there is no page to show.
+        /// </summary>
+        public ActionResult Help()
+        {
+            var tenant = TenantUrlHelper.GetTenantToken(RouteData);
+            if (!TenantUrlHelper.IsValidTenantSlug(tenant))
+            {
+                return HttpNotFound();
+            }
+
+            return TenantUrlHelper.CreateTenantRedirect(tenant, "HelpVideos", "Index");
+        }
+
         public ActionResult Privacy()
         {
             return BuildLegalDocumentView(true);
