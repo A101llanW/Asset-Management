@@ -63,6 +63,7 @@ namespace AssetManagement.Web.Controllers
                     model.DepartmentId = deptId.Value;
                 }
             });
+            model.DepartmentLocked = IsRequisitionDepartmentLocked();
 
             if (fromAssetRequestId.HasValue)
             {
@@ -170,6 +171,15 @@ namespace AssetManagement.Web.Controllers
                     model.DepartmentId = deptId.Value;
                 }
             });
+
+            // Migration 110: never bound from the form; a locked requester's department routes approval for a person too.
+            model.DepartmentLocked = IsRequisitionDepartmentLocked();
+            model.RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind);
+            if (RequisitionTargetRules.IsPerson(model.RequisitionTargetKind) && !model.DepartmentLocked)
+            {
+                // The approval department of a person target is resolved by the service (person's room / department).
+                ModelState.Remove("DepartmentId");
+            }
 
             model.RequestForSelf = true;
             model.Currency = GetDefaultCurrencyCode();
@@ -457,12 +467,18 @@ namespace AssetManagement.Web.Controllers
             return Json(items, JsonRequestBehavior.AllowGet);
         }
 
+        /// <summary>The requester may only raise requisitions for their own department (same rule the view renders as locked).</summary>
+        private bool IsRequisitionDepartmentLocked()
+        {
+            return !HasPermission("Purchases.CreateForAnyDepartment")
+                && !IsCurrentUserSuperAdmin()
+                && GetCurrentUserDepartmentId().HasValue;
+        }
+
         private void PopulateCreateLookups(PurchaseRequestCreateVm model)
         {
             var canCreateForAnyDepartment = HasPermission("Purchases.CreateForAnyDepartment");
-            var lockDepartment = !canCreateForAnyDepartment
-                && !IsCurrentUserSuperAdmin()
-                && GetCurrentUserDepartmentId().HasValue;
+            var lockDepartment = IsRequisitionDepartmentLocked();
             int? departmentId = model == null ? GetCurrentUserDepartmentId() : (int?)model.DepartmentId;
             ViewBag.CanCreateForAnyDepartment = canCreateForAnyDepartment;
             ViewBag.LockDepartment = lockDepartment;
@@ -482,6 +498,9 @@ namespace AssetManagement.Web.Controllers
             ViewBag.TargetAssetSearchUrl = TenantUrlHelper.TenantRouteUrl(Url, "SearchTargetAssets", "PurchaseRequests");
             ViewBag.PreviewApprovalPathUrl = TenantUrlHelper.TenantRouteUrl(Url, "PreviewApprovalPath", "PurchaseRequests");
             PopulateCatalogPickers();
+            PopulateClassificationInlineCreate(ClassificationCreateOrigin.Requisition, "PurchaseRequests");
+            // Migration 110: "Requisition target (room or person)" person list.
+            ViewBag.PersonTargetOptions = _purchaseRequestService.GetPersonTargetOptions();
             // Migration 108: tags are per line. An older link / asset request posting the header tag shows it on line 1.
             if (model != null)
             {

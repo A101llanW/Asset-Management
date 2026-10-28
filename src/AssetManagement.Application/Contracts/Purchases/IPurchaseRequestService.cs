@@ -25,6 +25,9 @@ namespace AssetManagement.Application.Contracts
         /// <summary>Create form preview: per-line approval path using the same classification and resolution as submit.</summary>
         PurchaseRequestPathPreviewVm PreviewPaths(PurchaseRequestCreateVm model);
 
+        /// <summary>Migration 110: active users of the current organization for the "Person" target, with their room / class and routing department.</summary>
+        IList<RequisitionPersonTargetOptionVm> GetPersonTargetOptions();
+
         /// <summary>Requisitions auto-split from one form; null when the group is unknown or none is visible to the user.</summary>
         PurchaseRequestBatchVm GetBatch(int groupId);
 

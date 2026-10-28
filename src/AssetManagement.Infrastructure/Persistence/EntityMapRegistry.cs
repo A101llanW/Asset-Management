@@ -23,14 +23,14 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(DepartmentApprovalStage));
             Register(typeof(Supplier));
             Register(typeof(SupplierCatalogItem));
-            Register(typeof(AssetCategory));
-            Register(typeof(AssetType));
-            Register(typeof(AssetSubType));
+            Register(typeof(AssetCategory)); // migration 110: CreatedById, CreatedVia
+            Register(typeof(AssetType)); // migration 110: CreatedById, CreatedVia
+            Register(typeof(AssetSubType)); // migration 110: CreatedById, CreatedVia
             Register(typeof(Asset));
             Register(typeof(AssetRequest));
             Register(typeof(AssetDocument));
             Register(typeof(AssetDocumentRequirement));
-            Register(typeof(PurchaseRequest));
+            Register(typeof(PurchaseRequest)); // RequisitionTargetKind, TargetUserId, TargetPlacement, TargetDepartmentId: migration 110
             Register(typeof(PurchaseRequestLine)); // ItemName, TargetAssetId: migration 108
             Register(typeof(PurchaseRequestGroup)); // migration 100
             Register(typeof(CatalogRequisitionFlow)); // migration 100

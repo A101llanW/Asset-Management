@@ -350,6 +350,71 @@ namespace AssetManagement.Web.Controllers
                 && BuildAuthorizationService().HasPermission(userId, permissionCode);
         }
 
+        /// <summary>
+        /// Requisition form / receiving: whether to render "Add new..." for a missing category / type / sub-type, and
+        /// where it posts (the screen's own CreateClassification action). The rule lives in
+        /// ClassificationInlineCreatePolicy (one place; the actions authorise with PermissionFor(origin)).
+        /// </summary>
+        protected void PopulateClassificationInlineCreate(string origin, string controllerName)
+        {
+            ViewBag.CanCreateClassification = ClassificationInlineCreatePolicy.CanCreate(origin, HasPermission, IsCurrentUserSuperAdmin());
+            ViewBag.ClassificationInlineCreateUrl = TenantUrlHelper.TenantRouteUrl(Url, "CreateClassification", controllerName);
+        }
+
+        /// <summary>
+        /// Shared body of the screens' CreateClassification actions. The organisation is never taken from the post: the
+        /// service forces the signed-in user's own organisation. Who / where are stored on the new rows and audited.
+        /// </summary>
+        protected JsonResult CreateClassificationInlineJson(string origin, int? categoryId, string categoryName, int? assetTypeId, string typeName, string subTypeName)
+        {
+            var service = DependencyResolver.Current.GetService<IAssetClassificationCreateService>();
+            if (service == null)
+            {
+                return Json(new { success = false, message = "Adding categories, types and sub-types is not available." });
+            }
+
+            try
+            {
+                var created = service.CreateChain(new ClassificationChainCreateVm
+                {
+                    CategoryId = categoryId,
+                    CategoryName = categoryName,
+                    AssetTypeId = assetTypeId,
+                    TypeName = typeName,
+                    SubTypeName = subTypeName
+                }, User.GetUserId(), origin);
+
+                // Cached category / type lists (ReferenceDataCache) must show the new items on the next page load.
+                var orgId = ResolveCurrentOrganizationId();
+                var cache = BuildReferenceDataCache();
+                if (orgId.HasValue && cache != null)
+                {
+                    cache.InvalidateCategories(orgId.Value);
+                }
+
+                return Json(new
+                {
+                    success = true,
+                    categoryId = created.CategoryId,
+                    categoryName = created.CategoryName,
+                    categoryCreated = created.CategoryCreated,
+                    assetTypeId = created.AssetTypeId,
+                    assetTypeName = created.AssetTypeName,
+                    typeCreated = created.TypeCreated,
+                    subTypeId = created.AssetSubTypeId,
+                    subTypeName = created.AssetSubTypeName
+                });
+            }
+            catch (AssetManagement.Application.DTOs.BusinessException ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+            catch (System.Data.SqlClient.SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
+            {
+                return Json(new { success = false, message = "That category, type or sub-type was just created by someone else. Reload the page and select it." });
+            }
+        }
+
         protected void ApplyLockedUserDepartment(int? lockedDepartmentId, Action<int?> applyDepartment)
         {
             if (!lockedDepartmentId.HasValue || applyDepartment == null || IsCurrentUserSuperAdmin())

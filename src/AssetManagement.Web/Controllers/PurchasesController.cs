@@ -202,6 +202,20 @@ namespace AssetManagement.Web.Controllers
             // Full-depth "Parent > Child" department / room picker (rel1009g tree).
             ViewBag.DepartmentTree = BuildDepartmentTreeSelectList();
             ViewBag.ConditionOptions = BuildAssetConditionSelectList(null);
+            // Inline "Add new..." category / type / sub-type on the receiving lines (ClassificationInlineCreatePolicy).
+            PopulateClassificationInlineCreate(Application.Helpers.ClassificationCreateOrigin.Receiving, "Purchases");
+        }
+
+        /// <summary>
+        /// "Add new..." on the receiving screen (Allan 2026-10-28 15:03 EAT): anyone who can receive goods may add a
+        /// missing category / type / sub-type. No organisation parameter: the user's own organisation is always used.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize(Application.Helpers.ClassificationInlineCreatePolicy.ReceivingScreenPermission)]
+        public JsonResult CreateClassification(int? categoryId = null, string categoryName = null, int? assetTypeId = null, string typeName = null, string subTypeName = null)
+        {
+            return CreateClassificationInlineJson(Application.Helpers.ClassificationCreateOrigin.Receiving, categoryId, categoryName, assetTypeId, typeName, subTypeName);
         }
 
         [PermissionAuthorize("Purchases.Edit")]
@@ -395,9 +409,15 @@ namespace AssetManagement.Web.Controllers
                 {
                     Id = t.Id,
                     Name = t.Name,
+                    ParentId = t.AssetCategoryId,
                     GroupName = categories.ContainsKey(t.AssetCategoryId) ? categories[t.AssetCategoryId] : "Other"
                 })
                 .OrderBy(x => x.GroupName).ThenBy(x => x.Name)
+                .ToList();
+            // Inline "+ Add new type..." on receiving offers the existing categories (or a new one).
+            ViewBag.LineCategoryOptions = categories
+                .Select(c => new AssetClassOptionVm { Id = c.Key, Name = c.Value })
+                .OrderBy(x => x.Name)
                 .ToList();
             var typeNames = types.ToDictionary(t => t.Id, t => t.Name);
             ViewBag.LineSubTypeOptions = UnitOfWork.Repository<AssetSubType>().GetAll()

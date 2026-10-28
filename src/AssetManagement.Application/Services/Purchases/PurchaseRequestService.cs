@@ -197,6 +197,22 @@ namespace AssetManagement.Application.Services
                     .ToList();
             }
 
+            var targetKind = RequisitionTargetRules.NormalizeKind(entity.RequisitionTargetKind);
+            string targetUserName = null;
+            string targetDepartmentName = null;
+            if (RequisitionTargetRules.IsPerson(targetKind))
+            {
+                var targetUser = string.IsNullOrWhiteSpace(entity.TargetUserId) ? null : _userService.GetById(entity.TargetUserId);
+                targetUserName = targetUser == null ? entity.TargetUserId : RequisitionTargetRules.PersonDisplayName(targetUser);
+                if (entity.TargetDepartmentId.HasValue)
+                {
+                    targetDepartmentName = departmentLookup.ContainsKey(entity.TargetDepartmentId.Value)
+                        ? departmentLookup[entity.TargetDepartmentId.Value]
+                        : _unitOfWork.Repository<Department>().GetById(entity.TargetDepartmentId.Value)?.Name;
+                }
+            }
+
+            var detailDepartmentName = departmentLookup.ContainsKey(entity.DepartmentId) ? departmentLookup[entity.DepartmentId] : null;
             return new PurchaseRequestDetailVm
             {
                 Id = entity.Id,
@@ -205,7 +221,16 @@ namespace AssetManagement.Application.Services
                 ApprovedById = entity.ApprovedById,
                 ApprovalStatus = entity.ApprovalStatus.ToString(),
                 DepartmentId = entity.DepartmentId,
-                DepartmentName = departmentLookup.ContainsKey(entity.DepartmentId) ? departmentLookup[entity.DepartmentId] : null,
+                DepartmentName = detailDepartmentName,
+                RequisitionTargetKind = targetKind,
+                TargetUserId = entity.TargetUserId,
+                TargetUserName = targetUserName,
+                TargetPlacement = RequisitionTargetRules.NormalizePlacement(entity.TargetPlacement),
+                TargetDepartmentId = entity.TargetDepartmentId,
+                TargetDepartmentName = targetDepartmentName,
+                TargetSummary = targetKind == null
+                    ? null
+                    : RequisitionTargetRules.Describe(targetKind, detailDepartmentName, targetUserName, entity.TargetPlacement, targetDepartmentName),
                 Justification = entity.Justification,
                 ItemDescription = entity.ItemDescription,
                 QuantityInStock = entity.QuantityInStock,
@@ -266,6 +291,9 @@ namespace AssetManagement.Application.Services
             {
                 throw new BusinessException("Current user is required.");
             }
+
+            // Migration 110: a person target resolves its approval department / placement first (room target: unchanged).
+            var personTarget = ResolvePersonTarget(model);
 
             var department = _unitOfWork.Repository<Department>().GetById(model.DepartmentId);
             if (department == null)
@@ -385,7 +413,8 @@ namespace AssetManagement.Application.Services
                         // Header tag (back-compat for lists, Details and older PO/receiving code): the first tagged line
                         // of THIS requisition, so each split requisition keeps the tags of its own lines.
                         partition.Lines.Select(x => x.Line.TargetAssetId).FirstOrDefault(x => x.HasValue),
-                        groupId);
+                        groupId,
+                        personTarget);
                     result.RequestIds.Add(entity.Id);
                     result.RequestNumbers.Add(entity.RequestNumber);
                     result.FlowSources.Add(partition.Resolved.SourceLabel);
@@ -410,6 +439,102 @@ namespace AssetManagement.Application.Services
             return result;
         }
 
+        public IList<RequisitionPersonTargetOptionVm> GetPersonTargetOptions()
+        {
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var departments = OrganizationDepartments(organizationId);
+            var byId = departments.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
+            var options = new List<RequisitionPersonTargetOptionVm>();
+            foreach (var user in (_userService.GetAll() ?? Enumerable.Empty<UserVm>()).Where(x => x != null && x.IsActive))
+            {
+                var room = RequisitionTargetRules.FindAssignedRoom(user.Id, user.DepartmentId, departments);
+                Department profile;
+                byId.TryGetValue(user.DepartmentId ?? 0, out profile);
+                var routing = RequisitionTargetRules.ResolveRoutingDepartment(null, room, profile);
+                options.Add(new RequisitionPersonTargetOptionVm
+                {
+                    UserId = user.Id,
+                    DisplayName = RequisitionTargetRules.PersonDisplayName(user),
+                    RoomId = room == null ? (int?)null : room.Id,
+                    RoomLabel = room == null ? null : RequisitionTargetRules.PathLabel(room, byId),
+                    RoutingDepartmentId = routing == null ? (int?)null : routing.Id
+                });
+            }
+
+            return options
+                .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.UserId, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Migration 110: for RequisitionTargetKind = Person, checks the person (active, this organization), works out
+        /// their room / class, the placement (asked when they have a room; company custody held by them otherwise) and the
+        /// approval department, and writes them back to the model (DepartmentId, TargetUserId, TargetPlacement). A
+        /// locked requester keeps their own department for approval. Room / legacy: only normalises the kind.
+        /// </summary>
+        private PersonTargetResolution ResolvePersonTarget(PurchaseRequestCreateVm model)
+        {
+            model.RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind);
+            if (!RequisitionTargetRules.IsPerson(model.RequisitionTargetKind))
+            {
+                model.TargetUserId = null;
+                model.TargetPlacement = null;
+                return null;
+            }
+
+            var userId = string.IsNullOrWhiteSpace(model.TargetUserId) ? null : model.TargetUserId.Trim();
+            if (userId == null)
+            {
+                throw new BusinessException("Choose the person this requisition is for.");
+            }
+
+            var user = _userService.GetById(userId);
+            if (user == null || !user.IsActive)
+            {
+                throw new BusinessException("The selected person was not found or is inactive.");
+            }
+
+            var organizationId = _organizationScope.GetCurrentOrganizationId();
+            var departments = OrganizationDepartments(organizationId);
+            var name = RequisitionTargetRules.PersonDisplayName(user);
+            var room = RequisitionTargetRules.FindAssignedRoom(user.Id, user.DepartmentId, departments);
+            var placement = RequisitionTargetRules.ResolvePlacement(room != null, model.TargetPlacement, name);
+            Department locked = null;
+            if (model.DepartmentLocked && model.DepartmentId > 0)
+            {
+                locked = _unitOfWork.Repository<Department>().GetById(model.DepartmentId);
+            }
+
+            var profile = user.DepartmentId.HasValue ? departments.FirstOrDefault(x => x.Id == user.DepartmentId.Value) : null;
+            var routing = RequisitionTargetRules.ResolveRoutingDepartment(locked, room, profile);
+            if (routing == null)
+            {
+                throw new BusinessException(name + " has no room or department that can receive requisitions. Choose a room as the requisition target instead.");
+            }
+
+            model.TargetUserId = user.Id;
+            model.TargetPlacement = placement;
+            model.DepartmentId = routing.Id;
+            return new PersonTargetResolution { UserName = name, Room = room, Placement = placement };
+        }
+
+        private IList<Department> OrganizationDepartments(int? organizationId)
+        {
+            return _unitOfWork.Repository<Department>().GetAll()
+                .Where(x => x != null && (!organizationId.HasValue || !x.OrganizationId.HasValue || x.OrganizationId.Value == organizationId.Value))
+                .ToList();
+        }
+
+        private sealed class PersonTargetResolution
+        {
+            public string UserName { get; set; }
+
+            public Department Room { get; set; }
+
+            public string Placement { get; set; }
+        }
+
         public PurchaseRequestPathPreviewVm PreviewPaths(PurchaseRequestCreateVm model)
         {
             var result = new PurchaseRequestPathPreviewVm
@@ -420,6 +545,18 @@ namespace AssetManagement.Application.Services
             if (model == null)
             {
                 return result;
+            }
+
+            if (RequisitionTargetRules.IsPerson(model.RequisitionTargetKind))
+            {
+                try
+                {
+                    ResolvePersonTarget(model); // sets DepartmentId to the approval department the submit will use
+                }
+                catch (BusinessException)
+                {
+                    // Not resolvable yet (no person / placement chosen): preview with the posted department, as before.
+                }
             }
 
             // Keep every posted row (blank description = placeholder) so line numbers match the form rows.
@@ -791,7 +928,8 @@ namespace AssetManagement.Application.Services
             RequisitionFlowResolveResult resolved,
             string requestedByUserId,
             int? targetAssetId,
-            int? groupId)
+            int? groupId,
+            PersonTargetResolution personTarget)
         {
             var approvalConfig = resolved.Configuration;
             var summary = SummarizeLines(lines.Select(x => x.Line).ToList());
@@ -813,9 +951,18 @@ namespace AssetManagement.Application.Services
                 TargetAssetId = targetAssetId,
                 PurchaseRequestGroupId = groupId,
                 ApprovalFlowSource = Truncate(resolved.SourceLabel, 200),
+                RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind),
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
+            if (personTarget != null)
+            {
+                entity.TargetUserId = model.TargetUserId;
+                entity.TargetPlacement = personTarget.Placement;
+                entity.TargetDepartmentId = personTarget.Placement == RequisitionTargetRules.PlacementPersonRoom && personTarget.Room != null
+                    ? (int?)personTarget.Room.Id
+                    : null;
+            }
 
             if (!approvalConfig.UsesApproval)
             {

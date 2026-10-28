@@ -22,6 +22,7 @@ namespace AssetManagement.Application.Services
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
         private readonly IUserService _userService;
+        private readonly IAssignmentService _assignmentService;
 
         public ReceivingService(
             IUnitOfWork unitOfWork,
@@ -30,9 +31,11 @@ namespace AssetManagement.Application.Services
             IOutboxWriter outboxWriter,
             IOrganizationScopeService organizationScope,
             IAuditWriter auditWriter = null,
-            IUserService userService = null)
+            IUserService userService = null,
+            IAssignmentService assignmentService = null)
         {
             _userService = userService;
+            _assignmentService = assignmentService;
             _unitOfWork = unitOfWork;
             _assetSubTypeService = assetSubTypeService;
             _assetService = assetService;
@@ -343,6 +346,9 @@ namespace AssetManagement.Application.Services
                 PurchaseRequestNumber = request?.RequestNumber,
                 RequisitionDepartmentId = request != null && request.DepartmentId > 0 ? (int?)request.DepartmentId : null,
                 RequisitionDepartmentName = request != null ? ResolveDepartmentName(request.DepartmentId) : null,
+                RequisitionTargetKind = request == null ? null : RequisitionTargetRules.NormalizeKind(request.RequisitionTargetKind),
+                TargetUserId = request == null ? null : request.TargetUserId,
+                TargetPlacement = request == null ? null : RequisitionTargetRules.NormalizePlacement(request.TargetPlacement),
                 IsLegacy = status.IsLegacy,
                 Status = status.Status,
                 Ordered = status.Ordered,
@@ -352,6 +358,26 @@ namespace AssetManagement.Application.Services
                 RequisitionOrderedQuantity = requisitionSummary == null ? 0 : requisitionSummary.OrderedQuantity,
                 ReceivedDate = DateTime.UtcNow
             };
+
+            // Migration 110: a person target defaults every line to the person's room (PersonRoom) or to Store, i.e.
+            // company custody, with the person recorded as custodian on receipt (CompanyCustody). Room / legacy: the
+            // requesting department, as before. The receiver can still change each line's destination.
+            int? defaultDestinationId = model.RequisitionDepartmentId;
+            if (RequisitionTargetRules.IsPerson(model.RequisitionTargetKind))
+            {
+                model.TargetUserName = ResolveUserName(model.TargetUserId);
+                if (model.TargetPlacement == RequisitionTargetRules.PlacementPersonRoom && request.TargetDepartmentId.HasValue)
+                {
+                    defaultDestinationId = request.TargetDepartmentId;
+                    model.TargetDepartmentName = ResolveDepartmentName(request.TargetDepartmentId);
+                }
+                else
+                {
+                    defaultDestinationId = null;
+                }
+
+                model.TargetSummary = RequisitionTargetRules.Describe(model.RequisitionTargetKind, model.RequisitionDepartmentName, model.TargetUserName, model.TargetPlacement, model.TargetDepartmentName);
+            }
 
             foreach (var line in status.Lines)
             {
@@ -382,8 +408,8 @@ namespace AssetManagement.Application.Services
                     // QA 2026-10-28 finding 5 (Allan: "Keep the department default and reword the help text"): every line defaults to
                     // the requesting department; the receiver can switch to Store (company custody) or pick another department.
                     // A requisition with no department defaults to Store.
-                    DestinationKind = model.RequisitionDepartmentId.HasValue ? ReceiveOrderLineVm.DestinationDepartment : ReceiveOrderLineVm.DestinationStore,
-                    DestinationDepartmentId = model.RequisitionDepartmentId
+                    DestinationKind = defaultDestinationId.HasValue ? ReceiveOrderLineVm.DestinationDepartment : ReceiveOrderLineVm.DestinationStore,
+                    DestinationDepartmentId = defaultDestinationId
                 });
             }
 
@@ -516,6 +542,10 @@ namespace AssetManagement.Application.Services
             var summary = new List<string>();
             var receivingId = 0;
             var fullyReceived = false;
+            var custodyUserId = ResolveCompanyCustodyUserId(request);
+            var custodyUserName = custodyUserId == null ? null : ResolveUserName(custodyUserId);
+            var custodyAssignments = new List<KeyValuePair<AssetAssignment, int>>();
+            var custodyNotes = new List<string>();
             try
             {
                 _unitOfWork.ExecuteInTransaction(() =>
@@ -648,6 +678,48 @@ namespace AssetManagement.Application.Services
                             + (plan.ClassificationBefore != null ? " [classification changed at receiving]" : string.Empty));
                     }
 
+                    // Migration 110: Person target + company custody: assets received to Store get the person as custodian
+                    // through the normal assignment (custody event, movement, status Assigned). Lines sent to a department
+                    // are left as the receiver chose. A refused assignment (e.g. inactive user) never blocks the receipt.
+                    if (custodyUserId != null)
+                    {
+                        foreach (var plan in plans.Where(x => x.Destination == null))
+                        {
+                            foreach (var assetId in plan.CreatedAssetIds)
+                            {
+                                try
+                                {
+                                    var assignment = _assignmentService.AssignWithoutSave(new AssetAssignmentVm
+                                    {
+                                        AssetId = assetId,
+                                        ToUserId = custodyUserId,
+                                        ToDepartmentId = null,
+                                        AssignmentType = AssignmentType.Permanent.ToString(),
+                                        AssignedDate = model.ReceivedDate,
+                                        HandedOverById = receivedById,
+                                        ReceivedById = custodyUserId,
+                                        ConditionBeforeHandover = plan.Condition,
+                                        HandoverNotes = "Company custody, held by the requisition's person target (requisition "
+                                            + (request.RequestNumber ?? request.Id.ToString()) + ", PO " + (purchase.PurchaseOrderNumber ?? purchase.Id.ToString()) + ")."
+                                    });
+                                    _unitOfWork.SaveChanges();
+                                    custodyAssignments.Add(new KeyValuePair<AssetAssignment, int>(assignment, assetId));
+                                }
+                                catch (BusinessException ex)
+                                {
+                                    custodyNotes.Add("asset " + assetId + " not assigned to the person: " + ex.Message);
+                                }
+                            }
+                        }
+
+                        if (custodyAssignments.Count > 0)
+                        {
+                            summary.Add("custodian " + custodyUserName + " (company custody) on " + custodyAssignments.Count + " asset(s)");
+                        }
+
+                        summary.AddRange(custodyNotes);
+                    }
+
                     // PO status: Received once nothing is outstanding (ReceivedDate stamped); otherwise Partially Received.
                     if (remainingOnOrder - totalRequested <= 0)
                     {
@@ -696,8 +768,43 @@ namespace AssetManagement.Application.Services
                         + " | assets " + string.Join(",", plan.CreatedAssetIds));
             }
 
+            foreach (var pair in custodyAssignments)
+            {
+                _assignmentService.RecordAssignmentAudit(pair.Key, pair.Value);
+            }
+
             NotifyRequisitionReceipt(request, purchase, createdAssets.Count, statusText);
             return new ReceiveResultVm { ReceivingId = receivingId, CreatedAssets = createdAssets };
+        }
+
+        /// <summary>
+        /// Migration 110: the custodian for assets received to Store, when the requisition is for a person with
+        /// TargetPlacement = CompanyCustody. Null otherwise (room / legacy / PersonRoom), or when no assignment service is
+        /// wired (the receipt then behaves exactly as before).
+        /// </summary>
+        private string ResolveCompanyCustodyUserId(PurchaseRequest request)
+        {
+            if (request == null
+                || _assignmentService == null
+                || !RequisitionTargetRules.IsPerson(request.RequisitionTargetKind)
+                || RequisitionTargetRules.NormalizePlacement(request.TargetPlacement) != RequisitionTargetRules.PlacementCompanyCustody
+                || string.IsNullOrWhiteSpace(request.TargetUserId))
+            {
+                return null;
+            }
+
+            return request.TargetUserId.Trim();
+        }
+
+        private string ResolveUserName(string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || _userService == null)
+            {
+                return userId;
+            }
+
+            var user = _userService.GetById(userId);
+            return user == null ? userId : RequisitionTargetRules.PersonDisplayName(user);
         }
 
         private Department ResolveDestination(ReceiveOrderLineVm input, PurchaseRecord purchase, string label)

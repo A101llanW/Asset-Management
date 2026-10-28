@@ -21,6 +21,15 @@
     // QA 2026-10-28: a tagged line shows the asset's Category / Type / Sub-type read-only (the server re-resolves them from the tag).
     var lineTargetClassifications = ViewBag.LineTargetClassifications as IDictionary<int, string[]> ?? new Dictionary<int, string[]>();
     var assetNameMax = AssetManagement.Application.Helpers.AssetNameRules.MaxLength;
+    // Migration 110: "Requisition target (room or person)".
+    var personTargets = ViewBag.PersonTargetOptions as IList<AssetManagement.Application.ViewModels.RequisitionPersonTargetOptionVm> ?? new List<AssetManagement.Application.ViewModels.RequisitionPersonTargetOptionVm>();
+    var postedTargetKind = AssetManagement.Application.Helpers.RequisitionTargetRules.NormalizeKind(Model.RequisitionTargetKind);
+    var initialTargetKind = postedTargetKind ?? (lockDepartment || Model.DepartmentId > 0 ? AssetManagement.Application.Helpers.RequisitionTargetRules.KindRoom : null);
+    var targetIsRoom = initialTargetKind == AssetManagement.Application.Helpers.RequisitionTargetRules.KindRoom;
+    var targetIsPerson = initialTargetKind == AssetManagement.Application.Helpers.RequisitionTargetRules.KindPerson;
+    var postedPlacement = AssetManagement.Application.Helpers.RequisitionTargetRules.NormalizePlacement(Model.TargetPlacement);
+    var canCreateClassification = ViewBag.CanCreateClassification == true;
+    var classificationCreateUrl = ViewBag.ClassificationInlineCreateUrl as string ?? string.Empty;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -59,24 +68,77 @@
     <input type="hidden" name="returnUrl" value="@returnUrl" />
     @Html.ValidationSummary(true, "", new { @class = "text-danger" })
     <div class="row g-3">
-        <div class="col-md-4">
-            <label class="form-label">Requisition target <span class="text-danger">*</span></label>
-            @if (lockDepartment)
-            {
-                @Html.HiddenFor(m => m.DepartmentId)
-                <input type="text" class="form-control" id="department-display" readonly="readonly" value="@(string.IsNullOrWhiteSpace(departmentName) ? "Your department" : departmentName)" />
-            }
-            else if (departmentGroups != null && departmentGroups.Count > 0)
-            {
-                @Html.GroupedDepartmentDropDown("DepartmentId", departmentGroups, "-- Select target department --", new { @class = "form-select am-requisition-target-select", required = "required", id = "DepartmentId" })
-                @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
-            }
-            else
-            {
-                @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select target department --", new { @class = "form-select", required = "required", id = "DepartmentId" })
-                @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
-            }
-            <div class="form-text">Room, classroom, or admin unit that will receive these goods.</div>
+        <div class="col-md-8" id="requisition-target">
+            <label class="form-label d-block">Requisition target (room or person) <span class="text-danger">*</span></label>
+            <div class="mb-2" role="radiogroup" aria-label="Is this requisition for a room or a person?">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input am-target-kind" type="radio" name="RequisitionTargetKind" id="target-kind-room" value="Room" required="required" @(targetIsRoom ? "checked=\"checked\"" : "") />
+                    <label class="form-check-label" for="target-kind-room">A room</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input am-target-kind" type="radio" name="RequisitionTargetKind" id="target-kind-person" value="Person" @(targetIsPerson ? "checked=\"checked\"" : "") />
+                    <label class="form-check-label" for="target-kind-person">A person</label>
+                </div>
+            </div>
+            <div id="target-kind-prompt" class="form-text mt-0@(initialTargetKind == null ? "" : " d-none")">First choose whether this requisition is for a room or for a person.</div>
+            @Html.ValidationMessageFor(m => m.RequisitionTargetKind, "", new { @class = "text-danger" })
+            <div id="target-room-panel" class="@(targetIsRoom ? "" : "d-none")">
+                @if (lockDepartment)
+                {
+                    @Html.HiddenFor(m => m.DepartmentId)
+                    <input type="text" class="form-control" id="department-display" readonly="readonly" value="@(string.IsNullOrWhiteSpace(departmentName) ? "Your department" : departmentName)" />
+                }
+                else if (departmentGroups != null && departmentGroups.Count > 0)
+                {
+                    @Html.GroupedDepartmentDropDown("DepartmentId", departmentGroups, "-- Select room / department --", new { @class = "form-select am-requisition-target-select", required = "required", id = "DepartmentId" })
+                    @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
+                }
+                else
+                {
+                    @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select room / department --", new { @class = "form-select", required = "required", id = "DepartmentId" })
+                    @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
+                }
+                <div class="form-text">Room, classroom, or admin unit that will receive these goods (grouped by department and sub-department).</div>
+            </div>
+            <div id="target-person-panel" class="@(targetIsPerson ? "" : "d-none")">
+                <select class="form-select" id="TargetUserId" name="TargetUserId" aria-label="Person this requisition is for" @(targetIsPerson ? "" : "disabled=\"disabled\"")>
+                    <option value="">-- Select person --</option>
+                    @foreach (var p in personTargets)
+                    {
+                        <option value="@p.UserId"
+                                data-display-name="@p.DisplayName"
+                                data-room-id="@(p.RoomId.HasValue ? p.RoomId.Value.ToString() : "")"
+                                data-room-label="@(p.RoomLabel ?? "")"
+                                data-routing-department-id="@(p.RoutingDepartmentId.HasValue ? p.RoutingDepartmentId.Value.ToString() : "")"
+                                @(string.Equals(p.UserId, Model.TargetUserId, System.StringComparison.Ordinal) ? "selected=\"selected\"" : "")>@p.DisplayName</option>
+                    }
+                </select>
+                @Html.ValidationMessageFor(m => m.TargetUserId, "", new { @class = "text-danger" })
+                <div id="target-person-placement" class="mt-2 d-none">
+                    <div class="small mb-1"><span class="am-target-person-name"></span> is assigned to <strong class="am-target-person-room"></strong>. Where should the asset be recorded?</div>
+                    <div class="form-check">
+                        <input class="form-check-input am-target-placement" type="radio" name="TargetPlacement" id="target-placement-room" value="PersonRoom" disabled="disabled" @(postedPlacement == AssetManagement.Application.Helpers.RequisitionTargetRules.PlacementPersonRoom ? "checked=\"checked\"" : "") />
+                        <label class="form-check-label" for="target-placement-room">In their room (<span class="am-target-person-room"></span>)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input am-target-placement" type="radio" name="TargetPlacement" id="target-placement-custody" value="CompanyCustody" disabled="disabled" @(postedPlacement == AssetManagement.Application.Helpers.RequisitionTargetRules.PlacementCompanyCustody ? "checked=\"checked\"" : "") />
+                        <label class="form-check-label" for="target-placement-custody">In company custody, held by <span class="am-target-person-name"></span></label>
+                    </div>
+                </div>
+                <div id="target-person-no-room" class="form-text d-none">No room or classroom is assigned to this person, so the asset stays in company custody, held by them.</div>
+                <input type="hidden" id="target-placement-no-room" name="TargetPlacement" value="CompanyCustody" disabled="disabled" />
+                @if (!lockDepartment)
+                {
+                    <input type="hidden" id="target-person-routing" name="DepartmentId" value="" disabled="disabled" />
+                    <div id="target-person-no-routing" class="text-danger small d-none">This person has no room or department that can receive requisitions. Choose a room as the requisition target instead.</div>
+                }
+                else
+                {
+                    <div class="form-text">Approval follows your department (@(string.IsNullOrWhiteSpace(departmentName) ? "your department" : departmentName)).</div>
+                }
+                <div class="form-text">The person must be active in your organisation. Receiving records the asset in their room, or in company custody with them as custodian.</div>
+            </div>
+            <div id="target-tag-notice" class="alert alert-info py-1 px-2 small mt-2 mb-0 d-none" role="status" aria-live="polite"></div>
         </div>
         <div class="col-12">
             <div id="target-asset-hint" class="form-text mt-0">Optional: tag an existing asset on a line to copy its name and classification. Receiving always creates a new asset; the tagged asset is not changed.</div>
@@ -120,6 +182,16 @@
                         ? lineTargetClassifications[i]
                         : new[] { string.Empty, string.Empty, string.Empty };
                     <div class="purchase-line-item row g-2 align-items-end border rounded p-2" data-line-index="@i">
+                        @* Allan 2026-10-28: the per-line tag sits above the line name box again. *@
+                        <div class="col-12 am-line-target">
+                            <input type="hidden" name="Lines[@i].TargetAssetId" id="Lines_@(i)__TargetAssetId" class="am-line-target-id" value="@(lineTagged ? lineTargetId.Value.ToString() : "")" />
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">Tag existing asset (optional)</span>
+                                <input type="text" class="form-control am-line-target-display" readonly="readonly" placeholder="No asset tagged" value="@lineTargetLabel" role="button" style="cursor: pointer;" />
+                                <button type="button" class="btn btn-outline-primary am-line-target-browse">Browse assets</button>
+                                <button type="button" class="btn btn-outline-secondary am-line-target-clear" title="Clear tag">&times;</button>
+                            </div>
+                        </div>
                         <div class="col-md-4">
                             <label class="form-label small mb-1" for="Lines_@(i)__ItemName">Item / asset name <span class="text-danger am-line-name-required@(lineTagged ? " d-none" : "")">*</span></label>
                             <input type="text"
@@ -155,21 +227,15 @@
                         <div class="col-md-2 text-end">
                             <button type="button" class="btn btn-outline-secondary btn-sm am-remove-line-item" @(i == 0 ? "disabled=\"disabled\"" : "") title="Remove line">Remove</button>
                         </div>
-                        <div class="col-12 am-line-target">
-                            <input type="hidden" name="Lines[@i].TargetAssetId" id="Lines_@(i)__TargetAssetId" class="am-line-target-id" value="@(lineTagged ? lineTargetId.Value.ToString() : "")" />
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text">Tag existing asset (optional)</span>
-                                <input type="text" class="form-control am-line-target-display" readonly="readonly" placeholder="No asset tagged" value="@lineTargetLabel" role="button" style="cursor: pointer;" />
-                                <button type="button" class="btn btn-outline-primary am-line-target-browse">Browse assets</button>
-                                <button type="button" class="btn btn-outline-secondary am-line-target-clear" title="Clear tag">&times;</button>
-                            </div>
-                        </div>
                         <div class="col-12 am-line-classification am-classification-picker@(lineTagged ? " am-line-classification-from-asset" : "")">
                             <div class="row g-2 am-line-pickers@(lineTagged ? " d-none" : "")">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm am-pick-category" name="Lines[@i].AssetCategoryId" data-field="AssetCategoryId" aria-label="Category" data-selected="@(line == null ? null : line.AssetCategoryId)"></select>
+                                </div>
+                                <div class="col-md-4">
                                     <select class="form-select form-select-sm am-pick-type" name="Lines[@i].AssetTypeId" data-field="AssetTypeId" aria-label="Type" data-selected="@(line == null ? null : line.AssetTypeId)"></select>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <select class="form-select form-select-sm am-pick-subtype" name="Lines[@i].AssetSubTypeId" data-field="AssetSubTypeId" aria-label="Sub-type" data-selected="@(line == null ? null : line.AssetSubTypeId)"></select>
                                 </div>
                             </div>
@@ -186,7 +252,7 @@
                 }
             </div>
             @Html.ValidationMessage("Lines", new { @class = "text-danger" })
-            <div class="form-text">Each line needs an item / asset name and a type and sub-type from your asset categories (the category follows from the type), unless it is tagged to an existing asset. Some items have their own approval path.</div>
+            <div class="form-text">Each line needs an item / asset name and a category, type and sub-type from your asset categories, unless it is tagged to an existing asset. @(canCreateClassification ? "Missing one? Choose \"+ Add new...\" in the list. " : "")Some items have their own approval path.</div>
             <div class="alert alert-light border small mt-2 d-none" id="purchase-line-paths" role="status" aria-live="polite"></div>
         </div>
 
@@ -236,8 +302,9 @@
     <template id="am-line-classification-template">
         <div class="col-12 am-line-classification am-classification-picker">
             <div class="row g-2 am-line-pickers">
-                <div class="col-md-6"><select class="form-select form-select-sm am-pick-type" aria-label="Type" data-field="AssetTypeId"></select></div>
-                <div class="col-md-6"><select class="form-select form-select-sm am-pick-subtype" aria-label="Sub-type" data-field="AssetSubTypeId"></select></div>
+                <div class="col-md-4"><select class="form-select form-select-sm am-pick-category" aria-label="Category" data-field="AssetCategoryId"></select></div>
+                <div class="col-md-4"><select class="form-select form-select-sm am-pick-type" aria-label="Type" data-field="AssetTypeId"></select></div>
+                <div class="col-md-4"><select class="form-select form-select-sm am-pick-subtype" aria-label="Sub-type" data-field="AssetSubTypeId"></select></div>
             </div>
             <div class="row g-2 am-line-asset-classification d-none">
                 <div class="col-md-4"><label class="form-label small mb-1 d-block">Category<input type="text" class="form-control form-control-sm am-line-asset-category" readonly="readonly" placeholder="None" /></label></div>
@@ -248,6 +315,11 @@
             <div class="small text-muted mt-1 am-line-path" aria-live="polite"></div>
         </div>
     </template>
+    @if (canCreateClassification && !string.IsNullOrEmpty(classificationCreateUrl))
+    {
+        <div id="am-classification-inline" class="d-none" data-url="@classificationCreateUrl"></div>
+        <script src="@Url.Content("~/Scripts/app/classification-inline-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/classification-inline-create.js")).Ticks"></script>
+    }
     <script src="@Url.Content("~/Scripts/app/purchase-request-classification.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-request-classification.js")).Ticks"></script>
     <script src="@Url.Content("~/Scripts/app/purchase-request-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/purchase-request-create.js")).Ticks"></script>
 }

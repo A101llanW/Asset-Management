@@ -20,7 +20,7 @@ namespace AssetManagement.Tests.Requisitions
     /// re-validated and keep the old name fallback chain.
     /// </summary>
     [TestFixture]
-    public class RequisitionLineAssetNameTests
+    public partial class RequisitionLineAssetNameTests
     {
         private const int LaptopTypeId = 10;
         private const int DeskTypeId = 20;

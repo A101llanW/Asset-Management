@@ -22,6 +22,21 @@ namespace AssetManagement.Application.ViewModels
 
         public string RequisitionDepartmentName { get; set; }
 
+        /// <summary>Migration 110: the requisition's target kind ("Room" | "Person" | null = legacy department target).</summary>
+        public string RequisitionTargetKind { get; set; }
+
+        public string TargetUserId { get; set; }
+
+        public string TargetUserName { get; set; }
+
+        /// <summary>"PersonRoom" | "CompanyCustody" (person target only).</summary>
+        public string TargetPlacement { get; set; }
+
+        public string TargetDepartmentName { get; set; }
+
+        /// <summary>Shown above the lines for a person target (RequisitionTargetRules.Describe).</summary>
+        public string TargetSummary { get; set; }
+
         public bool IsLegacy { get; set; }
 
         public string Status { get; set; }

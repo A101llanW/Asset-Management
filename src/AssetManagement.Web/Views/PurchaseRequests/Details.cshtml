@@ -40,6 +40,12 @@
                     <dd class="col-sm-8"><span class="badge bg-secondary">@Model.ApprovalStatus</span></dd>
                     <dt class="col-sm-4">Department</dt>
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
+                    @if (!string.IsNullOrWhiteSpace(Model.TargetSummary))
+                    {
+                        @* Migration 110; requisitions saved before it have no summary (their department is the target). *@
+                        <dt class="col-sm-4">Requisition target</dt>
+                        <dd class="col-sm-8" id="requisition-target-summary">@Model.TargetSummary</dd>
+                    }
                     <dt class="col-sm-4">Submitted by</dt>
                     <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.RequestedByName) ? Model.RequestedById : Model.RequestedByName)</dd>
                     @if (!string.IsNullOrWhiteSpace(Model.ApprovalFlowSource))

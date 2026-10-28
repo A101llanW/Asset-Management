@@ -354,6 +354,7 @@
     <Content Include="Scripts\app\purchase-request-details.js" />
     <Content Include="Scripts\app\purchase-request-create.js" />
     <Content Include="Scripts\app\purchase-request-classification.js" />
+    <Content Include="Scripts\app\classification-inline-create.js" />
     <Content Include="Scripts\app\purchase-create.js" />
     <Content Include="Scripts\app\purchase-order-lines.js" />
     <Content Include="Scripts\app\receive-order.js" />

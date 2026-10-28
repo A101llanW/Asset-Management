@@ -14,7 +14,7 @@ namespace AssetManagement.Tests.Assets
 {
     /// <summary>rel1019g: inline asset type + first sub-type creation from the classification picker.</summary>
     [TestFixture]
-    public class AssetClassificationCreateServiceTests
+    public partial class AssetClassificationCreateServiceTests
     {
         private TransactionalUnitOfWork _uow;
         private RecordingAuditWriter _audit;

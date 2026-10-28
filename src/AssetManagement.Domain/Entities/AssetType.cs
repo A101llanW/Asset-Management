@@ -13,6 +13,12 @@ namespace AssetManagement.Domain.Entities
 
         public string Name { get; set; }
 
+        /// <summary>Migration 110: AspNetUsers.Id of who created it inline (requisition form / receiving); NULL otherwise.</summary>
+        public string CreatedById { get; set; }
+
+        /// <summary>Migration 110: where it was created inline: "Requisition" or "Receiving" (ClassificationCreateOrigin); NULL otherwise.</summary>
+        public string CreatedVia { get; set; }
+
         public string Description { get; set; }
 
         public int? UsefulLifeMonths { get; set; }

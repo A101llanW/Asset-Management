@@ -35,6 +35,10 @@
             }
         </div>
         <div class="col-md-3"><div class="text-muted">Requisition destination</div><div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.RequisitionDepartmentName) ? "None" : Model.RequisitionDepartmentName)</div></div>
+        @if (!string.IsNullOrWhiteSpace(Model.TargetSummary))
+        {
+            <div class="col-12 mt-2" id="receive-requisition-target"><div class="text-muted">Requisition target</div><div class="fw-semibold">@Model.TargetSummary</div></div>
+        }
         <div class="col-md-3"><div class="text-muted">Status</div><span class="badge bg-light text-dark border" id="receive-po-status">@Model.Status</span></div>
     </div>
 </div>
@@ -292,5 +296,12 @@
 }
 
 @section scripts {
+    @if (ViewBag.CanCreateClassification == true && !string.IsNullOrEmpty(ViewBag.ClassificationInlineCreateUrl as string))
+    {
+        var inlineCategories = (ViewBag.LineCategoryOptions as System.Collections.Generic.IList<AssetClassOptionVm> ?? new System.Collections.Generic.List<AssetClassOptionVm>())
+            .Select(c => new { id = c.Id, name = c.Name });
+        <div id="am-classification-inline" class="d-none" data-url="@(ViewBag.ClassificationInlineCreateUrl as string)" data-categories="@Newtonsoft.Json.JsonConvert.SerializeObject(inlineCategories)"></div>
+        <script src="@Url.Content("~/Scripts/app/classification-inline-create.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/classification-inline-create.js")).Ticks"></script>
+    }
     <script src="@Url.Content("~/Scripts/app/receive-order.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/receive-order.js")).Ticks"></script>
 }

@@ -26,6 +26,204 @@
         return isNaN(max) || max <= 0 ? 200 : max;
     }
 
+    function setHidden(el, hidden) {
+        if (!el) {
+            return;
+        }
+        if (hidden) {
+            el.classList.add("d-none");
+        } else {
+            el.classList.remove("d-none");
+        }
+    }
+
+    /*
+     * Tagging rule (mirrors RequisitionTargetRules.DecideTargetOnTag): while no target is chosen, tagging an asset
+     * pre-fills the target as a ROOM (the asset's room / department); a room or person already chosen (or a locked
+     * department) is kept, with an inline notice when the asset sits somewhere else.
+     */
+    function decideTargetOnTag(kind, departmentId, userId, assetDepartmentId, locked) {
+        var hasDept = !!departmentId && String(departmentId) !== "0";
+        var hasAssetDept = !!assetDepartmentId && String(assetDepartmentId) !== "0";
+        var chosen = locked || (kind === "Person" && !!userId) || (kind === "Room" && hasDept);
+        if (chosen) {
+            return hasAssetDept && (kind === "Person" || String(departmentId) !== String(assetDepartmentId)) ? "KeepWithNotice" : "Keep";
+        }
+        return hasAssetDept ? "PrefillRoom" : "Keep";
+    }
+
+    function taggedAssetKeptNotice(location) {
+        return "The tagged asset sits in " + (location && String(location).trim() ? String(location).trim() : "another room") +
+            "; the requisition target you chose was kept.";
+    }
+
+    var requisitionTarget = null;
+
+    /*
+     * "Requisition target (room or person)" (migration 110): Room shows the grouped room / department list; Person shows
+     * the organisation's users. A person with a room or classroom assigned asks where the asset goes (their room, or
+     * company custody held by them); a person without one keeps it in company custody held by them, without asking.
+     * In Person mode the approval department is the person's routing department (posted as DepartmentId), unless the
+     * requester's department is locked. The server re-resolves all of it on submit.
+     */
+    function initRequisitionTarget() {
+        var root = byId("requisition-target");
+        if (!root) {
+            return null;
+        }
+        var form = byId("purchase-request-form");
+        var locked = !!form && form.getAttribute("data-am-lock-department") === "true";
+        var roomPanel = byId("target-room-panel");
+        var personPanel = byId("target-person-panel");
+        var prompt = byId("target-kind-prompt");
+        var personSelect = byId("TargetUserId");
+        var placementPanel = byId("target-person-placement");
+        var noRoom = byId("target-person-no-room");
+        var noRoomValue = byId("target-placement-no-room");
+        var routing = byId("target-person-routing");
+        var noRouting = byId("target-person-no-routing");
+        var notice = byId("target-tag-notice");
+        var placementRadios = root.querySelectorAll(".am-target-placement");
+        var kindRadios = root.querySelectorAll(".am-target-kind");
+
+        function kind() {
+            for (var i = 0; i < kindRadios.length; i++) {
+                if (kindRadios[i].checked) {
+                    return kindRadios[i].value;
+                }
+            }
+            return "";
+        }
+
+        function selectedPerson() {
+            if (!personSelect || personSelect.selectedIndex < 0) {
+                return null;
+            }
+            var opt = personSelect.options[personSelect.selectedIndex];
+            return opt && opt.value ? opt : null;
+        }
+
+        function roomSelect() {
+            return locked ? null : byId("DepartmentId");
+        }
+
+        function setText(selector, text) {
+            var nodes = root.querySelectorAll(selector);
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].textContent = text;
+            }
+        }
+
+        function update() {
+            var k = kind();
+            var person = k === "Person";
+            setHidden(roomPanel, k !== "Room");
+            setHidden(personPanel, !person);
+            setHidden(prompt, !!k);
+            var rooms = roomSelect();
+            if (rooms) {
+                rooms.disabled = k !== "Room";
+                rooms.required = k === "Room";
+            }
+            if (personSelect) {
+                personSelect.disabled = !person;
+                personSelect.required = person;
+            }
+            var opt = person ? selectedPerson() : null;
+            var roomId = opt ? (opt.getAttribute("data-room-id") || "") : "";
+            var hasRoom = !!opt && !!roomId;
+            setHidden(placementPanel, !hasRoom);
+            for (var i = 0; i < placementRadios.length; i++) {
+                placementRadios[i].disabled = !hasRoom;
+                placementRadios[i].required = hasRoom;
+            }
+            setHidden(noRoom, !(opt && !hasRoom));
+            if (noRoomValue) {
+                noRoomValue.disabled = !(opt && !hasRoom);
+            }
+            var routingId = opt ? (opt.getAttribute("data-routing-department-id") || "") : "";
+            if (routing) {
+                routing.disabled = !person;
+                routing.value = routingId;
+            }
+            setHidden(noRouting, !(opt && !locked && !routingId));
+            setText(".am-target-person-name", opt ? opt.getAttribute("data-display-name") || opt.textContent : "");
+            setText(".am-target-person-room", opt ? (opt.getAttribute("data-room-label") || "") : "");
+        }
+
+        function departmentId() {
+            if (locked) {
+                var lockedInput = byId("DepartmentId");
+                return lockedInput ? lockedInput.value : "";
+            }
+            if (kind() === "Person") {
+                return routing ? routing.value : "";
+            }
+            var rooms = roomSelect();
+            return rooms && !rooms.disabled ? rooms.value : "";
+        }
+
+        function showNotice(text) {
+            if (!notice) {
+                return;
+            }
+            notice.textContent = text || "";
+            setHidden(notice, !text);
+        }
+
+        function setRoom(id) {
+            var rooms = roomSelect();
+            if (!rooms) {
+                return false;
+            }
+            var found = false;
+            for (var i = 0; i < rooms.options.length; i++) {
+                if (rooms.options[i].value === String(id)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+            for (var k = 0; k < kindRadios.length; k++) {
+                kindRadios[k].checked = kindRadios[k].value === "Room";
+            }
+            update();
+            rooms.value = String(id);
+            // Same as a user pick: the approval and per-line path previews refresh.
+            var evt = document.createEvent("HTMLEvents");
+            evt.initEvent("change", true, false);
+            rooms.dispatchEvent(evt);
+            return true;
+        }
+
+        root.addEventListener("change", function (e) {
+            if (e && e.target && e.target.id !== "target-tag-notice") {
+                showNotice("");
+            }
+            update();
+            refreshApprovalPathPreview();
+        });
+        update();
+
+        return {
+            kind: kind,
+            departmentId: departmentId,
+            roomDepartmentId: function () {
+                var rooms = roomSelect();
+                return kind() === "Room" && rooms ? rooms.value : (locked ? departmentId() : "");
+            },
+            personId: function () {
+                var opt = kind() === "Person" ? selectedPerson() : null;
+                return opt ? opt.value : "";
+            },
+            setRoom: setRoom,
+            showNotice: showNotice,
+            locked: locked
+        };
+    }
+
     function isRowTagged(row) {
         var hidden = row ? row.querySelector(".am-line-target-id") : null;
         return !!(hidden && String(hidden.value || "").trim().length > 0);
@@ -59,11 +257,16 @@
         }
         var star = row.querySelector(".am-line-name-required");
         if (star) {
-            star.classList.toggle("d-none", tagged);
+            setHidden(star, tagged);
         }
         var block = row.querySelector(".am-line-classification");
         if (block) {
-            block.classList.toggle("am-line-classification-from-asset", tagged);
+            // IE11 ignores classList.toggle's second argument: explicit add / remove.
+            if (tagged) {
+                block.classList.add("am-line-classification-from-asset");
+            } else {
+                block.classList.remove("am-line-classification-from-asset");
+            }
             var evt;
             try {
                 evt = new CustomEvent("am:line-tag-changed");
@@ -209,7 +412,17 @@
         var row = document.createElement("div");
         row.className = "purchase-line-item row g-2 align-items-end border rounded p-2";
         row.setAttribute("data-line-index", String(index));
+        // The per-line tag sits above the line name box (Allan 2026-10-28).
         row.innerHTML =
+            "<div class=\"col-12 am-line-target\">" +
+            "<input type=\"hidden\" name=\"Lines[" + index + "].TargetAssetId\" id=\"Lines_" + index + "__TargetAssetId\" class=\"am-line-target-id\" value=\"\" />" +
+            "<div class=\"input-group input-group-sm\">" +
+            "<span class=\"input-group-text\">Tag existing asset (optional)</span>" +
+            "<input type=\"text\" class=\"form-control am-line-target-display\" readonly=\"readonly\" placeholder=\"No asset tagged\" role=\"button\" style=\"cursor: pointer;\" />" +
+            "<button type=\"button\" class=\"btn btn-outline-primary am-line-target-browse\">Browse assets</button>" +
+            "<button type=\"button\" class=\"btn btn-outline-secondary am-line-target-clear\" title=\"Clear tag\">&times;</button>" +
+            "</div>" +
+            "</div>" +
             "<div class=\"col-md-4\">" +
             "<label class=\"form-label small mb-1\">Item / asset name <span class=\"text-danger am-line-name-required\">*</span></label>" +
             "<input type=\"text\" name=\"Lines[" + index + "].ItemName\" id=\"Lines_" + index + "__ItemName\" " +
@@ -227,15 +440,6 @@
             "</div>" +
             "<div class=\"col-md-2 text-end\">" +
             "<button type=\"button\" class=\"btn btn-outline-secondary btn-sm am-remove-line-item\" title=\"Remove line\">Remove</button>" +
-            "</div>" +
-            "<div class=\"col-12 am-line-target\">" +
-            "<input type=\"hidden\" name=\"Lines[" + index + "].TargetAssetId\" id=\"Lines_" + index + "__TargetAssetId\" class=\"am-line-target-id\" value=\"\" />" +
-            "<div class=\"input-group input-group-sm\">" +
-            "<span class=\"input-group-text\">Tag existing asset (optional)</span>" +
-            "<input type=\"text\" class=\"form-control am-line-target-display\" readonly=\"readonly\" placeholder=\"No asset tagged\" role=\"button\" style=\"cursor: pointer;\" />" +
-            "<button type=\"button\" class=\"btn btn-outline-primary am-line-target-browse\">Browse assets</button>" +
-            "<button type=\"button\" class=\"btn btn-outline-secondary am-line-target-clear\" title=\"Clear tag\">&times;</button>" +
-            "</div>" +
             "</div>";
         container.appendChild(row);
         reindexLineItems();
@@ -286,7 +490,7 @@
         }
 
         var departmentSelect = byId("DepartmentId");
-        var departmentId = departmentSelect ? departmentSelect.value : "";
+        var departmentId = requisitionTarget ? requisitionTarget.departmentId() : (departmentSelect ? departmentSelect.value : "");
         var query = departmentId ? ("?departmentId=" + encodeURIComponent(departmentId)) : "";
 
         fetch(url + query, {
@@ -577,29 +781,22 @@
                 quantityInput.value = quantityInStock;
             }
 
-            if (isDepartmentLocked()) {
-                updateQtyInStockVisibility();
-                return;
-            }
-
             var departmentId = button.getAttribute("data-department-id");
-            var departmentSelect = byId("DepartmentId");
-            if (!departmentSelect || !departmentId) {
-                updateQtyInStockVisibility();
-                return;
-            }
-
-            var hasOption = false;
-            for (var i = 0; i < departmentSelect.options.length; i++) {
-                if (departmentSelect.options[i].value === String(departmentId)) {
-                    hasOption = true;
-                    break;
+            if (requisitionTarget) {
+                var decision = decideTargetOnTag(
+                    requisitionTarget.kind(),
+                    requisitionTarget.roomDepartmentId(),
+                    requisitionTarget.personId(),
+                    departmentId,
+                    isDepartmentLocked());
+                if (decision === "PrefillRoom") {
+                    if (requisitionTarget.setRoom(departmentId)) {
+                        requisitionTarget.showNotice("");
+                        refreshApprovalPathPreview();
+                    }
+                } else if (decision === "KeepWithNotice") {
+                    requisitionTarget.showNotice(taggedAssetKeptNotice(button.getAttribute("data-department-name")));
                 }
-            }
-
-            if (hasOption) {
-                departmentSelect.value = String(departmentId);
-                refreshApprovalPathPreview();
             }
 
             updateQtyInStockVisibility();
@@ -729,6 +926,7 @@
     }
 
     function boot() {
+        requisitionTarget = initRequisitionTarget();
         initLineItems();
         initApprovalPathPreview();
         initTargetAssetPicker();

@@ -134,7 +134,12 @@ namespace AssetManagement.Tests.Helpers
             return new AssetSubTypeService(unitOfWork, CreateAssetStockService(unitOfWork));
         }
 
-        public static ReceivingService CreateReceivingService(FakeUnitOfWork unitOfWork, FakeOrganizationScopeService organizationScope = null, IAuditWriter auditWriter = null)
+        public static ReceivingService CreateReceivingService(
+            FakeUnitOfWork unitOfWork,
+            FakeOrganizationScopeService organizationScope = null,
+            IAuditWriter auditWriter = null,
+            IUserService userService = null,
+            IAssignmentService assignmentService = null)
         {
             var subTypeService = CreateAssetSubTypeService(unitOfWork);
             return new ReceivingService(
@@ -143,7 +148,9 @@ namespace AssetManagement.Tests.Helpers
                 CreateAssetService(unitOfWork, assetSubTypeService: subTypeService),
                 new NoOpOutboxWriter(),
                 organizationScope ?? new FakeOrganizationScopeService(),
-                auditWriter);
+                auditWriter,
+                userService,
+                assignmentService);
         }
 
         public static WebhookService CreateWebhookService(FakeUnitOfWork unitOfWork, IAuditWriter auditWriter = null)

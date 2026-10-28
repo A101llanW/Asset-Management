@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web.Mvc;
 using System.Web.Script.Serialization;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Filters;
@@ -14,12 +15,38 @@ namespace AssetManagement.Web.Controllers
     /// </summary>
     public partial class PurchaseRequestsController
     {
+        /// <summary>
+        /// "Add new..." on the requisition form (Allan 2026-10-28 15:03 EAT): anyone who can raise a requisition may
+        /// add a missing category (with its first type and sub-type), type (with its first sub-type) or sub-type.
+        /// No organisation parameter on purpose: the user's own organisation is always used.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [PermissionAuthorize(ClassificationInlineCreatePolicy.RequisitionScreenPermission)]
+        public JsonResult CreateClassification(int? categoryId = null, string categoryName = null, int? assetTypeId = null, string typeName = null, string subTypeName = null)
+        {
+            return CreateClassificationInlineJson(ClassificationCreateOrigin.Requisition, categoryId, categoryName, assetTypeId, typeName, subTypeName);
+        }
+
         /// <summary>Same classification + resolution as submit (PreviewPaths); nothing is saved.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         [PermissionAuthorize("Purchases.Create")]
         public JsonResult PreviewLinePaths(PurchaseRequestCreateVm model)
         {
+            if (model != null)
+            {
+                // Same lock as submit: a locked requester's department routes approval (also for a person target).
+                model.DepartmentLocked = IsRequisitionDepartmentLocked();
+                ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
+                {
+                    if (deptId.HasValue)
+                    {
+                        model.DepartmentId = deptId.Value;
+                    }
+                });
+            }
+
             var preview = _purchaseRequestService.PreviewPaths(model);
             return Json(new
             {

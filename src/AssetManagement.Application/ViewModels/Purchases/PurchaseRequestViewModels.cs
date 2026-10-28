@@ -89,11 +89,46 @@ namespace AssetManagement.Application.ViewModels
         }
     }
 
+    /// <summary>Migration 110: one person in the "Requisition target" person list.</summary>
+    public class RequisitionPersonTargetOptionVm
+    {
+        public string UserId { get; set; }
+
+        public string DisplayName { get; set; }
+
+        /// <summary>The person's room / class (RequisitionTargetRules.FindAssignedRoom); null = no room (company custody).</summary>
+        public int? RoomId { get; set; }
+
+        public string RoomLabel { get; set; }
+
+        /// <summary>The department approval routes by when the requester is not locked; null = cannot be a target.</summary>
+        public int? RoutingDepartmentId { get; set; }
+    }
+
     public class PurchaseRequestCreateVm : IValidatableObject
     {
         [Required(ErrorMessage = "Department is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "Department is required.")]
         public int DepartmentId { get; set; }
+
+        /// <summary>
+        /// Migration 110 "Requisition target (room or person)": "Room" or "Person" (RequisitionTargetRules). Room: the
+        /// target is DepartmentId (as before). Person: TargetUserId; DepartmentId is then the approval / scope
+        /// department, resolved on the server (PurchaseRequestService.SubmitBatch).
+        /// </summary>
+        [StringLength(16)]
+        public string RequisitionTargetKind { get; set; }
+
+        /// <summary>Person target: the user the requisition is for.</summary>
+        [StringLength(128)]
+        public string TargetUserId { get; set; }
+
+        /// <summary>Person target with a room: "PersonRoom" or "CompanyCustody". Without a room the server always uses CompanyCustody (Allan 2026-10-28).</summary>
+        [StringLength(24)]
+        public string TargetPlacement { get; set; }
+
+        /// <summary>Set by the controller only (never bound from the form): the requester is locked to their own department.</summary>
+        public bool DepartmentLocked { get; set; }
 
         public bool RequestForSelf { get; set; } = true;
 
@@ -146,6 +181,13 @@ namespace AssetManagement.Application.ViewModels
                 yield return new ValidationResult(
                     "Justification is required.",
                     new[] { "Justification" });
+            }
+
+            if (RequisitionTargetRules.IsPerson(RequisitionTargetKind) && string.IsNullOrWhiteSpace(TargetUserId))
+            {
+                yield return new ValidationResult(
+                    "Choose the person this requisition is for.",
+                    new[] { "TargetUserId" });
             }
 
             // Decision A (Allan 2026-10-28 08:39 EAT): a filled-in row without a description is an error, never dropped.
@@ -376,6 +418,23 @@ namespace AssetManagement.Application.ViewModels
         public DepartmentKind? DepartmentKind { get; set; }
 
         public string DepartmentKindLabel { get; set; }
+
+        /// <summary>Migration 110: "Room" | "Person" | null (legacy: the department is the target).</summary>
+        public string RequisitionTargetKind { get; set; }
+
+        public string TargetUserId { get; set; }
+
+        public string TargetUserName { get; set; }
+
+        /// <summary>Person target: "PersonRoom" | "CompanyCustody".</summary>
+        public string TargetPlacement { get; set; }
+
+        public int? TargetDepartmentId { get; set; }
+
+        public string TargetDepartmentName { get; set; }
+
+        /// <summary>One-line text for Details / receiving (RequisitionTargetRules.Describe); null for legacy rows.</summary>
+        public string TargetSummary { get; set; }
 
         public string ItemDescription { get; set; }
 

@@ -63,6 +63,21 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Winning approval source at submit, e.g. "Custom on Type: Laptops" (migration 100; null for older rows).</summary>
         public string ApprovalFlowSource { get; set; }
 
+        /// <summary>
+        /// Migration 110: "Room" or "Person" (RequisitionTargetRules); NULL on requisitions saved before 110, which
+        /// keep their department as the target. DepartmentId stays the approval / scope department in every mode.
+        /// </summary>
+        public string RequisitionTargetKind { get; set; }
+
+        /// <summary>Migration 110: the person a Person-target requisition is for (AspNetUsers.Id); NULL otherwise.</summary>
+        public string TargetUserId { get; set; }
+
+        /// <summary>Migration 110: Person target only. "PersonRoom" (asset recorded in the person's room) or "CompanyCustody" (no department, the person is custodian).</summary>
+        public string TargetPlacement { get; set; }
+
+        /// <summary>Migration 110: the person's room / class when TargetPlacement = PersonRoom; NULL otherwise.</summary>
+        public int? TargetDepartmentId { get; set; }
+
         public DateTime? ApprovedAt { get; set; }
 
         public byte[] RowVersion { get; set; }

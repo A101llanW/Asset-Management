@@ -10,5 +10,17 @@ namespace AssetManagement.Application.Contracts
         /// or duplicates; nothing is saved in that case.
         /// </summary>
         AssetTypeWithSubTypeCreatedVm CreateTypeWithSubType(AssetTypeWithSubTypeCreateVm model);
+
+        /// <summary>
+        /// Inline "Add new..." (requisition form, receiving): a sub-type under an existing type, a type + its first
+        /// sub-type under an existing category, or a category + its first type + first sub-type. One transaction,
+        /// organisation-scoped, case-insensitive duplicate check under the same parent. Nothing is saved on error.
+        /// </summary>
+        /// <summary>
+        /// Inline create from the requisition form / receiving screen. createdById / createdVia are set by the controller
+        /// (signed-in user, ClassificationCreateOrigin) and stored on every new row plus its AuditLog entry; new rows
+        /// always get the caller's own organisation.
+        /// </summary>
+        ClassificationChainCreatedVm CreateChain(ClassificationChainCreateVm model, string createdById, string createdVia);
     }
 }

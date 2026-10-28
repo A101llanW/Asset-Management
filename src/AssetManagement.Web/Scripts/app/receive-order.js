@@ -1,6 +1,9 @@
 /* rel1009i: receiving screen - per line destination / tag mode toggles, serial and tag counts vs quantity, qty clamp.
    C3 (migration 108): a classified line shows Edit; the editor's type / sub-type selects are disabled (not posted)
-   until Edit, and while editing the read-only sub-type select is disabled so only one value is posted. */
+   until Edit, and while editing the read-only sub-type select is disabled so only one value is posted.
+   Inline create (Allan 2026-10-28): with Assets.Receive the type / sub-type selects also offer "+ Add new type..." /
+   "+ Add new sub-type..." (classification-inline-create.js); a new type always comes with its first sub-type, and
+   the new items are added to every line's selects and selected on the line that asked. */
 (function () {
     "use strict";
 
@@ -11,6 +14,13 @@
         } else {
             el.classList.remove("d-none");
         }
+    }
+
+    var inline = window.AmClassificationInline && window.AmClassificationInline.enabled ? window.AmClassificationInline : null;
+    var ADD = inline ? inline.addValue : "__am_add_new__";
+
+    function isAddOption(opt) {
+        return !!opt && opt.value === ADD;
     }
 
     function countLines(text) {
@@ -76,6 +86,11 @@
             var typeId = typeSelect ? typeSelect.value : (subSelect.getAttribute("data-am-type-id") || "");
             var available = 0;
             Array.prototype.forEach.call(subSelect.options, function (opt) {
+                if (isAddOption(opt)) {
+                    opt.hidden = !typeId;
+                    opt.disabled = !typeId;
+                    return;
+                }
                 if (!opt.value) {
                     return;
                 }
@@ -129,6 +144,11 @@
         var typeId = typeSelect.value;
         var available = 0;
         Array.prototype.forEach.call(subSelect.options, function (opt) {
+            if (isAddOption(opt)) {
+                opt.hidden = !typeId;
+                opt.disabled = !typeId;
+                return;
+            }
             if (!opt.value) {
                 return;
             }
@@ -224,11 +244,179 @@
         return missing;
     }
 
+    function addOption(select, label) {
+        var opt = document.createElement("option");
+        opt.value = ADD;
+        opt.textContent = label;
+        opt.className = "am-add-new";
+        select.appendChild(opt);
+    }
+
+    function insertBeforeAdd(parent, opt) {
+        var add = null;
+        for (var i = 0; i < parent.children.length; i++) {
+            if (isAddOption(parent.children[i])) {
+                add = parent.children[i];
+            }
+        }
+        parent.insertBefore(opt, add);
+    }
+
+    function hasOption(select, value) {
+        for (var i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === String(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function readCategories() {
+        var config = document.getElementById("am-classification-inline");
+        try {
+            return JSON.parse((config && config.getAttribute("data-categories")) || "[]");
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // Adds a created type (in its category's optgroup) and its first / new sub-type to every line's selects.
+    function addCreatedToSelects(form, data) {
+        Array.prototype.forEach.call(form.querySelectorAll(".am-po-type, .am-edit-type"), function (select) {
+            if (!data.assetTypeId || hasOption(select, data.assetTypeId)) {
+                return;
+            }
+            var group = null;
+            Array.prototype.forEach.call(select.querySelectorAll("optgroup"), function (g) {
+                if (g.getAttribute("label") === data.categoryName) {
+                    group = g;
+                }
+            });
+            if (!group) {
+                group = document.createElement("optgroup");
+                group.setAttribute("label", data.categoryName || "Other");
+                insertBeforeAdd(select, group);
+            }
+            var opt = document.createElement("option");
+            opt.value = String(data.assetTypeId);
+            opt.textContent = data.assetTypeName;
+            group.appendChild(opt);
+        });
+        Array.prototype.forEach.call(form.querySelectorAll(".am-po-subtype, .am-edit-subtype"), function (select) {
+            if (!data.subTypeId || hasOption(select, data.subTypeId)) {
+                return;
+            }
+            var opt = document.createElement("option");
+            opt.value = String(data.subTypeId);
+            opt.textContent = data.subTypeName;
+            opt.setAttribute("data-type-id", String(data.assetTypeId));
+            insertBeforeAdd(select, opt);
+        });
+    }
+
+    // The type select that goes with a sub-type select (same editor / override row), or null for the read-only one.
+    function typeSelectFor(subSelect) {
+        var editor = subSelect.closest ? subSelect.closest(".am-recv-class-editor") : null;
+        if (editor) {
+            return editor.querySelector(".am-edit-type");
+        }
+        if (subSelect.classList.contains("am-required-subtype")) {
+            return null;
+        }
+        var card = subSelect.closest ? subSelect.closest(".am-receive-line") : null;
+        return card ? card.querySelector(".am-po-type") : null;
+    }
+
+    function subSelectFor(typeSelect) {
+        var editor = typeSelect.closest ? typeSelect.closest(".am-recv-class-editor") : null;
+        if (editor) {
+            return editor.querySelector(".am-edit-subtype");
+        }
+        var card = typeSelect.closest ? typeSelect.closest(".am-receive-line") : null;
+        return card ? card.querySelector(".am-po-subtype:not(.am-required-subtype)") : null;
+    }
+
+    function initInlineCreate(form) {
+        if (!inline) {
+            return;
+        }
+        var categories = readCategories();
+        Array.prototype.forEach.call(form.querySelectorAll(".am-po-type, .am-edit-type"), function (select) {
+            addOption(select, "+ Add new type...");
+            select.__amLast = select.value;
+        });
+        Array.prototype.forEach.call(form.querySelectorAll(".am-po-subtype, .am-edit-subtype"), function (select) {
+            addOption(select, "+ Add new sub-type...");
+            select.__amLast = select.value;
+        });
+        form.addEventListener("change", function (e) {
+            var select = e.target;
+            if (!select || select.tagName !== "SELECT" || !select.classList) {
+                return;
+            }
+            var isType = select.classList.contains("am-po-type") || select.classList.contains("am-edit-type");
+            var isSub = select.classList.contains("am-po-subtype") || select.classList.contains("am-edit-subtype");
+            if (!isType && !isSub) {
+                return;
+            }
+            if (select.value !== ADD) {
+                select.__amLast = select.value;
+                return;
+            }
+            select.value = select.__amLast || "";
+            var card = select.closest ? select.closest(".am-receive-line") : null;
+            if (card) {
+                updateLine(card);
+            }
+            var typeSelect = isType ? select : typeSelectFor(select);
+            var typeId = isType ? null : (typeSelect ? typeSelect.value : (select.getAttribute("data-am-type-id") || ""));
+            var typeName = "";
+            if (typeSelect && typeSelect.selectedIndex >= 0 && typeId) {
+                typeName = typeSelect.options[typeSelect.selectedIndex].textContent;
+            }
+            if (isSub && !typeId) {
+                return;
+            }
+            inline.open({
+                anchor: select.parentNode,
+                level: isType ? "type" : "subtype",
+                categories: categories,
+                assetTypeId: typeId,
+                typeName: typeName,
+                onCreated: function (data) {
+                    if (data.categoryCreated) {
+                        categories.push({ id: data.categoryId, name: data.categoryName });
+                    }
+                    addCreatedToSelects(form, data);
+                    if (isType) {
+                        select.value = String(data.assetTypeId);
+                        select.__amLast = select.value;
+                        var sub = subSelectFor(select);
+                        if (card) {
+                            updateLine(card);
+                        }
+                        if (sub) {
+                            sub.value = String(data.subTypeId);
+                            sub.__amLast = sub.value;
+                        }
+                    } else {
+                        select.value = String(data.subTypeId);
+                        select.__amLast = select.value;
+                    }
+                    if (card) {
+                        updateLine(card);
+                    }
+                }
+            });
+        }, true); // capture: restore the select before the line's own change handler re-filters its sub-types
+    }
+
     function init() {
         var form = document.getElementById("receive-order-form");
         if (!form) {
             return;
         }
+        initInlineCreate(form);
         var cards = form.querySelectorAll(".am-receive-line");
         Array.prototype.forEach.call(cards, function (card) {
             card.addEventListener("input", function () { updateLine(card); });
