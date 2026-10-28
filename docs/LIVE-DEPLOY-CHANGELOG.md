@@ -1,5 +1,17 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 14:31 EAT - Hidden how-to video page (/{tenant}/HelpVideos, Unlisted YouTube embeds) merged to main and PUBLISHED to local IIS (localhost:8080); Process Assistant Help button hidden - LIVE NOT TOUCHED
+
+- Approval: Allan, 2026-10-28: "Yes, publish the hidden Help video page locally", "On yt, only users with the link should be able to view", and (14:29 EAT) "Yes, republish the Help video page locally". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed.
+- main fast-forwarded 692e28e..b678356 (feat/hidden-help-videos: 156f8d9, 06c9d9c, b678356). Release build 0 errors (226 warnings, unchanged). Tests: 1370 total, 1363 passed, 7 skipped, 0 failed. aspnet_compiler precompile exit 0.
+- DB (.\SQLEXPRESS AssetManagementModuleDb): COPY_ONLY + CHECKSUM backup AssetManagementModuleDb_pre109_helpvideos_20261028_134355.bak in the SQLEXPRESS Backup folder (RESTORE VERIFYONLY valid), then 109_HelpVideo.sql applied 13:44 EAT (dbo.HelpVideo + history row). 0 HelpVideo rows: the mp4 import was NOT run (Allan switched to YouTube); links are added in the page by a Company Admin.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement): staged at Desktop\Staged_helpvideos_b678356 without the root Web.config. Add/overwrite only, App_Data excluded; root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3). 301 files hash-checked, 0 mismatches. App_Data\HelpVideos created with Modify for IIS AppPool\AssetManagement (empty).
+  - AssetManagement.Web.dll 9C5F438C5059507E6D9C5530994DB18E7446604EC2D34219C9A18ABDAD4D3A5F (was 80A0C88E...746E, a0e30a7). Site backup C:\inetpub\_backups\AssetManagement_root_pre_helpvideos_20261028_143050.
+  - First attempt 13:49 EAT (backup ..._pre_helpvideos_20261028_134854) auto-rolled back on a false positive in the smoke script (the 404 page for GET /HelpVideos/SetYouTube echoes the word YouTube); the check now looks for embed URLs only. Second UAC prompt approved by Allan 14:29 EAT.
+  - Smoke 14:31 EAT (GET only): /Account/Login, /nis/Account/Login, /A46138179/Account/Login 200 with no Help assistant / video markup. Anonymous /A46138179/HelpVideos, /HelpVideos/Index, /a46138179/helpvideos, /HelpVideos/Stream/1, /Home/Help, /nis/HelpVideos all 302 to Account/Login; POST-only SetYouTube / UploadStart / Delete 404 on GET; robots.txt and sitemap.xml 404. No new Application / System event-log warnings or errors, no 5xx in the IIS log.
+- Desktop\publish refreshed from the stage (no root Web.config); previous copy kept as publish_old_20261028_143359. Stage folder deleted.
+- LIVE: nothing published.
+
 ## 2026-10-28 13:30 EAT - Hidden how-to video page (/{tenant}/HelpVideos) with admin chunked upload; Process Assistant Help button hidden - LOCAL BRANCH ONLY, NOT PUBLISHED
 
 - Brief: Allan, 2026-10-28: "reactivate the hidden help page for uploading the video. Make it accessible while hiding that redirect 'help' button". Branch feat/hidden-help-videos (worktree CodexAsset-wt-helpvideos, on main 692e28e). Local branch only: not merged, not published to IIS, not pushed, no PR, no UAC. Migration 109 NOT applied to .\SQLEXPRESS. Web.config not changed. Nothing printed. Live not touched.
