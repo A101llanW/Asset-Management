@@ -285,6 +285,19 @@ namespace AssetManagement.Tests.Purchases
         }
 
         [Test]
+        public void Receiving_DefaultsEveryLineToTheStore_WithTheRequisitionDepartmentPreselected()
+        {
+            // QA 2026-10-28 (Allan 09:33 EAT "Fix"): it used to default to the requisition department (Administration)
+            // while the form said units go to the Store.
+            var uow = SeedRequisition();
+            var poId = CreateOrder(uow);
+            var screen = TestServiceFactory.CreateReceivingService(uow).GetReceiveOrder(poId);
+
+            Assert.IsTrue(screen.Lines.All(x => x.DestinationKind == ReceiveOrderLineVm.DestinationStore));
+            Assert.IsTrue(screen.Lines.All(x => x.DestinationDepartmentId == 1), "switching to Department / room starts on the requisition's department");
+        }
+
+        [Test]
         public void Receiving_PartialThenFull_BlocksOverReceipt_AndUpdatesStatus()
         {
             var uow = SeedRequisition();
