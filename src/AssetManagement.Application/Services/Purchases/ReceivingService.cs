@@ -379,10 +379,10 @@ namespace AssetManagement.Application.Services
                     QuantityReceived = line.Outstanding,
                     Condition = AssetCondition.New.ToString(),
                     TagMode = ReceiveOrderLineVm.TagModeGenerate,
-                    // QA 2026-10-28 (Allan 09:33 EAT "Fix"): received units default to the Store (company custody), as the
-                    // form says. The requisition's department stays preselected for when the receiver switches to
-                    // "Department / room" (the disabled picker is not posted, so a Store receipt never carries it).
-                    DestinationKind = ReceiveOrderLineVm.DestinationStore,
+                    // QA 2026-10-28 finding 5 (Allan: "Keep the department default and reword the help text"): every line defaults to
+                    // the requesting department; the receiver can switch to Store (company custody) or pick another department.
+                    // A requisition with no department defaults to Store.
+                    DestinationKind = model.RequisitionDepartmentId.HasValue ? ReceiveOrderLineVm.DestinationDepartment : ReceiveOrderLineVm.DestinationStore,
                     DestinationDepartmentId = model.RequisitionDepartmentId
                 });
             }

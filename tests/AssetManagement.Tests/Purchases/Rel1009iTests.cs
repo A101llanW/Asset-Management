@@ -285,16 +285,16 @@ namespace AssetManagement.Tests.Purchases
         }
 
         [Test]
-        public void Receiving_DefaultsEveryLineToTheStore_WithTheRequisitionDepartmentPreselected()
+        public void Receiving_DefaultsEveryLineToTheRequisitionDepartment()
         {
-            // QA 2026-10-28 (Allan 09:33 EAT "Fix"): it used to default to the requisition department (Administration)
-            // while the form said units go to the Store.
+            // QA 2026-10-28 finding 5 (Allan: "Keep the department default and reword the help text"): the requesting
+            // department (Administration) stays the default; the help text now says so and that Store / another department can be chosen.
             var uow = SeedRequisition();
             var poId = CreateOrder(uow);
             var screen = TestServiceFactory.CreateReceivingService(uow).GetReceiveOrder(poId);
 
-            Assert.IsTrue(screen.Lines.All(x => x.DestinationKind == ReceiveOrderLineVm.DestinationStore));
-            Assert.IsTrue(screen.Lines.All(x => x.DestinationDepartmentId == 1), "switching to Department / room starts on the requisition's department");
+            Assert.IsTrue(screen.Lines.All(x => x.DestinationKind == ReceiveOrderLineVm.DestinationDepartment));
+            Assert.IsTrue(screen.Lines.All(x => x.DestinationDepartmentId == 1), "the requisition's department is preselected");
         }
 
         [Test]

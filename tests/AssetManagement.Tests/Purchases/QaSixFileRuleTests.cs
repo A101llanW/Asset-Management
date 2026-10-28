@@ -66,6 +66,16 @@ namespace AssetManagement.Tests.Purchases
             Assert.IsFalse(platform.Contains("site-interactive.js\")\"></script>"), "no un-busted copy left");
         }
 
+        [Test]
+        public void ReceiveView_HelpText_SaysTheDefaultIsTheRequestingDepartment_AndCanBeChanged()
+        {
+            // QA 2026-10-28 finding 5 (Allan: "Keep the department default and reword the help text").
+            var view = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Views", "Purchases", "Receive.cshtml");
+            StringAssert.Contains("Default: the requesting department (from the requisition; Store if the requisition has no department).", view);
+            StringAssert.Contains("You can change it to Store (company custody, no department) or to another department / room.", view);
+            Assert.IsFalse(view.Contains("Default: Store (company custody), no department."), "the old Store-default wording is gone");
+        }
+
         internal static string Path(params string[] parts)
         {
             var directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
