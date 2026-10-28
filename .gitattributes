@@ -1,0 +1,2 @@
+# Vendored html2pdf.js 0.10.1: keep the bytes identical to the cdnjs / npm release (SRI-verifiable), no CRLF conversion.
+src/AssetManagement.Web/Scripts/vendor/html2pdf.bundle.min.js -text

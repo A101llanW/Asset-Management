@@ -364,6 +364,9 @@
     <Content Include="Scripts\vendor\three.min.js" />
     <Content Include="Scripts\vendor\html5-qrcode.min.js" />
     <Content Include="Scripts\vendor\BrowserPrint-2.0.0.75.min.js" />
+    <Content Include="Scripts\vendor\html2pdf.bundle.min.js" />
+    <Content Include="Scripts\vendor\html2pdf.bundle.min.js.LICENSE.txt" />
+    <Content Include="Scripts\vendor\html2pdf.LICENSE.txt" />
     <Content Include="Scripts\app\workflow-forms.js" />
     <Content Include="Scripts\app\workflow-wizard.js" />
     <Content Include="Scripts\app\asset-classification-picker.js" />

@@ -209,7 +209,8 @@
 }
 
 @section Scripts {
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    @* html2pdf.js 0.10.1, served from this site (QA 2026-10-28); licenses in Scripts/vendor/html2pdf*.LICENSE.txt *@
+    <script src="@Url.Content("~/Scripts/vendor/html2pdf.bundle.min.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/vendor/html2pdf.bundle.min.js")).Ticks"></script>
     <script src="@Url.Content("~/Scripts/app/document-pdf.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/document-pdf.js")).Ticks"></script>
     <script>
         window.amReportsConfig = {

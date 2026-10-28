@@ -98,7 +98,7 @@
 
     <script src="@Url.Content("~/Scripts/jquery-3.7.1.min.js")"></script>
     <script src="@Url.Content("~/Scripts/bootstrap.bundle.min.js")"></script>
-    <script src="@Url.Content("~/Scripts/app/site-interactive.js")"></script>
+    <script src="@Url.Content("~/Scripts/app/site-interactive.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/site-interactive.js")).Ticks"></script>
     @if (Session["ImpersonatedOrganizationId"] != null)
     {
         <script src="@Url.Content("~/Scripts/app/impersonation-ui.js")"></script>
