@@ -1,5 +1,17 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 07:33 EAT - Migration 108 APPLIED LOCALLY and main 9079437 PUBLISHED to local IIS (localhost:8080) - LIVE NOT APPLIED
+
+- Approval: Allan, t18u, 2026-10-28 07:28 EAT: "proceed" (migration 108 on the local database and a local publish). Local only: nothing pushed, no PR, nanosoft.africa not touched, nothing printed.
+- Local DB .\SQLEXPRESS AssetManagementModuleDb:
+  - Copy-only pre-108 backup (RESTORE VERIFYONLY OK): C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\Backup\AssetManagementModuleDb_pre108_2026-10-28_0730.bak. Debugging bot's AssetManagementModuleDb_pre_reqname_20261028_072933.bak was taken after 108 ran.
+  - 108_requisition_line_asset_name.sql (SHA256 4D1E976B...51AC, same as the Desktop kit) applied 07:29 EAT, exit 0. SchemaMigrationHistory Id 112. Pre-check after: 16 columns present, 13 override-trail columns, FK and index present, ItemName 400 bytes, ClassificationOverriddenById 256 bytes. Row counts unchanged (PurchaseRequestLine 29, PurchaseOrderLine 0, PurchaseOrderLineReceipt 0). Rollback not run.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement), one UAC prompt:
+  - Release build of main 9079437 (merge of feat/req-line-asset-name de61e40 into 2a7a5e6), staged at C:\Users\allan\Desktop\Staged_reqname_9079437. Add/overwrite only, root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3).
+  - AssetManagement.Web.dll 58D6762B355255ECAB1CB680793540D5E01D226BC8B9700A3745A0F01689AA0F (was E332B3C2...4BDF, nodept2). Site backup C:\inetpub\_backups\AssetManagement_root_pre_reqname_20261028_073308.
+  - Smoke 07:33 EAT: /Account/Login 200, /nis/Account/Login 200, /A46138179/Account/Login 200, /A46138179/Assets 302 to login. No error pages.
+- Browser check of the Edit panels on Test-WF: not done yet (no local test login available to the agent on alLAN).
+- LIVE: 108 NOT applied, nothing published.
 ## 2026-10-27 19:38 EAT (updated 22:30 EAT) - Requisition line item / asset name carried to PO and receiving (migration 108) - LOCAL BRANCH ONLY, NOT PUBLISHED
 
 - Branch feat/req-line-asset-name (worktree CodexAsset-wt-req-asset-name, from main a942731, local only, not pushed, no PR): b97cd54 schema/constant, 7e98017 asset name guard, 7cb91fd requisition service, f1fab72 requisition UI, 2f2852c PO carry, a89efdc receiving, 75b3d95 tests.
