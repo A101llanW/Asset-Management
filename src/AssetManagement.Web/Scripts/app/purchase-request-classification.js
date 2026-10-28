@@ -4,6 +4,9 @@
  * - Cascading Category > Type > Sub-type pickers per line (and the optional header pick), fed by the org's
  *   existing asset categories (JSON on #purchase-line-items[data-am-catalog]). Picking a child fills its parents.
  * - Rows added/removed by purchase-request-create.js get a picker block and Lines[i].* names (MutationObserver).
+ * - Line pickers show Type > Sub-type only (both required on an untagged line); the category follows from the type
+ *   (the server derives it again and ignores any posted category). A line tagged to an existing asset takes its
+ *   classification from the asset: its pickers are disabled (not posted) and a note is shown.
  * - Live per-line approval path preview: POSTs the form (no file) to PreviewLinePaths; the server applies the same
  *   classification + resolution rules as submit. The server re-validates everything on submit.
  */
@@ -27,6 +30,8 @@
     catalog.subTypes = catalog.subTypes || [];
 
     var previewUrl = container.getAttribute("data-am-preview-lines-url") || "";
+    // RequiredHeader: a line without its own type inherits the header type / sub-type, so line pickers stay optional.
+    var linesInheritHeader = (container.getAttribute("data-am-classification-mode") || "") === "RequiredHeader";
     var pathsPanel = document.getElementById("purchase-line-paths");
     var template = document.getElementById("am-line-classification-template");
     var previewTimer = null;
@@ -63,11 +68,24 @@
         }
     }
 
+    function isLineBlock(block) {
+        return block.classList.contains("am-line-classification");
+    }
+
+    function isFromAsset(block) {
+        return block.classList.contains("am-line-classification-from-asset");
+    }
+
+    function typeLabel(typeItem) {
+        var category = byId(catalog.categories, typeItem.parentId);
+        return category ? category.name + " \u203a " + typeItem.name : typeItem.name;
+    }
+
     function render(block, categoryId, typeId, subTypeId) {
         var cat = block.querySelector(".am-pick-category");
         var type = block.querySelector(".am-pick-type");
         var sub = block.querySelector(".am-pick-subtype");
-        if (!cat || !type || !sub) {
+        if (!type || !sub) {
             return;
         }
 
@@ -81,14 +99,41 @@
             categoryId = typeItem.parentId;
         }
 
-        fillSelect(cat, catalog.categories, "Category (optional)", categoryId);
-        fillSelect(type, catalog.types.filter(function (t) {
-            return !categoryId || String(t.parentId) === String(categoryId);
-        }), "Type", typeItem ? typeItem.id : null);
+        var lineBlock = isLineBlock(block);
+        if (cat) {
+            fillSelect(cat, catalog.categories, "Category (optional)", categoryId);
+        }
+        var types = catalog.types.filter(function (t) {
+            return !cat || !categoryId || String(t.parentId) === String(categoryId);
+        });
+        if (!cat) {
+            // No category picker: show "Category > Type" so the category is visible but never picked separately.
+            types = types.map(function (t) {
+                return { id: t.id, name: typeLabel(t) };
+            });
+        }
+        fillSelect(type, types, lineBlock ? "Type *" : "Type", typeItem ? typeItem.id : null);
         fillSelect(sub, catalog.subTypes.filter(function (s) {
             return typeItem ? String(s.parentId) === String(typeItem.id) : false;
-        }), typeItem ? "Sub-type (optional)" : "Sub-type (choose a type first)", subItem ? subItem.id : null);
-        sub.disabled = !typeItem;
+        }), typeItem ? (lineBlock ? "Sub-type *" : "Sub-type (optional)") : "Sub-type (choose a type first)", subItem ? subItem.id : null);
+
+        if (lineBlock) {
+            var fromAsset = isFromAsset(block);
+            type.disabled = fromAsset;
+            sub.disabled = fromAsset || !typeItem;
+            type.required = !fromAsset && !linesInheritHeader;
+            sub.required = !fromAsset && !linesInheritHeader;
+            var note = block.querySelector(".am-line-from-asset");
+            if (note) {
+                note.classList.toggle("d-none", !fromAsset);
+            }
+        } else {
+            sub.disabled = !typeItem;
+        }
+    }
+
+    function selectedOf(select) {
+        return select ? (select.value || select.getAttribute("data-selected")) : null;
     }
 
     function wire(block) {
@@ -99,17 +144,24 @@
         var cat = block.querySelector(".am-pick-category");
         var type = block.querySelector(".am-pick-type");
         var sub = block.querySelector(".am-pick-subtype");
-        render(block, cat.getAttribute("data-selected"), type.getAttribute("data-selected"), sub.getAttribute("data-selected"));
-        cat.addEventListener("change", function () {
-            render(block, cat.value, null, null);
-            schedulePreview();
-        });
+        render(block, cat ? cat.getAttribute("data-selected") : null, type.getAttribute("data-selected"), sub.getAttribute("data-selected"));
+        if (cat) {
+            cat.addEventListener("change", function () {
+                render(block, cat.value, null, null);
+                schedulePreview();
+            });
+        }
         type.addEventListener("change", function () {
-            render(block, cat.value, type.value, null);
+            render(block, cat ? cat.value : null, type.value, null);
             schedulePreview();
         });
         sub.addEventListener("change", function () {
-            render(block, cat.value, type.value, sub.value);
+            render(block, cat ? cat.value : null, type.value, sub.value);
+            schedulePreview();
+        });
+        // purchase-request-create.js fires this when the line's asset tag is set or cleared.
+        block.addEventListener("am:line-tag-changed", function () {
+            render(block, cat ? selectedOf(cat) : null, selectedOf(type), selectedOf(sub));
             schedulePreview();
         });
     }
@@ -269,10 +321,6 @@
     var department = document.getElementById("DepartmentId");
     if (department) {
         department.addEventListener("change", schedulePreview);
-    }
-    var targetAsset = document.getElementById("TargetAssetId");
-    if (targetAsset) {
-        targetAsset.addEventListener("change", schedulePreview);
     }
 
     schedulePreview();

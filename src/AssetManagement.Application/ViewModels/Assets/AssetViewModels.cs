@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using AssetManagement.Application.Helpers;
 using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.ViewModels
@@ -117,8 +118,9 @@ namespace AssetManagement.Application.ViewModels
 
     public class AssetCreateVm
     {
-        [Required]
-        [StringLength(150)]
+        [Display(Name = AssetNameRules.DisplayName)]
+        [Required(ErrorMessage = AssetNameRules.RequiredMessage)]
+        [StringLength(AssetNameRules.MaxLength, ErrorMessage = "Asset name cannot be longer than {1} characters.")]
         public string AssetName { get; set; }
 
         [Required]

@@ -87,9 +87,11 @@ namespace AssetManagement.Tests.Purchases
             Assert.AreEqual(0, uow.Repository<Asset>().GetAll().Count(), "nothing created");
             Assert.AreEqual(0, uow.Repository<AssetReceiving>().GetAll().Count());
 
-            var result = receiving.ReceiveOrder(Wrap(poId, Line(laptopLine, 1, overrideType: 2, overrideSubType: 10)), "r");
+            // C3: posting another type is an Edit (validated: sub-type 10 is not of type 2).
+            Assert.Throws<BusinessException>(() => receiving.ReceiveOrder(Wrap(poId, Line(laptopLine, 1, overrideType: 2, overrideSubType: 10)), "r"), "edit with a sub-type of another type");
+            var result = receiving.ReceiveOrder(Wrap(poId, Line(laptopLine, 1, overrideSubType: 10)), "r");
             var asset = uow.Repository<Asset>().GetById(result.CreatedAssets.Single().AssetId);
-            Assert.AreEqual(1, asset.AssetTypeId, "posted type still ignored when the source has one");
+            Assert.AreEqual(1, asset.AssetTypeId, "the PO line's type");
             Assert.AreEqual(10, asset.AssetSubTypeId);
         }
 

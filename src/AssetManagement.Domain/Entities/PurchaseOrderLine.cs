@@ -21,6 +21,9 @@ namespace AssetManagement.Domain.Entities
 
         public string Description { get; set; }
 
+        /// <summary>Migration 108: the requisition line's item / asset name, carried to receiving (NULL on older rows).</summary>
+        public string ItemName { get; set; }
+
         public int Quantity { get; set; }
 
         public decimal UnitCost { get; set; }
@@ -31,7 +34,19 @@ namespace AssetManagement.Domain.Entities
 
         public int? AssetSubTypeId { get; set; }
 
-        /// <summary>Where the classification came from: RequisitionAsset, SelectedOnOrder, SupplierCatalog (NULL = none).</summary>
+        /// <summary>Where the classification came from: RequisitionAsset, RequisitionLine, SelectedOnOrder, SupplierCatalog (NULL = none).</summary>
         public string ClassificationSource { get; set; }
+        /// <summary>Migration 108 (C3): who changed the classification away from its prefill (user id); NULL = never changed.</summary>
+        public string ClassificationOverriddenById { get; set; }
+
+        /// <summary>Migration 108 (C3): when the classification was changed (UTC).</summary>
+        public System.DateTime? ClassificationOverriddenAt { get; set; }
+
+        /// <summary>Migration 108 (C3): the classification before the change (snapshot ids, no FK).</summary>
+        public int? OriginalAssetCategoryId { get; set; }
+
+        public int? OriginalAssetTypeId { get; set; }
+
+        public int? OriginalAssetSubTypeId { get; set; }
     }
 }

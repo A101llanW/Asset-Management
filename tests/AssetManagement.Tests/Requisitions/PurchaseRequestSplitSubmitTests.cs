@@ -107,10 +107,10 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void OptionalMode_NoClassification_SinglePr_SameAsToday()
+        public void OptionalMode_TypesWithoutCatalogFlow_SinglePr_DepartmentPath()
         {
             var uow = Seed();
-            var result = Service(uow).SubmitBatch(Form(Line("Plates", 10), Line("Cups", 5)), "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(Line("Plates", 10), Line("Cups", 5)), "requester");
 
             Assert.IsFalse(result.IsSplit);
             Assert.IsNull(result.GroupId);
@@ -129,7 +129,7 @@ namespace AssetManagement.Tests.Requisitions
         public void Submit_LegacyIntApi_StillReturnsId()
         {
             var uow = Seed();
-            var id = Service(uow).Submit(new PurchaseRequestCreateVm
+            var id = Service(uow).SubmitCompleted(uow, new PurchaseRequestCreateVm
             {
                 DepartmentId = 5,
                 ItemDescription = "Kitchen supplies",
@@ -147,7 +147,7 @@ namespace AssetManagement.Tests.Requisitions
         public void SameCatalogPath_AllLines_SinglePrOnCatalogPath()
         {
             var uow = Seed();
-            var result = Service(uow).SubmitBatch(Form(Line("Laptop A", 2, LaptopTypeId), Line("Laptop B", 1, null, LaptopSubTypeId)), "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(Line("Laptop A", 2, LaptopTypeId), Line("Laptop B", 1, null, LaptopSubTypeId)), "requester");
 
             Assert.IsFalse(result.IsSplit);
             var pr = uow.Repository<PurchaseRequest>().GetById(result.PrimaryId);
@@ -159,7 +159,7 @@ namespace AssetManagement.Tests.Requisitions
         public void MixedPaths_AutoSplit_TwoPrsOneGroup_LinesNotDuplicated()
         {
             var uow = Seed();
-            var result = Service(uow).SubmitBatch(Form(
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(
                 Line("Laptop", 3, LaptopTypeId),
                 Line("Desk", 4, DeskTypeId),
                 Line("Spare laptop", 1, LaptopTypeId)), "requester");
@@ -204,7 +204,7 @@ namespace AssetManagement.Tests.Requisitions
         public void MixedPaths_Block_Rejected_NothingCreated()
         {
             var uow = Seed(mixedPolicy: "Block");
-            var ex = Assert.Throws<BusinessException>(() => Service(uow).SubmitBatch(Form(
+            var ex = Assert.Throws<BusinessException>(() => Service(uow).SubmitBatchCompleted(uow, Form(
                 Line("Laptop", 1, LaptopTypeId),
                 Line("Desk", 1, DeskTypeId)), "requester"));
 
@@ -217,7 +217,7 @@ namespace AssetManagement.Tests.Requisitions
         public void Block_SamePath_StillSubmits()
         {
             var uow = Seed(mixedPolicy: "Block");
-            var result = Service(uow).SubmitBatch(Form(Line("Desk", 1, DeskTypeId), Line("Chair", 1)), "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(Line("Desk", 1, DeskTypeId), Line("Chair", 1)), "requester");
             Assert.IsFalse(result.IsSplit);
         }
 
@@ -248,7 +248,7 @@ namespace AssetManagement.Tests.Requisitions
             var form = Form(Line("Laptop 14in", 1), Line("Laptop 15in", 2));
             form.HeaderAssetTypeId = LaptopTypeId;
 
-            var result = Service(uow).SubmitBatch(form, "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, form, "requester");
 
             var pr = uow.Repository<PurchaseRequest>().GetById(result.PrimaryId);
             Assert.AreEqual("7", pr.ApprovalStageRoleIds);
@@ -266,7 +266,7 @@ namespace AssetManagement.Tests.Requisitions
         public void SubTypeOnly_IsNormalizedOnTheStoredLine()
         {
             var uow = Seed();
-            var result = Service(uow).SubmitBatch(Form(Line("Latitude", 1, null, LaptopSubTypeId)), "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(Line("Latitude", 1, null, LaptopSubTypeId)), "requester");
             var line = LinesOf(uow, result.PrimaryId).Single();
             Assert.AreEqual(LaptopSubTypeId, line.AssetSubTypeId);
             Assert.AreEqual(LaptopTypeId, line.AssetTypeId);
@@ -289,7 +289,7 @@ namespace AssetManagement.Tests.Requisitions
             var form = Form(Line("Replacement battery", 1), Line("Chair", 1));
             form.TargetAssetId = 500;
 
-            var result = Service(uow).SubmitBatch(form, "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, form, "requester");
 
             Assert.IsTrue(result.IsSplit);
             var first = uow.Repository<PurchaseRequest>().GetById(result.RequestIds[0]);
@@ -297,14 +297,16 @@ namespace AssetManagement.Tests.Requisitions
             Assert.AreEqual(500, first.TargetAssetId);
             Assert.IsNull(second.TargetAssetId);
             Assert.AreEqual("7", first.ApprovalStageRoleIds);
-            Assert.IsNull(LinesOf(uow, second.Id).Single().AssetTypeId);
+            // Migration 108: the untagged line carries its own (flow-less) type; the tagged line took the asset's.
+            Assert.AreEqual(RequisitionLineTestData.GeneralTypeId, LinesOf(uow, second.Id).Single().AssetTypeId);
+            Assert.AreEqual(LaptopTypeId, LinesOf(uow, first.Id).Single().AssetTypeId);
         }
 
         [Test]
         public void PoRaiser_FollowsCatalogSource_ForCatalogPr_AndDepartmentOtherwise()
         {
             var uow = Seed();
-            var result = Service(uow).SubmitBatch(Form(Line("Laptop", 1, LaptopTypeId), Line("Desk", 1, DeskTypeId)), "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(Line("Laptop", 1, LaptopTypeId), Line("Desk", 1, DeskTypeId)), "requester");
 
             var laptops = uow.Repository<PurchaseRequest>().GetById(result.RequestIds[0]);
             var desks = uow.Repository<PurchaseRequest>().GetById(result.RequestIds[1]);
@@ -326,7 +328,7 @@ namespace AssetManagement.Tests.Requisitions
                 IsActive = true
             });
 
-            var result = Service(uow).SubmitBatch(Form(Line("Laptop", 1, LaptopTypeId), Line("Desk", 1, DeskTypeId)), "requester");
+            var result = Service(uow).SubmitBatchCompleted(uow, Form(Line("Laptop", 1, LaptopTypeId), Line("Desk", 1, DeskTypeId)), "requester");
 
             var desks = uow.Repository<PurchaseRequest>().GetById(result.RequestIds[1]);
             Assert.AreEqual(ApprovalStatus.Approved, desks.ApprovalStatus);

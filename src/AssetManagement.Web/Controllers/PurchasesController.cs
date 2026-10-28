@@ -169,8 +169,17 @@ namespace AssetManagement.Web.Controllers
                 }
 
                 line.QuantityReceived = input.QuantityReceived;
+                if (!string.IsNullOrWhiteSpace(input.ItemName))
+                {
+                    line.ItemName = input.ItemName;
+                }
+
                 line.OverrideAssetTypeId = input.OverrideAssetTypeId;
                 line.OverrideAssetSubTypeId = input.OverrideAssetSubTypeId;
+                // C3: reopen the Edit panel when the receiver had changed a classified line's type / sub-type.
+                line.ClassificationEdited = !line.NeedsClassification
+                    && input.OverrideAssetTypeId.HasValue && input.OverrideAssetTypeId.Value > 0
+                    && (input.OverrideAssetTypeId != line.AssetTypeId || input.OverrideAssetSubTypeId != line.AssetSubTypeId);
                 line.SerialNumbersText = input.SerialNumbersText;
                 line.TagMode = input.TagMode;
                 line.AssetTagsText = input.AssetTagsText;
@@ -329,10 +338,18 @@ namespace AssetManagement.Web.Controllers
 
                 line.Quantity = input.Quantity;
                 line.UnitCost = input.UnitCost;
-                if (!line.ClassificationLocked)
+                if (!line.ClassificationPrefilled)
                 {
                     line.AssetTypeId = input.AssetTypeId;
                     line.AssetSubTypeId = input.AssetSubTypeId;
+                }
+                else if (input.AssetTypeId.HasValue && input.AssetTypeId.Value > 0
+                    && (input.AssetTypeId != line.PrefilledAssetTypeId || input.AssetSubTypeId != line.PrefilledAssetSubTypeId))
+                {
+                    // C3: the user had pressed Edit and changed it - reopen the editor with their choice.
+                    line.AssetTypeId = input.AssetTypeId;
+                    line.AssetSubTypeId = input.AssetSubTypeId;
+                    line.ClassificationEdited = true;
                 }
             }
 

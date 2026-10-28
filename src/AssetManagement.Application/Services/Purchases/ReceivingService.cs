@@ -21,6 +21,7 @@ namespace AssetManagement.Application.Services
         private readonly IOutboxWriter _outboxWriter;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
+        private readonly IUserService _userService;
 
         public ReceivingService(
             IUnitOfWork unitOfWork,
@@ -28,8 +29,10 @@ namespace AssetManagement.Application.Services
             IAssetService assetService,
             IOutboxWriter outboxWriter,
             IOrganizationScopeService organizationScope,
-            IAuditWriter auditWriter = null)
+            IAuditWriter auditWriter = null,
+            IUserService userService = null)
         {
+            _userService = userService;
             _unitOfWork = unitOfWork;
             _assetSubTypeService = assetSubTypeService;
             _assetService = assetService;
@@ -79,7 +82,7 @@ namespace AssetManagement.Application.Services
                 ContextAssetTypeId = context.AssetTypeId,
                 ContextBrand = context.Brand,
                 ContextModel = context.Model,
-                SuggestedAssetName = ResolveSuggestedAssetName(itemDescription, context),
+                SuggestedAssetName = ResolveSuggestedAssetName(ResolveLegacyItemName(purchase, purchaseRequest), itemDescription, context),
                 UnitCost = purchase.UnitCost,
                 Currency = purchase.Currency,
                 RequisitionDepartmentId = context.RequisitionDepartmentId,
@@ -105,10 +108,19 @@ namespace AssetManagement.Application.Services
             var assets = _unitOfWork.Repository<Asset>().GetAll()
                 .Where(x => assetIds.Contains(x.Id))
                 .ToDictionary(x => x.Id, x => x);
-            return receivings.Select(x =>
+            // C3 (migration 108): receipts whose classification was changed at receiving carry who / when / original.
+            var overridden = _unitOfWork.Repository<PurchaseOrderLineReceipt>()
+                .Find(x => x.PurchaseRecordId == purchaseRecordId && x.IsActive)
+                .Where(x => x.ClassificationOverriddenAt.HasValue)
+                .GroupBy(x => x.AssetReceivingId)
+                .ToDictionary(x => x.Key, x => x.First());
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var list = receivings.Select(x =>
             {
                 Asset asset;
                 assets.TryGetValue(x.AssetId, out asset);
+                PurchaseOrderLineReceipt receipt;
+                overridden.TryGetValue(x.Id, out receipt);
                 return new AssetReceivingListVm
                 {
                     Id = x.Id,
@@ -119,9 +131,25 @@ namespace AssetManagement.Application.Services
                     QuantityReceived = x.QuantityReceived,
                     ConditionOnReceipt = x.ConditionOnReceipt,
                     ReceivedById = x.ReceivedById,
-                    Notes = x.Notes
+                    Notes = x.Notes,
+                    ClassificationOverride = receipt == null
+                        ? null
+                        : new ClassificationOverrideVm
+                        {
+                            ChangedById = receipt.ClassificationOverriddenById,
+                            ChangedAtUtc = receipt.ClassificationOverriddenAt,
+                            OldClassification = ledger.DescribeNames(receipt.OriginalAssetCategoryId, receipt.OriginalAssetTypeId, receipt.OriginalAssetSubTypeId),
+                            // Persisted "new" (108 New* columns); rows stamped before them fall back to the asset's
+                            // current classification, labelled as such.
+                            NewClassification = receipt.NewAssetTypeId.HasValue
+                                ? ledger.DescribeNames(receipt.NewAssetCategoryId, receipt.NewAssetTypeId, receipt.NewAssetSubTypeId)
+                                : (asset == null ? null : ledger.DescribeNames(null, asset.AssetTypeId, asset.AssetSubTypeId)),
+                            NewIsCurrentFallback = !receipt.NewAssetTypeId.HasValue && asset != null
+                        }
                 };
             }).ToList();
+            ClassificationOverrideNames.Fill(_userService, list.Select(x => x.ClassificationOverride));
+            return list;
         }
         public ReceiveResultVm Receive(AssetReceiveVm model, string receivedById)
         {
@@ -201,7 +229,7 @@ namespace AssetManagement.Application.Services
             EnsureReceiveSubType(resolvedSubType == null ? (int?)null : resolvedSubType.Id, resolvedSubType == null ? (int?)null : resolvedSubType.AssetTypeId, assetType.Id, null);
             var receiveDepartmentId = ResolveReceiveDepartmentId(model, context);
             var itemDescription = purchaseRequest?.ItemDescription;
-            var assetName = ResolveSuggestedAssetName(itemDescription, context);
+            var assetName = ResolveSuggestedAssetName(ResolveLegacyItemName(purchase, purchaseRequest), itemDescription, context);
             var createdAssets = new List<ReceiveCreatedAssetVm>();
             var receivingId = 0;
             _unitOfWork.ExecuteInTransaction(() =>
@@ -333,6 +361,7 @@ namespace AssetManagement.Application.Services
                     PurchaseOrderLineId = line.Id,
                     LineNumber = line.LineNumber,
                     Description = line.Description,
+                    ItemName = DefaultAssetName(line.ItemName, line.Description, line.AssetSubTypeName, line.Brand, line.Model),
                     Ordered = line.Ordered,
                     Received = line.Received,
                     Outstanding = line.Outstanding,
@@ -460,10 +489,18 @@ namespace AssetManagement.Application.Services
                     }
                 }
 
+                // Migration 108: a posted name is trimmed and length-checked; blank falls back to the default chain.
+                var postedName = AssetNameRules.Normalize(input.ItemName);
+                if (postedName != null)
+                {
+                    postedName = AssetNameRules.EnsureValid(postedName, label);
+                }
+
                 plans.Add(new ReceiveLinePlan
                 {
                     Input = input,
                     Label = label,
+                    ItemName = postedName,
                     Condition = condition.ToString(),
                     Serials = serials,
                     Tags = tags,
@@ -513,7 +550,9 @@ namespace AssetManagement.Application.Services
                             plan.UnitCost = line.UnitCost;
                         }
 
+                        plan.DefaultItemName = ledger.ResolveItemName(request, plan.Line);
                         plan.Classification = ResolvePlanClassification(ledger, purchase, request, plan);
+                        EnsureCompleteClassification(plan.Classification, plan.Label);
                         totalRequested += plan.Input.QuantityReceived;
                     }
 
@@ -573,7 +612,7 @@ namespace AssetManagement.Application.Services
                             receivingId = receiving.Id;
                             if (plan.Line != null)
                             {
-                                _unitOfWork.Repository<PurchaseOrderLineReceipt>().Add(new PurchaseOrderLineReceipt
+                                var receipt = new PurchaseOrderLineReceipt
                                 {
                                     OrganizationId = purchase.OrganizationId,
                                     PurchaseRecordId = purchase.Id,
@@ -583,17 +622,26 @@ namespace AssetManagement.Application.Services
                                     QuantityReceived = 1,
                                     CreatedAt = now,
                                     IsActive = true
-                                });
+                                };
+                                if (plan.ClassificationBefore != null)
+                                {
+                                    // C3 override trail (migration 108): who / when / the PO line classification it replaced.
+                                    PurchaseOrderLedger.StampOverride(receipt, plan.ClassificationBefore, plan.Classification, receivedById, now);
+                                }
+
+                                _unitOfWork.Repository<PurchaseOrderLineReceipt>().Add(receipt);
                                 _unitOfWork.SaveChanges();
                             }
 
                             createdAssets.Add(new ReceiveCreatedAssetVm { AssetId = assetId, AssetTag = asset?.AssetTag, SerialNumber = serial });
+                            plan.CreatedAssetIds.Add(assetId);
                         }
 
                         summary.Add(plan.Label + " x" + plan.Input.QuantityReceived + " -> "
                             + (plan.Destination == null ? "store (company custody)" : plan.Destination.Name)
                             + " [" + plan.Condition + "]"
-                            + (plan.NoSubTypesDefined ? " [no sub-type: type has none defined]" : string.Empty));
+                            + (plan.NoSubTypesDefined ? " [no sub-type: type has none defined]" : string.Empty)
+                            + (plan.ClassificationBefore != null ? " [classification changed at receiving]" : string.Empty));
                     }
 
                     // PO status: Received once nothing is outstanding (ReceivedDate stamped); otherwise Partially Received.
@@ -628,6 +676,21 @@ namespace AssetManagement.Application.Services
                     + " | " + string.Join("; ", summary)
                     + " | status " + statusText
                     + " | assets " + string.Join(",", createdAssets.Select(x => x.AssetId)));
+
+            // C3: one audit row per line whose classification the receiver changed (old vs new, PO line, receipt, assets).
+            foreach (var plan in plans.Where(x => x.ClassificationBefore != null))
+            {
+                _auditWriter?.Write(
+                    PurchaseOrderLedger.AuditActionClassificationEditedAtReceiving,
+                    plan.Line != null ? nameof(PurchaseOrderLine) : nameof(PurchaseRecord),
+                    plan.Line != null ? plan.Line.Id.ToString() : purchase.Id.ToString(),
+                    ledger.DescribeForAudit(plan.ClassificationBefore),
+                    ledger.DescribeForAudit(plan.Classification)
+                        + " | PO " + (purchase.PurchaseOrderNumber ?? purchase.Id.ToString()) + " " + plan.Label
+                        + " | receipt " + (receivingId > 0 ? receivingId.ToString() : "?")
+                        + " | was from " + (PurchaseOrderLedger.DescribeSource(plan.ClassificationBefore.Source) ?? "purchase order")
+                        + " | assets " + string.Join(",", plan.CreatedAssetIds));
+            }
 
             NotifyRequisitionReceipt(request, purchase, createdAssets.Count, statusText);
             return new ReceiveResultVm { ReceivingId = receivingId, CreatedAssets = createdAssets };
@@ -668,10 +731,25 @@ namespace AssetManagement.Application.Services
         {
             var classification = ledger.ResolveClassification(purchase, request, plan.Line, plan.Description);
             var input = plan.Input;
+            // The type / sub-type must belong to the PO's organisation; a PO without one uses the current tenant's.
+            var organizationId = ReceiveOrganizationId(purchase);
             if (classification != null && classification.HasType)
             {
-                // Source wins for the type (posted type is ignored) and for the sub-type when it has one.
-                return RequireSubType(ledger, classification, input.OverrideAssetSubTypeId, plan);
+                // C3 (Allan 2026-10-27): the source classification is a prefill shown read-only with an Edit button. A
+                // posted type (only sent after Edit) that differs from it replaces it after validation and is audit-logged.
+                if (input.OverrideAssetTypeId.HasValue && input.OverrideAssetTypeId.Value > 0)
+                {
+                    var posted = new PurchaseLineClassification { AssetTypeId = input.OverrideAssetTypeId, AssetSubTypeId = input.OverrideAssetSubTypeId };
+                    if (!PurchaseOrderLedger.SameClassification(classification, posted))
+                    {
+                        var edited = ledger.ValidateEditedClassification(organizationId, input.OverrideAssetTypeId, input.OverrideAssetSubTypeId, plan.Label, PurchaseOrderLedger.SourceEditedAtReceiving);
+                        plan.ClassificationBefore = classification;
+                        return edited;
+                    }
+                }
+
+                // Otherwise the source wins for the type and for the sub-type when it has one.
+                return RequireSubType(ledger, classification, input.OverrideAssetSubTypeId, plan, organizationId);
             }
 
             if (!input.OverrideAssetTypeId.HasValue || input.OverrideAssetTypeId.Value <= 0)
@@ -680,13 +758,42 @@ namespace AssetManagement.Application.Services
             }
 
             var type = _unitOfWork.Repository<AssetType>().GetById(input.OverrideAssetTypeId.Value);
-            if (type == null || !type.IsActive)
+            if (type == null || !type.IsActive || !PurchaseOrderLedger.InOrganization(type.OrganizationId, organizationId))
             {
                 throw new BusinessException("The selected asset type was not found (" + plan.Label + ").");
             }
 
             var chosen = ledger.Complete(new PurchaseLineClassification { AssetTypeId = type.Id, Source = "ReceiverOverride" });
-            return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan);
+            return RequireSubType(ledger, chosen, input.OverrideAssetSubTypeId, plan, organizationId);
+        }
+
+        /// <summary>The organisation a receipt's classification must belong to: the PO's, else the current tenant's.</summary>
+        private int? ReceiveOrganizationId(PurchaseRecord purchase)
+        {
+            return purchase.OrganizationId ?? (_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId());
+        }
+
+        /// <summary>
+        /// C5 (Allan 2026-10-27 21:20 EAT): a line is received only with category, type and sub-type all set, whether
+        /// they came from the source or from Edit. Final server check after the classification is resolved.
+        /// </summary>
+        public static void EnsureCompleteClassification(PurchaseLineClassification classification, string label)
+        {
+            var suffix = string.IsNullOrWhiteSpace(label) ? "." : " (" + label + ").";
+            if (classification == null || !classification.AssetTypeId.HasValue || classification.AssetTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the asset type before receiving" + suffix);
+            }
+
+            if (!classification.AssetCategoryId.HasValue || classification.AssetCategoryId.Value <= 0)
+            {
+                throw new BusinessException("The asset type has no category; fix it under Asset Categories before receiving" + suffix);
+            }
+
+            if (!classification.AssetSubTypeId.HasValue || classification.AssetSubTypeId.Value <= 0)
+            {
+                throw new BusinessException("Choose the asset sub-type before receiving" + suffix + " Every received asset needs a sub-type.");
+            }
         }
 
         public const string SubTypeRequiredMessage = "Choose the sub-type: a sub-type is required to receive goods.";
@@ -698,7 +805,7 @@ namespace AssetManagement.Application.Services
         /// Categories (the live trigger would reject the receipt anyway). Legacy assets without a sub-type are listed by
         /// the asset list's "Missing sub-type" filter.
         /// </summary>
-        private PurchaseLineClassification RequireSubType(PurchaseOrderLedger ledger, PurchaseLineClassification classification, int? postedSubTypeId, ReceiveLinePlan plan)
+        private PurchaseLineClassification RequireSubType(PurchaseOrderLedger ledger, PurchaseLineClassification classification, int? postedSubTypeId, ReceiveLinePlan plan, int? organizationId)
         {
             if (classification.AssetSubTypeId.HasValue && classification.AssetSubTypeId.Value > 0)
             {
@@ -716,6 +823,11 @@ namespace AssetManagement.Application.Services
             }
 
             var subType = _unitOfWork.Repository<AssetSubType>().GetById(postedSubTypeId.Value);
+            if (subType != null && !PurchaseOrderLedger.InOrganization(subType.OrganizationId, organizationId))
+            {
+                throw new BusinessException("The selected sub-type was not found (" + plan.Label + ").");
+            }
+
             EnsureReceiveSubType(subType == null ? (int?)null : subType.Id, subType == null ? (int?)null : subType.AssetTypeId, classification.AssetTypeId.Value, plan.Label, subType == null || subType.IsActive);
             classification.AssetSubTypeId = subType.Id;
             return ledger.Complete(classification);
@@ -744,24 +856,51 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        /// <summary>
+        /// Migration 108: the name typed on the receive screen, then the PO line / requisition line ItemName, then the
+        /// pre-108 chain (description, sub-type name, brand + model, "Received asset"). Rows from before 108 have a
+        /// NULL ItemName and keep the old behaviour; every result fits AssetNameRules.MaxLength.
+        /// </summary>
         private string ResolveLineAssetName(ReceiveLinePlan plan)
         {
-            if (!string.IsNullOrWhiteSpace(plan.Description))
+            if (plan.ItemName != null)
             {
-                return plan.Description.Trim().Length > 200 ? plan.Description.Trim().Substring(0, 200) : plan.Description.Trim();
+                return plan.ItemName;
             }
 
+            string subTypeName = null;
             if (plan.Classification.AssetSubTypeId.HasValue)
             {
-                var name = _unitOfWork.Repository<AssetSubType>().GetById(plan.Classification.AssetSubTypeId.Value)?.Name;
-                if (!string.IsNullOrWhiteSpace(name))
-                {
-                    return name;
-                }
+                subTypeName = _unitOfWork.Repository<AssetSubType>().GetById(plan.Classification.AssetSubTypeId.Value)?.Name;
             }
 
-            var brandModel = string.Join(" ", new[] { plan.Classification.Brand, plan.Classification.Model }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
-            return string.IsNullOrWhiteSpace(brandModel) ? "Received asset" : brandModel;
+            return DefaultAssetName(plan.DefaultItemName, plan.Description, subTypeName, plan.Classification.Brand, plan.Classification.Model);
+        }
+
+        /// <summary>Default name chain shared by the receive screen prefill and receiving (always non-blank, within the max length).</summary>
+        public static string DefaultAssetName(string itemName, string description, string subTypeName, string brand, string model)
+        {
+            var name = AssetNameRules.Fit(itemName) ?? AssetNameRules.Fit(description) ?? AssetNameRules.Fit(subTypeName);
+            if (name != null)
+            {
+                return name;
+            }
+
+            var brandModel = AssetNameRules.Fit(string.Join(" ", new[] { brand, model }.Where(x => !string.IsNullOrWhiteSpace(x))));
+            return brandModel ?? "Received asset";
+        }
+
+        /// <summary>Migration 108, legacy receive screen: the single PO line's / requisition line's ItemName, else null.</summary>
+        private string ResolveLegacyItemName(PurchaseRecord purchase, PurchaseRequest purchaseRequest)
+        {
+            var ledger = new PurchaseOrderLedger(_unitOfWork);
+            var lines = ledger.GetLines(purchase.Id);
+            if (lines.Count > 1)
+            {
+                return null;
+            }
+
+            return ledger.ResolveItemName(purchaseRequest, lines.Count == 1 ? lines[0] : null);
         }
 
         private void NotifyRequisitionReceipt(PurchaseRequest request, PurchaseRecord purchase, int unitCount, string statusText)
@@ -809,12 +948,23 @@ namespace AssetManagement.Application.Services
 
             public string Description { get; set; }
 
+            /// <summary>Migration 108: the trimmed, validated name posted for this line (null = use the default chain).</summary>
+            public string ItemName { get; set; }
+
+            /// <summary>Migration 108: the PO line / requisition line ItemName (null on older rows).</summary>
+            public string DefaultItemName { get; set; }
+
             public decimal UnitCost { get; set; }
 
             public PurchaseLineClassification Classification { get; set; }
 
             /// <summary>The line's type has no active sub-types, so the unit is received without one.</summary>
             public bool NoSubTypesDefined { get; set; }
+
+            /// <summary>C3: the PO line / requisition classification before the receiver changed it with Edit (null = not changed).</summary>
+            public PurchaseLineClassification ClassificationBefore { get; set; }
+
+            public IList<int> CreatedAssetIds { get; } = new List<int>();
         }
 
         private static IList<ReceiveAssetUnitVm> BuildReceiveUnits(AssetReceiveVm model)
@@ -849,18 +999,10 @@ namespace AssetManagement.Application.Services
             }
             return normalized;
         }
-        private static string ResolveSuggestedAssetName(string itemDescription, ReceiveContext context)
+        private static string ResolveSuggestedAssetName(string itemName, string itemDescription, ReceiveContext context)
         {
-            if (!string.IsNullOrWhiteSpace(itemDescription))
-            {
-                return itemDescription.Trim();
-            }
-            if (!string.IsNullOrWhiteSpace(context.AssetSubTypeName))
-            {
-                return context.AssetSubTypeName.Trim();
-            }
-            var brandModel = string.Join(" ", new[] { context.Brand, context.Model }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
-            return string.IsNullOrWhiteSpace(brandModel) ? "Received asset" : brandModel;
+            // Migration 108: ItemName first; the description is cut to AssetNameRules.MaxLength (200, the Asset.AssetName column size).
+            return DefaultAssetName(itemName, itemDescription, context.AssetSubTypeName, context.Brand, context.Model);
         }
         private AssetSubTypeVm ResolveReceiveSubType(AssetReceiveVm model, ReceiveContext context)
         {

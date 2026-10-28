@@ -23,9 +23,13 @@ SELECT
     p.[CreatedAt],
     p.[Quantity],
     p.[Currency],
-    p.[ItemDescription]
+    p.[ItemDescription],
+    p.[TargetAssetId],
+    ta.[AssetTag] AS TargetAssetTag,
+    ta.[AssetName] AS TargetAssetName
 FROM [PurchaseRequest] p
 LEFT JOIN [Department] d ON d.[Id] = p.[DepartmentId]
+LEFT JOIN [Asset] ta ON ta.[Id] = p.[TargetAssetId]
 WHERE p.[OrganizationId] = @OrganizationId
   AND p.[IsActive] = 1
   AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND p.[DepartmentId] = @DepartmentId))
@@ -565,6 +569,7 @@ WHERE aa.[OrganizationId] = @OrganizationId
             var fromClause = @"
 FROM [PurchaseRequest] p
 LEFT JOIN [Department] d ON d.[Id] = p.[DepartmentId]
+LEFT JOIN [Asset] ta ON ta.[Id] = p.[TargetAssetId]
 WHERE p.[OrganizationId] = @OrganizationId
   AND p.[IsActive] = 1
   AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND p.[DepartmentId] = @DepartmentId))";
@@ -586,7 +591,10 @@ SELECT
     p.[CreatedAt],
     p.[Quantity],
     p.[Currency],
-    p.[ItemDescription]"
+    p.[ItemDescription],
+    p.[TargetAssetId],
+    ta.[AssetTag] AS TargetAssetTag,
+    ta.[AssetName] AS TargetAssetName"
                 + fromClause + whereClause + " ORDER BY " + orderBy + " OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY";
 
             using (var connection = _connectionFactory.CreateConnection())
@@ -1033,7 +1041,10 @@ SELECT
                 CreatedAt = Convert.ToDateTime(reader["CreatedAt"]),
                 Quantity = Convert.ToInt32(reader["Quantity"]),
                 Currency = SqlQueryHelper.GetString(reader, "Currency"),
-                ItemDescription = SqlQueryHelper.GetString(reader, "ItemDescription")
+                ItemDescription = SqlQueryHelper.GetString(reader, "ItemDescription"),
+                TargetAssetId = reader["TargetAssetId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["TargetAssetId"]),
+                TargetAssetTag = SqlQueryHelper.GetString(reader, "TargetAssetTag"),
+                TargetAssetName = SqlQueryHelper.GetString(reader, "TargetAssetName")
             };
         }
 

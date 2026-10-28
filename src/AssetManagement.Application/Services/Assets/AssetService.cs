@@ -479,6 +479,13 @@ namespace AssetManagement.Application.Services
 
         private int CreateCore(AssetCreateVm model, bool allowBlankSubTypeWhenTypeHasNone)
         {
+            if (model == null)
+            {
+                throw new BusinessException("Asset details are required.");
+            }
+
+            // Server-side name guard (never trust the form): trimmed, not blank, within AssetNameRules.MaxLength.
+            model.AssetName = AssetNameRules.EnsureValid(model.AssetName);
             model.AcquisitionCost = EnsureValidOwnPrice(model.AcquisitionCost);
             model.AssetTag = NormalizeAssetTag(ResolveAssetTagForCreate(model));
             ValidateUniqueness(model.AssetTag, model.SerialNumber, null);
@@ -852,6 +859,13 @@ namespace AssetManagement.Application.Services
                     nameof(Asset),
                     entity.Id.ToString());
             }
+
+            // Server-side name guard: trimmed and not blank. The length limit applies when the name is changed; an
+            // unchanged older name (created before the limit) is kept as stored, not re-validated.
+            var postedName = AssetNameRules.Normalize(model.AssetName);
+            model.AssetName = postedName != null && string.Equals(postedName, AssetNameRules.Normalize(entity.AssetName), StringComparison.Ordinal)
+                ? postedName
+                : AssetNameRules.EnsureValid(postedName);
 
             var oldSnapshot = entity.AssetName + "|" + entity.AssetTag + "|" + entity.CurrentStatus;
             var oldPrice = entity.AcquisitionCost;

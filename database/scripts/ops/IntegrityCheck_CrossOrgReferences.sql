@@ -202,6 +202,7 @@ INSERT #Checks (Category, SourceTable, SourceColumn, TargetTable) VALUES
  ('FK', 'PurchaseRequest',         'DepartmentId',          'Department'),
  ('FK', 'PurchaseRequest',         'TargetAssetId',         'Asset'),
  ('FK', 'PurchaseRequestLine',     'PurchaseRequestId',     'PurchaseRequest'),
+ ('FK', 'PurchaseRequestLine',     'TargetAssetId',         'Asset'),        -- migration 108 (skipped while the column is absent)
  ('FK', 'PurchaseRecord',          'PurchaseRequestId',     'PurchaseRequest'),
  ('FK', 'PurchaseRecord',          'SupplierId',            'Supplier'),
  ('FK', 'TransferApprovalAction',  'AssetTransferId',       'AssetTransfer'),

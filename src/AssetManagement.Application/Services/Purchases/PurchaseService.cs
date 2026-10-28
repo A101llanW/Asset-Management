@@ -157,6 +157,7 @@ namespace AssetManagement.Application.Services
                 : model.Currency.Trim().ToUpperInvariant();
             PurchaseRecord entity = null;
             var createdLines = new List<PurchaseOrderLine>();
+            var classificationEdits = new List<PurchaseLineClassificationEdit>();
 
             try
             {
@@ -168,7 +169,7 @@ namespace AssetManagement.Application.Services
                     _unitOfWork.Repository<PurchaseRequest>().Update(request);
                     _unitOfWork.SaveChanges();
 
-                    var lines = BuildOrderLines(ledger, request, model);
+                    var lines = BuildOrderLines(ledger, request, model, organizationId, classificationEdits);
                     if (lines.Count == 0 || lines.Sum(x => x.Quantity) <= 0)
                     {
                         throw new BusinessException("Enter a quantity of at least 1 on one or more requisition lines.");
@@ -225,6 +226,13 @@ namespace AssetManagement.Application.Services
                         line.LineNumber = ++lineNumber;
                         line.CreatedAt = DateTime.UtcNow;
                         line.IsActive = true;
+                        var edit = classificationEdits.FirstOrDefault(x => ReferenceEquals(x.Line, line));
+                        if (edit != null)
+                        {
+                            // C3 override trail (migration 108): who, when and the prefilled classification it replaced.
+                            PurchaseOrderLedger.StampOverride(line, edit.Before, actingUserId, line.CreatedAt);
+                        }
+
                         _unitOfWork.Repository<PurchaseOrderLine>().Add(line);
                         createdLines.Add(line);
                     }
@@ -250,6 +258,22 @@ namespace AssetManagement.Application.Services
                 (entity.PurchaseOrderNumber ?? entity.Id.ToString())
                     + " | requisition " + (request.RequestNumber ?? request.Id.ToString())
                     + " | " + string.Join("; ", createdLines.Select(x => "L" + x.LineNumber + " x" + x.Quantity)));
+
+            // C3: every classification changed from the requisition prefill gets its own audit row (old vs new).
+            foreach (var edit in classificationEdits.Where(x => createdLines.Contains(x.Line)))
+            {
+                _auditWriter?.Write(
+                    PurchaseOrderLedger.AuditActionClassificationEditedOnOrder,
+                    nameof(PurchaseOrderLine),
+                    edit.Line.Id.ToString(),
+                    ledger.DescribeForAudit(edit.Before),
+                    ledger.DescribeForAudit(edit.After)
+                        + " | PO " + (entity.PurchaseOrderNumber ?? entity.Id.ToString()) + " line " + edit.Line.LineNumber
+                        + " | requisition " + (request.RequestNumber ?? request.Id.ToString())
+                        + (edit.Line.PurchaseRequestLineId.HasValue ? " line #" + edit.Line.PurchaseRequestLineId.Value : string.Empty)
+                        + " | prefilled from " + (PurchaseOrderLedger.DescribeSource(edit.Before.Source) ?? "requisition"));
+            }
+
             return entity.Id;
         }
 
@@ -258,15 +282,21 @@ namespace AssetManagement.Application.Services
         /// always come from the requisition, never from the post). Without posted lines (older callers) the whole
         /// quantity goes on the single requisition line, or on the requisition itself when it has no / several lines.
         /// </summary>
-        private IList<PurchaseOrderLine> BuildOrderLines(PurchaseOrderLedger ledger, PurchaseRequest request, PurchaseRecordVm model)
+        private IList<PurchaseOrderLine> BuildOrderLines(
+            PurchaseOrderLedger ledger,
+            PurchaseRequest request,
+            PurchaseRecordVm model,
+            int? organizationId,
+            IList<PurchaseLineClassificationEdit> edits)
         {
+            edits.Clear();
             var requisitionLines = ledger.GetRequisitionLines(request.Id);
             var posted = (model.Lines ?? new List<PurchaseOrderLineInputVm>()).Where(x => x != null).ToList();
             var result = new List<PurchaseOrderLine>();
             if (posted.Count == 0)
             {
                 var single = requisitionLines.Count == 1 ? requisitionLines[0] : null;
-                result.Add(BuildLine(ledger, request, model.SupplierId, single, single == null ? request.ItemDescription : single.Description, model.Quantity, model.UnitCost, null, null));
+                result.Add(BuildLine(ledger, request, model.SupplierId, single, single == null ? request.ItemDescription : single.Description, model.Quantity, model.UnitCost, null, null, organizationId, null, edits));
                 return result;
             }
 
@@ -321,7 +351,10 @@ namespace AssetManagement.Application.Services
                     input.Quantity,
                     input.UnitCost,
                     input.AssetTypeId,
-                    input.AssetSubTypeId));
+                    input.AssetSubTypeId,
+                    organizationId,
+                    "line " + (requisitionLine != null ? requisitionLine.LineNumber : (input.LineNumber > 0 ? input.LineNumber : 1)),
+                    edits));
             }
 
             return result;
@@ -336,15 +369,38 @@ namespace AssetManagement.Application.Services
             int quantity,
             decimal unitCost,
             int? selectedTypeId,
-            int? selectedSubTypeId)
+            int? selectedSubTypeId,
+            int? organizationId,
+            string label,
+            IList<PurchaseLineClassificationEdit> edits)
         {
-            // Classification precedence: the requisition's existing asset (fixed), then a type chosen on the PO,
-            // then the supplier catalog item; otherwise none and Receiving asks for it.
-            var classification = ledger.FromRequisitionAsset(request);
-            if (classification == null && selectedTypeId.HasValue && selectedTypeId.Value > 0)
+            // Classification precedence (migration 108): what the requisition PRE-FILLS for this line - the line's stored
+            // type / sub-type, then the line's tagged asset, then a legacy header tag - then a type chosen on the PO, then
+            // the supplier catalog item; otherwise none and Receiving asks for it. Before 108 only the header asset was
+            // read here, so a type picked on a requisition line was dropped at the PO (the "type at PO" gap).
+            // C3 (Allan 2026-10-27): the prefill is NOT a lock. A type / sub-type posted with Edit replaces it after
+            // validation (active, same organisation, sub-type required and of that type; category from the type) and the
+            // change is audit-logged. Nothing posted (the edit selects stay disabled until Edit) = the prefill.
+            var prefill = ledger.PrefillClassification(request, requisitionLine);
+            if (prefill != null && !prefill.HasType)
             {
+                prefill = null; // e.g. a tagged asset whose type no longer exists: nothing to prefill.
+            }
+
+            var classification = prefill;
+            if (prefill != null && selectedTypeId.HasValue && selectedTypeId.Value > 0)
+            {
+                var posted = new PurchaseLineClassification { AssetTypeId = selectedTypeId, AssetSubTypeId = selectedSubTypeId };
+                if (!PurchaseOrderLedger.SameClassification(prefill, posted))
+                {
+                    classification = ledger.ValidateEditedClassification(organizationId, selectedTypeId, selectedSubTypeId, label, PurchaseOrderLedger.SourceEditedOnOrder);
+                }
+            }
+            else if (prefill == null && selectedTypeId.HasValue && selectedTypeId.Value > 0)
+            {
+                // organizationId is resolved by Create (current tenant, else the requisition's; required).
                 var type = _unitOfWork.Repository<AssetType>().GetById(selectedTypeId.Value);
-                if (type == null || !type.IsActive)
+                if (type == null || !type.IsActive || !PurchaseOrderLedger.InOrganization(type.OrganizationId, organizationId))
                 {
                     throw new BusinessException("The selected asset type was not found.");
                 }
@@ -352,7 +408,12 @@ namespace AssetManagement.Application.Services
                 if (selectedSubTypeId.HasValue && selectedSubTypeId.Value > 0)
                 {
                     var subType = _unitOfWork.Repository<AssetSubType>().GetById(selectedSubTypeId.Value);
-                    if (subType == null || subType.AssetTypeId != type.Id)
+                    if (subType == null || !PurchaseOrderLedger.InOrganization(subType.OrganizationId, organizationId))
+                    {
+                        throw new BusinessException("The selected sub-type was not found.");
+                    }
+
+                    if (subType.AssetTypeId != type.Id)
                     {
                         throw new BusinessException("The selected sub-type does not belong to the selected asset type.");
                     }
@@ -371,9 +432,10 @@ namespace AssetManagement.Application.Services
                 classification = ledger.FromSupplierCatalog(supplierId, description);
             }
 
-            return new PurchaseOrderLine
+            var orderLine = new PurchaseOrderLine
             {
                 PurchaseRequestLineId = requisitionLine == null ? (int?)null : requisitionLine.Id,
+                ItemName = AssetNameRules.Normalize(requisitionLine == null ? null : requisitionLine.ItemName),
                 Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
                 Quantity = quantity,
                 UnitCost = unitCost,
@@ -382,6 +444,12 @@ namespace AssetManagement.Application.Services
                 AssetSubTypeId = classification == null ? null : classification.AssetSubTypeId,
                 ClassificationSource = classification == null || !classification.HasType ? null : classification.Source
             };
+            if (prefill != null && !ReferenceEquals(classification, prefill))
+            {
+                edits.Add(new PurchaseLineClassificationEdit { Line = orderLine, Before = prefill, After = classification });
+            }
+
+            return orderLine;
         }
 
         private static string Shorten(string text)
@@ -406,15 +474,28 @@ namespace AssetManagement.Application.Services
 
             var ledger = new PurchaseOrderLedger(_unitOfWork);
             var lines = ledger.BuildRequisitionDraft(request);
-            var fixedClassification = ledger.FromRequisitionAsset(request);
+            var requisitionLines = ledger.GetRequisitionLines(request.Id).ToDictionary(x => x.Id);
             foreach (var line in lines)
             {
-                if (fixedClassification != null)
+                PurchaseRequestLine requisitionLine = null;
+                if (line.PurchaseRequestLineId.HasValue)
                 {
-                    line.AssetTypeId = fixedClassification.AssetTypeId;
-                    line.AssetSubTypeId = fixedClassification.AssetSubTypeId;
-                    line.ClassificationLocked = true;
-                    line.ClassificationLabel = DescribeClassification(fixedClassification) + " (from the requisition's existing asset)";
+                    requisitionLines.TryGetValue(line.PurchaseRequestLineId.Value, out requisitionLine);
+                }
+
+                // C3: prefilled from the requisition, shown read-only with an Edit button (not locked).
+                var prefill = ledger.PrefillClassification(request, requisitionLine);
+                if (prefill != null && prefill.HasType)
+                {
+                    line.AssetTypeId = prefill.AssetTypeId;
+                    line.AssetSubTypeId = prefill.AssetSubTypeId;
+                    line.PrefilledAssetTypeId = prefill.AssetTypeId;
+                    line.PrefilledAssetSubTypeId = prefill.AssetSubTypeId;
+                    line.ClassificationPrefilled = true;
+                    line.ClassificationLabel = DescribeClassification(prefill)
+                        + (prefill.Source == PurchaseOrderLedger.SourceRequisitionLine
+                            ? " (from the requisition line)"
+                            : " (from the requisition's existing asset)");
                 }
             }
 
@@ -471,7 +552,14 @@ namespace AssetManagement.Application.Services
         public PurchaseOrderStatusVm GetOrderStatus(int purchaseRecordId)
         {
             var purchase = _unitOfWork.Repository<PurchaseRecord>().GetById(purchaseRecordId);
-            return purchase == null ? null : new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+            if (purchase == null)
+            {
+                return null;
+            }
+
+            var status = new PurchaseOrderLedger(_unitOfWork).BuildStatus(purchase);
+            ClassificationOverrideNames.Fill(_userService, status.Lines.Select(x => x.ClassificationOverride));
+            return status;
         }
 
         public RequisitionOrderSummaryVm GetRequisitionOrderSummary(int purchaseRequestId)

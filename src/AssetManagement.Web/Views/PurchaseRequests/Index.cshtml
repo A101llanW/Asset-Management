@@ -26,6 +26,7 @@
                 <tr>
                     <th>Request #</th>
                     <th>Item</th>
+                    <th>Tagged asset</th>
                     <th>Requisition target</th>
                     <th>Requested by</th>
                     <th>Status</th>
@@ -42,6 +43,20 @@
                         <td><strong>@r.RequestNumber</strong></td>
                         <td>@(string.IsNullOrWhiteSpace(r.ItemDescription) ? DisplayText.Empty : r.ItemDescription)</td>
                         <td>
+                            @if (r.TargetAssetId.HasValue)
+                            {
+                                <a href="@AssetManagement.Web.Helpers.TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = r.TargetAssetId.Value })">@(string.IsNullOrWhiteSpace(r.TargetAssetTag) ? "View asset" : r.TargetAssetTag)</a>
+                                if (!string.IsNullOrWhiteSpace(r.TargetAssetName))
+                                {
+                                    <div class="small text-muted">@r.TargetAssetName</div>
+                                }
+                            }
+                            else
+                            {
+                                @DisplayText.Empty
+                            }
+                        </td>
+                        <td>
                             @(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : r.DepartmentName)
                             @if (r.DepartmentKind.HasValue)
                             {
@@ -57,7 +72,7 @@
             }
             else
             {
-                <tr><td colspan="7" class="text-muted p-4">No requisitions yet.</td></tr>
+                <tr><td colspan="8" class="text-muted p-4">No requisitions yet.</td></tr>
             }
             </tbody>
         </table>

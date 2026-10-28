@@ -8,6 +8,18 @@
     var receiveDetail = ViewBag.ReceiveDetail as AssetManagement.Application.ViewModels.PurchaseReceiveDetailVm;
     var orderStatus = ViewBag.OrderStatus as AssetManagement.Application.ViewModels.PurchaseOrderStatusVm;
 }
+@helper ClassificationOverride(AssetManagement.Application.ViewModels.ClassificationOverrideVm change, string place)
+{
+    @* C3 (migration 108): who / when / old -> new for a classification changed on the PO or at receiving. *@
+    if (change != null)
+    {
+        <div class="small text-warning-emphasis mt-1 am-class-override">
+            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            Classification changed @place by <strong>@change.ChangedByDisplay</strong>@(change.ChangedAtUtc.HasValue ? ", " + AssetManagement.Application.Helpers.KenyaTimeHelper.FormatUtc(change.ChangedAtUtc.Value) + " EAT" : string.Empty):
+            <span class="text-decoration-line-through">@(change.OldClassification ?? "none")</span> &rarr; <span>@(change.NewIsCurrentFallback ? "current: " : string.Empty)@(change.NewClassification ?? "none")</span>
+        </div>
+    }
+}
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = string.IsNullOrWhiteSpace(Model.PurchaseOrderNumber) ? "Purchase Record" : "PO " + Model.PurchaseOrderNumber,
@@ -163,6 +175,7 @@ else if (canSendToBulkPrint)
                             {
                                 <span class="text-muted">Chosen when receiving</span>
                             }
+                            @ClassificationOverride(line.ClassificationOverride, "on the purchase order")
                         </td>
                         <td class="text-end">@line.Ordered</td>
                         <td class="text-end">@line.Received</td>
@@ -217,6 +230,7 @@ else if (canSendToBulkPrint)
                                 <td>
                                     <a href="@Url.Action("Details", "Assets", new { id = line.AssetId, returnUrl = Request.RawUrl })">@line.AssetTag</a>
                                     <div class="text-muted small">@line.AssetName</div>
+                                    @ClassificationOverride(line.ClassificationOverride, "at receiving")
                                 </td>
                                 <td>@line.ReceivedDate.ToString("yyyy-MM-dd")</td>
                                 <td>@line.QuantityReceived</td>

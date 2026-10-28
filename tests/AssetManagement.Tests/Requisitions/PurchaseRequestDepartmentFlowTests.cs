@@ -54,7 +54,7 @@ namespace AssetManagement.Tests.Requisitions
                 new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
                 new FakeOperationsQueryRepository());
 
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 5,
                 ItemDescription = "Kitchen supplies",
@@ -107,7 +107,7 @@ namespace AssetManagement.Tests.Requisitions
                 new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
                 new FakeOperationsQueryRepository());
 
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 118,
                 ItemDescription = "Books",

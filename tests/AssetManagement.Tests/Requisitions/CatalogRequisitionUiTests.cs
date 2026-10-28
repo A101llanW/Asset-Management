@@ -285,7 +285,7 @@ namespace AssetManagement.Tests.Requisitions
             var uow = Seed();
             FlowService(uow).SaveFlow(Custom(CatalogFlowScope.Category, 2, 4, 7));
 
-            var result = RequestService(uow).SubmitBatch(Form(Line("Desk", DeskTypeId)), "requester");
+            var result = RequestService(uow).SubmitBatchCompleted(uow, Form(Line("Desk", DeskTypeId)), "requester");
             var pr = uow.Repository<PurchaseRequest>().GetById(result.PrimaryId);
             Assert.AreEqual("4,7", pr.ApprovalStageRoleIds);
             Assert.AreEqual("Custom on Category: Furniture", pr.ApprovalFlowSource);
@@ -352,7 +352,7 @@ namespace AssetManagement.Tests.Requisitions
             Assert.IsNull(preview.Groups[0].SourceKind, "fingerprint is internal only");
             Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count(), "preview saves nothing");
 
-            var submitted = RequestService(uow).SubmitBatch(form, "requester");
+            var submitted = RequestService(uow).SubmitBatchCompleted(uow, form, "requester");
             Assert.AreEqual(preview.Groups.Count, submitted.RequestIds.Count);
         }
 
@@ -390,7 +390,7 @@ namespace AssetManagement.Tests.Requisitions
         {
             var uow = Seed();
             var service = RequestService(uow);
-            var submitted = service.SubmitBatch(Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId), Line("Chair", DeskTypeId)), "requester");
+            var submitted = service.SubmitBatchCompleted(uow, Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId), Line("Chair", DeskTypeId)), "requester");
 
             var batch = service.GetBatch(submitted.GroupId.Value);
             Assert.AreEqual(submitted.BatchLabel, batch.BatchLabel);
@@ -414,7 +414,7 @@ namespace AssetManagement.Tests.Requisitions
         {
             var uow = Seed();
             var service = RequestService(uow);
-            var submitted = service.SubmitBatch(Form(Line("Laptop", null, LaptopSubTypeId), Line("Desk", DeskTypeId)), "requester");
+            var submitted = service.SubmitBatchCompleted(uow, Form(Line("Laptop", null, LaptopSubTypeId), Line("Desk", DeskTypeId)), "requester");
 
             var detail = service.GetById(submitted.RequestIds[0]);
             Assert.AreEqual(submitted.BatchLabel, detail.BatchLabel);
@@ -430,7 +430,7 @@ namespace AssetManagement.Tests.Requisitions
             // Desks get exactly the Laptops path (ICT Manager, no PO raiser) but are a different node: owner decision = no merge.
             FlowService(uow).SaveFlow(Custom(CatalogFlowScope.Type, DeskTypeId, 7));
 
-            var result = RequestService(uow).SubmitBatch(Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
+            var result = RequestService(uow).SubmitBatchCompleted(uow, Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
 
             Assert.IsTrue(result.IsSplit);
             var prs = uow.Repository<PurchaseRequest>().GetAll().ToList();
@@ -444,7 +444,7 @@ namespace AssetManagement.Tests.Requisitions
         {
             var uow = Seed();
 
-            var result = RequestService(uow).SubmitBatch(Form(Line("Laptop A", LaptopTypeId), Line("Laptop B", LaptopTypeId)), "requester");
+            var result = RequestService(uow).SubmitBatchCompleted(uow, Form(Line("Laptop A", LaptopTypeId), Line("Laptop B", LaptopTypeId)), "requester");
 
             Assert.IsFalse(result.IsSplit);
             Assert.AreEqual(2, uow.Repository<PurchaseRequestLine>().GetAll().Count(x => x.PurchaseRequestId == result.PrimaryId));
@@ -458,7 +458,7 @@ namespace AssetManagement.Tests.Requisitions
             desks.PurchaseOrderRaiserRoleId = 4;
             FlowService(uow).SaveFlow(desks);
 
-            var result = RequestService(uow).SubmitBatch(Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
+            var result = RequestService(uow).SubmitBatchCompleted(uow, Form(Line("Laptop", LaptopTypeId), Line("Desk", DeskTypeId)), "requester");
             Assert.IsTrue(result.IsSplit);
         }
 

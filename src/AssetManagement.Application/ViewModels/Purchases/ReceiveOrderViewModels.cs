@@ -67,6 +67,13 @@ namespace AssetManagement.Application.ViewModels
 
         public string Description { get; set; }
 
+        /// <summary>
+        /// Migration 108: name for the asset(s) created on this line. Prefilled from the PO line / requisition line
+        /// ItemName (else the legacy fallback chain), editable, posted back; blank = use the default chain.
+        /// Max AssetNameRules.MaxLength (checked server-side).
+        /// </summary>
+        public string ItemName { get; set; }
+
         public int Ordered { get; set; }
 
         public int Received { get; set; }
@@ -90,6 +97,9 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>No source has a classification: the receiver must choose the type (override).</summary>
         public bool NeedsClassification { get; set; }
 
+        /// <summary>C3: redisplay with the Edit panel open (the posted type differed from the line's classification).</summary>
+        public bool ClassificationEdited { get; set; }
+
         /// <summary>A source set the type but not the sub-type, and the type has sub-types: the receiver must choose one.</summary>
         public bool NeedsSubType { get; set; }
 
@@ -100,7 +110,11 @@ namespace AssetManagement.Application.ViewModels
 
         public int QuantityReceived { get; set; }
 
-        /// <summary>Used ONLY when NeedsClassification; ignored server-side when a source has the classification.</summary>
+        /// <summary>
+        /// The receiver's type when NeedsClassification, or (C3, Allan 2026-10-27) after Edit on a line that already has a
+        /// classification: a posted type / sub-type that differs from the PO line's is validated (active, same organization,
+        /// sub-type of the type, sub-type required) and audit-logged; the asset gets it, the PO line keeps its value.
+        /// </summary>
         public int? OverrideAssetTypeId { get; set; }
 
         public int? OverrideAssetSubTypeId { get; set; }

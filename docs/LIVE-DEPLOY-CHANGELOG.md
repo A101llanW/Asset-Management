@@ -1,5 +1,55 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-27 19:38 EAT (updated 22:30 EAT) - Requisition line item / asset name carried to PO and receiving (migration 108) - LOCAL BRANCH ONLY, NOT PUBLISHED
+
+- Branch feat/req-line-asset-name (worktree CodexAsset-wt-req-asset-name, from main a942731, local only, not pushed, no PR): b97cd54 schema/constant, 7e98017 asset name guard, 7cb91fd requisition service, f1fab72 requisition UI, 2f2852c PO carry, a89efdc receiving, 75b3d95 tests.
+- Review fixes (Debugging bot, @4208c15):
+  - 515f342 B1: IX_PurchaseRequestLine_TargetAssetId is now a plain nonclustered index. It was filtered, which DECISIONS A11 forbids (error 1934 under QUOTED_IDENTIFIER OFF).
+  - 23d3b35 C1: the rollback re-checks ConfirmRollback, DB_NAME() = DbName and unsubstituted sqlcmd variables inside the drop batch, so it stops cleanly in SSMS without SQLCMD Mode.
+  - d799d6a C2 + C7(i): a legacy post with no lines keeps ItemName. A header tag goes to the first line with a description, so it is no longer lost when row 0 is blank.
+  - c8987dc C4: the PO uses the stored (approved) requisition line type / sub-type. The tagged asset's current classification is used only when the line has none.
+  - 89790f5 C5: the "type has no sub-types" requisition error reuses the receiving wording ("Add one under Asset Categories first").
+  - 9de4e2a: tests for these fixes.
+  - C3 and C5 decided by Allan, see below.
+- Asset name length (Allan, 2026-10-27 22:29 EAT (Debugging bot's chat)):
+  - a119e90: asset name length is 200 (AssetNameRules.MaxLength = 200, the same as the NVARCHAR(200) columns). The provisional notes are removed from the code, the JS fallback and the migration 108 comments. Confirmed by Allan at 22:29 EAT in the Debugging bot's chat; the code stays at 200.
+- Allan's C3 / C5 answers (2026-10-27 21:20 EAT, in the Debugging bot's chat):
+  - 492d20c C3: at PO creation and at receiving, Category / Type / Sub-type are pre-filled from the approved requisition line (tagged lines too) and shown read-only with an Edit button. This replaces the C4 lock (PurchaseOrderLedger.FixedClassification is now PrefillClassification).
+    - After Edit the sub-type is mandatory and the category follows the type. The server checks the type and sub-type are active, in the organization (or shared) and that the sub-type belongs to the type.
+    - Every change is audit-logged: Purchases.ClassificationEdited (entity PurchaseOrderLine; old vs new, PO and line, requisition and line) and Purchases.Receive.ClassificationEdited (entity PurchaseOrderLine; old vs new, PO and line, receipt, created assets). The audit row carries the user.
+    - A PO-line edit is stored with ClassificationSource EditedOnOrder. A receiving edit goes on the new asset only; the PO line keeps what was ordered.
+    - Unchanged: Description stays mandatory; receiving against a tagged asset always creates a NEW asset. Lines with no requisition classification keep the old optional type at PO (sub-type still enforced at receiving). The legacy single Receive page has no Edit.
+    - 59bc504: tests. Three older tests that expected a posted type to be ignored at receiving now expect it to be validated as an edit.
+    - (At 59bc504 no schema change; the override trail below adds columns to 108.)
+- Allan's steering, same 21:20 EAT answers (relayed by the Debugging bot):
+  - c4d79aa C3 override trail. Migration 108 now also adds five NULLable columns on PurchaseOrderLine AND on PurchaseOrderLineReceipt: ClassificationOverriddenById NVARCHAR(128), ClassificationOverriddenAt DATETIME (UTC), OriginalAssetCategoryId / OriginalAssetTypeId / OriginalAssetSubTypeId INT (snapshot ids, no FK on purpose). Each has its own COL_LENGTH guard; the rollback drops all ten (guarded) inside the same re-checked batch.
+    - Set on a PO-line edit (who = the user raising the PO, original = the prefill) and on a receiving edit (who = the receiver, original = the PO line's classification; the new asset gets the new one).
+    - PO Details shows "Classification changed on the purchase order / at receiving by <name> , <time> EAT: old -> new" under the order line and under the receiving row (name from the user directory, falls back to the user id). AuditLog rows are unchanged.
+  - 8145186 C5: receiving blocks unless Category, Type and Sub-type are all set. Server: final ReceivingService.EnsureCompleteClassification after the classification is resolved (source or Edit). Client: a type with no sub-types keeps the empty sub-type select required and shows "This asset type has no sub-types yet. Add one under Asset Categories before receiving" (was "it will be received without one"); a missing type is flagged too, also after Edit. Requisition rule and wording unchanged. A tagged asset still always creates a NEW asset.
+  - 3f5c92c: tests (+5).
+- Re-review fixes (Debugging bot @d572709, no blockers):
+  - 8225fda (1): the type and sub-type of an edit or a receiver-picked type must belong to the organisation: the PO's, else the current tenant's (a PO with a NULL OrganizationId used to skip the check). Also added to the unclassified receiving path (type and posted sub-type) and to an unprefilled PO line (type and sub-type). Shared rows (OrganizationId NULL) stay allowed.
+  - ce8851b (4)+(5): migration 108 also adds NewAssetCategoryId / NewAssetTypeId / NewAssetSubTypeId INT NULL on PurchaseOrderLineReceipt (COL_LENGTH guards, no FK; the rollback drops them). They are written with the override stamp and the receivings list shows "new" from them; an older stamped receipt without them shows the asset's classification prefixed "current:". PO lines checked: their "new" is their own AssetCategoryId / AssetTypeId / AssetSubTypeId, written once at PO creation, so no columns added there. Stray <summary> removed in PurchaseOrderLedger. 108 now adds 16 columns (PreCheck expects 16 column checks).
+  - e107937 (6): IE11 - classList.toggle(cls, force) replaced with explicit add / remove (setHidden) in receive-order.js and purchase-order-lines.js.
+  - (3) kept as intended: the same type with a newly picked sub-type is stamped as an override (DECISIONS N5).
+  - (2) attribution: N1 / AssetNameRules / the 108 header / this entry / the kit README now say "Allan, 2026-10-27 22:29 EAT (Debugging bot's chat)" (Allan confirmed 200 at 22:29 EAT); C3 and C5 have their own 21:20 EAT heading in DECISIONS.
+  - (docs only, 22:30 EAT) 200 confirmed by Allan at 22:29 EAT in the Debugging bot's chat: attribution updated in AssetNameRules.cs, the 108 header comment (108's SHA256 changes; kit refreshed, byte-identical, not run), DECISIONS N1 and its heading, this entry and the kit README. No logic change.
+  - 0a95daf: tests (+9: organisation checks x3, persisted "new" with the "current" fallback x2, 108 / rollback column parity x2, no classList.toggle with force x2 files).
+- Requisition lines: "Item / asset name" is required on untagged lines and Description stays required.
+  - Untagged lines need Type and Sub-type. Category is derived from the Type, and a posted category is ignored.
+  - Each line can tag an existing asset. A tagged line takes the asset's name (editable) and classification, and split requisitions keep their own lines' tags.
+  - The header TargetAssetId is kept for back-compat, and the Index has a Tagged asset column.
+- PO lines now carry ItemName and the requisition line's classification (fixes the type lost at PO). Receiving pre-fills an editable per-line asset name: PO ItemName first, then description / sub-type / brand-model.
+- Receiving against a tagged asset always creates a NEW asset. The tagged asset is never updated.
+- Name length: one constant, AssetNameRules.MaxLength = 200 (Allan, 2026-10-27 22:29 EAT (Debugging bot's chat)), the same as the NVARCHAR(200) columns.
+- DB migration: database/scripts/004_Migrations/108_requisition_line_asset_name.sql (additive, idempotent). Rollback: database/scripts/ops/108_Rollback_RequisitionLineAssetName_PREPARE_DO_NOT_RUN.sql.
+  - NOT applied anywhere (not local SQLEXPRESS, not live). Apply it before publishing this build (the entity maps read the new columns, including the thirteen override-trail columns).
+  - Rows created before 108 are not re-validated: a NULL ItemName uses the old name fallback.
+- Live DB kit (PREPARED, NOT RUN): C:\Users\allan\Desktop\LiveKit_req_asset_name\db\ contains README.md (run order, backup, verify, rollback; if Migration108_Recorded = 1 but fewer than the expected override columns exist, run 108 by hand - it is fully guarded), 108_PreCheck_READ_ONLY.sql (SELECTs only), the 108 migration and the rollback (both byte-identical to the repo).
+- Tests: 1224 total, 1217 passed, 0 failed, 7 skipped (was 1215/1208/7/0 at d572709; 1210/1203/7/0 at 59bc504; 1198/1191/7/0 at c04d69a). Web project builds (Debug), all Razor views precompile (aspnet_compiler, temp output deleted), receive-order.js and purchase-order-lines.js pass node --check. The Edit panels and the override display were not checked in a browser.
+- With the 200 limit, the fallback names (tagged asset name, description) are cut at 200, the column size, so no name that fits the column is cut or rejected.
+- NOT published to localhost:8080, Desktop\publish not changed, not copied to live. Config keys: none. Live (DB kit and publish) needs Allan's individual approval.
+
 ## 2026-10-27 19:31 EAT - No-department users: default Assets/Assignments lists open org-wide - PUBLISHED to localhost:8080 (local IIS only, NOT live)
 
 - Build: main a942731 (contains d9a2eb0), stage C:\Users\allan\Desktop\Staged_nodept2_d9a2eb0. Approved by Allan (t721u, 19:15 EAT: "Yes publish"). One UAC prompt, accepted.

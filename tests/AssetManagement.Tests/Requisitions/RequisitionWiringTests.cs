@@ -111,7 +111,7 @@ namespace AssetManagement.Tests.Requisitions
                 new FakeOperationsQueryRepository());
 
             var requiredDate = DateTime.UtcNow.Date.AddDays(14);
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 3,
                 ItemDescription = "Ergonomic office chair",
@@ -286,7 +286,7 @@ namespace AssetManagement.Tests.Requisitions
                 new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
                 new FakeOperationsQueryRepository());
 
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 3,
                 Justification = "Class supplies",
@@ -351,7 +351,7 @@ namespace AssetManagement.Tests.Requisitions
                 new FakeApprovalWorkflowEngine(unitOfWork, new NoOpAuditWriter()),
                 new FakeOperationsQueryRepository());
 
-            var id = service.Submit(new PurchaseRequestCreateVm
+            var id = service.SubmitCompleted(unitOfWork, new PurchaseRequestCreateVm
             {
                 DepartmentId = 3,
                 ItemDescription = "Whiteboard markers",

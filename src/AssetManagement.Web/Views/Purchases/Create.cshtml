@@ -126,7 +126,7 @@ else
                             <th class="text-end">Outstanding</th>
                             <th style="width:110px">Order qty</th>
                             <th style="width:130px">Unit cost</th>
-                            <th style="min-width:260px">Classification (optional)</th>
+                            <th style="min-width:260px">Classification</th>
                             <th class="text-end">Line total</th>
                         </tr>
                     </thead>
@@ -134,13 +134,21 @@ else
                     @for (var i = 0; i < lines.Count; i++)
                     {
                         var line = lines[i];
+                        var prefilled = line.ClassificationPrefilled;
+                        var editing = !prefilled || line.ClassificationEdited;
                         <tr data-am-po-line="@i">
                             <td>
                                 @line.LineNumber
                                 <input type="hidden" name="Lines[@i].PurchaseRequestLineId" value="@(line.PurchaseRequestLineId.HasValue ? line.PurchaseRequestLineId.Value.ToString() : "")" />
                                 <input type="hidden" name="Lines[@i].LineNumber" value="@line.LineNumber" />
                             </td>
-                            <td>@line.Description</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(line.ItemName))
+                                {
+                                    <div class="fw-semibold">@line.ItemName</div>
+                                }
+                                @line.Description
+                            </td>
                             <td class="text-end">@line.RequisitionQuantity</td>
                             <td class="text-end">@line.AlreadyOrdered</td>
                             <td class="text-end fw-semibold">@line.Outstanding</td>
@@ -153,14 +161,17 @@ else
                                        min="0" step="0.01" value="@line.UnitCost.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" />
                             </td>
                             <td>
-                                @if (line.ClassificationLocked)
+                                @if (prefilled)
                                 {
-                                    <div class="small">@line.ClassificationLabel</div>
+                                    <div class="am-po-class-readonly@(editing ? " d-none" : "")">
+                                        <div class="small">@line.ClassificationLabel</div>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm mt-1 am-po-class-edit">Edit</button>
+                                    </div>
                                 }
-                                else
-                                {
-                                    <select class="form-select form-select-sm am-po-type mb-1" name="Lines[@i].AssetTypeId">
-                                        <option value="">-- Type (or from the supplier catalog) --</option>
+                                <div class="am-po-class-editor@(editing ? "" : " d-none")" data-am-prefilled="@(prefilled ? "true" : "false")"
+                                     data-am-prefill-type="@line.PrefilledAssetTypeId" data-am-prefill-subtype="@line.PrefilledAssetSubTypeId">
+                                    <select class="form-select form-select-sm am-po-type mb-1" name="Lines[@i].AssetTypeId" aria-label="Asset type" @(editing ? "" : "disabled")>
+                                        <option value="">@(prefilled ? "-- Type --" : "-- Type (or from the supplier catalog) --")</option>
                                         @foreach (var grp in typeOptions.GroupBy(t => t.GroupName ?? "Other"))
                                         {
                                             <optgroup label="@grp.Key">
@@ -178,8 +189,8 @@ else
                                             </optgroup>
                                         }
                                     </select>
-                                    <select class="form-select form-select-sm am-po-subtype" name="Lines[@i].AssetSubTypeId">
-                                        <option value="">-- Sub-type (optional) --</option>
+                                    <select class="form-select form-select-sm am-po-subtype" name="Lines[@i].AssetSubTypeId" aria-label="Sub-type" data-am-subtype-required="@(prefilled ? "true" : "false")" @(editing ? "" : "disabled")>
+                                        <option value="">@(prefilled ? "-- Sub-type (required) --" : "-- Sub-type (optional) --")</option>
                                         @foreach (var st in subTypeOptions)
                                         {
                                             if (line.AssetSubTypeId == st.Id)
@@ -192,7 +203,12 @@ else
                                             }
                                         }
                                     </select>
-                                }
+                                    @if (prefilled)
+                                    {
+                                        <div class="form-text small mb-1">Category follows the type. The sub-type is required. The change is recorded in the audit log.</div>
+                                        <button type="button" class="btn btn-link btn-sm p-0 am-po-class-cancel">Cancel (keep the requisition's)</button>
+                                    }
+                                </div>
                             </td>
                             <td class="text-end am-po-line-total"></td>
                         </tr>
@@ -210,7 +226,8 @@ else
             </div>
             <div class="card-body small text-muted">
                 Quantities cannot exceed what is still outstanding on the requisition (all of its purchase orders together); the server checks this again on save.
-                The classification is what Receiving fills in automatically; leave it blank to take it from the supplier catalog, or to choose it when receiving.
+                The classification is what Receiving fills in automatically. Lines from the requisition are pre-filled with its category, type and sub-type; press Edit to change them (the change is audit-logged).
+                Other lines: leave it blank to take it from the supplier catalog, or to choose it when receiving.
             </div>
         </div>
         @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel

@@ -69,7 +69,7 @@
                             <ul class="mb-0 ps-3">
                                 @foreach (var line in Model.LineItems)
                                 {
-                                    <li>@line.Description <span class="text-muted">(qty @line.Quantity)</span>@if (!string.IsNullOrWhiteSpace(line.ClassificationLabel)) {<span class="badge bg-light text-dark border ms-1">@line.ClassificationLabel</span>}</li>
+                                    <li>@if (!string.IsNullOrWhiteSpace(line.ItemName)) {<strong class="me-1">@line.ItemName</strong>}@line.Description <span class="text-muted">(qty @line.Quantity)</span>@if (line.TargetAssetId.HasValue) {<a class="badge bg-info text-dark ms-1" href="@AssetManagement.Web.Helpers.TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = line.TargetAssetId.Value })" title="Tagged asset">@(string.IsNullOrWhiteSpace(line.TargetAssetTag) ? "Tagged asset" : line.TargetAssetTag)</a>}@if (!string.IsNullOrWhiteSpace(line.ClassificationLabel)) {<span class="badge bg-light text-dark border ms-1">@line.ClassificationLabel</span>}</li>
                                 }
                             </ul>
                         </dd>
@@ -79,6 +79,11 @@
                         <dt class="col-sm-4">Item</dt>
                         <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ItemDescription) ? DisplayText.Empty : Model.ItemDescription)</dd>
                         var singleLine = Model.LineItems == null ? null : System.Linq.Enumerable.FirstOrDefault(Model.LineItems);
+                        if (singleLine != null && !string.IsNullOrWhiteSpace(singleLine.ItemName))
+                        {
+                            <dt class="col-sm-4">Item / asset name</dt>
+                            <dd class="col-sm-8">@singleLine.ItemName</dd>
+                        }
                         if (singleLine != null && !string.IsNullOrWhiteSpace(singleLine.ClassificationLabel))
                         {
                             <dt class="col-sm-4">Classification</dt>
@@ -89,7 +94,7 @@
                     {
                         <dt class="col-sm-4">Tagged asset</dt>
                         <dd class="col-sm-8">
-                            <a href="@Url.Action("Details", "Assets", new { id = Model.TargetAssetId })">
+                            <a href="@AssetManagement.Web.Helpers.TenantUrlHelper.TenantRouteUrl(Url, "Details", "Assets", new { id = Model.TargetAssetId.Value })">
                                 @(string.IsNullOrWhiteSpace(Model.TargetAssetTag)
                                     ? (string.IsNullOrWhiteSpace(Model.TargetAssetName) ? "View asset" : Model.TargetAssetName)
                                     : Model.TargetAssetTag + (string.IsNullOrWhiteSpace(Model.TargetAssetName) ? "" : " - " + Model.TargetAssetName))</a>
