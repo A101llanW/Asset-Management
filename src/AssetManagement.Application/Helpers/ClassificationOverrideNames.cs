@@ -19,15 +19,35 @@ namespace AssetManagement.Application.Helpers
             var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in overrides.Where(x => x != null && !string.IsNullOrWhiteSpace(x.ChangedById)))
             {
-                string name;
-                if (!names.TryGetValue(item.ChangedById, out name))
-                {
-                    name = Describe(SafeGet(userService, item.ChangedById));
-                    names[item.ChangedById] = name;
-                }
-
-                item.ChangedByName = name;
+                item.ChangedByName = Lookup(userService, names, item.ChangedById);
             }
+        }
+
+        /// <summary>Fills "Received by" on receiving rows with the user's name (the view falls back to the id).</summary>
+        public static void FillReceivedBy(IUserService userService, IEnumerable<AssetReceivingListVm> receivings)
+        {
+            if (userService == null || receivings == null)
+            {
+                return;
+            }
+
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in receivings.Where(x => x != null && !string.IsNullOrWhiteSpace(x.ReceivedById)))
+            {
+                item.ReceivedByName = Lookup(userService, names, item.ReceivedById);
+            }
+        }
+
+        private static string Lookup(IUserService userService, IDictionary<string, string> cache, string id)
+        {
+            string name;
+            if (!cache.TryGetValue(id, out name))
+            {
+                name = Describe(SafeGet(userService, id));
+                cache[id] = name;
+            }
+
+            return name;
         }
 
         private static UserVm SafeGet(IUserService userService, string id)

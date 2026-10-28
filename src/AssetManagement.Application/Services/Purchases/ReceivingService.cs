@@ -149,6 +149,7 @@ namespace AssetManagement.Application.Services
                 };
             }).ToList();
             ClassificationOverrideNames.Fill(_userService, list.Select(x => x.ClassificationOverride));
+            ClassificationOverrideNames.FillReceivedBy(_userService, list);
             return list;
         }
         public ReceiveResultVm Receive(AssetReceiveVm model, string receivedById)

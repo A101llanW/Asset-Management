@@ -1,5 +1,14 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-28 08:40 EAT - Browser-check fixes: cancelled submits no longer lock the form; PO "Received by" shows the name; long item names wrap - LOCAL BRANCH ONLY, NOT PUBLISHED
+
+- Brief: Allan via the parent agent, 2026-10-28 08:31 EAT: make the two clear-cut fixes from the local 9079437 browser check. Branch fix/reqname-browser-check (worktree CodexAsset-wt-reqname-fixes, from main e30175b). Local only: not merged to main, not published to IIS, not pushed, no PR, no DB scripts, nothing printed. Live not touched.
+- Bug 1: Scripts/app/site-interactive.js (global POST double-submit lock). It disabled the submit buttons even when another handler cancelled the submit (receive-order.js blank sub-type check, validation), so Receive stayed greyed out after the error. Now it skips submits that are already cancelled, keeps the double-click guard straight away, and disables the buttons in a setTimeout(0) only if the submit was not cancelled by a later handler (otherwise it clears the guard). IE11-safe (var/function only). No view has named submit buttons, so posted data is unchanged.
+- Bug 4: Purchases/Details "Received by" showed the raw user id (a461-role-procman) while the classification trail showed "Demo ProcMgr". AssetReceivingListVm gets ReceivedByName + ReceivedByDisplay (name, else id). ReceivingService fills it with ClassificationOverrideNames.FillReceivedBy, the same cached, fail-safe user lookup as the trail.
+- Cosmetic: one CSS rule in Content/css/site.css wraps long unbroken item names in the PO lines tables (#po-lines-table on Create, #po-lines-card on Details).
+- Not changed (waiting for Allan): bug 2 (dropping the Description field bypasses the required check) and bug 3 (blank Type at receiving keeps the PO classification).
+- Tests: new Purchases/ReceivedByAndSubmitLockTests (8). Full suite 1232 total, 1225 passed, 7 skipped, 0 failed. Release build 0 errors (226 warnings, unchanged). node --check OK. A node simulation reproduces bug 1 on e30175b and passes on the fix. aspnet_compiler precompile OK.
+
 ## 2026-10-28 07:55 EAT - "Update all local": main brought up to date (e95b09f); no code change, local IIS already current - LIVE NOT TOUCHED
 
 - Approval: Allan, t20u, 2026-10-28 07:42 EAT: "update all local and publish". Local only: nothing pushed, no PR, no live DB or nanosoft.africa change, nothing printed.

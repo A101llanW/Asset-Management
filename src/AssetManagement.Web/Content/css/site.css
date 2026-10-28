@@ -1742,6 +1742,8 @@ body.am-room-parent-modal-open .am-sidebar-overlay {
     overflow-wrap: anywhere;
 }
 
+#po-lines-table td:nth-child(2), #po-lines-card td:nth-child(2) { overflow-wrap: anywhere; word-break: break-word; }
+
 .am-scan-card-restricted {
     border-top: 1px dashed var(--am-border-soft);
     padding-top: 0.75rem;

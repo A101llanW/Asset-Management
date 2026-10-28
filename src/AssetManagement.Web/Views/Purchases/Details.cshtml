@@ -235,7 +235,7 @@ else if (canSendToBulkPrint)
                                 <td>@line.ReceivedDate.ToString("yyyy-MM-dd")</td>
                                 <td>@line.QuantityReceived</td>
                                 <td>@(string.IsNullOrWhiteSpace(line.ConditionOnReceipt) ? DisplayText.Empty : line.ConditionOnReceipt)</td>
-                                <td>@(string.IsNullOrWhiteSpace(line.ReceivedById) ? DisplayText.Empty : line.ReceivedById)</td>
+                                <td>@(line.ReceivedByDisplay ?? DisplayText.Empty)</td>
                             </tr>
                         }
                         </tbody>

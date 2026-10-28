@@ -123,16 +123,26 @@
         }
 
         form.addEventListener("submit", function (event) {
-            if (form.getAttribute("data-am-submitting") === "true") {
+            if (event.defaultPrevented || form.getAttribute("data-am-submitting") === "true") {
                 event.preventDefault();
                 return;
             }
 
+            // Guard double-clicks at once, but lock the buttons only after every submit handler has run:
+            // a later handler (e.g. receive-order.js, validation) may cancel this submit, and then the
+            // form must stay usable so the user can fix it and submit again.
             form.setAttribute("data-am-submitting", "true");
-            form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (control) {
-                control.disabled = true;
-                control.setAttribute("aria-busy", "true");
-            });
+            window.setTimeout(function () {
+                if (event.defaultPrevented) {
+                    form.removeAttribute("data-am-submitting");
+                    return;
+                }
+
+                form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (control) {
+                    control.disabled = true;
+                    control.setAttribute("aria-busy", "true");
+                });
+            }, 0);
         });
     });
 })();

@@ -22,6 +22,15 @@ namespace AssetManagement.Application.ViewModels
 
         public string ReceivedById { get; set; }
 
+        /// <summary>Display name of the receiving user when known (filled like the classification trail).</summary>
+        public string ReceivedByName { get; set; }
+
+        /// <summary>Name when known, else the user id, else null.</summary>
+        public string ReceivedByDisplay
+        {
+            get { return string.IsNullOrWhiteSpace(ReceivedByName) ? (string.IsNullOrWhiteSpace(ReceivedById) ? null : ReceivedById) : ReceivedByName; }
+        }
+
         public string Notes { get; set; }
 
         /// <summary>C3 (migration 108): set when the classification was changed at receiving; null otherwise.</summary>
