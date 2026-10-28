@@ -142,11 +142,8 @@
             filterSubTypes(row);
         });
         recalc(table);
-        // A supplier offer "Select" (purchase-create.js) writes #UnitCost via jQuery without an input event.
-        var observerTarget = document.getElementById("UnitCost");
-        if (observerTarget && window.jQuery) {
-            window.jQuery(observerTarget).on("change", function () { recalc(table); });
-        }
+        // purchase-create.js fires this after it writes supplier prices into the unit-cost inputs (every line).
+        table.addEventListener("am:po-recalc", function () { recalc(table); });
         document.addEventListener("click", function () { window.setTimeout(function () { recalc(table); }, 0); });
     }
 

@@ -180,31 +180,83 @@ namespace AssetManagement.Application.Services
                 }
             }
 
-            var catalogRows = BuildCatalogMatches(
-                organizationId,
-                itemDescription,
-                matchCategoryId,
-                matchAssetTypeId,
-                matchTaggedAssetId);
-            if (catalogRows.Count > 0)
-            {
-                result.HasCatalogMatches = true;
-                result.Rows = catalogRows;
-            }
-            else
-            {
-                var historical = BuildHistoricalMatches(organizationId, itemDescription, result.Currency);
-                result.HasHistoricalFallback = historical.Count > 0;
-                result.Rows = historical;
-            }
-
-            ApplyPriceBadges(result.Rows);
+            var overall = BuildComparison(organizationId, itemDescription, matchCategoryId, matchAssetTypeId, matchTaggedAssetId, result.Currency);
+            result.Rows = overall.Rows;
+            result.HasCatalogMatches = overall.HasCatalogMatches;
+            result.HasHistoricalFallback = overall.HasHistoricalFallback;
             if (string.IsNullOrWhiteSpace(result.Currency) && result.Rows.Count > 0)
             {
                 result.Currency = result.Rows[0].Currency;
             }
 
+            if (request != null)
+            {
+                result.Lines = BuildLineComparisons(organizationId, request, result.Currency);
+            }
+
             return result;
+        }
+
+        /// <summary>
+        /// QA 2026-10-28 (finding 4): the same catalog-then-history match as the requisition, per requisition line, using
+        /// the line's own name / description and its tagged asset (or its own category / type).
+        /// </summary>
+        private List<SupplierPriceComparisonLineVm> BuildLineComparisons(int? organizationId, PurchaseRequest request, string currency)
+        {
+            var lines = _unitOfWork.Repository<PurchaseRequestLine>()
+                .Find(x => x.PurchaseRequestId == request.Id && x.IsActive)
+                .OrderBy(x => x.LineNumber)
+                .ToList();
+            var result = new List<SupplierPriceComparisonLineVm>();
+            foreach (var line in lines)
+            {
+                var text = string.Join(" ", new[] { line.ItemName, line.Description }.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray());
+                int? categoryId = line.AssetCategoryId;
+                int? assetTypeId = line.AssetTypeId;
+                if (line.TargetAssetId.HasValue)
+                {
+                    var asset = _unitOfWork.Repository<Asset>().GetById(line.TargetAssetId.Value);
+                    if (asset != null)
+                    {
+                        categoryId = asset.CategoryId;
+                        assetTypeId = asset.AssetTypeId;
+                    }
+                }
+
+                var comparison = BuildComparison(organizationId, text, categoryId, assetTypeId, line.TargetAssetId, currency);
+                comparison.PurchaseRequestLineId = line.Id;
+                comparison.LineNumber = line.LineNumber;
+                comparison.ItemDescription = text;
+                result.Add(comparison);
+            }
+
+            return result;
+        }
+
+        private SupplierPriceComparisonLineVm BuildComparison(
+            int? organizationId,
+            string itemDescription,
+            int? categoryId,
+            int? assetTypeId,
+            int? taggedAssetId,
+            string currency)
+        {
+            var comparison = new SupplierPriceComparisonLineVm();
+            var catalogRows = BuildCatalogMatches(organizationId, itemDescription, categoryId, assetTypeId, taggedAssetId);
+            if (catalogRows.Count > 0)
+            {
+                comparison.HasCatalogMatches = true;
+                comparison.Rows = catalogRows;
+            }
+            else
+            {
+                var historical = BuildHistoricalMatches(organizationId, itemDescription, currency);
+                comparison.HasHistoricalFallback = historical.Count > 0;
+                comparison.Rows = historical;
+            }
+
+            ApplyPriceBadges(comparison.Rows);
+            return comparison;
         }
 
         private List<SupplierPriceComparisonRowVm> BuildCatalogMatches(

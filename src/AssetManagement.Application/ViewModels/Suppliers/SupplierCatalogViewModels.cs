@@ -93,5 +93,26 @@ namespace AssetManagement.Application.ViewModels
         public bool HasCatalogMatches { get; set; }
 
         public bool HasHistoricalFallback { get; set; }
+
+        /// <summary>
+        /// QA 2026-10-28 (finding 4): one comparison per requisition line, so a supplier's price can be applied to every
+        /// PO line it is quoted (or was bought) for, not only line 1. Empty for a requisition without lines.
+        /// </summary>
+        public IList<SupplierPriceComparisonLineVm> Lines { get; set; } = new List<SupplierPriceComparisonLineVm>();
+    }
+
+    public class SupplierPriceComparisonLineVm
+    {
+        public int PurchaseRequestLineId { get; set; }
+
+        public int LineNumber { get; set; }
+
+        public string ItemDescription { get; set; }
+
+        public IList<SupplierPriceComparisonRowVm> Rows { get; set; } = new List<SupplierPriceComparisonRowVm>();
+
+        public bool HasCatalogMatches { get; set; }
+
+        public bool HasHistoricalFallback { get; set; }
     }
 }
