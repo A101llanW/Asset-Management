@@ -419,6 +419,112 @@ namespace AssetManagement.Tests.Requisitions
             StringAssert.Contains("110_requisition_target_room_or_person.sql", rollback);
         }
 
+        // ---- Room list grouped by department / sub-department (QA A3 on 65d06e1) ------------------------------------
+
+        private static List<DepartmentVm> RoomTree()
+        {
+            return new List<DepartmentVm>
+            {
+                new DepartmentVm { Id = 1, Name = "Information Technology", DepartmentKind = DepartmentKind.Administrative, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 2, Name = "ICT", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 3, Name = "Administration", DepartmentKind = DepartmentKind.Administrative, IsActive = true, IsRequisitionTarget = false },
+                new DepartmentVm { Id = 4, Name = "Facilities", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 5, Name = "Store 10", ParentDepartmentId = 4, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 6, Name = "store 2", ParentDepartmentId = 4, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 7, Name = "Boardroom", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 8, Name = "Art room", DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 9, Name = "Old lab", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = false, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 10, Name = "Grade 2", DepartmentKind = DepartmentKind.Grade, IsActive = true, IsRequisitionTarget = false },
+                new DepartmentVm { Id = 11, Name = "Grade 2 West", ParentDepartmentId = 10, DepartmentKind = DepartmentKind.Class, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 12, Name = "Grade 2 East", ParentDepartmentId = 10, DepartmentKind = DepartmentKind.Class, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 13, Name = "Not a target room", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = false },
+                new DepartmentVm { Id = 14, Name = "Library", DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true }
+            };
+        }
+
+        private static string Describe(IList<RequisitionRoomGroup> groups)
+        {
+            return string.Join(" | ", groups.Select(g => g.Label + ": " + string.Join(", ", g.Options.Select(o => o.Name).ToArray())).ToArray());
+        }
+
+        [Test]
+        public void GroupRoomTargets_GroupsByDepartmentAndSubDepartment_Sorted_NoDepartmentLast()
+        {
+            var groups = RequisitionTargetRules.GroupRoomTargets(RoomTree(), true);
+            Assert.AreEqual(
+                "Administration: Boardroom"
+                + " | Administration > Facilities: Facilities, store 2, Store 10"
+                + " | Grade 2: Grade 2 East, Grade 2 West"
+                + " | Information Technology: Information Technology, ICT"
+                + " | No department: Art room, Library",
+                Describe(groups));
+            Assert.IsTrue(groups.Last().IsNoDepartment);
+            Assert.AreEqual(RequisitionTargetRules.NoDepartmentGroupLabel, groups.Last().Label);
+            Assert.IsTrue(groups[1].Options[0].IsGroupDepartment, "the sub-department itself heads its own group");
+            Assert.AreEqual(4, groups[1].DepartmentId);
+        }
+
+        [Test]
+        public void GroupRoomTargets_SkipsInactive_AndNonTargetsWhenTargetsOnly()
+        {
+            var ids = RequisitionTargetRules.GroupRoomTargets(RoomTree(), true).SelectMany(g => g.Options).Select(o => o.DepartmentId).ToList();
+            CollectionAssert.DoesNotContain(ids, 9, "inactive room");
+            CollectionAssert.DoesNotContain(ids, 13, "not a requisition target");
+            CollectionAssert.DoesNotContain(ids, 3, "non-target department is only a group label");
+            Assert.AreEqual(ids.Count, ids.Distinct().Count(), "each room once");
+        }
+
+        [Test]
+        public void GroupRoomTargets_AllDepartments_KeepsTheSameSet_Grouped()
+        {
+            var tree = RoomTree();
+            var groups = RequisitionTargetRules.GroupRoomTargets(tree, false);
+            var ids = groups.SelectMany(g => g.Options).Select(o => o.DepartmentId).OrderBy(x => x).ToList();
+            CollectionAssert.AreEqual(tree.Where(x => x.IsActive).Select(x => x.Id).OrderBy(x => x).ToList(), ids, "the old flat list's set, nothing lost");
+            Assert.AreEqual("Administration", groups[0].Label);
+            Assert.AreEqual("Administration", groups[0].Options[0].Name, "department first in its own group");
+            Assert.AreEqual("Boardroom", groups[0].Options[1].Name);
+        }
+
+        [Test]
+        public void GroupRoomTargets_DeepPath_UsesFullDepartmentPath_AndIsCycleSafe()
+        {
+            var tree = new List<DepartmentVm>
+            {
+                new DepartmentVm { Id = 1, Name = "Ops", DepartmentKind = DepartmentKind.Administrative, IsActive = true },
+                new DepartmentVm { Id = 2, Name = "Kitchen", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true },
+                new DepartmentVm { Id = 3, Name = "Stores", ParentDepartmentId = 2, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true },
+                new DepartmentVm { Id = 4, Name = "Cold room", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 5, Name = "Loop A", ParentDepartmentId = 6, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true },
+                new DepartmentVm { Id = 6, Name = "Loop B", ParentDepartmentId = 5, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true },
+                new DepartmentVm { Id = 7, Name = "Loop room", ParentDepartmentId = 6, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 8, Name = "Self parent", ParentDepartmentId = 8, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true }
+            };
+            var groups = RequisitionTargetRules.GroupRoomTargets(tree, true);
+            Assert.AreEqual("Loop A > Loop B: Loop room | Ops > Kitchen > Stores: Cold room | No department: Self parent", Describe(groups));
+            Assert.AreEqual(0, RequisitionTargetRules.GroupRoomTargets(null, true).Count);
+        }
+
+        [Test]
+        public void NaturalCompare_NumbersAsNumbers_CaseInsensitive()
+        {
+            Assert.Less(RequisitionTargetRules.NaturalCompare("Year 2", "Year 10"), 0);
+            Assert.Greater(RequisitionTargetRules.NaturalCompare("Room 10", "room 9"), 0);
+            Assert.Less(RequisitionTargetRules.NaturalCompare("art", "Biology"), 0);
+            Assert.Less(RequisitionTargetRules.NaturalCompare("Lab", "Lab 1"), 0);
+            Assert.AreEqual(0, RequisitionTargetRules.NaturalCompare("Lab 02", "Lab 02"));
+        }
+
+        [Test]
+        public void CreateLookups_RoomListIsGroupedForEveryUnlockedRequester()
+        {
+            var controller = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "PurchaseRequestsController.cs");
+            StringAssert.Contains("BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments(), false)", controller, "no flat fallback for users without CreateForAnyDepartment");
+            var view = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Views", "PurchaseRequests", "Create.cshtml");
+            StringAssert.Contains("@Html.GroupedDepartmentDropDown(\"DepartmentId\", departmentGroups", view);
+            StringAssert.Contains("grouped by department and sub-department", view);
+        }
+
         [Test]
         public void Entities_CarryTheMigration110Columns()
         {

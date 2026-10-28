@@ -244,11 +244,230 @@ namespace AssetManagement.Application.Helpers
             return string.Join(" \u203A ", parts.ToArray());
         }
 
+        /// <summary>Last optgroup of the room list: rooms / classes that have no parent department.</summary>
+        public const string NoDepartmentGroupLabel = "No department";
+
+        /// <summary>
+        /// The "A room" requisition target list, grouped for optgroups (QA A3 on 65d06e1). A room / class goes under its
+        /// parent path ("Department &gt; Sub-department", any depth); a department or sub-department that is itself a
+        /// target heads its own group (listed first). Rooms / classes with no parent go in the last group,
+        /// "No department". Groups are sorted by department, then sub-department; options by name (natural,
+        /// case-insensitive, so "Year 2" comes before "Year 10"). Inactive departments are skipped; inactive parents
+        /// still name the path. Cycle-safe.
+        /// </summary>
+        /// <param name="departments">The departments the user may pick from (already org / scope filtered).</param>
+        /// <param name="requisitionTargetsOnly">True: only IsRequisitionTarget departments become options.</param>
+        public static IList<RequisitionRoomGroup> GroupRoomTargets(IEnumerable<DepartmentVm> departments, bool requisitionTargetsOnly)
+        {
+            var lookup = new Dictionary<int, DepartmentVm>();
+            foreach (var d in departments ?? Enumerable.Empty<DepartmentVm>())
+            {
+                if (d != null && !lookup.ContainsKey(d.Id))
+                {
+                    lookup[d.Id] = d;
+                }
+            }
+
+            var groupsById = new Dictionary<int, RequisitionRoomGroup>();
+            RequisitionRoomGroup noDepartment = null;
+            foreach (var d in lookup.Values)
+            {
+                if (!d.IsActive || (requisitionTargetsOnly && !d.IsRequisitionTarget))
+                {
+                    continue;
+                }
+
+                var roomLike = d.DepartmentKind == DepartmentKind.Room || d.DepartmentKind == DepartmentKind.Class;
+                int? groupId = roomLike
+                    ? (d.ParentDepartmentId.HasValue && lookup.ContainsKey(d.ParentDepartmentId.Value) && d.ParentDepartmentId.Value != d.Id
+                        ? d.ParentDepartmentId
+                        : null)
+                    : d.Id;
+
+                RequisitionRoomGroup group;
+                if (!groupId.HasValue)
+                {
+                    if (noDepartment == null)
+                    {
+                        noDepartment = new RequisitionRoomGroup { Label = NoDepartmentGroupLabel, IsNoDepartment = true };
+                    }
+
+                    group = noDepartment;
+                }
+                else if (!groupsById.TryGetValue(groupId.Value, out group))
+                {
+                    var path = BuildDepartmentPath(groupId.Value, lookup);
+                    group = new RequisitionRoomGroup
+                    {
+                        DepartmentId = groupId.Value,
+                        PathParts = path,
+                        Label = string.Join(DepartmentTreeHelper.PathSeparator, path.ToArray())
+                    };
+                    groupsById[groupId.Value] = group;
+                }
+
+                group.Options.Add(new RequisitionRoomOption
+                {
+                    DepartmentId = d.Id,
+                    Name = (d.Name ?? string.Empty).Trim(),
+                    DepartmentKind = d.DepartmentKind,
+                    IsGroupDepartment = groupId.HasValue && groupId.Value == d.Id
+                });
+            }
+
+            var ordered = groupsById.Values.ToList();
+            ordered.Sort(CompareGroups);
+            if (noDepartment != null)
+            {
+                ordered.Add(noDepartment);
+            }
+
+            foreach (var group in ordered)
+            {
+                var options = group.Options.ToList();
+                options.Sort(CompareOptions);
+                group.Options = options;
+            }
+
+            return ordered;
+        }
+
+        /// <summary>Case-insensitive compare where digit runs compare as numbers ("Year 2" &lt; "Year 10").</summary>
+        public static int NaturalCompare(string left, string right)
+        {
+            left = left ?? string.Empty;
+            right = right ?? string.Empty;
+            int i = 0, j = 0;
+            while (i < left.Length && j < right.Length)
+            {
+                if (char.IsDigit(left[i]) && char.IsDigit(right[j]))
+                {
+                    var si = i;
+                    var sj = j;
+                    while (i < left.Length && char.IsDigit(left[i])) i++;
+                    while (j < right.Length && char.IsDigit(right[j])) j++;
+                    var a = left.Substring(si, i - si).TrimStart('0');
+                    var b = right.Substring(sj, j - sj).TrimStart('0');
+                    if (a.Length != b.Length)
+                    {
+                        return a.Length < b.Length ? -1 : 1;
+                    }
+
+                    var c = string.CompareOrdinal(a, b);
+                    if (c != 0)
+                    {
+                        return c;
+                    }
+
+                    continue;
+                }
+
+                var ci = string.Compare(left[i].ToString(), right[j].ToString(), StringComparison.OrdinalIgnoreCase);
+                if (ci != 0)
+                {
+                    return ci;
+                }
+
+                i++;
+                j++;
+            }
+
+            var rest = (left.Length - i).CompareTo(right.Length - j);
+            return rest != 0 ? rest : string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static List<string> BuildDepartmentPath(int departmentId, IDictionary<int, DepartmentVm> lookup)
+        {
+            var names = new List<string>();
+            var seen = new HashSet<int>();
+            int? current = departmentId;
+            while (current.HasValue && seen.Add(current.Value) && names.Count < 32)
+            {
+                DepartmentVm node;
+                if (!lookup.TryGetValue(current.Value, out node) || node == null)
+                {
+                    break;
+                }
+
+                var name = (node.Name ?? string.Empty).Trim();
+                if (name.Length > 0)
+                {
+                    names.Insert(0, name);
+                }
+
+                current = node.ParentDepartmentId;
+            }
+
+            return names;
+        }
+
+        private static int CompareGroups(RequisitionRoomGroup left, RequisitionRoomGroup right)
+        {
+            var a = left.PathParts;
+            var b = right.PathParts;
+            for (var k = 0; k < a.Count && k < b.Count; k++)
+            {
+                var c = NaturalCompare(a[k], b[k]);
+                if (c != 0)
+                {
+                    return c;
+                }
+            }
+
+            var len = a.Count.CompareTo(b.Count);
+            return len != 0 ? len : left.DepartmentId.CompareTo(right.DepartmentId);
+        }
+
+        private static int CompareOptions(RequisitionRoomOption left, RequisitionRoomOption right)
+        {
+            if (left.IsGroupDepartment != right.IsGroupDepartment)
+            {
+                return left.IsGroupDepartment ? -1 : 1;
+            }
+
+            var c = NaturalCompare(left.Name, right.Name);
+            return c != 0 ? c : left.DepartmentId.CompareTo(right.DepartmentId);
+        }
+
         private static bool SameUser(string left, string right)
         {
             return !string.IsNullOrWhiteSpace(left)
                 && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>One optgroup of the requisition room list (see RequisitionTargetRules.GroupRoomTargets).</summary>
+    public sealed class RequisitionRoomGroup
+    {
+        public RequisitionRoomGroup()
+        {
+            PathParts = new List<string>();
+            Options = new List<RequisitionRoomOption>();
+        }
+
+        /// <summary>"Department &gt; Sub-department" or "No department".</summary>
+        public string Label { get; set; }
+
+        /// <summary>The department heading the group (0 for "No department").</summary>
+        public int DepartmentId { get; set; }
+
+        public bool IsNoDepartment { get; set; }
+
+        public IList<string> PathParts { get; set; }
+
+        public IList<RequisitionRoomOption> Options { get; set; }
+    }
+
+    public sealed class RequisitionRoomOption
+    {
+        public int DepartmentId { get; set; }
+
+        public string Name { get; set; }
+
+        public DepartmentKind DepartmentKind { get; set; }
+
+        /// <summary>True for the department / sub-department that heads its own group (listed first).</summary>
+        public bool IsGroupDepartment { get; set; }
     }
 
     public enum TaggedAssetTargetDecision

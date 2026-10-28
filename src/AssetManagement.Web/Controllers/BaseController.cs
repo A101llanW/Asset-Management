@@ -535,88 +535,53 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Requisition targets grouped under their parent path (optgroup = department, option = room/class/leaf).
-        /// Preserves <see cref="DepartmentTreeHelper.BuildRequisitionOptions"/> tree order within each group.
+        /// Requisition "A room" list as optgroups (QA A3 on 65d06e1): "Department &gt; Sub-department" groups sorted by
+        /// department, sub-department, then room name; rooms with no department last ("No department"). See
+        /// <see cref="AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets"/>.
         /// </summary>
         protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(int? selectedDepartmentId = null)
         {
-            var all = BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList();
-            var byId = all.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
-            var ordered = AssetManagement.Application.Helpers.DepartmentTreeHelper.BuildRequisitionOptions(all);
+            return BuildRequisitionDepartmentGroups(
+                selectedDepartmentId,
+                BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList(),
+                true);
+        }
+
+        /// <summary>Same grouping over a given department set (e.g. every active department in the org).</summary>
+        protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(
+            int? selectedDepartmentId,
+            IEnumerable<DepartmentVm> departments,
+            bool requisitionTargetsOnly)
+        {
             var groups = new List<DepartmentSelectGroupVm>();
-            var groupIndex = new Dictionary<string, DepartmentSelectGroupVm>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in ordered)
+            foreach (var group in AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets(departments, requisitionTargetsOnly))
             {
-                DepartmentVm dept;
-                if (!byId.TryGetValue(pair.Key, out dept))
+                var groupVm = new DepartmentSelectGroupVm
                 {
-                    continue;
-                }
-
-                string groupLabel;
-                if (dept.ParentDepartmentId.HasValue && byId.ContainsKey(dept.ParentDepartmentId.Value))
+                    Label = group.Label,
+                    CssClass = "am-req-target-g am-req-target-g-" + (groups.Count % 5)
+                };
+                foreach (var option in group.Options)
                 {
-                    groupLabel = AssetManagement.Application.Helpers.DepartmentTreeHelper
-                        .BuildPathLabel(dept.ParentDepartmentId.Value, all);
-                }
-                else
-                {
-                    groupLabel = DescribeRequisitionRootGroupLabel(dept);
-                }
-
-                if (string.IsNullOrWhiteSpace(groupLabel))
-                {
-                    groupLabel = "Other targets";
-                }
-
-                DepartmentSelectGroupVm groupVm;
-                if (!groupIndex.TryGetValue(groupLabel, out groupVm))
-                {
-                    groupVm = new DepartmentSelectGroupVm
+                    // Display only: Year wording on the name (codes are never in this text).
+                    var optionText = GradeDisplay.ToYear(option.Name ?? string.Empty);
+                    if (option.DepartmentKind != DepartmentKind.Room && option.DepartmentKind != DepartmentKind.Class)
                     {
-                        Label = groupLabel,
-                        CssClass = "am-req-target-g am-req-target-g-" + (groups.Count % 5)
-                    };
-                    groupIndex[groupLabel] = groupVm;
-                    groups.Add(groupVm);
+                        optionText += " (" + DescribeDepartmentKind(option.DepartmentKind) + ")";
+                    }
+
+                    groupVm.Items.Add(new DepartmentSelectOptionVm
+                    {
+                        Value = option.DepartmentId.ToString(),
+                        Text = optionText,
+                        Selected = selectedDepartmentId.HasValue && option.DepartmentId == selectedDepartmentId.Value
+                    });
                 }
 
-                // Display only: Year wording on the name (codes are never in this text).
-                var optionText = GradeDisplay.ToYear((dept.Name ?? string.Empty).Trim());
-                if (dept.DepartmentKind != DepartmentKind.Room && dept.DepartmentKind != DepartmentKind.Class)
-                {
-                    optionText += " (" + DescribeDepartmentKind(dept.DepartmentKind) + ")";
-                }
-
-                groupVm.Items.Add(new DepartmentSelectOptionVm
-                {
-                    Value = dept.Id.ToString(),
-                    Text = optionText,
-                    Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
-                });
+                groups.Add(groupVm);
             }
 
             return groups;
-        }
-
-        private static string DescribeRequisitionRootGroupLabel(DepartmentVm dept)
-        {
-            if (dept == null)
-            {
-                return "Other targets";
-            }
-
-            if (dept.DepartmentKind == DepartmentKind.Grade || dept.DepartmentKind == DepartmentKind.Class)
-            {
-                return "Academic streams";
-            }
-
-            if (dept.DepartmentKind == DepartmentKind.Administrative)
-            {
-                return "Administrative units";
-            }
-
-            return "Top level";
         }
 
         protected SelectList BuildClassDepartmentSelectList(int? selectedDepartmentId = null)

@@ -485,9 +485,14 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
                 GetActiveDepartments());
-            var departmentGroups = canCreateForAnyDepartment
-                ? BuildRequisitionDepartmentGroups(departmentId)
-                : null;
+            // QA A3 (65d06e1): the room list is always grouped by department / sub-department. Create-for-any users
+            // pick from the requisition targets (as before); other unlocked users keep the same set they saw in the
+            // old flat list (every active department in the org), now grouped. Locked users see their own department.
+            var departmentGroups = lockDepartment
+                ? null
+                : canCreateForAnyDepartment
+                    ? BuildRequisitionDepartmentGroups(departmentId)
+                    : BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments(), false);
             ViewBag.DepartmentGroups = departmentGroups;
             // Never leave the DepartmentId dropdown without a list: with no groups (e.g. a department scope that
             // returned nothing) the view used to fall through to DropDownListFor with a null SelectList, which
