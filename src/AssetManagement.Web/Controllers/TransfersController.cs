@@ -156,7 +156,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     TransferId = transferId,
                     Notes = notes
-                }, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                }, User.GetUserId(), GetCurrentUserRoleId(), CanBypassApprovalStages());
                 TempData["Message"] = "Transfer approval recorded.";
             }
             catch (BusinessException ex)
@@ -178,7 +178,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     TransferId = transferId,
                     Notes = notes
-                }, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                }, User.GetUserId(), GetCurrentUserRoleId(), CanBypassApprovalStages());
                 TempData["Message"] = "Transfer request rejected.";
             }
             catch (BusinessException ex)

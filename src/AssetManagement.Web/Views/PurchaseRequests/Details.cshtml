@@ -8,7 +8,11 @@
     // rel1009i: several POs per requisition, capped by the requisition quantity (summed over its POs).
     var orderSummary = ViewBag.OrderSummary as AssetManagement.Application.ViewModels.RequisitionOrderSummaryVm;
     var outstandingToOrder = orderSummary == null ? (Model.HasPurchaseRecord ? 0 : 1) : orderSummary.OutstandingToOrder;
-    var canCreatePo = Model.IsApproved && outstandingToOrder > 0 && Html.HasPermission("Purchases.Create") && Model.CanCurrentUserRaisePurchaseOrder;
+    // 2026-10-29 (#6): same check as PurchasesController.Create (Purchases.View on the controller + Purchases.Edit).
+    var canCreatePo = AssetManagement.Application.Security.RequisitionAccessRules.CanShowCreatePurchaseOrder(
+        Model.IsApproved, outstandingToOrder, Model.CanCurrentUserRaisePurchaseOrder, code => Html.HasPermission(code));
+    // 2026-10-29 (#5): the PDF is offered only when DocumentFragment accepts the user.
+    var canDownloadRequisition = ViewBag.CanDownloadRequisition as bool? ?? false;
     var poBlockedForMe = Model.IsApproved && outstandingToOrder > 0 && !Model.CanCurrentUserRaisePurchaseOrder;
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
@@ -137,14 +141,17 @@
                         <p class="mb-0">@Model.Notes</p>
                     </div>
                 }
-                <div class="mt-3 d-flex flex-wrap gap-2">
-                    <button type="button"
-                            class="btn btn-sm btn-primary"
-                            id="amDownloadRequisitionPdf"
-                            data-url="@Url.Action("DocumentFragment", new { id = Model.Id })">
-                        Download requisition (PDF)
-                    </button>
-                </div>
+                @if (canDownloadRequisition)
+                {
+                    <div class="mt-3 d-flex flex-wrap gap-2">
+                        <button type="button"
+                                class="btn btn-sm btn-primary"
+                                id="amDownloadRequisitionPdf"
+                                data-url="@Url.Action("DocumentFragment", new { id = Model.Id })">
+                            Download requisition (PDF)
+                        </button>
+                    </div>
+                }
             </div>
         </div>
     </div>

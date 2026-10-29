@@ -304,18 +304,58 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Requisition target must be a leaf department (classroom or admin unit).");
             }
 
-            if (BypassesDepartmentScope || CanCreateForAnyDepartment())
+            if (CanCreateForAnyDepartmentOrAdministrator())
             {
                 return;
             }
 
-            var scopedDepartmentId = ScopedDepartmentId;
-            if (!scopedDepartmentId.HasValue)
+            // 2026-10-29 (#10): Assets.ViewAll ("see every asset") no longer lets a requester raise for any department.
+            // Compare with the profile department directly: ScopedDepartmentId is null for a ViewAll holder.
+            EnsureProfileLoaded();
+            var ownDepartmentId = _profile == null ? null : _profile.DepartmentId;
+            if (!ownDepartmentId.HasValue || department.Id == ownDepartmentId.Value)
             {
                 return;
             }
 
-            EnsureCanAccessDepartment(department);
+            if (department.DepartmentKind == DepartmentKind.Class && ResolveIncludesClassDepartmentAssets())
+            {
+                return;
+            }
+
+            throw new BusinessException("This department is outside your scope. Only administrators can access it.");
+        }
+
+        /// <summary>
+        /// Who may raise a requisition for any valid room: Purchases.CreateForAnyDepartment, the tenant administrator
+        /// (Company Admin or support impersonation), a member with no department (organisation-wide, unchanged), or the
+        /// legacy construction without an authorization service.
+        /// </summary>
+        private bool CanCreateForAnyDepartmentOrAdministrator()
+        {
+            if (CanCreateForAnyDepartment())
+            {
+                return true;
+            }
+
+            if (_organizationScope != null && (_organizationScope.IsImpersonating() || _organizationScope.IsCompanyAdmin()))
+            {
+                return true;
+            }
+
+            if (IsUnassignedOrganizationWide)
+            {
+                return true;
+            }
+
+            EnsureProfileLoaded();
+            if (_role != null
+                && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRole(_role.Name, _role.IsSystemRole))
+            {
+                return true;
+            }
+
+            return _authorizationService == null && BypassesDepartmentScope;
         }
 
         private bool CanCreateForAnyDepartment()

@@ -467,6 +467,12 @@ namespace AssetManagement.Application.Services
                 addRow(row, Math.Max(0, (int)(now - disposal.DisposalRequestDate).TotalDays));
             }
 
+            // 2026-10-29 (#9): same scope as the requisition list (PurchaseRequestService): a Purchases.Approve holder sees
+            // every pending requisition (e.g. Finance, which most flows pass through); a scoped user sees their own
+            // department's; a scoped user with no department sees none.
+            var purchaseListScope = AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(
+                _departmentScope,
+                CanCurrentUserApprovePurchases());
             foreach (var purchaseRequest in _unitOfWork.Repository<PurchaseRequest>()
                 .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
                 .OrderByDescending(x => x.CreatedAt))
@@ -481,9 +487,7 @@ namespace AssetManagement.Application.Services
                     continue;
                 }
 
-                if (!_departmentScope.BypassesDepartmentScope
-                    && _departmentScope.ScopedDepartmentId.HasValue
-                    && purchaseRequest.DepartmentId != _departmentScope.ScopedDepartmentId.Value)
+                if (!purchaseListScope.Includes(purchaseRequest.DepartmentId))
                 {
                     continue;
                 }

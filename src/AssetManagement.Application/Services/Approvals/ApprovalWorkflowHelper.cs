@@ -394,6 +394,92 @@ namespace AssetManagement.Application.Services
             }
         }
 
+        /// <summary>
+        /// 2026-10-29 (#7): a requisition approver may open (read-only) an asset tagged on the requisition (header target
+        /// asset or a line's TargetAssetId) when they have recorded a decision on it, or it is pending and they can act
+        /// on its current stage (same resolver as PurchaseRequestService.IsCurrentStageApprover). No break-glass bypass.
+        /// </summary>
+        public static bool CanViewAssetTaggedOnRequisitionApproval(
+            IUnitOfWork unitOfWork,
+            IUserService userService,
+            string userId,
+            Asset asset)
+        {
+            if (unitOfWork == null || userService == null || asset == null || string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            var assetId = asset.Id;
+            var requestIds = unitOfWork.Repository<PurchaseRequestLine>()
+                .Find(x => x.TargetAssetId == assetId && x.IsActive)
+                .Select(x => x.PurchaseRequestId)
+                .ToList();
+            requestIds.AddRange(unitOfWork.Repository<PurchaseRequest>()
+                .Find(x => x.TargetAssetId == assetId && x.IsActive)
+                .Select(x => x.Id)
+                .ToList());
+            requestIds = requestIds.Distinct().ToList();
+            if (requestIds.Count == 0)
+            {
+                return false;
+            }
+
+            var normalizedUserId = NormalizeUserId(userId);
+            var hasActed = unitOfWork.Repository<PurchaseApprovalAction>()
+                .Find(x => requestIds.Contains(x.PurchaseRequestId) && x.IsActive)
+                .ToList()
+                .Any(x => string.Equals(NormalizeUserId(x.ApproverUserId), normalizedUserId, StringComparison.OrdinalIgnoreCase));
+            if (hasActed)
+            {
+                return true;
+            }
+
+            var user = userService.GetById(userId);
+            if (user == null || !user.IsActive)
+            {
+                return false;
+            }
+
+            foreach (var requestId in requestIds)
+            {
+                var request = unitOfWork.Repository<PurchaseRequest>().GetById(requestId);
+                if (request == null || !request.IsActive || request.ApprovalStatus != ApprovalStatus.Pending)
+                {
+                    continue;
+                }
+
+                var stageNumber = request.CurrentApprovalStage <= 0 ? 1 : request.CurrentApprovalStage;
+                var stageRoleId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageRoleId(request.ApprovalStageRoleIds, stageNumber);
+                var stageUserId = ApprovalWorkflowSettingsHelper.TryGetCurrentStageUserId(request.ApprovalStageUserIds, stageNumber);
+                if (!stageRoleId.HasValue && string.IsNullOrWhiteSpace(stageUserId))
+                {
+                    continue;
+                }
+
+                if (CanUserActOnStage(
+                        null,
+                        request.RequestedById,
+                        userId,
+                        false,
+                        user.RoleId,
+                        stageRoleId,
+                        stageUserId,
+                        StageApproverScopeResolver.ResolveFor(
+                            unitOfWork,
+                            userService,
+                            stageRoleId,
+                            stageUserId,
+                            request.DepartmentId,
+                            CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource))))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static bool CanAccessAssetForPendingApproval(
             IUnitOfWork unitOfWork,
             IUserService userService,

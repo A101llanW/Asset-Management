@@ -4,9 +4,10 @@
 @using AssetManagement.Application.Helpers
 @using AssetManagement.Web.Helpers
 @{
-    var canUpload = Html.CanUploadAssetDocument(Model.CurrentCustodianId);
+    // A requisition approver's read-only view (2026-10-29) never uploads or deletes documents.
+    var canUpload = !Model.ViewedForRequisitionApprovalOnly && Html.CanUploadAssetDocument(Model.CurrentCustodianId);
     var canDownload = Html.CanDownloadAssetDocument(Model.CurrentCustodianId);
-    var canDelete = Html.HasPermission("Documents.Delete");
+    var canDelete = !Model.ViewedForRequisitionApprovalOnly && Html.HasPermission("Documents.Delete");
     var documentRows = Model.DocumentRows == null
         ? Enumerable.Empty<AssetManagement.Application.ViewModels.AssetDocumentStatusRowVm>()
         : Model.DocumentRows;

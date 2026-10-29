@@ -36,7 +36,7 @@ namespace AssetManagement.Web.Controllers
             {
                 UserId = userId,
                 RoleId = GetCurrentUserRoleId(),
-                IsSuperAdmin = IsCurrentUserSuperAdmin(),
+                IsSuperAdmin = CanBypassApprovalStages(),
                 CanApproveAssetRequests = auth.HasPermission(userId, "Assets.Request.Approve")
             });
 

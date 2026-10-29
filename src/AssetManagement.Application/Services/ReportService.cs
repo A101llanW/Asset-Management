@@ -20,6 +20,8 @@ namespace AssetManagement.Application.Services
         private readonly IDashboardQueryService _dashboardQueryService;
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAssetQueryService _assetQueryService;
+        private readonly IAuthorizationService _authorizationService;
+        private readonly ICurrentUserContext _currentUser;
 
         public ReportService(
             IUnitOfWork unitOfWork,
@@ -27,14 +29,26 @@ namespace AssetManagement.Application.Services
             IMetricsService metricsService,
             IDashboardQueryService dashboardQueryService,
             IOrganizationScopeService organizationScope,
-            IAssetQueryService assetQueryService)
+            IAssetQueryService assetQueryService,
+            IAuthorizationService authorizationService = null,
+            ICurrentUserContext currentUser = null)
         {
+            _authorizationService = authorizationService;
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _departmentScope = departmentScope;
             _metricsService = metricsService;
             _dashboardQueryService = dashboardQueryService;
             _organizationScope = organizationScope;
             _assetQueryService = assetQueryService;
+        }
+
+        private bool CanCurrentUserApprovePurchases()
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return !string.IsNullOrWhiteSpace(userId)
+                && _authorizationService != null
+                && _authorizationService.HasPermission(userId, "Purchases.Approve");
         }
 
         public DashboardVm GetDashboard()
@@ -466,13 +480,15 @@ namespace AssetManagement.Application.Services
                     disposal.CurrentApprovalStage.ToString());
             }
 
+            // 2026-10-29 (#9): same scope as the requisition list (see GenerateReportDocument "pending-approvals").
+            var purchaseListScope = AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(
+                _departmentScope,
+                CanCurrentUserApprovePurchases());
             foreach (var purchaseRequest in _unitOfWork.Repository<PurchaseRequest>()
                 .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
                 .OrderByDescending(x => x.CreatedAt))
             {
-                if (!_departmentScope.BypassesDepartmentScope
-                    && _departmentScope.ScopedDepartmentId.HasValue
-                    && purchaseRequest.DepartmentId != _departmentScope.ScopedDepartmentId.Value)
+                if (!purchaseListScope.Includes(purchaseRequest.DepartmentId))
                 {
                     continue;
                 }

@@ -247,6 +247,12 @@ namespace AssetManagement.Application.ViewModels
         /// <summary>True when the user sees this asset only because they are its current custodian (not for Edit).</summary>
         public bool ViewedAsCustodianOnly { get; set; }
 
+        /// <summary>
+        /// True when the user sees this asset only because it is tagged on a requisition they can approve or have
+        /// approved (2026-10-29). Read-only: no edit, assign, transfer, return, incident, claim, disposal or documents.
+        /// </summary>
+        public bool ViewedForRequisitionApprovalOnly { get; set; }
+
         public int Id { get; set; }
 
         public string AssetTag { get; set; }

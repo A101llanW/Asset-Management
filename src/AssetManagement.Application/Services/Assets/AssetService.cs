@@ -254,6 +254,7 @@ namespace AssetManagement.Application.Services
 
             var enforceDepartmentScope = true;
             var viewedAsCustodianOnly = false;
+            var viewedForRequisitionApprovalOnly = false;
             try
             {
                 _departmentScope.EnsureCanAccessAsset(asset);
@@ -266,7 +267,18 @@ namespace AssetManagement.Application.Services
                     // (e.g. assigned with "Keep in <class>"; QA2 R-myassets-finance). Read-only: Edit stays scoped.
                     viewedAsCustodianOnly = true;
                 }
-                else if (!CanViewAssetForPendingTransferApproval(asset))
+                else if (CanViewAssetForPendingTransferApproval(asset))
+                {
+                    // Pending transfer / disposal approver (unchanged).
+                }
+                else if (CanViewAssetForRequisitionApproval(asset))
+                {
+                    // 2026-10-29 (#7): an approver who can act on, or has acted on, a requisition sees the assets tagged
+                    // on it (e.g. Finance, which most flows pass through). Read-only: Edit and the asset actions stay
+                    // scoped (EnsureCanAccessAsset is unchanged).
+                    viewedForRequisitionApprovalOnly = true;
+                }
+                else
                 {
                     return null;
                 }
@@ -356,6 +368,7 @@ namespace AssetManagement.Application.Services
             {
                 Id = asset.Id,
                 ViewedAsCustodianOnly = viewedAsCustodianOnly,
+                ViewedForRequisitionApprovalOnly = viewedForRequisitionApprovalOnly,
                 AssetTag = asset.AssetTag,
                 AssetName = asset.AssetName,
                 StatusGuidance = BuildStatusGuidance(asset.CurrentStatus),
@@ -2132,6 +2145,17 @@ namespace AssetManagement.Application.Services
                 userId,
                 asset,
                 _departmentScope.BypassesDepartmentScope);
+        }
+
+        private bool CanViewAssetForRequisitionApproval(Asset asset)
+        {
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return false;
+            }
+
+            return ApprovalWorkflowHelper.CanViewAssetTaggedOnRequisitionApproval(_unitOfWork, _userService, userId, asset);
         }
 
         private void EnsureRelocateScope(Asset asset, Department targetDepartment, string actorUserId)

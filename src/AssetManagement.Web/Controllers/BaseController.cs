@@ -956,6 +956,16 @@ namespace AssetManagement.Web.Controllers
             return HasOrgWideScope();
         }
 
+        /// <summary>
+        /// Approve-any-stage / break-glass for approval workflows: only the tenant administrator (system Company Admin
+        /// role, or support impersonation). Holding Assets.ViewAll ("see every asset") no longer lets a custom role act
+        /// on any approval stage (2026-10-29). Use IsCurrentUserSuperAdmin only for list visibility defaults.
+        /// </summary>
+        protected bool CanBypassApprovalStages()
+        {
+            return IsCurrentUserCompanyAdmin();
+        }
+
         protected int? ResolveCurrentOrganizationId()
         {
             var orgScope = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Security.IOrganizationScopeService>();

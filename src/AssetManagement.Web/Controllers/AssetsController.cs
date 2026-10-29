@@ -639,7 +639,8 @@ namespace AssetManagement.Web.Controllers
             }
 
             var currentRoleId = GetCurrentUserRoleId();
-            var isSuperAdmin = IsCurrentUserSuperAdmin();
+            // Approve-any-stage is for the Company Admin only (not every Assets.ViewAll holder).
+            var isSuperAdmin = CanBypassApprovalStages();
             var currentUserId = User.GetUserId();
             // rel1009e: same approver resolver as the notification and the approve/reject check.
             var scopeAsset = UnitOfWork.Repository<Asset>().GetById(assetId);
@@ -1218,7 +1219,7 @@ namespace AssetManagement.Web.Controllers
                     AssetId = id,
                     DisposalAmount = disposalAmount,
                     Notes = notes
-                }, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                }, User.GetUserId(), GetCurrentUserRoleId(), CanBypassApprovalStages());
                 var asset = _assetService.GetById(id);
                 TempData["Message"] = asset != null && asset.CurrentStatus == AssetStatus.Disposed
                     ? "Disposal approved and asset marked as disposed."
@@ -1243,7 +1244,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     AssetId = id,
                     Notes = notes
-                }, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                }, User.GetUserId(), GetCurrentUserRoleId(), CanBypassApprovalStages());
                 TempData["Message"] = "Disposal request rejected.";
             }
             catch (BusinessException ex)
@@ -1410,11 +1411,11 @@ namespace AssetManagement.Web.Controllers
                 .Select(x => x.Id));
         }
 
-        // Custodian-only visibility (Details/My Assets) does not extend to Edit.
+        // Custodian-only and requisition-approver visibility (Details) do not extend to Edit.
         private bool CanOpenDetailsForEdit(int assetId)
         {
             var details = _assetService.GetById(assetId);
-            return details != null && !details.ViewedAsCustodianOnly;
+            return details != null && !details.ViewedAsCustodianOnly && !details.ViewedForRequisitionApprovalOnly;
         }
 
         private string ResolveAssetSubTypeName(int subTypeId)

@@ -65,14 +65,10 @@ namespace AssetManagement.Application.Services
                 return new List<PurchaseRequestListItemVm>();
             }
 
-            var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope || CanApprovePurchases();
-            int? departmentId = null;
-            var denyDepartmentScope = false;
-            if (!bypassDepartmentScope)
-            {
-                departmentId = _departmentScope.ScopedDepartmentId;
-                denyDepartmentScope = !departmentId.HasValue;
-            }
+            var listScope = ResolveListScope();
+            var bypassDepartmentScope = listScope.BypassDepartmentScope;
+            var departmentId = listScope.DepartmentId;
+            var denyDepartmentScope = listScope.DenyDepartmentScope;
 
             return _operationsQueryRepository.GetPurchaseRequestList(
                 organizationId.Value,
@@ -99,14 +95,10 @@ namespace AssetManagement.Application.Services
                 return new PagedListVm<PurchaseRequestListItemVm>();
             }
 
-            var bypassDepartmentScope = _departmentScope.BypassesDepartmentScope || CanApprovePurchases();
-            int? departmentId = null;
-            var denyDepartmentScope = false;
-            if (!bypassDepartmentScope)
-            {
-                departmentId = _departmentScope.ScopedDepartmentId;
-                denyDepartmentScope = !departmentId.HasValue;
-            }
+            var listScope = ResolveListScope();
+            var bypassDepartmentScope = listScope.BypassDepartmentScope;
+            var departmentId = listScope.DepartmentId;
+            var denyDepartmentScope = listScope.DenyDepartmentScope;
 
             return _operationsQueryRepository.GetPurchaseRequestListPage(
                 organizationId.Value,
@@ -1524,9 +1516,13 @@ namespace AssetManagement.Application.Services
 
         private bool IsDepartmentScopeDenied()
         {
-            return !_departmentScope.BypassesDepartmentScope
-                && !CanApprovePurchases()
-                && !_departmentScope.ScopedDepartmentId.HasValue;
+            return ResolveListScope().DenyDepartmentScope;
+        }
+
+        /// <summary>Shared with the pending-approvals report (ReportService) so both show the same requisitions.</summary>
+        private AssetManagement.Application.Security.RequisitionListScope ResolveListScope()
+        {
+            return AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(_departmentScope, CanApprovePurchases());
         }
 
         private static string NormalizeText(string value)

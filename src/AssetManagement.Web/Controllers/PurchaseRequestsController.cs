@@ -16,6 +16,7 @@ using AssetManagement.Domain.Enums;
 using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
+using RequisitionAccessRules = AssetManagement.Application.Security.RequisitionAccessRules;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -56,14 +57,13 @@ namespace AssetManagement.Web.Controllers
                 }
             };
 
-            ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
-            {
-                if (deptId.HasValue)
-                {
-                    model.DepartmentId = deptId.Value;
-                }
-            });
+            // Only a locked requester is pinned to their own department. A Purchases.CreateForAnyDepartment holder who
+            // also has a department picks any valid room (it used to be pinned to its own department on save).
             model.DepartmentLocked = IsRequisitionDepartmentLocked();
+            if (model.DepartmentLocked)
+            {
+                model.DepartmentId = GetCurrentUserDepartmentId().Value;
+            }
 
             if (fromAssetRequestId.HasValue)
             {
@@ -164,16 +164,12 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public ActionResult Create(PurchaseRequestCreateVm model, HttpPostedFileBase attachment, string returnUrl = null)
         {
-            ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
-            {
-                if (deptId.HasValue)
-                {
-                    model.DepartmentId = deptId.Value;
-                }
-            });
-
             // Migration 110: never bound from the form; a locked requester's department routes approval for a person too.
             model.DepartmentLocked = IsRequisitionDepartmentLocked();
+            if (model.DepartmentLocked)
+            {
+                model.DepartmentId = GetCurrentUserDepartmentId().Value;
+            }
             model.RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind);
             if (model.RequisitionTargetKind == null && !model.DepartmentLocked)
             {
@@ -246,7 +242,8 @@ namespace AssetManagement.Web.Controllers
 
             EnrichUserNames(model);
             var currentRoleId = GetCurrentUserRoleId();
-            var isSuperAdmin = IsCurrentUserSuperAdmin();
+            // Approve-any-stage is for the Company Admin only (not every Assets.ViewAll holder).
+            var isSuperAdmin = CanBypassApprovalStages();
             var currentUserId = User.GetUserId();
             model.CanCurrentUserApprove = model.IsPending
                 && ApprovalWorkflowHelper.CanUserActOnStage(
@@ -275,13 +272,32 @@ namespace AssetManagement.Web.Controllers
             ViewBag.PurchaseApprovalSummary = BuildPurchaseRequestApprovalSummary(entity);
             // rel1009i: every PO raised from this requisition, with ordered / received quantities.
             ViewBag.OrderSummary = BuildPurchaseService().GetRequisitionOrderSummary(id);
+            // The PDF button is shown only when DocumentFragment accepts the user (same permissions as Details).
+            ViewBag.CanDownloadRequisition = RequisitionAccessRules.CanDownloadDocument(HasPermission);
             return View(model);
         }
 
-        [PermissionAuthorize("Purchases.View")]
+        /// <summary>
+        /// The requisition a download is for, under the same rule as Details: any of Purchases.View / Create / Approve
+        /// (attribute) and PurchaseRequestService.GetById's record check (own department, current-stage approver, or
+        /// organisation-wide). Null when the requisition is missing or outside the user's scope.
+        /// </summary>
+        private PurchaseRequestDetailVm GetRequisitionForDownload(int id)
+        {
+            try
+            {
+                return _purchaseRequestService.GetById(id);
+            }
+            catch (BusinessException)
+            {
+                return null;
+            }
+        }
+
+        [AnyPermissionAuthorize("Purchases.View", "Purchases.Create", "Purchases.Approve")]
         public ActionResult DownloadAttachment(int id)
         {
-            var model = _purchaseRequestService.GetById(id);
+            var model = GetRequisitionForDownload(id);
             if (model == null || !model.HasAttachment)
             {
                 return HttpNotFound();
@@ -305,10 +321,10 @@ namespace AssetManagement.Web.Controllers
             return File(content, contentType, model.AttachmentFileName);
         }
 
-        [PermissionAuthorize("Purchases.View")]
+        [AnyPermissionAuthorize("Purchases.View", "Purchases.Create", "Purchases.Approve")]
         public ActionResult DownloadDocument(int id)
         {
-            var model = _purchaseRequestService.GetById(id);
+            var model = GetRequisitionForDownload(id);
             if (model == null)
             {
                 return HttpNotFound();
@@ -327,10 +343,10 @@ namespace AssetManagement.Web.Controllers
             return File(Encoding.UTF8.GetBytes(html), "text/html; charset=utf-8", fileName);
         }
 
-        [PermissionAuthorize("Purchases.View")]
+        [AnyPermissionAuthorize("Purchases.View", "Purchases.Create", "Purchases.Approve")]
         public JsonResult DocumentFragment(int id)
         {
-            var model = _purchaseRequestService.GetById(id);
+            var model = GetRequisitionForDownload(id);
             if (model == null)
             {
                 return Json(new { success = false, message = "Requisition not found." }, JsonRequestBehavior.AllowGet);
@@ -372,7 +388,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     PurchaseRequestId = id,
                     Notes = notes
-                }, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                }, User.GetUserId(), GetCurrentUserRoleId(), CanBypassApprovalStages());
                 TempData["Message"] = "Requisition approval recorded.";
             }
             catch (BusinessException ex)
@@ -394,7 +410,7 @@ namespace AssetManagement.Web.Controllers
                 {
                     PurchaseRequestId = id,
                     Notes = notes
-                }, User.GetUserId(), GetCurrentUserRoleId(), IsCurrentUserSuperAdmin());
+                }, User.GetUserId(), GetCurrentUserRoleId(), CanBypassApprovalStages());
                 TempData["Message"] = "Requisition rejected.";
             }
             catch (BusinessException ex)
@@ -481,12 +497,17 @@ namespace AssetManagement.Web.Controllers
             return Json(items, JsonRequestBehavior.AllowGet);
         }
 
-        /// <summary>The requester may only raise requisitions for their own department (same rule the view renders as locked).</summary>
+        /// <summary>
+        /// The requester may only raise requisitions for their own department (same rule the view renders as locked)
+        /// unless the role grants Purchases.CreateForAnyDepartment or the user is the Company Admin. Assets.ViewAll alone
+        /// no longer unlocks it (2026-10-29).
+        /// </summary>
         private bool IsRequisitionDepartmentLocked()
         {
-            return !HasPermission("Purchases.CreateForAnyDepartment")
-                && !IsCurrentUserSuperAdmin()
-                && GetCurrentUserDepartmentId().HasValue;
+            return RequisitionAccessRules.IsDepartmentLocked(
+                HasPermission(RequisitionAccessRules.CreateForAnyDepartmentPermission),
+                IsCurrentUserCompanyAdmin(),
+                GetCurrentUserDepartmentId());
         }
 
         private void PopulateCreateLookups(PurchaseRequestCreateVm model)
@@ -501,11 +522,12 @@ namespace AssetManagement.Web.Controllers
                 GetActiveDepartments());
             // QA A3 (65d06e1) + Allan 2026-10-29 07:48 EAT: every unlocked requester picks from valid ROOMS only, grouped
             // under department / sub-department headings. Locked users see their own department (unchanged).
+            // 2026-10-29 (#2): the list is the organisation's valid rooms for every unlocked requester, including a
+            // Purchases.CreateForAnyDepartment holder who has a department (it used the department-scoped list, so it
+            // showed only their own department although the server accepts any valid room).
             var departmentGroups = lockDepartment
                 ? null
-                : canCreateForAnyDepartment
-                    ? BuildRequisitionDepartmentGroups(departmentId)
-                    : BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments());
+                : BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments());
             ViewBag.DepartmentGroups = departmentGroups;
             // Never leave the DepartmentId dropdown without a list: with no groups (e.g. a department scope that
             // returned nothing) the view used to fall through to DropDownListFor with a null SelectList, which

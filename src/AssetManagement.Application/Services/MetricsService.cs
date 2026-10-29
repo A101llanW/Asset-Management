@@ -126,7 +126,10 @@ namespace AssetManagement.Application.Services
             var userId = _currentUser == null ? null : _currentUser.UserId;
             var profile = string.IsNullOrWhiteSpace(userId) ? null : _userService.GetById(userId);
             var roleId = profile == null ? null : profile.RoleId;
-            var isSuperAdmin = AssetManagement.Application.Security.OrgCapabilities.HasOrgWideScope(_authorizationService, userId);
+            // Approve-any-stage is for the Company Admin (or support impersonation) only, not every Assets.ViewAll
+            // holder; same rule as the controllers' CanBypassApprovalStages (2026-10-29).
+            var role = roleId.HasValue ? _unitOfWork.Repository<Role>().GetById(roleId.Value) : null;
+            var isSuperAdmin = AssetManagement.Application.Security.RequisitionAccessRules.CanBypassApprovalStages(_authorizationService, role, userId);
             var canApproveAssetRequests = !string.IsNullOrWhiteSpace(userId)
                 && _authorizationService.HasPermission(userId, "Assets.Request.Approve");
 

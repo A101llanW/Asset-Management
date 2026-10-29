@@ -27,7 +27,9 @@ namespace AssetManagement.Web.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult Upload(int assetId, string documentType, HttpPostedFileBase attachment, int? requirementId)
         {
-            if (_assetService.GetById(assetId) == null)
+            // A requisition approver's read-only view of a tagged asset (2026-10-29) does not allow uploads.
+            var uploadAsset = _assetService.GetById(assetId);
+            if (uploadAsset == null || uploadAsset.ViewedForRequisitionApprovalOnly)
             {
                 TempData["Error"] = "Asset not found.";
                 return RedirectToAction("Index", "Assets");
@@ -125,7 +127,8 @@ namespace AssetManagement.Web.Controllers
                 return Redirect(Url.Action("Details", "Assets", new { id = assetId }) + "#documents");
             }
 
-            if (_assetService.GetById(assetId) == null)
+            var deleteAsset = _assetService.GetById(assetId);
+            if (deleteAsset == null || deleteAsset.ViewedForRequisitionApprovalOnly)
             {
                 TempData["Error"] = "Asset not found.";
                 return RedirectToAction("Index", "Assets");

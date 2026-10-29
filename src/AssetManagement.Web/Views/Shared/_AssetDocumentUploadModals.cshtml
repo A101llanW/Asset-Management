@@ -4,7 +4,7 @@
 @using AssetManagement.Application.Helpers
 @using AssetManagement.Web.Helpers
 @{
-    var canUpload = Html.CanUploadAssetDocument(Model.CurrentCustodianId);
+    var canUpload = !Model.ViewedForRequisitionApprovalOnly && Html.CanUploadAssetDocument(Model.CurrentCustodianId);
     var existingTypes = Model.Documents == null
         ? Enumerable.Empty<string>()
         : Model.Documents.Select(x => x.DocumentType);

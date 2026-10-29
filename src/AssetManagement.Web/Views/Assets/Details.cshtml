@@ -7,16 +7,18 @@
 @using System.Linq
 @{
     ViewBag.Title = "Asset Details";
-    var canEditAsset = Html.HasPermission("Assets.Edit");
-    var canAssignAsset = Html.HasPermission("Assets.Assign") && AssetCustodyRules.CanAssign(Model.CurrentStatus);
-    var assignBlockedMessage = Html.HasPermission("Assets.Assign") && !AssetCustodyRules.CanAssign(Model.CurrentStatus)
+    // 2026-10-29 (#7): a requisition approver sees an asset tagged on the requisition read-only (no actions).
+    var assetActionsAllowed = !Model.ViewedForRequisitionApprovalOnly;
+    var canEditAsset = assetActionsAllowed && Html.HasPermission("Assets.Edit");
+    var canAssignAsset = assetActionsAllowed && Html.HasPermission("Assets.Assign") && AssetCustodyRules.CanAssign(Model.CurrentStatus);
+    var assignBlockedMessage = assetActionsAllowed && Html.HasPermission("Assets.Assign") && !AssetCustodyRules.CanAssign(Model.CurrentStatus)
         ? AssetCustodyRules.GetAssignBlockedMessage(Model.CurrentStatus)
         : null;
-    var canTransferAsset = Html.HasPermission("Assets.Transfer") && AssetCustodyRules.CanTransfer(Model.CurrentStatus);
-    var canReturnAsset = Html.HasPermission("Assets.Return");
-    var canCreateIncident = Html.HasPermission("Incidents.Create");
-    var canCreateClaim = Html.HasPermission("Claims.Create");
-    var canRequestDisposal = Html.HasPermission("Assets.Dispose");
+    var canTransferAsset = assetActionsAllowed && Html.HasPermission("Assets.Transfer") && AssetCustodyRules.CanTransfer(Model.CurrentStatus);
+    var canReturnAsset = assetActionsAllowed && Html.HasPermission("Assets.Return");
+    var canCreateIncident = assetActionsAllowed && Html.HasPermission("Incidents.Create");
+    var canCreateClaim = assetActionsAllowed && Html.HasPermission("Claims.Create");
+    var canRequestDisposal = assetActionsAllowed && Html.HasPermission("Assets.Dispose");
     var transferApprovalSummary = ViewBag.TransferApprovalSummary as string;
     var disposalApprovalSummary = ViewBag.DisposalApprovalSummary as string;
     var labelVm = ViewBag.AssetLabelPrint as AssetLabelPrintVm
@@ -47,6 +49,13 @@
     PrimaryActionModalTarget = "assetQrLabelModal",
     PrimaryActionLabel = "Print label"
 })
+
+@if (Model.ViewedForRequisitionApprovalOnly)
+{
+    <div class="alert alert-info am-requisition-approver-readonly mb-3" role="status">
+        You can view this asset because it is tagged on a requisition you approve. It belongs to another department, so it is read-only for you.
+    </div>
+}
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusGuidance))
 {
