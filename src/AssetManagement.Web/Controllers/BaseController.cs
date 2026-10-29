@@ -535,26 +535,21 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Requisition "A room" list as optgroups (QA A3 on 65d06e1): "Department &gt; Sub-department" groups sorted by
-        /// department, sub-department, then room name; rooms with no department last ("No department"). See
+        /// Requisition "A room" list as optgroups (QA A3 on 65d06e1; rooms only, Allan 2026-10-29 07:48 EAT): only valid
+        /// rooms / classrooms are options; departments and sub-departments are optgroup headings ("Department &gt;
+        /// Sub-department"); valid rooms with no department last ("No department"); empty groups dropped. See
         /// <see cref="AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets"/>.
         /// </summary>
         protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(int? selectedDepartmentId = null)
         {
-            return BuildRequisitionDepartmentGroups(
-                selectedDepartmentId,
-                BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList(),
-                true);
+            return BuildRequisitionDepartmentGroups(selectedDepartmentId, BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
         }
 
-        /// <summary>Same grouping over a given department set (e.g. every active department in the org).</summary>
-        protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(
-            int? selectedDepartmentId,
-            IEnumerable<DepartmentVm> departments,
-            bool requisitionTargetsOnly)
+        /// <summary>Same grouping over a given department set (e.g. the active departments of the organisation).</summary>
+        protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(int? selectedDepartmentId, IEnumerable<DepartmentVm> departments)
         {
             var groups = new List<DepartmentSelectGroupVm>();
-            foreach (var group in AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets(departments, requisitionTargetsOnly))
+            foreach (var group in AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets(departments))
             {
                 var groupVm = new DepartmentSelectGroupVm
                 {
@@ -564,16 +559,10 @@ namespace AssetManagement.Web.Controllers
                 foreach (var option in group.Options)
                 {
                     // Display only: Year wording on the name (codes are never in this text).
-                    var optionText = GradeDisplay.ToYear(option.Name ?? string.Empty);
-                    if (option.DepartmentKind != DepartmentKind.Room && option.DepartmentKind != DepartmentKind.Class)
-                    {
-                        optionText += " (" + DescribeDepartmentKind(option.DepartmentKind) + ")";
-                    }
-
                     groupVm.Items.Add(new DepartmentSelectOptionVm
                     {
                         Value = option.DepartmentId.ToString(),
-                        Text = optionText,
+                        Text = GradeDisplay.ToYear(option.Name ?? string.Empty),
                         Selected = selectedDepartmentId.HasValue && option.DepartmentId == selectedDepartmentId.Value
                     });
                 }

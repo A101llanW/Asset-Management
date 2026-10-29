@@ -178,6 +178,61 @@ namespace AssetManagement.Application.Helpers
                 : TaggedAssetTargetDecision.Keep;
         }
 
+        /// <summary>
+        /// Same rule, knowing whether the asset's room is in the rooms-only list (QA B on 65d06e1): a PrefillRoom whose
+        /// room cannot be selected (not a room, not a requisition target, inactive, or filtered out), or an asset with no
+        /// room while no target is chosen, becomes NotSelectableNotice: nothing is selected and the page says where the
+        /// asset sits (TaggedAssetNotSelectableNotice). Never a silent no-op.
+        /// </summary>
+        public static TaggedAssetTargetDecision DecideTargetOnTag(
+            string currentKind,
+            int? currentDepartmentId,
+            string currentUserId,
+            int? assetDepartmentId,
+            bool departmentLocked,
+            bool assetRoomSelectable)
+        {
+            var decision = DecideTargetOnTag(currentKind, currentDepartmentId, currentUserId, assetDepartmentId, departmentLocked);
+            if (decision == TaggedAssetTargetDecision.PrefillRoom && !assetRoomSelectable)
+            {
+                return TaggedAssetTargetDecision.NotSelectableNotice;
+            }
+
+            if (decision == TaggedAssetTargetDecision.Keep && !(assetDepartmentId.HasValue && assetDepartmentId.Value > 0))
+            {
+                var kind = NormalizeKind(currentKind);
+                var chosen = departmentLocked
+                    || (kind == KindPerson && !string.IsNullOrWhiteSpace(currentUserId))
+                    || (kind == KindRoom && currentDepartmentId.HasValue && currentDepartmentId.Value > 0);
+                return chosen ? decision : TaggedAssetTargetDecision.NotSelectableNotice;
+            }
+
+            return decision;
+        }
+
+        /// <summary>Notice when the tagged asset's room cannot be pre-selected (same text in purchase-request-create.js).</summary>
+        public static string TaggedAssetNotSelectableNotice(string assetLocation)
+        {
+            return TaggedAssetNotSelectableNotice(assetLocation, false);
+        }
+
+        /// <summary>
+        /// Notice when the tagged asset's room cannot be the target (same text in JS). <paramref name="roomInactive"/>:
+        /// the asset sits in an inactive room (e.g. Test-WF Music Room 268, IsActive = 0), which is never listed.
+        /// </summary>
+        public static string TaggedAssetNotSelectableNotice(string assetLocation, bool roomInactive)
+        {
+            if (string.IsNullOrWhiteSpace(assetLocation))
+            {
+                return "The tagged asset is not in a room (company custody). Choose a room or a person as the requisition target.";
+            }
+
+            return "The tagged asset sits in " + assetLocation.Trim()
+                + (roomInactive
+                    ? ", which is inactive, so it can't be the requisition target. Choose a room or a person."
+                    : ", which is not a room you can select as the requisition target. Choose a room or a person.");
+        }
+
         /// <summary>The inline notice shown when a tag does not change an already chosen target (same text in JS).</summary>
         public static string TaggedAssetKeptNotice(string assetLocation)
         {
@@ -244,25 +299,52 @@ namespace AssetManagement.Application.Helpers
             return string.Join(" \u203A ", parts.ToArray());
         }
 
-        /// <summary>Last optgroup of the room list: rooms / classes that have no parent department.</summary>
+        /// <summary>Last optgroup of the room list: valid rooms / classes that have no parent department.</summary>
         public const string NoDepartmentGroupLabel = "No department";
 
         /// <summary>
-        /// The "A room" requisition target list, grouped for optgroups (QA A3 on 65d06e1). A room / class goes under its
-        /// parent path ("Department &gt; Sub-department", any depth); a department or sub-department that is itself a
-        /// target heads its own group (listed first). Rooms / classes with no parent go in the last group,
-        /// "No department". Groups are sorted by department, then sub-department; options by name (natural,
-        /// case-insensitive, so "Year 2" comes before "Year 10"). Inactive departments are skipped; inactive parents
-        /// still name the path. Cycle-safe.
+        /// A department id that may be posted as a ROOM requisition target: an active Room or Class that is marked as a
+        /// requisition target and belongs to the user's organisation (null org on either side = not org-restricted).
+        /// Departments and sub-departments are never room targets (Allan 2026-10-29 07:48 EAT: rooms only).
         /// </summary>
-        /// <param name="departments">The departments the user may pick from (already org / scope filtered).</param>
-        /// <param name="requisitionTargetsOnly">True: only IsRequisitionTarget departments become options.</param>
-        public static IList<RequisitionRoomGroup> GroupRoomTargets(IEnumerable<DepartmentVm> departments, bool requisitionTargetsOnly)
+        public static bool IsValidRoomTarget(Department department, int? organizationId)
+        {
+            return department != null
+                && department.IsActive
+                && department.IsRequisitionTarget
+                && IsRoomLike(department.DepartmentKind)
+                && (!organizationId.HasValue || !department.OrganizationId.HasValue || department.OrganizationId.Value == organizationId.Value);
+        }
+
+        public static bool IsValidRoomTarget(DepartmentVm department)
+        {
+            return department != null && department.IsActive && department.IsRequisitionTarget && IsRoomLike(department.DepartmentKind);
+        }
+
+        /// <summary>Server check for a Room target (the UI list is not the only check).</summary>
+        public static void EnsureValidRoomTarget(Department department, int? organizationId)
+        {
+            if (!IsValidRoomTarget(department, organizationId))
+            {
+                var name = department == null || string.IsNullOrWhiteSpace(department.Name) ? "The selected target" : department.Name.Trim();
+                throw new BusinessException(name + " is not a room or classroom that can receive requisitions. Choose a room from the list.");
+            }
+        }
+
+        /// <summary>
+        /// The "A room" requisition target list, grouped for optgroups (QA A3 on 65d06e1; rooms only, Allan 2026-10-29).
+        /// Only valid room targets are options (IsValidRoomTarget). Departments / sub-departments are group headings
+        /// only: a room sits under its parent path ("Department &gt; Sub-department", any depth). Valid rooms with no
+        /// (active) parent go in the last group, "No department". Groups with no valid room do not exist. Groups sort by
+        /// department, then sub-department; rooms by name (natural, case-insensitive). Cycle-safe.
+        /// </summary>
+        /// <param name="departments">The active departments of the user's organisation (headings and rooms).</param>
+        public static IList<RequisitionRoomGroup> GroupRoomTargets(IEnumerable<DepartmentVm> departments)
         {
             var lookup = new Dictionary<int, DepartmentVm>();
             foreach (var d in departments ?? Enumerable.Empty<DepartmentVm>())
             {
-                if (d != null && !lookup.ContainsKey(d.Id))
+                if (d != null && d.IsActive && !lookup.ContainsKey(d.Id))
                 {
                     lookup[d.Id] = d;
                 }
@@ -272,17 +354,14 @@ namespace AssetManagement.Application.Helpers
             RequisitionRoomGroup noDepartment = null;
             foreach (var d in lookup.Values)
             {
-                if (!d.IsActive || (requisitionTargetsOnly && !d.IsRequisitionTarget))
+                if (!IsValidRoomTarget(d))
                 {
                     continue;
                 }
 
-                var roomLike = d.DepartmentKind == DepartmentKind.Room || d.DepartmentKind == DepartmentKind.Class;
-                int? groupId = roomLike
-                    ? (d.ParentDepartmentId.HasValue && lookup.ContainsKey(d.ParentDepartmentId.Value) && d.ParentDepartmentId.Value != d.Id
-                        ? d.ParentDepartmentId
-                        : null)
-                    : d.Id;
+                int? groupId = d.ParentDepartmentId.HasValue && d.ParentDepartmentId.Value != d.Id && lookup.ContainsKey(d.ParentDepartmentId.Value)
+                    ? d.ParentDepartmentId
+                    : null;
 
                 RequisitionRoomGroup group;
                 if (!groupId.HasValue)
@@ -310,8 +389,7 @@ namespace AssetManagement.Application.Helpers
                 {
                     DepartmentId = d.Id,
                     Name = (d.Name ?? string.Empty).Trim(),
-                    DepartmentKind = d.DepartmentKind,
-                    IsGroupDepartment = groupId.HasValue && groupId.Value == d.Id
+                    DepartmentKind = d.DepartmentKind
                 });
             }
 
@@ -420,11 +498,6 @@ namespace AssetManagement.Application.Helpers
 
         private static int CompareOptions(RequisitionRoomOption left, RequisitionRoomOption right)
         {
-            if (left.IsGroupDepartment != right.IsGroupDepartment)
-            {
-                return left.IsGroupDepartment ? -1 : 1;
-            }
-
             var c = NaturalCompare(left.Name, right.Name);
             return c != 0 ? c : left.DepartmentId.CompareTo(right.DepartmentId);
         }
@@ -465,9 +538,6 @@ namespace AssetManagement.Application.Helpers
         public string Name { get; set; }
 
         public DepartmentKind DepartmentKind { get; set; }
-
-        /// <summary>True for the department / sub-department that heads its own group (listed first).</summary>
-        public bool IsGroupDepartment { get; set; }
     }
 
     public enum TaggedAssetTargetDecision
@@ -479,6 +549,9 @@ namespace AssetManagement.Application.Helpers
         PrefillRoom = 1,
 
         /// <summary>A different room / a person was already chosen: keep it and show TaggedAssetKeptNotice.</summary>
-        KeepWithNotice = 2
+        KeepWithNotice = 2,
+
+        /// <summary>No target chosen, but the asset's room is not a selectable room: select nothing, show TaggedAssetNotSelectableNotice.</summary>
+        NotSelectableNotice = 3
     }
 }

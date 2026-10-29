@@ -98,7 +98,7 @@
                     @Html.DropDownListFor(m => m.DepartmentId, departments, "-- Select room / department --", new { @class = "form-select", required = "required", id = "DepartmentId" })
                     @Html.ValidationMessageFor(m => m.DepartmentId, "", new { @class = "text-danger" })
                 }
-                <div class="form-text">Room, classroom, or admin unit that will receive these goods (grouped by department and sub-department).</div>
+                <div class="form-text">@(lockDepartment ? "Your department will receive these goods." : "Pick a room; rooms are grouped by department and sub-department. Rooms with no department are listed last.")</div>
             </div>
             <div id="target-person-panel" class="@(targetIsPerson ? "" : "d-none")">
                 <select class="form-select" id="TargetUserId" name="TargetUserId" aria-label="Person this requisition is for" @(targetIsPerson ? "" : "disabled=\"disabled\"")>

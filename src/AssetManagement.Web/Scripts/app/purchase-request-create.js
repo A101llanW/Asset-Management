@@ -52,6 +52,35 @@
         return hasAssetDept ? "PrefillRoom" : "Keep";
     }
 
+    /*
+     * Rooms only (mirrors the 6-argument RequisitionTargetRules.DecideTargetOnTag): with no target chosen, a tagged asset
+     * whose room is not in the room list (not a room, not a requisition target, inactive, filtered out) or that has no
+     * room selects nothing and shows taggedAssetNotSelectableNotice. Never a silent no-op.
+     */
+    function decideTargetOnTagRoomsOnly(kind, departmentId, userId, assetDepartmentId, locked, assetRoomSelectable) {
+        var decision = decideTargetOnTag(kind, departmentId, userId, assetDepartmentId, locked);
+        if (decision === "PrefillRoom" && !assetRoomSelectable) {
+            return "NotSelectableNotice";
+        }
+        var hasAssetDept = !!assetDepartmentId && String(assetDepartmentId) !== "0";
+        var hasDept = !!departmentId && String(departmentId) !== "0";
+        var chosen = locked || (kind === "Person" && !!userId) || (kind === "Room" && hasDept);
+        if (decision === "Keep" && !hasAssetDept && !chosen) {
+            return "NotSelectableNotice";
+        }
+        return decision;
+    }
+
+    function taggedAssetNotSelectableNotice(location, roomInactive) {
+        var where = location && String(location).trim() ? String(location).trim() : "";
+        if (!where) {
+            return "The tagged asset is not in a room (company custody). Choose a room or a person as the requisition target.";
+        }
+        return "The tagged asset sits in " + where + (roomInactive
+            ? ", which is inactive, so it can't be the requisition target. Choose a room or a person."
+            : ", which is not a room you can select as the requisition target. Choose a room or a person.");
+    }
+
     function taggedAssetKeptNotice(location) {
         return "The tagged asset sits in " + (location && String(location).trim() ? String(location).trim() : "another room") +
             "; the requisition target you chose was kept.";
@@ -171,19 +200,23 @@
             setHidden(notice, !text);
         }
 
-        function setRoom(id) {
+        function hasRoom(id) {
             var rooms = roomSelect();
-            if (!rooms) {
+            if (!rooms || !id || String(id) === "0") {
                 return false;
             }
-            var found = false;
+            // select.options includes the options inside optgroups; headings are never options.
             for (var i = 0; i < rooms.options.length; i++) {
-                if (rooms.options[i].value === String(id)) {
-                    found = true;
-                    break;
+                if (rooms.options[i].value === String(id) && !rooms.options[i].disabled) {
+                    return true;
                 }
             }
-            if (!found) {
+            return false;
+        }
+
+        function setRoom(id) {
+            var rooms = roomSelect();
+            if (!rooms || !hasRoom(id)) {
                 return false;
             }
             for (var k = 0; k < kindRadios.length; k++) {
@@ -219,6 +252,7 @@
                 return opt ? opt.value : "";
             },
             setRoom: setRoom,
+            hasRoom: hasRoom,
             showNotice: showNotice,
             locked: locked
         };
@@ -655,6 +689,9 @@
                 if (item.departmentName) {
                     selectButton.setAttribute("data-department-name", item.departmentName);
                 }
+                if (item.departmentInactive) {
+                    selectButton.setAttribute("data-department-inactive", "true");
+                }
                 if (item.itemDescription) {
                     selectButton.setAttribute("data-item-description", item.itemDescription);
                 }
@@ -783,17 +820,21 @@
 
             var departmentId = button.getAttribute("data-department-id");
             if (requisitionTarget) {
-                var decision = decideTargetOnTag(
+                var decision = decideTargetOnTagRoomsOnly(
                     requisitionTarget.kind(),
                     requisitionTarget.roomDepartmentId(),
                     requisitionTarget.personId(),
                     departmentId,
-                    isDepartmentLocked());
-                if (decision === "PrefillRoom") {
-                    if (requisitionTarget.setRoom(departmentId)) {
-                        requisitionTarget.showNotice("");
-                        refreshApprovalPathPreview();
-                    }
+                    isDepartmentLocked(),
+                    requisitionTarget.hasRoom(departmentId));
+                if (decision === "PrefillRoom" && requisitionTarget.setRoom(departmentId)) {
+                    requisitionTarget.showNotice("");
+                    refreshApprovalPathPreview();
+                } else if (decision === "PrefillRoom" || decision === "NotSelectableNotice") {
+                    var hasAssetRoom = !!departmentId && String(departmentId) !== "0";
+                    requisitionTarget.showNotice(taggedAssetNotSelectableNotice(
+                        hasAssetRoom ? button.getAttribute("data-department-name") : "",
+                        button.getAttribute("data-department-inactive") === "true"));
                 } else if (decision === "KeepWithNotice") {
                     requisitionTarget.showNotice(taggedAssetKeptNotice(button.getAttribute("data-department-name")));
                 }

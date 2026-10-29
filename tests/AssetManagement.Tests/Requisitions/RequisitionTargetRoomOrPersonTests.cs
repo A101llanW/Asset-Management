@@ -345,7 +345,7 @@ namespace AssetManagement.Tests.Requisitions
             QaSixRequisitionFormTests.AssertIe11Safe(js);
             StringAssert.Contains("function decideTargetOnTag(kind, departmentId, userId, assetDepartmentId, locked)", js);
             StringAssert.Contains("\"; the requisition target you chose was kept.\"", js);
-            StringAssert.Contains("if (decision === \"PrefillRoom\")", js);
+            StringAssert.Contains("if (decision === \"PrefillRoom\" && requisitionTarget.setRoom(departmentId))", js);
             StringAssert.DoesNotContain(".toggle(", js);
         }
 
@@ -419,7 +419,7 @@ namespace AssetManagement.Tests.Requisitions
             StringAssert.Contains("110_requisition_target_room_or_person.sql", rollback);
         }
 
-        // ---- Room list grouped by department / sub-department (QA A3 on 65d06e1) ------------------------------------
+        // ---- Room list: valid rooms only, grouped by department / sub-department (QA A3 + Allan 2026-10-29) --------
 
         private static List<DepartmentVm> RoomTree()
         {
@@ -427,18 +427,21 @@ namespace AssetManagement.Tests.Requisitions
             {
                 new DepartmentVm { Id = 1, Name = "Information Technology", DepartmentKind = DepartmentKind.Administrative, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 2, Name = "ICT", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
-                new DepartmentVm { Id = 3, Name = "Administration", DepartmentKind = DepartmentKind.Administrative, IsActive = true, IsRequisitionTarget = false },
+                new DepartmentVm { Id = 3, Name = "Administration", DepartmentKind = DepartmentKind.Administrative, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 4, Name = "Facilities", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 5, Name = "Store 10", ParentDepartmentId = 4, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 6, Name = "store 2", ParentDepartmentId = 4, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 7, Name = "Boardroom", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 8, Name = "Art room", DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
-                new DepartmentVm { Id = 9, Name = "Old lab", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = false, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 9, Name = "Music Room", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = false, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 10, Name = "Grade 2", DepartmentKind = DepartmentKind.Grade, IsActive = true, IsRequisitionTarget = false },
                 new DepartmentVm { Id = 11, Name = "Grade 2 West", ParentDepartmentId = 10, DepartmentKind = DepartmentKind.Class, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 12, Name = "Grade 2 East", ParentDepartmentId = 10, DepartmentKind = DepartmentKind.Class, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 13, Name = "Not a target room", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = false },
-                new DepartmentVm { Id = 14, Name = "Library", DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true }
+                new DepartmentVm { Id = 14, Name = "Library", DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 15, Name = "Empty sub", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.SubDepartment, IsActive = true, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 16, Name = "Closed sub", ParentDepartmentId = 3, DepartmentKind = DepartmentKind.SubDepartment, IsActive = false, IsRequisitionTarget = true },
+                new DepartmentVm { Id = 17, Name = "Orphan room", ParentDepartmentId = 16, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true }
             };
         }
 
@@ -448,42 +451,38 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void GroupRoomTargets_GroupsByDepartmentAndSubDepartment_Sorted_NoDepartmentLast()
+        public void GroupRoomTargets_RoomsOnly_DepartmentsAreHeadings_Sorted_NoDepartmentLast()
         {
-            var groups = RequisitionTargetRules.GroupRoomTargets(RoomTree(), true);
+            var groups = RequisitionTargetRules.GroupRoomTargets(RoomTree());
             Assert.AreEqual(
                 "Administration: Boardroom"
-                + " | Administration > Facilities: Facilities, store 2, Store 10"
+                + " | Administration > Facilities: store 2, Store 10"
                 + " | Grade 2: Grade 2 East, Grade 2 West"
-                + " | Information Technology: Information Technology, ICT"
-                + " | No department: Art room, Library",
+                + " | Information Technology: ICT"
+                + " | No department: Art room, Library, Orphan room",
                 Describe(groups));
             Assert.IsTrue(groups.Last().IsNoDepartment);
             Assert.AreEqual(RequisitionTargetRules.NoDepartmentGroupLabel, groups.Last().Label);
-            Assert.IsTrue(groups[1].Options[0].IsGroupDepartment, "the sub-department itself heads its own group");
             Assert.AreEqual(4, groups[1].DepartmentId);
         }
 
         [Test]
-        public void GroupRoomTargets_SkipsInactive_AndNonTargetsWhenTargetsOnly()
+        public void GroupRoomTargets_NeverOffersDepartments_InvalidRooms_OrEmptyGroups()
         {
-            var ids = RequisitionTargetRules.GroupRoomTargets(RoomTree(), true).SelectMany(g => g.Options).Select(o => o.DepartmentId).ToList();
-            CollectionAssert.DoesNotContain(ids, 9, "inactive room");
-            CollectionAssert.DoesNotContain(ids, 13, "not a requisition target");
-            CollectionAssert.DoesNotContain(ids, 3, "non-target department is only a group label");
-            Assert.AreEqual(ids.Count, ids.Distinct().Count(), "each room once");
-        }
+            var groups = RequisitionTargetRules.GroupRoomTargets(RoomTree());
+            var options = groups.SelectMany(g => g.Options).ToList();
+            var ids = options.Select(o => o.DepartmentId).ToList();
+            foreach (var notOption in new[] { 1, 3, 4, 10, 15, 16 })
+            {
+                CollectionAssert.DoesNotContain(ids, notOption, "departments / sub-departments / grades are headings only: " + notOption);
+            }
 
-        [Test]
-        public void GroupRoomTargets_AllDepartments_KeepsTheSameSet_Grouped()
-        {
-            var tree = RoomTree();
-            var groups = RequisitionTargetRules.GroupRoomTargets(tree, false);
-            var ids = groups.SelectMany(g => g.Options).Select(o => o.DepartmentId).OrderBy(x => x).ToList();
-            CollectionAssert.AreEqual(tree.Where(x => x.IsActive).Select(x => x.Id).OrderBy(x => x).ToList(), ids, "the old flat list's set, nothing lost");
-            Assert.AreEqual("Administration", groups[0].Label);
-            Assert.AreEqual("Administration", groups[0].Options[0].Name, "department first in its own group");
-            Assert.AreEqual("Boardroom", groups[0].Options[1].Name);
+            CollectionAssert.DoesNotContain(ids, 9, "inactive room (e.g. Test-WF Music Room 268)");
+            CollectionAssert.DoesNotContain(ids, 13, "room that is not a requisition target");
+            Assert.IsTrue(options.All(o => RequisitionTargetRules.IsRoomLike(o.DepartmentKind)));
+            Assert.IsFalse(groups.Any(g => g.Label.Contains("Empty sub") || g.Label.Contains("Closed sub")), "no empty / inactive groups");
+            Assert.IsTrue(groups.All(g => g.Options.Count > 0));
+            Assert.AreEqual(ids.Count, ids.Distinct().Count(), "each room once");
         }
 
         [Test]
@@ -500,9 +499,9 @@ namespace AssetManagement.Tests.Requisitions
                 new DepartmentVm { Id = 7, Name = "Loop room", ParentDepartmentId = 6, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true },
                 new DepartmentVm { Id = 8, Name = "Self parent", ParentDepartmentId = 8, DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true }
             };
-            var groups = RequisitionTargetRules.GroupRoomTargets(tree, true);
+            var groups = RequisitionTargetRules.GroupRoomTargets(tree);
             Assert.AreEqual("Loop A > Loop B: Loop room | Ops > Kitchen > Stores: Cold room | No department: Self parent", Describe(groups));
-            Assert.AreEqual(0, RequisitionTargetRules.GroupRoomTargets(null, true).Count);
+            Assert.AreEqual(0, RequisitionTargetRules.GroupRoomTargets(null).Count);
         }
 
         [Test]
@@ -516,13 +515,79 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void CreateLookups_RoomListIsGroupedForEveryUnlockedRequester()
+        public void IsValidRoomTarget_ActiveTargetRoomOrClass_InTheOrganisation()
+        {
+            Assert.IsTrue(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true, OrganizationId = 1 }, 1));
+            Assert.IsTrue(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.Class, IsActive = true, IsRequisitionTarget = true, OrganizationId = 1 }, 1));
+            Assert.IsFalse(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.Administrative, IsActive = true, IsRequisitionTarget = true, OrganizationId = 1 }, 1), "department");
+            Assert.IsFalse(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.SubDepartment, IsActive = true, IsRequisitionTarget = true, OrganizationId = 1 }, 1), "sub-department");
+            Assert.IsFalse(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.Room, IsActive = false, IsRequisitionTarget = true, OrganizationId = 1 }, 1), "inactive");
+            Assert.IsFalse(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = false, OrganizationId = 1 }, 1), "not a target");
+            Assert.IsFalse(RequisitionTargetRules.IsValidRoomTarget(new Department { DepartmentKind = DepartmentKind.Room, IsActive = true, IsRequisitionTarget = true, OrganizationId = 2 }, 1), "other organisation");
+            Assert.IsFalse(RequisitionTargetRules.IsValidRoomTarget(null, 1));
+        }
+
+        [Test]
+        public void Submit_RoomTarget_ThatIsADepartment_IsRejected_ByTheServer()
+        {
+            var uow = Seed();
+            var ex = Assert.Throws<BusinessException>(() => Service(uow).SubmitBatchCompleted(uow, Form("Room", AdminId), "requester"));
+            StringAssert.Contains("not a room or classroom", ex.Message);
+            Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count());
+        }
+
+        [Test]
+        public void Submit_RoomTarget_InactiveRoom_IsRejected_ByTheServer()
+        {
+            var uow = Seed();
+            uow.Seed(new Department { Id = 268, OrganizationId = 1, Name = "Music Room", DepartmentKind = DepartmentKind.Room, IsActive = false, IsRequisitionTarget = true });
+            Assert.Throws<BusinessException>(() => Service(uow).SubmitBatchCompleted(uow, Form("Room", 268), "requester"));
+        }
+
+        [Test]
+        public void Submit_LockedRequester_KeepsTheirOwnDepartment_EvenIfNotARoom()
+        {
+            var uow = Seed();
+            var form = Form("Room", AdminId);
+            form.DepartmentLocked = true;
+            var result = Service(uow).SubmitBatchCompleted(uow, form, "requester");
+            Assert.AreEqual(AdminId, uow.Repository<PurchaseRequest>().GetById(result.PrimaryId).DepartmentId);
+        }
+
+        [Test]
+        public void DecideTargetOnTag_RoomNotInTheList_SelectsNothing_AndShowsTheNotice()
+        {
+            Assert.AreEqual(TaggedAssetTargetDecision.PrefillRoom, RequisitionTargetRules.DecideTargetOnTag(null, null, null, 30, false, true), "valid room: pre-selected");
+            Assert.AreEqual(TaggedAssetTargetDecision.NotSelectableNotice, RequisitionTargetRules.DecideTargetOnTag(null, null, null, 268, false, false), "inactive / non-room / filtered out");
+            Assert.AreEqual(TaggedAssetTargetDecision.NotSelectableNotice, RequisitionTargetRules.DecideTargetOnTag("Person", null, "", 268, false, false), "person mode, no person picked yet");
+            Assert.AreEqual(TaggedAssetTargetDecision.NotSelectableNotice, RequisitionTargetRules.DecideTargetOnTag(null, null, null, null, false, false), "asset with no room");
+            Assert.AreEqual(TaggedAssetTargetDecision.KeepWithNotice, RequisitionTargetRules.DecideTargetOnTag("Room", 30, null, 268, false, false), "chosen room kept");
+            Assert.AreEqual(TaggedAssetTargetDecision.Keep, RequisitionTargetRules.DecideTargetOnTag(null, null, null, null, true, false), "locked: unchanged");
+            StringAssert.Contains("Music Room, which is not a room you can select", RequisitionTargetRules.TaggedAssetNotSelectableNotice("Music Room"));
+            StringAssert.Contains("not in a room", RequisitionTargetRules.TaggedAssetNotSelectableNotice(null));
+            Assert.AreEqual(
+                "The tagged asset sits in Music Room, which is inactive, so it can't be the requisition target. Choose a room or a person.",
+                RequisitionTargetRules.TaggedAssetNotSelectableNotice("Music Room", true));
+            Assert.AreEqual(
+                "The tagged asset sits in Administration, which is not a room you can select as the requisition target. Choose a room or a person.",
+                RequisitionTargetRules.TaggedAssetNotSelectableNotice("Administration", false));
+        }
+
+        [Test]
+        public void CreateLookups_RoomListIsRoomsOnly_ForEveryUnlockedRequester()
         {
             var controller = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "PurchaseRequestsController.cs");
-            StringAssert.Contains("BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments(), false)", controller, "no flat fallback for users without CreateForAnyDepartment");
+            StringAssert.Contains("BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments())", controller, "no flat fallback for users without CreateForAnyDepartment");
             var view = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Views", "PurchaseRequests", "Create.cshtml");
             StringAssert.Contains("@Html.GroupedDepartmentDropDown(\"DepartmentId\", departmentGroups", view);
-            StringAssert.Contains("grouped by department and sub-department", view);
+            StringAssert.Contains("Pick a room; rooms are grouped by department and sub-department.", view);
+            StringAssert.DoesNotContain("or admin unit", view, "help text must not suggest departments can be picked");
+            var js = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Scripts", "app", "purchase-request-create.js");
+            StringAssert.Contains("which is not a room you can select as the requisition target. Choose a room or a person.", js, "same notice text as RequisitionTargetRules");
+            StringAssert.Contains(", which is inactive, so it can't be the requisition target. Choose a room or a person.", js);
+            StringAssert.Contains("data-department-inactive", js);
+            StringAssert.Contains("departmentInactive = IsInactiveAssetRoom(x.DepartmentId, activeDepartmentIds)", controller);
+            StringAssert.Contains("requisitionTarget.hasRoom(departmentId)", js);
         }
 
         [Test]

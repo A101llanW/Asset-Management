@@ -175,6 +175,12 @@ namespace AssetManagement.Web.Controllers
             // Migration 110: never bound from the form; a locked requester's department routes approval for a person too.
             model.DepartmentLocked = IsRequisitionDepartmentLocked();
             model.RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind);
+            if (model.RequisitionTargetKind == null && !model.DepartmentLocked)
+            {
+                // The form only offers Room or Person; a post without a kind is checked as a Room target (rooms only).
+                model.RequisitionTargetKind = RequisitionTargetRules.KindRoom;
+            }
+
             if (RequisitionTargetRules.IsPerson(model.RequisitionTargetKind) && !model.DepartmentLocked)
             {
                 // The approval department of a person target is resolved by the service (person's room / department).
@@ -408,6 +414,11 @@ namespace AssetManagement.Web.Controllers
             }, JsonRequestBehavior.AllowGet);
         }
 
+        private static bool IsInactiveAssetRoom(int? departmentId, HashSet<int> activeDepartmentIds)
+        {
+            return departmentId.HasValue && departmentId.Value > 0 && !activeDepartmentIds.Contains(departmentId.Value);
+        }
+
         [PermissionAuthorize("Purchases.Create")]
         public JsonResult SearchTargetAssets(string search = null, int? departmentId = null, AssetStatus? status = null, string sort = "tag", string direction = "asc", int page = 1, int pageSize = 10)
         {
@@ -423,6 +434,8 @@ namespace AssetManagement.Web.Controllers
             EnrichAssetListCustodianNames(pageModel.Items);
             var listPage = ToAssetListPage(pageModel);
             var inStockLookup = BuildInStockQuantityLookup(pageModel.Items);
+            // Rooms only: tells the tag pre-fill why an asset's room is not in the list (inactive, e.g. Music Room 268).
+            var activeDepartmentIds = new HashSet<int>(GetActiveDepartments().Select(d => d.Id));
 
             var items = pageModel.Items.Select(x => new
             {
@@ -432,6 +445,7 @@ namespace AssetManagement.Web.Controllers
                 categoryName = x.CategoryName,
                 departmentId = x.DepartmentId,
                 departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                departmentInactive = IsInactiveAssetRoom(x.DepartmentId, activeDepartmentIds),
                 custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "" : x.CurrentCustodianName,
                 status = FormatAssetStatusLabel(x.CurrentStatus),
                 statusBadge = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
@@ -485,14 +499,13 @@ namespace AssetManagement.Web.Controllers
             ViewBag.DepartmentName = DepartmentUserWorkflowHelper.ResolveDepartmentDisplayName(
                 departmentId,
                 GetActiveDepartments());
-            // QA A3 (65d06e1): the room list is always grouped by department / sub-department. Create-for-any users
-            // pick from the requisition targets (as before); other unlocked users keep the same set they saw in the
-            // old flat list (every active department in the org), now grouped. Locked users see their own department.
+            // QA A3 (65d06e1) + Allan 2026-10-29 07:48 EAT: every unlocked requester picks from valid ROOMS only, grouped
+            // under department / sub-department headings. Locked users see their own department (unchanged).
             var departmentGroups = lockDepartment
                 ? null
                 : canCreateForAnyDepartment
                     ? BuildRequisitionDepartmentGroups(departmentId)
-                    : BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments(), false);
+                    : BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments());
             ViewBag.DepartmentGroups = departmentGroups;
             // Never leave the DepartmentId dropdown without a list: with no groups (e.g. a department scope that
             // returned nothing) the view used to fall through to DropDownListFor with a null SelectList, which

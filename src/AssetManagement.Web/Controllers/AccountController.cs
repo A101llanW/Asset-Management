@@ -998,6 +998,8 @@ namespace AssetManagement.Web.Controllers
             var actorName = User != null && User.Identity != null ? User.Identity.Name : null;
             ImpersonationSessionHelper.TryEndActiveImpersonation(Session, _unitOfWork, _auditWriter, actorName);
 
+            // Server-side revocation first (rotates Users.AccessToken), then expire the auth + session cookies.
+            AuthSessionHelper.RevokeUserAccessToken(_accountSecurityService, User.GetUserId());
             AuthSessionHelper.SignOut(HttpContext);
             return RedirectToLogin(tenantSlug);
         }

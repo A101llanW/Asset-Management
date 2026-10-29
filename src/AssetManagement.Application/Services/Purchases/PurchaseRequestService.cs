@@ -303,6 +303,16 @@ namespace AssetManagement.Application.Services
 
             _departmentScope.EnsureCanCreateForRequisitionTarget(department);
 
+            // Rooms only (Allan 2026-10-29 07:48 EAT): a posted Room target must be a valid room / classroom of this
+            // organisation, not a department or sub-department. Locked requesters (own department) and person targets
+            // (routing: the person's room, else their profile department) are unchanged; legacy NULL kind unchanged.
+            if (personTarget == null
+                && !model.DepartmentLocked
+                && RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind) == RequisitionTargetRules.KindRoom)
+            {
+                RequisitionTargetRules.EnsureValidRoomTarget(department, _organizationScope.GetCurrentOrganizationId());
+            }
+
             if (string.IsNullOrWhiteSpace(model.Justification))
             {
                 throw new BusinessException("Justification is required.");

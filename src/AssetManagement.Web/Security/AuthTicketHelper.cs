@@ -95,6 +95,22 @@ namespace AssetManagement.Web.Security
             return !string.IsNullOrWhiteSpace(userId);
         }
 
+        /// <summary>
+        /// True when the ticket carries an access token that Global.asax can check against Users.AccessToken. Tickets
+        /// without one (legacy "userId" only, or unparsable) cannot be revoked by Log off, so they are rejected.
+        /// </summary>
+        public static bool HasServerAccessToken(string userData)
+        {
+            string userId;
+            int? organizationId;
+            string accessToken;
+            string uaHash;
+            bool requirePasswordChange;
+            return TryParseUserData(userData, out userId, out organizationId, out accessToken, out uaHash, out requirePasswordChange)
+                && !string.IsNullOrWhiteSpace(userId)
+                && !string.IsNullOrWhiteSpace(accessToken);
+        }
+
         public static bool RequiresPasswordChange(string userData)
         {
             string userId;

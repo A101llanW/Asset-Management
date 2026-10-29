@@ -170,8 +170,15 @@ namespace AssetManagement.Web
                 return;
             }
 
-            if (ticket == null || string.IsNullOrWhiteSpace(ticket.UserData))
+            if (ticket == null)
             {
+                return;
+            }
+
+            // Every ticket must carry the user's access token so Log off / password change can revoke it server side.
+            if (!AuthTicketHelper.HasServerAccessToken(ticket.UserData))
+            {
+                InvalidateSession("session_invalid");
                 return;
             }
 
