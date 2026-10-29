@@ -72,7 +72,7 @@ else
                 <td>@AssetManagement.Application.Helpers.DepartmentOrgHierarchyDisplay.FormatDepartmentKind(room.DepartmentKind)</td>
                 <td>@(string.IsNullOrWhiteSpace(room.ParentDepartmentName) ? "Independent" : GradeDisplay.ToYear(room.ParentDepartmentName))</td>
                 <td>@(room.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : "Inherit")</td>
-                <td>@(string.IsNullOrWhiteSpace(room.EffectiveRequisitionFlowSummary) ? "-" : room.EffectiveRequisitionFlowSummary)</td>
+                <td>@(string.IsNullOrWhiteSpace(room.EffectiveRequisitionFlowSummary) ? "-" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(room.EffectiveRequisitionFlowSummary))</td>
                 <td class="small">@(string.IsNullOrWhiteSpace(room.EffectivePurchaseOrderRaiserSummary) ? "-" : room.EffectivePurchaseOrderRaiserSummary)</td>
                 <td>@(room.IsRequisitionTarget ? "Yes" : "No")</td>
                 <td>@(room.IsActive ? "Active" : "Inactive")</td>

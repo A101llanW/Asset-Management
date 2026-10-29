@@ -40,7 +40,7 @@
     <div class="card-header">Requisition approval</div>
     <div class="card-body">
         <div class="alert alert-light border small mb-3" id="requisition-flow-live-summary" data-inherit-previews="@inheritPreviewsJson" aria-live="polite">
-            <div><strong>Requisition flow:</strong> <span data-am-live-flow>@(string.IsNullOrWhiteSpace(effectiveFlowSummary) ? "-" : effectiveFlowSummary)</span></div>
+            <div><strong>Requisition flow:</strong> <span data-am-live-flow>@(string.IsNullOrWhiteSpace(effectiveFlowSummary) ? "-" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(effectiveFlowSummary))</span></div>
             <div><strong>Purchase order raised by:</strong> <span data-am-live-po>@(string.IsNullOrWhiteSpace(effectivePoSummary) ? "-" : effectivePoSummary)</span></div>
             <div class="text-muted d-none" data-am-live-unsaved>Changed, not saved yet. Saving applies it to requisitions submitted afterwards.</div>
         </div>

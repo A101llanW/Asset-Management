@@ -1228,7 +1228,7 @@ namespace AssetManagement.Application.Services
             if (model.AssignToRequisitionDepartment && !string.IsNullOrWhiteSpace(departmentName))
             {
                 subject = "Goods received and placed";
-                message = "Goods were received and placed in " + departmentName + "; ready for handover.";
+                message = "Goods were received and placed in " + GradeDisplay.ToYear(departmentName) + "; ready for handover.";
             }
             else
             {
@@ -1236,7 +1236,7 @@ namespace AssetManagement.Application.Services
                 message = "Goods were received under company custody; assign when ready.";
                 if (!string.IsNullOrWhiteSpace(departmentName))
                 {
-                    message += " Intended destination: " + departmentName + ".";
+                    message += " Intended destination: " + GradeDisplay.ToYear(departmentName) + ".";
                 }
             }
 

@@ -159,7 +159,7 @@ else if (viewMode == "tree")
                             {
                                 <td>@(parent.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (parent.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                 <td>@DepartmentPicDisplay.FormatRequisitionOwner(parent)</td>
-                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "" : parent.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(parent)</td>
+                                <td>@(string.IsNullOrWhiteSpace(parent.EffectiveRequisitionFlowSummary) ? "" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(parent.EffectiveRequisitionFlowSummary))@PurchaseOrderRaiserLine(parent)</td>
                             }
                             else
                             {
@@ -189,7 +189,7 @@ else if (viewMode == "tree")
                                 {
                                     <td>@(child.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (child.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                     <td>@DepartmentPicDisplay.FormatRequisitionOwner(child)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "" : child.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(child)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(child.EffectiveRequisitionFlowSummary) ? "" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(child.EffectiveRequisitionFlowSummary))@PurchaseOrderRaiserLine(child)</td>
                                 }
                                 else
                                 {
@@ -216,7 +216,7 @@ else if (viewMode == "tree")
                                     {
                                         <td>@(grandchild.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (grandchild.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                                         <td>@DepartmentPicDisplay.FormatRequisitionOwner(grandchild)</td>
-                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "" : grandchild.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(grandchild)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(grandchild.EffectiveRequisitionFlowSummary) ? "" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(grandchild.EffectiveRequisitionFlowSummary))@PurchaseOrderRaiserLine(grandchild)</td>
                                     }
                                     else
                                     {
@@ -260,7 +260,7 @@ else
                         {
                             <td>@(item.RequisitionFlowMode == RequisitionFlowMode.Custom ? "Custom" : (item.RequisitionFlowMode == RequisitionFlowMode.AutoApprove ? "Auto" : "Inherit"))</td>
                             <td>@DepartmentPicDisplay.FormatRequisitionOwner(item)</td>
-                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "" : item.EffectiveRequisitionFlowSummary)@PurchaseOrderRaiserLine(item)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.EffectiveRequisitionFlowSummary) ? "" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(item.EffectiveRequisitionFlowSummary))@PurchaseOrderRaiserLine(item)</td>
                         }
                         else
                         {

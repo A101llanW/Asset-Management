@@ -257,7 +257,7 @@ namespace AssetManagement.Web.Controllers
                 .Select(d => new SelectListItem
                 {
                     Value = d.Id.ToString(),
-                    Text = string.IsNullOrWhiteSpace(d.ParentDepartmentName) ? d.Name : d.Name + " (" + d.ParentDepartmentName + ")",
+                    Text = AssetManagement.Application.Helpers.DepartmentLabelHelper.FormatNameWithParent(d.Name, d.ParentDepartmentName),
                     Selected = selectedDepartmentId.HasValue && d.Id == selectedDepartmentId.Value
                 })
                 .ToList();

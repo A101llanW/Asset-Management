@@ -108,7 +108,7 @@
                         <option value="@p.UserId"
                                 data-display-name="@p.DisplayName"
                                 data-room-id="@(p.RoomId.HasValue ? p.RoomId.Value.ToString() : "")"
-                                data-room-label="@(p.RoomLabel ?? "")"
+                                data-room-label="@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(p.RoomLabel) ?? "")"
                                 data-routing-department-id="@(p.RoutingDepartmentId.HasValue ? p.RoutingDepartmentId.Value.ToString() : "")"
                                 @(string.Equals(p.UserId, Model.TargetUserId, System.StringComparison.Ordinal) ? "selected=\"selected\"" : "")>@p.DisplayName</option>
                     }

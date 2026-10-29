@@ -121,12 +121,13 @@
             : "Update the department details used across users, assignments, and reporting."),
     BackUrl = returnUrl,
     BackLabel = "Back",
-    Breadcrumbs = new[]
-    {
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Departments", Url = Url.Action("Index") },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = GradeDisplay.ToYear(Model.Name), Url = Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }) },
-        new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = editPageTitle }
-    }
+    Breadcrumbs = AssetManagement.Web.Helpers.DepartmentBreadcrumbs.Build(
+        Url.Action("Index"),
+        ViewBag.BreadcrumbAncestors as System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<int, string>>,
+        ancestorId => Url.Action("Details", new { id = ancestorId, returnUrl = Url.Action("Index") }),
+        GradeDisplay.ToYear(Model.Name),
+        Url.Action("Details", new { id = Model.Id, returnUrl = Url.Action("Index") }),
+        editPageTitle)
 })
 @using (Html.BeginForm())
 {

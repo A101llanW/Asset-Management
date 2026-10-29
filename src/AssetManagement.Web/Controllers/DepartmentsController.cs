@@ -199,6 +199,8 @@ namespace AssetManagement.Web.Controllers
                 : 0;
             ViewBag.AssetCount = BuildAssetService().CountAssets(new AssetFilterVm { DepartmentId = model.Id });
             var scopedDepartments = _departmentService.GetAll().ToList();
+            // QA 188ce56: breadcrumb shows the parent path (e.g. Academics > Year 6 > 6A), display labels only.
+            ViewBag.BreadcrumbAncestors = DepartmentTreeHelper.GetAncestorTrail(model, scopedDepartments);
             if (model.DepartmentKind == DepartmentKind.Administrative && !model.ParentDepartmentId.HasValue)
             {
                 ViewBag.SubDepartments = DepartmentOrgHierarchyDisplay.GetSubDepartmentsUnder(scopedDepartments, model.Id);
@@ -424,7 +426,7 @@ namespace AssetManagement.Web.Controllers
                 items = impact.Items.Select(x => new
                 {
                     childId = x.ChildId,
-                    childName = x.ChildName,
+                    childName = GradeDisplay.ToYear(x.ChildName),
                     childCode = x.ChildCode,
                     childKindLabel = x.ChildKindLabel,
                     reason = x.Reason,
@@ -784,6 +786,7 @@ namespace AssetManagement.Web.Controllers
 
             var scopedDepartments = DepartmentListHelper.DeduplicateById(_departmentService.GetAll());
             EnsureParentDepartmentName(model, scopedDepartments);
+            ViewBag.BreadcrumbAncestors = DepartmentTreeHelper.GetAncestorTrail(model, scopedDepartments);
 
             // Always populate parent pickers so Kind changes (e.g. Grade->Room) can show Parent in the UI.
             ViewBag.RoomParentCandidates = DepartmentRoomParentCandidates.GetRoomParentCandidates(model, scopedDepartments);
@@ -814,6 +817,13 @@ namespace AssetManagement.Web.Controllers
             ViewBag.RequisitionInheritPreviewsJson = Newtonsoft.Json.JsonConvert.SerializeObject(
                 model.Id > 0 && DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind)
                     ? _departmentService.GetRequisitionInheritPreviews(model.Id)
+                        .Select(x => new RequisitionInheritPreviewVm
+                        {
+                            Choice = x.Choice,
+                            FlowSummary = GradeDisplay.ToYear(x.FlowSummary),
+                            PurchaseOrderRaiserSummary = x.PurchaseOrderRaiserSummary
+                        })
+                        .ToList()
                     : new List<RequisitionInheritPreviewVm>());
             ViewBag.ClassTeacherUsers = BuildActiveUserSelectList(model.ClassTeacherUserId);
             ViewBag.RoomCustodianUsers = BuildActiveUserSelectList(model.RoomCustodianUserId);

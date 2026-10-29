@@ -28,7 +28,7 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Requester</dt><dd class="col-sm-8">@Model.RequestedByName</dd>
                     <dt class="col-sm-4">Department</dt><dd class="col-sm-8">@(GradeDisplay.ToYear(Model.DepartmentName) ?? DisplayText.Empty)</dd>
-                    <dt class="col-sm-4">Deliver to</dt><dd class="col-sm-8" id="asset-request-target">@(isRoomTarget ? ("Room: " + Model.TargetDepartmentName) : Model.RequestedByName)</dd>
+                    <dt class="col-sm-4">Deliver to</dt><dd class="col-sm-8" id="asset-request-target">@(isRoomTarget ? ("Room: " + AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.TargetDepartmentName)) : Model.RequestedByName)</dd>
                     <dt class="col-sm-4">Category</dt><dd class="col-sm-8">@(Model.CategoryName ?? "Any")</dd>
                     <dt class="col-sm-4">Requested asset</dt>
                     <dd class="col-sm-8">
@@ -124,7 +124,7 @@
                             <label class="form-label">How to fulfil</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="FulfilMode" id="FulfilModeAssign" value="Assign" checked />
-                                <label class="form-check-label" for="FulfilModeAssign">Assign it to @(isRoomTarget ? ("the room (" + Model.TargetDepartmentName + ")") : "the user")</label>
+                                <label class="form-check-label" for="FulfilModeAssign">Assign it to @(isRoomTarget ? ("the room (" + AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.TargetDepartmentName) + ")") : "the user")</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="FulfilMode" id="FulfilModeStore" value="Store" />

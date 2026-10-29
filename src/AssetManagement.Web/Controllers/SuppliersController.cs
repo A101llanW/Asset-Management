@@ -80,7 +80,7 @@ namespace AssetManagement.Web.Controllers
                 assetTypeId = x.AssetTypeId,
                 subTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? "" : x.AssetSubTypeName,
                 departmentId = x.DepartmentId,
-                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : GradeDisplay.ToYear(x.DepartmentName),
                 custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "" : x.CurrentCustodianName,
                 status = FormatCatalogAssetStatusLabel(x.CurrentStatus),
                 statusBadge = StatusHtmlHelpers.ToBadgeClass(x.CurrentStatus),
@@ -307,7 +307,7 @@ namespace AssetManagement.Web.Controllers
                 : asset.AssetTag + " - " + asset.AssetName;
             if (!string.IsNullOrWhiteSpace(asset.DepartmentName))
             {
-                label += " · " + asset.DepartmentName;
+                label += " · " + GradeDisplay.ToYear(asset.DepartmentName);
             }
 
             return label;

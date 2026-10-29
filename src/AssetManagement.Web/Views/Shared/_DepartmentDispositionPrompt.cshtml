@@ -17,7 +17,7 @@
          data-am-dept-disposition-pool="@(poolPrompt ? "true" : "false")"
          data-am-dept-disposition-server="@(require ? "true" : "false")">
         <strong>Department choice required.</strong>
-        <span id="am-dept-disposition-reason">The selected target is in <em>@selectedDeptName</em>, but this asset is currently in <em>@assetDeptName</em>.</span>
+        <span id="am-dept-disposition-reason">The selected target is in <em>@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(selectedDeptName))</em>, but this asset is currently in <em>@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(assetDeptName))</em>.</span>
         <div class="mt-2">
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move"

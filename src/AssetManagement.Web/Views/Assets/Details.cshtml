@@ -257,8 +257,8 @@
                         <div class="row g-2">
                             <div class="col-md-3"><strong>Requested By:</strong><br />@pendingTransfer.RequestedByName</div>
                             <div class="col-md-3"><strong>Submitted:</strong><br />@pendingTransfer.RequestedDateText</div>
-                            <div class="col-md-3"><strong>From:</strong><br />@pendingTransfer.FromEntity</div>
-                            <div class="col-md-3"><strong>To:</strong><br />@pendingTransfer.ToEntity</div>
+                            <div class="col-md-3"><strong>From:</strong><br />@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(pendingTransfer.FromEntity))</div>
+                            <div class="col-md-3"><strong>To:</strong><br />@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(pendingTransfer.ToEntity))</div>
                             <div class="col-md-8"><strong>Reason:</strong><br />@(string.IsNullOrWhiteSpace(pendingTransfer.Reason) ? "No reason provided." : pendingTransfer.Reason)</div>
                             <div class="col-md-4"><strong>Awaiting Stage:</strong><br />Stage @pendingTransfer.CurrentApprovalStage - @pendingTransfer.CurrentStageRoleName</div>
                         </div>
@@ -318,8 +318,8 @@
                         <tr>
                             <td>@KenyaTimeHelper.FormatUtc(eventItem.ActionDate, KenyaTimeHelper.ShortTimestampFormat)</td>
                             <td>@eventItem.ActionType</td>
-                            <td>@eventItem.FromEntity</td>
-                            <td>@eventItem.ToEntity</td>
+                            <td>@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(eventItem.FromEntity))</td>
+                            <td>@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(eventItem.ToEntity))</td>
                             <td>@eventItem.ConditionBefore</td>
                             <td>@eventItem.ConditionAfter</td>
                             <td>@eventItem.Reason</td>

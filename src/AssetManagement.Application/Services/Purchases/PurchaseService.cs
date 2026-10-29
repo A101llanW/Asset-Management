@@ -540,7 +540,7 @@ namespace AssetManagement.Application.Services
                     RequisitionQuantity = total,
                     Outstanding = outstanding,
                     Label = (request.RequestNumber ?? ("#" + request.Id))
-                        + (string.IsNullOrWhiteSpace(departmentName) ? string.Empty : " - " + departmentName)
+                        + (string.IsNullOrWhiteSpace(departmentName) ? string.Empty : " - " + GradeDisplay.ToYear(departmentName))
                         + " - " + Shorten(request.ItemDescription)
                         + " (" + outstanding + " of " + total + " to order)"
                 });

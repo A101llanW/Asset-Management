@@ -52,7 +52,7 @@
                         <td class="ps-3 fw-medium">@item.RequestNumber</td>
                         <td>@item.ItemSummary @if (item.LineCount > 1) {<span class="text-muted small">(@item.LineCount lines)</span>}</td>
                         <td class="text-end">@item.TotalQuantity</td>
-                        <td>@(string.IsNullOrWhiteSpace(item.ApprovalFlowSource) ? "-" : item.ApprovalFlowSource)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.ApprovalFlowSource) ? "-" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(item.ApprovalFlowSource))</td>
                         <td>
                             <span class="badge bg-secondary">@item.ApprovalStatus</span>
                             @if (item.ApprovalStatus == "Pending" && item.StageCount > 0)

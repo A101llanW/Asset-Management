@@ -37,5 +37,16 @@ namespace AssetManagement.Application.Helpers
 
             return safeCode + " - " + safeName;
         }
+
+        /// <summary>
+        /// Picker text "Name (Parent)" for display only (Allan, 2026-10-29: "6A" under "Year 6"). Both names go
+        /// through <see cref="GradeDisplay"/>; option values stay the department id.
+        /// </summary>
+        public static string FormatNameWithParent(string name, string parentName)
+        {
+            var safeName = GradeDisplay.ToYear((name ?? string.Empty).Trim());
+            var safeParent = GradeDisplay.ToYear((parentName ?? string.Empty).Trim());
+            return safeParent.Length == 0 ? safeName : safeName + " (" + safeParent + ")";
+        }
     }
 }

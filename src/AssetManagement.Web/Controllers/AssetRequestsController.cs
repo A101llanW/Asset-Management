@@ -437,7 +437,7 @@ namespace AssetManagement.Web.Controllers
                         x.AssetTag,
                         x.SerialNumber,
                         x.AssetName,
-                        x.DepartmentId.HasValue ? (departments.FirstOrDefault(d => d.Id == x.DepartmentId.Value)?.Name ?? x.DepartmentName) : x.DepartmentName)))
+                        GradeDisplay.ToYear(x.DepartmentId.HasValue ? (departments.FirstOrDefault(d => d.Id == x.DepartmentId.Value)?.Name ?? x.DepartmentName) : x.DepartmentName))))
                 .OrderBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -454,7 +454,7 @@ namespace AssetManagement.Web.Controllers
             var subtree = new HashSet<int>(DepartmentTreeHelper.GetSelfAndDescendantIds(departmentId.Value, departments));
             return departments
                 .Where(x => subtree.Contains(x.Id) && DepartmentTreeHelper.IsRoomTargetKind(x.DepartmentKind))
-                .Select(x => new KeyValuePair<int, string>(x.Id, DepartmentTreeHelper.BuildPathLabel(x.Id, departments)))
+                .Select(x => new KeyValuePair<int, string>(x.Id, GradeDisplay.ToYear(DepartmentTreeHelper.BuildPathLabel(x.Id, departments))))
                 .OrderBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }

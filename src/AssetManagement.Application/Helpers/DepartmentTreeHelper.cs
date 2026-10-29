@@ -46,6 +46,44 @@ namespace AssetManagement.Application.Helpers
             return string.Join(PathSeparator, names.Where(x => x.Length > 0));
         }
 
+        /// <summary>
+        /// Breadcrumb trail above a department: its ancestors root first (the department itself is not included),
+        /// labelled for display with <see cref="GradeDisplay"/> ("Grade 6" -> "Year 6", "Grade 6A" -> "6A").
+        /// Only ancestors present in <paramref name="lookup"/> (the user's scoped list) are returned; the walk stops
+        /// at the first missing parent. Cycle-safe.
+        /// </summary>
+        public static IList<KeyValuePair<int, string>> GetAncestorTrail(DepartmentVm department, IDictionary<int, DepartmentVm> lookup)
+        {
+            var trail = new List<KeyValuePair<int, string>>();
+            if (department == null || lookup == null)
+            {
+                return trail;
+            }
+
+            var seen = new HashSet<int> { department.Id };
+            var current = department.ParentDepartmentId;
+            while (current.HasValue && seen.Add(current.Value) && trail.Count < MaxDepth)
+            {
+                DepartmentVm node;
+                if (!lookup.TryGetValue(current.Value, out node) || node == null)
+                {
+                    break;
+                }
+
+                var label = GradeDisplay.ToYear((node.Name ?? string.Empty).Trim());
+                trail.Insert(0, new KeyValuePair<int, string>(node.Id, label.Length == 0 ? "Unit #" + node.Id : label));
+                current = node.ParentDepartmentId;
+            }
+
+            return trail;
+        }
+
+        /// <summary>Same as <see cref="GetAncestorTrail(DepartmentVm, IDictionary{int, DepartmentVm})"/> over a list.</summary>
+        public static IList<KeyValuePair<int, string>> GetAncestorTrail(DepartmentVm department, IEnumerable<DepartmentVm> departments)
+        {
+            return GetAncestorTrail(department, ToLookup(departments));
+        }
+
         /// <summary>The root id plus every descendant id (breadth first, root first).</summary>
         public static IList<int> GetSelfAndDescendantIds(int rootId, IEnumerable<DepartmentVm> departments)
         {

@@ -39,7 +39,7 @@ else if (Model.Previewed)
                         {
                             <tr>
                                 <td style="width:2rem"><input type="checkbox" class="form-check-input rename-code-toggle" id="code_@(code.DepartmentId)" value="@code.DepartmentId" @(code.Included ? "checked" : null) /></td>
-                                <td><label for="code_@(code.DepartmentId)" class="mb-0">@code.DepartmentName</label><div class="text-muted small">@code.Source, @code.AssetCount @Model.CountLabel</div></td>
+                                <td><label for="code_@(code.DepartmentId)" class="mb-0">@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(code.DepartmentName))</label><div class="text-muted small">@code.Source, @code.AssetCount @Model.CountLabel</div></td>
                                 <td><code>@code.Code</code></td>
                             </tr>
                         }

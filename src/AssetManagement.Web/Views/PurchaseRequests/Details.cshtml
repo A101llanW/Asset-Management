@@ -55,7 +55,7 @@
                     @if (!string.IsNullOrWhiteSpace(Model.ApprovalFlowSource))
                     {
                         <dt class="col-sm-4">Approval path</dt>
-                        <dd class="col-sm-8">@Model.ApprovalFlowSource</dd>
+                        <dd class="col-sm-8">@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.ApprovalFlowSource))</dd>
                     }
                     @if (Model.PurchaseRequestGroupId.HasValue)
                     {
@@ -67,7 +67,7 @@
                                 <span class="text-muted">&mdash; also submitted:</span>
                                 foreach (var sibling in Model.Siblings)
                                 {
-                                    <a class="ms-1" href="@Url.Action("Details", new { id = sibling.Id })" title="@sibling.ApprovalFlowSource">@sibling.RequestNumber</a>
+                                    <a class="ms-1" href="@Url.Action("Details", new { id = sibling.Id })" title="@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(sibling.ApprovalFlowSource))">@sibling.RequestNumber</a>
                                 }
                             }
                         </dd>
