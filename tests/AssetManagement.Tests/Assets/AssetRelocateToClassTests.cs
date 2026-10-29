@@ -59,11 +59,71 @@ namespace AssetManagement.Tests.Assets
             Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
         }
 
+        // Allan, 2026-10-29 (t770u): "room to room should be possible. Even if the rooms involved are two classes or
+        // a class and a room" - room to class is now allowed (replaces the 2026-10-27 block).
         [Test]
-        public void RelocateToClassDepartment_FromARoom_IsStillRefused()
+        public void RelocateToClassDepartment_FromARoom_IsAllowed_AndRecordsTheMove()
         {
             var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2);
             unitOfWork.Repository<Department>().GetById(1).DepartmentKind = DepartmentKind.Room;
+            var service = TestServiceFactory.CreateAssetService(
+                unitOfWork,
+                authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
+
+            service.RelocateToClassDepartment(1, 2, ActorUserId);
+
+            Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+            var custodyEvent = unitOfWork.Repository<AssetCustodyEvent>().GetAll().Single();
+            Assert.AreEqual(1, custodyEvent.FromDepartmentId);
+            Assert.AreEqual(2, custodyEvent.ToDepartmentId);
+        }
+
+        [Test]
+        public void RelocateToRoomDepartment_FromAClass_IsAllowed()
+        {
+            var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2, targetKind: DepartmentKind.Room);
+            var service = TestServiceFactory.CreateAssetService(
+                unitOfWork,
+                authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
+
+            service.RelocateToRoomDepartment(1, 2, ActorUserId);
+
+            Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+        }
+
+        [Test]
+        public void RelocateToClassDepartment_FromARoom_InactiveClass_IsRefused()
+        {
+            var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2);
+            unitOfWork.Repository<Department>().GetById(1).DepartmentKind = DepartmentKind.Room;
+            unitOfWork.Repository<Department>().GetById(2).IsActive = false;
+            var service = TestServiceFactory.CreateAssetService(
+                unitOfWork,
+                authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
+
+            Assert.Throws<BusinessException>(() => service.RelocateToClassDepartment(1, 2, ActorUserId));
+            Assert.AreEqual(1, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+        }
+
+        [Test]
+        public void RelocateToClassDepartment_FromARoom_WithoutPermission_IsRefused()
+        {
+            var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2);
+            unitOfWork.Repository<Department>().GetById(1).DepartmentKind = DepartmentKind.Room;
+            var service = TestServiceFactory.CreateAssetService(
+                unitOfWork,
+                authorization: new DenyAllAuthorizationService());
+
+            var ex = Assert.Throws<BusinessException>(() => service.RelocateToClassDepartment(1, 2, ActorUserId));
+            StringAssert.Contains("permission", ex.Message);
+            Assert.AreEqual(1, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+        }
+
+        [Test]
+        public void RelocateToClassDepartment_FromASubDepartment_IsStillRefused()
+        {
+            var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2);
+            unitOfWork.Repository<Department>().GetById(1).DepartmentKind = DepartmentKind.SubDepartment;
             var service = TestServiceFactory.CreateAssetService(
                 unitOfWork,
                 authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
@@ -74,16 +134,49 @@ namespace AssetManagement.Tests.Assets
         }
 
         [Test]
-        public void MoveRule_ClassToClassAndClassToRoom_OnlyClassroomsCanTakeClassTargets()
+        public void RelocateGroupToClassDepartment_GroupInARoom_MovesToTheClass()
+        {
+            var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2);
+            unitOfWork.Repository<Department>().GetById(1).DepartmentKind = DepartmentKind.Room;
+            var service = TestServiceFactory.CreateAssetService(
+                unitOfWork,
+                authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
+
+            var result = service.RelocateGroupToClassDepartment("Chair", null, 1, AssetStatus.InStore, 2, ActorUserId);
+
+            Assert.AreEqual(1, result.ProcessedCount, string.Join(" | ", result.Messages));
+            Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+        }
+
+        [Test]
+        public void RelocateGroupToRoomDepartment_GroupInAClass_MovesToTheRoom()
+        {
+            var unitOfWork = SeedRelocateScenario(sourceDepartmentId: 1, targetDepartmentId: 2, targetKind: DepartmentKind.Room);
+            var service = TestServiceFactory.CreateAssetService(
+                unitOfWork,
+                authorization: new FixedPermissionAuthorizationService("Assets.Edit"));
+
+            var result = service.RelocateGroupToRoomDepartment("Chair", null, 1, AssetStatus.InStore, 2, ActorUserId);
+
+            Assert.AreEqual(1, result.ProcessedCount, string.Join(" | ", result.Messages));
+            Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId);
+        }
+
+        [Test]
+        public void MoveRule_RoomsAndClassesMoveFreelyBetweenEachOther()
         {
             Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Class, DepartmentKind.Class));
             Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Class, DepartmentKind.Room));
+            Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Room, DepartmentKind.Class));
+            Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Room, DepartmentKind.Room));
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Class, DepartmentKind.SubDepartment));
-            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Room, DepartmentKind.Class));
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.SubDepartment, DepartmentKind.Class));
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Grade, DepartmentKind.Class));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Administrative, true, DepartmentKind.Class));
             Assert.IsTrue(AssetMoveRules.CanMoveToClassFrom(DepartmentKind.Class));
-            Assert.IsFalse(AssetMoveRules.CanMoveToClassFrom(DepartmentKind.Room));
+            Assert.IsTrue(AssetMoveRules.CanMoveToClassFrom(DepartmentKind.Room));
+            Assert.IsFalse(AssetMoveRules.CanMoveToClassFrom(DepartmentKind.SubDepartment));
+            Assert.IsTrue(AssetMoveRules.CanMoveToRoomFrom(DepartmentKind.Class));
             Assert.IsTrue(AssetMoveRules.CanMoveToClassFrom(null), "company custody placement is not a move");
         }
 

@@ -12,7 +12,7 @@
     var canBulkEdit = ViewBag.CanBulkEdit as bool? ?? false;
     var canRelocateAsset = ViewBag.CanRelocateAsset as bool? ?? false;
     var classDepartments = ViewBag.ClassDepartments as System.Web.Mvc.SelectList;
-    // Allan, 2026-10-27: Move (to classroom) only for assets in a classroom (or company custody).
+    // Allan, 2026-10-29 (t770u): Move to class for assets in a room or a class (or company custody).
     var moveToClassSourceIds = ViewBag.MoveToClassSourceDepartmentIds as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
     var roomDepartmentGroups = ViewBag.RoomDepartmentGroups as System.Collections.Generic.IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>;
     var canRelocateToRoom = canRelocateAsset && roomDepartmentGroups != null && roomDepartmentGroups.Any(g => g.Items != null && g.Items.Count > 0);

@@ -13,8 +13,8 @@ namespace AssetManagement.Tests.Assets
 {
     /// <summary>
     /// Allan, 2026-10-27: "Move to classroom" in the FLAT asset list (per row and bulk), with the same rules as the
-    /// grouped view (0d5ca73): classroom to classroom and classroom to room allowed, room or sub-department to room
-    /// only, no inactive targets.
+    /// grouped view (0d5ca73): rooms and classes move between each other in any direction (room to class added
+    /// 2026-10-29, t770u), sub-department to room only, no inactive targets.
     /// </summary>
     [TestFixture]
     public class AssetFlatListMoveToClassTests
@@ -22,7 +22,7 @@ namespace AssetManagement.Tests.Assets
         private const string ActorUserId = "user-flat-move";
 
         [Test]
-        public void BulkMoveToClass_MovesClassroomAssets_AndSkipsRoomSubDepartmentAndAssignedOnes()
+        public void BulkMoveToClass_MovesClassroomAndRoomAssets_AndSkipsSubDepartmentAndAssignedOnes()
         {
             var unitOfWork = Seed();
             var service = TestServiceFactory.CreateAssetService(
@@ -31,20 +31,21 @@ namespace AssetManagement.Tests.Assets
 
             var result = service.RelocateSelectedToClassDepartment(new[] { 1, 2, 3, 4, 5, 1 }, 2, ActorUserId);
 
-            Assert.AreEqual(2, result.ProcessedCount, string.Join(" | ", result.Messages));
-            Assert.AreEqual(3, result.SkippedCount);
+            Assert.AreEqual(3, result.ProcessedCount, string.Join(" | ", result.Messages));
+            Assert.AreEqual(2, result.SkippedCount);
             Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(1).DepartmentId, "classroom -> classroom");
             Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(5).DepartmentId, "company custody placement");
-            Assert.AreEqual(10, unitOfWork.Repository<Asset>().GetById(2).DepartmentId, "room stays (room -> room only)");
+            Assert.AreEqual(2, unitOfWork.Repository<Asset>().GetById(2).DepartmentId, "room -> classroom (2026-10-29)");
             Assert.AreEqual(11, unitOfWork.Repository<Asset>().GetById(3).DepartmentId, "sub-department stays (-> room only)");
             Assert.AreEqual(1, unitOfWork.Repository<Asset>().GetById(4).DepartmentId, "assigned asset stays");
-            Assert.IsTrue(result.Messages.Any(m => m.StartsWith("ROOM-1: ") && m.Contains(AssetMoveRules.RefusedMessage)));
+            Assert.IsFalse(result.Messages.Any(m => m.StartsWith("ROOM-1: ")));
             Assert.IsTrue(result.Messages.Any(m => m.StartsWith("SUB-1: ") && m.Contains(AssetMoveRules.RefusedMessage)));
             Assert.IsTrue(result.Messages.Any(m => m.StartsWith("CLS-ASSIGNED: ") && m.Contains("custodian")));
 
             var events = unitOfWork.Repository<AssetCustodyEvent>().GetAll().ToList();
-            Assert.AreEqual(2, events.Count);
+            Assert.AreEqual(3, events.Count);
             Assert.IsTrue(events.Any(e => e.AssetId == 1 && e.FromDepartmentId == 1 && e.ToDepartmentId == 2));
+            Assert.IsTrue(events.Any(e => e.AssetId == 2 && e.FromDepartmentId == 10 && e.ToDepartmentId == 2));
         }
 
         [Test]
@@ -117,7 +118,7 @@ namespace AssetManagement.Tests.Assets
             var script = File.ReadAllText(Path.Combine(web, "Scripts", "app", "list-bulk.js"));
             var controller = File.ReadAllText(Path.Combine(web, "Controllers", "AssetsController.cs"));
 
-            // Per row: the button only for classroom (or company custody) assets, using the same move-source list as the grouped view.
+            // Per row: the button only for room or classroom (or company custody) assets, using the same move-source list as the grouped view.
             StringAssert.Contains("data-am-relocate-class-open", index);
             Assert.IsTrue(Regex.IsMatch(index, @"canMoveToClass\s*&&\s*\(!item\.DepartmentId\.HasValue \|\| moveToClassSourceIds\.Contains\(item\.DepartmentId\.Value\)\)"));
             // The single-asset classroom modal is rendered outside the grouped branch and returns to the current view.

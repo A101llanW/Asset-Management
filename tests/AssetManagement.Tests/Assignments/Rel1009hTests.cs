@@ -40,7 +40,7 @@ namespace AssetManagement.Tests.Assignments
         public void AssignmentTarget_StillRefusesNonTopLevelMovesOutsideTheMoveRules()
         {
             Assert.IsFalse(AssetMoveRules.IsAllowedAssignmentTarget(DepartmentKind.SubDepartment, false, DepartmentKind.SubDepartment, false));
-            Assert.IsFalse(AssetMoveRules.IsAllowedAssignmentTarget(DepartmentKind.Room, false, DepartmentKind.Class, false));
+            Assert.IsFalse(AssetMoveRules.IsAllowedAssignmentTarget(DepartmentKind.SubDepartment, false, DepartmentKind.Class, false));
             Assert.IsFalse(AssetMoveRules.IsAllowedAssignmentTarget(DepartmentKind.Class, false, DepartmentKind.SubDepartment, false));
         }
 
@@ -70,7 +70,9 @@ namespace AssetManagement.Tests.Assignments
             Assert.IsFalse(AssetMoveRules.IsAllowed(academics.DepartmentKind, AssetMoveRules.IsAdministrationRoot(academics), DepartmentKind.Room));
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Administrative, true, DepartmentKind.SubDepartment));
             Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Administrative, true, DepartmentKind.Class));
-            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.Room, false, DepartmentKind.Class));
+            // Allan, 2026-10-29 (t770u): room to class is allowed now.
+            Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Room, false, DepartmentKind.Class));
+            Assert.IsFalse(AssetMoveRules.IsAllowed(DepartmentKind.SubDepartment, false, DepartmentKind.Class));
             Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.Class, false, DepartmentKind.Room));
             Assert.IsTrue(AssetMoveRules.IsAllowed(DepartmentKind.SubDepartment, false, DepartmentKind.Room));
         }

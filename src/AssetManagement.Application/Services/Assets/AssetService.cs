@@ -700,8 +700,8 @@ namespace AssetManagement.Application.Services
 
         /// <summary>
         /// Flat asset list bulk "Move to classroom" (Allan, 2026-10-27): each selected asset goes through the same
-        /// single-asset checks as "Move to classroom" (active classroom target, classroom-to-classroom only for
-        /// moves, scope, no custodian, relocatable status, no blocking workflow). Refused assets are skipped
+        /// single-asset checks as "Move to classroom" (active classroom target, from a room or another class
+        /// (Allan, 2026-10-29, t770u), scope, no custodian, relocatable status, no blocking workflow). Refused assets are skipped
         /// with a message; the rest share one movement batch.
         /// </summary>
         public AssetBulkActionResultVm RelocateSelectedToClassDepartment(
@@ -2195,7 +2195,7 @@ namespace AssetManagement.Application.Services
                 }
             }
 
-            // Asset move rules: room to room, room to sub-department, sub-department to room, class to room, class to class (2026-10-27), Administration (top-level, directly) to room.
+            // Asset move rules: room to room, room to class (2026-10-29), class to room, class to class (2026-10-27), room to sub-department, sub-department to room, Administration (top-level, directly) to room.
             var oldDepartmentId = NormalizeOptionalId(entity.DepartmentId);
             if (oldDepartmentId.HasValue)
             {

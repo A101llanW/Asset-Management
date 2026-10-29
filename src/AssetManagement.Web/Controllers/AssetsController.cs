@@ -76,7 +76,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.Statuses = new SelectList(System.Enum.GetValues(typeof(AssetStatus)).Cast<AssetStatus>().Select(x => new { Value = x, Text = x.ToString() }), "Value", "Text", filter?.Status);
             ViewBag.CanBulkEdit = HtmlHasPermission("Assets.Edit");
             ViewBag.CanRelocateAsset = HtmlHasPermission("Assets.Edit") || HtmlHasPermission("Assets.Transfer");
-            // Asset move rules (Allan, 2026-10-27): classroom assets move to another classroom or to a room;
+            // Asset move rules (Allan, 2026-10-29, t770u): assets move between rooms and classes in any direction;
             // bulk "Move to department" offers rooms, sub-departments and classrooms (each asset is still checked);
             // Move to room is shown only for assets in a room, sub-department or class.
             ViewBag.ClassDepartments = BuildClassDepartmentSelectList();
@@ -1403,7 +1403,7 @@ namespace AssetManagement.Web.Controllers
                 .Select(x => x.Id));
         }
 
-        // Departments whose assets may be moved to a classroom (classrooms only; Allan, 2026-10-27).
+        // Departments whose assets may be moved to a class: rooms and classes (Allan, 2026-10-29, t770u).
         private HashSet<int> GetMoveToClassSourceDepartmentIds()
         {
             return new HashSet<int>(UnitOfWork.Repository<Department>().GetAll()
