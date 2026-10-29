@@ -48,7 +48,7 @@ namespace AssetManagement.Application.Security
                 new[] { "Users.View", "Users.ViewDepartment", "Users.Create", "Users.Edit", "Users.Delete", "Users.Invite" }),
             new ModulePermissionDefinition(Roles, "Roles & Permissions", "Role templates, permission assignment, and approval-stage role choices.",
                 new[] { "Roles.View", "Roles.Create", "Roles.Edit", "Roles.Delete", "Permissions.Assign" }),
-            new ModulePermissionDefinition(Departments, "Departments", "Department structure and ownership.",
+            new ModulePermissionDefinition(Departments, "Departments and Classes", "Department, year and class structure and ownership.",
                 new[] { "Departments.View", "Departments.Create", "Departments.Edit", "Departments.Delete" }),
             new ModulePermissionDefinition(Suppliers, "Suppliers", "Supplier profiles, catalog items, and procurement links.",
                 new[] { "Suppliers.View", "Suppliers.Create", "Suppliers.Edit", "Suppliers.Delete" }),

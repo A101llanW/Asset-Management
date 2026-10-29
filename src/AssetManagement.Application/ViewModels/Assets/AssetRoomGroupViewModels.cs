@@ -71,7 +71,7 @@ namespace AssetManagement.Application.ViewModels
                 case DepartmentKind.Room:
                     return "Room";
                 case DepartmentKind.Class:
-                    return "Classroom";
+                    return "Class";
                 case DepartmentKind.Grade:
                     return "Year";
                 case DepartmentKind.SubDepartment:

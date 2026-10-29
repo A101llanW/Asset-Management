@@ -16,7 +16,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Requisition flows",
-    Subtitle = "Requisition flow per department, sub-department, room and classroom: mode, effective approval stages and who raises the purchase order. Edit opens the unit; Save keeps you on that unit (its Back returns here). Showing " + statusLabel + "."
+    Subtitle = "Requisition flow per department, sub-department, room and class: mode, effective approval stages and who raises the purchase order. Edit opens the unit; Save keeps you on that unit (its Back returns here). Showing " + statusLabel + "."
 })
 <form class="am-list-toolbar" method="get">
     <div class="row g-2 align-items-center">
@@ -40,8 +40,8 @@
     <div class="card card-kpi">
         <div class="card-body am-empty-state">
             <h5>No units found</h5>
-            <p class="text-muted mb-3">Create rooms or requisition-target sub-units under Organization &rarr; Departments (Add room / Add sub-unit), then configure their requisition flow here.</p>
-            <a class="btn btn-outline-primary" href="@Url.Action("Index", new { domain = "org" })">Go to Departments</a>
+            <p class="text-muted mb-3">Create rooms or requisition-target sub-units under Organization &rarr; Departments and Classes (Add room / Add sub-unit), then configure their requisition flow here.</p>
+            <a class="btn btn-outline-primary" href="@Url.Action("Index")">Go to Departments and Classes</a>
         </div>
     </div>
 }

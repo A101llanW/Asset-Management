@@ -191,15 +191,11 @@
                     var currentDeptAction = ViewContext.RouteData.Values["action"] as string ?? string.Empty;
                     var onRequisitionFlows = onDepartments
                         && string.Equals(currentDeptAction, "RequisitionFlows", System.StringComparison.OrdinalIgnoreCase);
-                    var deptDomain = Request["domain"];
-                    var orgActive = onDepartments && !onRequisitionFlows
-                        && (string.IsNullOrEmpty(deptDomain) || string.Equals(deptDomain, "org", System.StringComparison.OrdinalIgnoreCase))
-                        ? "active" : string.Empty;
-                    var classesActive = onDepartments && !onRequisitionFlows
-                        && string.Equals(deptDomain, "classes", System.StringComparison.OrdinalIgnoreCase)
-                        ? "active" : string.Empty;
-                    <li class="nav-item"><a class="nav-link @orgActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments, new { domain = "org" })">Departments</a></li>
-                    <li class="nav-item"><a class="nav-link @classesActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments, new { domain = "classes" })">Years &amp; Streams</a></li>
+                    @* Allan, 2026-10-29: "Departments" and "Years & Streams" opened the same Departments page (the domain
+                       query value is not read by DepartmentsController), so there is one entry, "Departments and Classes".
+                       Same permission as both old entries (Departments.View); old ?domain=org / ?domain=classes links still work. *@
+                    var deptOrgActive = onDepartments && !onRequisitionFlows ? "active" : string.Empty;
+                    <li class="nav-item"><a class="nav-link @deptOrgActive" href="@TenantUrlHelper.TenantRouteUrl(Url, actIndex, ctrlDepartments)">Departments and Classes</a></li>
                 }
                 @if (Html.HasPermission("Assets.Edit"))
                 {

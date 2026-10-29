@@ -38,7 +38,7 @@
                     <dt class="col-sm-5">Phone</dt>
                     <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.Phone) ? "Not set" : Model.Phone)</dd>
                     <dt class="col-sm-5">Department</dt>
-                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Not set" : Model.DepartmentName)</dd>
+                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Not set" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.DepartmentName))</dd>
                     <dt class="col-sm-5">Position</dt>
                     <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(Model.PositionTitle) ? "Not set" : Model.PositionTitle)</dd>
                     <dt class="col-sm-5">Status</dt>
@@ -63,7 +63,7 @@
                                 {
                                     foreach (var d in departments)
                                     {
-                                        <option value="@d.Id" @(Model.DepartmentId == d.Id ? "selected" : null)>@d.Name</option>
+                                        <option value="@d.Id" @(Model.DepartmentId == d.Id ? "selected" : null)>@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(d.Name))</option>
                                     }
                                 }
                             </select>

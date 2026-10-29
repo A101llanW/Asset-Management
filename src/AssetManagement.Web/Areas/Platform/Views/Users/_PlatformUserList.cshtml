@@ -42,7 +42,7 @@ else
                         }
                     </td>
                     <td>@(user.IsSystemUser ? DisplayText.Empty : (string.IsNullOrWhiteSpace(user.OrganizationName) ? DisplayText.Empty : user.OrganizationName))</td>
-                    <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : user.DepartmentName)</td>
+                    <td>@(string.IsNullOrWhiteSpace(user.DepartmentName) ? DisplayText.Empty : AssetManagement.Application.Helpers.GradeDisplay.ToYear(user.DepartmentName))</td>
                     <td>@user.RoleName</td>
                     <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(user.IsActive)">@(user.IsActive ? "Active" : "Inactive")</span></td>
                     <td><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = user.Id })">Details</a></td>

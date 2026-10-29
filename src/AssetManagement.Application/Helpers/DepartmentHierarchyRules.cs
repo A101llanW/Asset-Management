@@ -192,7 +192,7 @@ namespace AssetManagement.Application.Helpers
 
             if (parent.DepartmentKind == DepartmentKind.Grade || parent.DepartmentKind == DepartmentKind.Class)
             {
-                throw new BusinessException("A room cannot be placed under a year or classroom department.");
+                throw new BusinessException("A room cannot be placed under a year or class department.");
             }
 
             if (parent.DepartmentKind == DepartmentKind.SubDepartment)
@@ -248,13 +248,13 @@ namespace AssetManagement.Application.Helpers
         {
             if (!parentDepartmentId.HasValue)
             {
-                throw new BusinessException("Classroom departments require a year parent department.");
+                throw new BusinessException("Class departments require a year parent department.");
             }
 
             Department parent;
             if (!byId.TryGetValue(parentDepartmentId.Value, out parent) || parent.DepartmentKind != DepartmentKind.Grade)
             {
-                throw new BusinessException("Classroom departments must belong to a year department.");
+                throw new BusinessException("Class departments must belong to a year department.");
             }
         }
 

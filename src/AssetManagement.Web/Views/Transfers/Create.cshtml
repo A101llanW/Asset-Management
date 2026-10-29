@@ -73,7 +73,7 @@
             @if (lockFromFields)
             {
                 @Html.HiddenFor(m => m.FromDepartmentId)
-                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(fromDepartmentName) ? "Not specified" : fromDepartmentName)" />
+                <input type="text" class="form-control" readonly="readonly" value="@(string.IsNullOrWhiteSpace(fromDepartmentName) ? "Not specified" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(fromDepartmentName))" />
             }
             else
             {
@@ -86,7 +86,7 @@
             @if (lockToDepartment)
             {
                 @Html.HiddenFor(m => m.ToDepartmentId)
-                <input type="text" class="form-control" readonly="readonly" value="@(ViewBag.ToDepartmentName as string ?? "Your department")" />
+                <input type="text" class="form-control" readonly="readonly" value="@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(ViewBag.ToDepartmentName as string) ?? "Your department")" />
                 <div class="form-text">Transfers from your profile are limited to your department.</div>
             }
             else

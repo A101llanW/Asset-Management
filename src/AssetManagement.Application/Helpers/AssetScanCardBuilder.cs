@@ -131,7 +131,7 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Grade:
                     return "Year";
                 case DepartmentKind.Class:
-                    return "Classroom";
+                    return "Class";
                 case DepartmentKind.Room:
                     return "Room";
                 case DepartmentKind.SubDepartment:

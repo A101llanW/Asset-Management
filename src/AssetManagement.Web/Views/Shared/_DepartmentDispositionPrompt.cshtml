@@ -23,7 +23,7 @@
                 <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionMove" value="Move"
                        @(string.IsNullOrEmpty(moveBlocked) ? "" : "disabled") @(string.IsNullOrEmpty(moveBlocked) && chosen == "Move" ? "checked" : "") @(require && string.IsNullOrEmpty(moveBlocked) ? "required" : "") />
                 <label class="form-check-label" for="deptDispositionMove">
-                    <strong>Move</strong> the asset to <em class="am-dd-selected-name">@selectedDeptName</em>.
+                    <strong>Move</strong> the asset to <em class="am-dd-selected-name">@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(selectedDeptName))</em>.
                 </label>
                 <div class="form-text text-muted @(string.IsNullOrEmpty(moveBlocked) ? "d-none" : "")" id="deptDispositionMoveBlocked">Move is not available: <span class="am-dd-blocked-text">@moveBlocked</span></div>
             </div>
@@ -31,7 +31,7 @@
                 <input class="form-check-input" type="radio" name="DepartmentDisposition" id="deptDispositionKeep" value="Keep"
                        @(chosen == "Keep" ? "checked" : "") @(require ? "required" : "") />
                 <label class="form-check-label" for="deptDispositionKeep">
-                    <strong>Keep</strong> the asset in <em class="am-dd-asset-name">@assetDeptName</em> (only ownership / the pool department changes).
+                    <strong>Keep</strong> the asset in <em class="am-dd-asset-name">@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(assetDeptName))</em> (only ownership / the pool department changes).
                 </label>
             </div>
         </div>

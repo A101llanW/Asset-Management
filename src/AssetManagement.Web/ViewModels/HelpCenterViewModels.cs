@@ -232,7 +232,7 @@ namespace AssetManagement.Web.ViewModels
                 "organization",
                 "Organization",
                 "Set up the structure people and assets belong to.",
-                Topic("departments", "Departments", "Create departments and keep users and assets scoped correctly. You can also add a sub-unit, grade streams, or bulk grades 1 to 6."),
+                Topic("departments", "Departments", "Create departments and keep users and assets scoped correctly. You can also add a sub-unit, a year with class streams, or bulk years 1 to 6."),
                 Topic("taxonomy", "Categories, types, and subtypes", "Build the asset taxonomy and set useful-life defaults used for depreciation."),
                 Topic("users", "Users and invitations", "Invite or create users, assign departments, and complete registration from an invite."),
                 Topic("roles", "Roles and permissions", "Edit a role, use the permission matrix, and save a role template."));

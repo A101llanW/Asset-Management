@@ -89,15 +89,15 @@ namespace AssetManagement.Tests.Assets
         }
 
         [Test]
-        public void LocationLabels_UseYearAndClassroomWording()
+        public void LocationLabels_UseYearAndClassWording()
         {
             var card = AssetScanCardBuilder.Build(SampleLookup(), AssetScanViewer.Anonymous);
             var labels = card.Rows.Select(x => x.Label).ToList();
             CollectionAssert.Contains(labels, "Year");
-            CollectionAssert.Contains(labels, "Classroom");
+            CollectionAssert.Contains(labels, "Class");
             CollectionAssert.Contains(labels, "Room");
             CollectionAssert.DoesNotContain(labels, "Grade");
-            CollectionAssert.DoesNotContain(labels, "Class");
+            CollectionAssert.DoesNotContain(labels, "Classroom");
             Assert.AreEqual("G7-G7B-045", card.AssetTag, "the tag is shown exactly as stored");
         }
 

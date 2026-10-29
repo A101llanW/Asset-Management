@@ -83,7 +83,7 @@ else
                     }
                     else
                     {
-                        <span class="badge bg-info text-dark">@roleDepartmentName</span>
+                        <span class="badge bg-info text-dark">@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(roleDepartmentName))</span>
                     }
                 </td>
                 <td>@(item.IsSystemRole ? "Yes" : "No")</td>

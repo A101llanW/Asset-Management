@@ -226,7 +226,8 @@ else if (isGrouped && groupedPage != null)
                         groupIndex++;
                         var summaryColspan = isSimpleGroupBy ? 4 : 8;
                         var groupLabel = isSimpleGroupBy
-                            ? (string.IsNullOrWhiteSpace(group.GroupLabel) ? group.AssetName : group.GroupLabel)
+                            ? (string.IsNullOrWhiteSpace(group.GroupLabel) ? group.AssetName
+                                : string.Equals(groupBy, AssetListGroupBy.Department, StringComparison.OrdinalIgnoreCase) ? GradeDisplay.ToYear(group.GroupLabel) : group.GroupLabel)
                             : group.AssetName;
                         <tr class="am-group-summary-row">
                             @if (isSimpleGroupBy)
@@ -253,7 +254,7 @@ else if (isGrouped && groupedPage != null)
                                 <td class="ps-3 fw-bold">
                                     @if (canSelectGroups)
                                     {
-                                        <input type="checkbox" class="form-check-input me-2 align-middle" data-am-group-select="@groupCollapseId" data-am-group-count="@group.Count" data-am-group-label="@(group.AssetName + (string.IsNullOrWhiteSpace(group.DepartmentName) ? "" : " - " + group.DepartmentName))" aria-label="Select all @group.Count units in @group.AssetName" />
+                                        <input type="checkbox" class="form-check-input me-2 align-middle" data-am-group-select="@groupCollapseId" data-am-group-count="@group.Count" data-am-group-label="@(group.AssetName + (string.IsNullOrWhiteSpace(group.DepartmentName) ? "" : " - " + GradeDisplay.ToYear(group.DepartmentName)))" aria-label="Select all @group.Count units in @group.AssetName" />
                                     }
                                     @group.AssetName
                                 </td>
@@ -282,7 +283,7 @@ else if (isGrouped && groupedPage != null)
                                                 data-asset-sub-type-id="@(group.AssetSubTypeId.HasValue ? group.AssetSubTypeId.Value.ToString() : string.Empty)"
                                                 data-group-department-id="@(group.DepartmentId.HasValue ? group.DepartmentId.Value.ToString() : string.Empty)"
                                                 data-group-status="@((int)group.CurrentStatus)"
-                                                data-group-label="@group.AssetName (@relocatableCount)">Move group to classroom</button>
+                                                data-group-label="@group.AssetName (@relocatableCount)">Move group to class</button>
                                     }
                                 }
                                 @if (!isSimpleGroupBy && canRelocateToRoom
@@ -374,13 +375,13 @@ else if (isGrouped && groupedPage != null)
                         @Html.Hidden("view", "grouped")
                         @Html.Hidden("groupBy", groupBy)
                         <div class="modal-header">
-                            <h5 class="modal-title" id="amRelocateGroupModalLabel">Move group to classroom</h5>
+                            <h5 class="modal-title" id="amRelocateGroupModalLabel">Move group to class</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="mb-3">Move all eligible in-store units in <strong id="amRelocateGroupLabel"></strong> to another classroom. Assigned or non-eligible units are skipped.</p>
-                            <label class="form-label" for="amRelocateGroupTargetDepartmentId">Target classroom</label>
-                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select classroom --", new { @class = "form-select", id = "amRelocateGroupTargetDepartmentId", required = "required" })
+                            <p class="mb-3">Move all eligible in-store units in <strong id="amRelocateGroupLabel"></strong> to another class. Assigned or non-eligible units are skipped.</p>
+                            <label class="form-label" for="amRelocateGroupTargetDepartmentId">Target class</label>
+                            @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select class --", new { @class = "form-select", id = "amRelocateGroupTargetDepartmentId", required = "required" })
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -455,7 +456,7 @@ else
                                         || item.CurrentStatus == AssetStatus.Received
                                         || item.CurrentStatus == AssetStatus.Returned))
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 ms-1" data-am-relocate-class-open data-asset-id="@item.Id" data-asset-tag="@item.AssetTag">Move to classroom</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 ms-1" data-am-relocate-class-open data-asset-id="@item.Id" data-asset-tag="@item.AssetTag">Move to class</button>
                                 }
                             </td>
                         </tr>
@@ -496,13 +497,13 @@ else
                     @Html.Hidden("view", listViewMode)
                     @Html.Hidden("groupBy", groupBy)
                     <div class="modal-header">
-                        <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to classroom</h5>
+                        <h5 class="modal-title" id="amRelocateClassModalLabel">Move asset to class</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another classroom.</p>
-                        <label class="form-label" for="targetDepartmentId">Target classroom</label>
-                        @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select classroom --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
+                        <p class="mb-3">Move <strong id="amRelocateAssetTag"></strong> to another class.</p>
+                        <label class="form-label" for="targetDepartmentId">Target class</label>
+                        @Html.DropDownList("targetDepartmentId", classDepartments, "-- Select class --", new { @class = "form-select", id = "targetDepartmentId", required = "required" })
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

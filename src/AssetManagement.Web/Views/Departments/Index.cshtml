@@ -34,7 +34,7 @@
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
     Title = "Departments",
-    Subtitle = "Maintain administrative departments, sub-departments, rooms, and classroom streams. Mode and Flow stay; Requisitions-by shows optional Classroom teacher / Room custodian when set. Showing " + statusLabel + ".",
+    Subtitle = "Maintain administrative departments, sub-departments, rooms, and class streams. Mode and Flow stay; Requisitions-by shows optional Class teacher / Room custodian when set. Showing " + statusLabel + ".",
     PrimaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeNormal }) : null,
     PrimaryActionLabel = canCreateDepartment ? "Create department" : null,
     SecondaryActionUrl = canCreateDepartment ? Url.Action("Create", new { setupMode = DepartmentService.SetupModeRoom }) : null,
@@ -52,7 +52,7 @@
 {
     <div class="d-flex flex-wrap gap-2 mb-3" data-am-dept-create-shortcuts>
         <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeGrade })">Create year</a>
-        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeClass })">Create classroom</a>
+        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Create", new { setupMode = DepartmentService.SetupModeClass })">Create class</a>
     </div>
 }
 @if (Model.Any())
@@ -64,7 +64,7 @@
                 <span><strong class="text-dark">@kindCountOf(DepartmentKind.SubDepartment)</strong> Sub</span>
                 <span><strong class="text-dark">@kindCountOf(DepartmentKind.Room)</strong> Room</span>
                 <span><strong class="text-dark">@kindCountOf(DepartmentKind.Grade)</strong> Year</span>
-                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Class)</strong> Classroom</span>
+                <span><strong class="text-dark">@kindCountOf(DepartmentKind.Class)</strong> Class</span>
             </div>
         </div>
     </div>
@@ -210,7 +210,7 @@ else if (viewMode == "tree")
                             {
                                 <tr data-am-dept-row="room" data-am-dept-id="@grandchild.Id" data-am-dept-parent="@child.Id" data-am-dept-root="@parent.Id" hidden="hidden">
                                     <td></td>
-                                    <td class="am-dept-name am-dept-indent-2">@grandchild.Name</td>
+                                    <td class="am-dept-name am-dept-indent-2">@GradeDisplay.ToYear(grandchild.Name)</td>
                                     <td>@Html.DepartmentKindBadge(grandchild.DepartmentKind)</td>
                                     @if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(grandchild.DepartmentKind))
                                     {

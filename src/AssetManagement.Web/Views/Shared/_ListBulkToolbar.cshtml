@@ -43,7 +43,7 @@
                         <option value="department">Move to department</option>
                         @if (canBulkMoveToClass)
                         {
-                            <option value="classroom">Move to classroom</option>
+                            <option value="classroom">Move to class</option>
                         }
                         <option value="status">Update status</option>
                         <option value="maintenance">Mark under maintenance</option>
@@ -63,8 +63,8 @@
                 if (canBulkMoveToClass)
                 {
                     <div class="col-md-3 d-none" data-am-bulk-class>
-                        <label class="form-label small mb-0" for="amBulkTargetClassDepartmentId">Classroom</label>
-                        @Html.DropDownList("TargetClassDepartmentId", bulkClassDepartments, "-- Select classroom --", new { @class = "form-select form-select-sm", form = "amBulkForm", id = "amBulkTargetClassDepartmentId" })
+                        <label class="form-label small mb-0" for="amBulkTargetClassDepartmentId">Class</label>
+                        @Html.DropDownList("TargetClassDepartmentId", bulkClassDepartments, "-- Select class --", new { @class = "form-select form-select-sm", form = "amBulkForm", id = "amBulkTargetClassDepartmentId" })
                     </div>
                 }
                 <div class="col-md-3 d-none" data-am-bulk-status>

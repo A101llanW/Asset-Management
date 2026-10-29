@@ -71,7 +71,7 @@
                             <div class="fw-bold text-dark" data-am-room-name>@room.DisplayName</div>
                             @if (!string.IsNullOrWhiteSpace(room.ParentName))
                             {
-                                <div class="text-muted small">in @room.ParentName</div>
+                                <div class="text-muted small">in @(AssetManagement.Application.Helpers.GradeDisplay.ToYear(room.ParentName))</div>
                             }
                         </td>
                         <td>

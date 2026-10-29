@@ -20,7 +20,7 @@
     var isTopLevelAdmin = Model.DepartmentKind == DepartmentKind.Administrative && !Model.ParentDepartmentId.HasValue;
     var editPageTitle = DepartmentLabelHelper.GetEditActionLabel(Model.DepartmentKind, isTopLevelAdmin);
     ViewBag.Title = editPageTitle;
-    var editSubmitLabel = isRoom ? "Update room" : isSubDepartment ? "Update sub-department" : (isClass ? "Update classroom" : "Update Department");
+    var editSubmitLabel = isRoom ? "Update room" : isSubDepartment ? "Update sub-department" : (isClass ? "Update class" : "Update Department");
     var returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Details", new { id = Model.Id });
 
     var roomCandidates = ViewBag.RoomParentCandidates as IList<DepartmentVm>;
@@ -153,7 +153,7 @@
         <label class="form-label" for="department-section-select">Section</label>
         @Html.DropDownListFor(m => m.Section, sectionSelectList, new { @class = "form-select", id = "department-section-select" })
         @Html.ValidationMessageFor(m => m.Section, "", new { @class = "text-danger small" })
-        <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a year's Section also moves its classrooms that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
+        <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a year's Section also moves its classes that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
     </div>
     if (isGrade)
     {
@@ -198,7 +198,7 @@
             }
             <option value="@roomOtherValue" @(roomParentSelectValue == roomOtherValue ? "selected=\"selected\"" : null)>Other administrative department or sub-department...</option>
         </select>
-        <div class="form-text">Rooms may sit under a core administrative department, a sub-department, or remain independent. A room cannot be parented by another room, year, or classroom.</div>
+        <div class="form-text">Rooms may sit under a core administrative department, a sub-department, or remain independent. A room cannot be parented by another room, year, or class.</div>
     </div>
     <div class="mb-3 js-edit-parent-sub" id="edit-parent-sub" style="@(isSubDepartment ? null : "display:none;")">
         <label class="form-label">Parent department</label>
@@ -217,7 +217,7 @@
             classGradeParentSelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
             "-- Select year parent --",
             new { @class = "form-select", id = "class-parent-select" })
-        <div class="form-text">Classrooms must belong to a year (grouping). Parent options are live years from this organisation only. An existing classroom cannot be moved; move its assets to a room instead.</div>
+        <div class="form-text">Classes must belong to a year (grouping). Parent options are live years from this organisation only. An existing class cannot be moved; move its assets to a room instead.</div>
     </div>
     <div class="card border-warning mb-3 d-none" id="kind-change-children-panel"
          data-impact-url="@Url.Action("KindChangeImpact", new { id = Model.Id })"
@@ -245,13 +245,13 @@
         </div>
     </div>
     <div class="mb-3 js-edit-class-teacher" id="edit-class-teacher" style="@(isClass ? null : "display:none;")">
-        <label class="form-label" for="ClassTeacherUserId">Classroom teacher (optional)</label>
+        <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
         @Html.DropDownListFor(
             m => m.ClassTeacherUserId,
             ViewBag.ClassTeacherUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
             "-- None (department pool) --",
             new { @class = "form-select", id = "ClassTeacherUserId" })
-        <div class="form-text">Optional. When set, Assign into this classroom can default To this person. Never required. Clearing does not reassign existing assets.</div>
+        <div class="form-text">Optional. When set, Assign into this class can default To this person. Never required. Clearing does not reassign existing assets.</div>
     </div>
     <div class="mb-3 js-edit-room-custodian" id="edit-room-custodian" style="@(isRoom ? null : "display:none;")">
         <label class="form-label" for="RoomCustodianUserId">Room custodian (optional)</label>
@@ -349,7 +349,7 @@
                     ? 'Update room'
                     : kind === subKind
                         ? 'Update sub-department'
-                        : kind === classKind ? 'Update classroom' : 'Update Department';
+                        : kind === classKind ? 'Update class' : 'Update Department';
             }
 
             function syncParentSections() {

@@ -295,7 +295,7 @@ namespace AssetManagement.Application.Services
             var currentParentId = entity.ParentDepartmentId.HasValue && entity.ParentDepartmentId.Value > 0 ? entity.ParentDepartmentId : null;
             if (entity.DepartmentKind == DepartmentKind.Class && requestedParentId != currentParentId)
             {
-                throw new BusinessException("A classroom acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
+                throw new BusinessException("A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
             }
 
             var allDepartments = repository.GetAll().ToList();
@@ -306,7 +306,7 @@ namespace AssetManagement.Application.Services
                     var child = move == null ? null : allDepartments.FirstOrDefault(x => x.Id == move.ChildDepartmentId);
                     if (child != null && child.DepartmentKind == DepartmentKind.Class && move.NewParentDepartmentId.HasValue)
                     {
-                        throw new BusinessException("A classroom acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
+                        throw new BusinessException("A class acts as a room and cannot be moved or re-parented. Move its assets to a room instead.");
                     }
                 }
             }
@@ -694,7 +694,7 @@ namespace AssetManagement.Application.Services
             guard.EnsureDepartmentInOrganization(organizationId, model.ParentDepartmentId, "Parent unit", "Departments.Edit", nameof(Department), entityId);
             if (model.DepartmentKind == DepartmentKind.Class)
             {
-                guard.EnsureUserInOrganization(organizationId, model.ClassTeacherUserId, "Classroom teacher", "Departments.Edit", nameof(Department), entityId);
+                guard.EnsureUserInOrganization(organizationId, model.ClassTeacherUserId, "Class teacher", "Departments.Edit", nameof(Department), entityId);
             }
             else if (model.DepartmentKind == DepartmentKind.Room)
             {
@@ -913,7 +913,7 @@ namespace AssetManagement.Application.Services
             var streams = ParseStreams(model.SelectedStreams);
             if (streams.Count == 0)
             {
-                throw new BusinessException("Select at least one classroom stream.");
+                throw new BusinessException("Select at least one class stream.");
             }
 
             var grade = model.GradeNumber.Value;
@@ -996,7 +996,7 @@ namespace AssetManagement.Application.Services
 
             if (!model.ParentDepartmentId.HasValue || model.ParentDepartmentId.Value <= 0)
             {
-                throw new BusinessException("Select the year for this classroom.");
+                throw new BusinessException("Select the year for this class.");
             }
 
             var classOrganizationId = _organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId();
@@ -1012,7 +1012,7 @@ namespace AssetManagement.Application.Services
             var grade = _unitOfWork.Repository<Department>().GetById(model.ParentDepartmentId.Value);
             if (grade == null || !grade.IsActive || grade.DepartmentKind != DepartmentKind.Grade)
             {
-                throw new BusinessException("Select an active year for this classroom.");
+                throw new BusinessException("Select an active year for this class.");
             }
 
             var name = model.Name.Trim();
@@ -1022,7 +1022,7 @@ namespace AssetManagement.Application.Services
                 && x.DepartmentKind == DepartmentKind.Class
                 && string.Equals((x.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)))
             {
-                throw new BusinessException("A class named '" + name + "' already exists under " + grade.Name + ".");
+                throw new BusinessException("A class named '" + name + "' already exists under " + GradeDisplay.ToYear(grade.Name) + ".");
             }
 
             string code;
@@ -1102,7 +1102,7 @@ namespace AssetManagement.Application.Services
             var streams = ParseStreams(model.BulkStreams);
             if (streams.Count == 0)
             {
-                throw new BusinessException("Select at least one classroom stream.");
+                throw new BusinessException("Select at least one class stream.");
             }
 
             var now = DateTime.UtcNow;

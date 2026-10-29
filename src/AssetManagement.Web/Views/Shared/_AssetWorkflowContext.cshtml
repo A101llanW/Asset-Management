@@ -19,7 +19,7 @@
                 </div>
                 <div class="col-md-2">
                     <div class="text-muted small">Department</div>
-                    <div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Not set" : Model.DepartmentName)</div>
+                    <div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? "Not set" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.DepartmentName))</div>
                 </div>
                 <div class="col-md-3">
                     <div class="text-muted small">Custodian</div>

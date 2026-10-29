@@ -24,12 +24,12 @@
             : isGradeSetup
                 ? "Create Year"
                 : isClassSetup
-                    ? "Create Classroom"
+                    ? "Create Class"
                     : "Create Department";
     var pageSubtitle = isGradeSetup
         ? "Add one year (for example Prep, G00). Pick its Section so Prep stays apart from Senior school."
         : isClassSetup
-        ? "Add one classroom under an existing year. It takes the year's Section."
+        ? "Add one class under an existing year. It takes the year's Section."
         : createSetupMode == DepartmentService.SetupModeSubDepartment
         ? "Add a sub-department under " + lockedParentName + "."
         : createSetupMode == DepartmentService.SetupModeRoom
@@ -39,7 +39,7 @@
                     : "Add a room under sub-department " + lockedParentName + ".")
                 : "Add a standalone room with no parent department.")
             : showSetupModePicker
-                ? "Add an administrative department, a year with classroom streams, or bulk years 1-6."
+                ? "Add an administrative department, a year with class streams, or bulk years 1-6."
                 : "Add a top-level administrative department for your organization.";
     var showSharedIdentity = createSetupMode == DepartmentService.SetupModeNormal
         || createSetupMode == DepartmentService.SetupModeSubDepartment
@@ -142,7 +142,7 @@
             </select>
         </div>
         <div class="mb-3">
-            <label class="form-label" for="ClassTeacherUserId">Classroom teacher (optional)</label>
+            <label class="form-label" for="ClassTeacherUserId">Class teacher (optional)</label>
             @Html.DropDownListFor(
                 m => m.ClassTeacherUserId,
                 ViewBag.ClassTeacherUsers as System.Web.Mvc.SelectList ?? new System.Web.Mvc.SelectList(Enumerable.Empty<System.Web.Mvc.SelectListItem>()),
@@ -177,7 +177,7 @@
                 @Html.TextBoxFor(m => m.BulkStreams, new { @class = "form-control", placeholder = "A,B,C,D" })
             </div>
         </div>
-        <div class="form-text mt-2">Optional manual path when classrooms are not yet in the import template. Maximum year is 6.</div>
+        <div class="form-text mt-2">Optional manual path when classes are not yet in the import template. Maximum year is 6.</div>
     </div>
     @Html.Partial("_FormActions", new AssetManagement.Web.ViewModels.FormActionsViewModel
     {
@@ -268,7 +268,7 @@
                 if (codeHelp) {
                     codeHelp.textContent = (isRoom && !lockedParentId) ? 'Independent rooms require a unique code.'
                         : isGradeOne ? 'Required and unique, up to 20 letters or digits (Prep = G00, Year 3 = G03).'
-                        : isClassOne ? 'Optional. Blank = generated from the year code and the classroom name.'
+                        : isClassOne ? 'Optional. Blank = generated from the year code and the class name.'
                         : '';
                 }
             }
@@ -283,7 +283,7 @@
                 setDisabled(custRow, !isRoom);
             }
             if (nameLabel) {
-                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : (isGradeOne ? 'Year name' : (isClassOne ? 'Classroom name' : 'Name')));
+                nameLabel.textContent = isSub ? 'Sub-department name' : (isRoom ? 'Room name' : (isGradeOne ? 'Year name' : (isClassOne ? 'Class name' : 'Name')));
             }
             if (nameHelp) {
                 if (isSub) {

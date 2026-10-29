@@ -387,7 +387,7 @@ namespace AssetManagement.Web.Controllers
             try
             {
                 _assetService.RelocateToClassDepartment(assetId, targetDepartmentId, User.GetUserId());
-                TempData["Message"] = "Asset moved to the selected classroom.";
+                TempData["Message"] = "Asset moved to the selected class.";
             }
             catch (BusinessException ex)
             {

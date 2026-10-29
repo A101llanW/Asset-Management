@@ -64,7 +64,7 @@
                                 <span class="badge bg-light text-dark border">PO recorded</span>
                             }
                         </td>
-                        <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "-" : item.DepartmentName)</td>
+                        <td>@(string.IsNullOrWhiteSpace(item.DepartmentName) ? "-" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(item.DepartmentName))</td>
                         <td class="text-end pe-3">
                             <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Details", new { id = item.Id, returnUrl = Request.RawUrl })">Details</a>
                         </td>

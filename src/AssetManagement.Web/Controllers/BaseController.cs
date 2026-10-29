@@ -1331,7 +1331,7 @@ namespace AssetManagement.Web.Controllers
                 case DepartmentKind.SubDepartment:
                     return "sub-department";
                 case DepartmentKind.Class:
-                    return "classroom";
+                    return "class";
                 case DepartmentKind.Room:
                     return "room";
                 default:

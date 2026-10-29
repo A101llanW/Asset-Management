@@ -34,7 +34,7 @@
                 <span class="text-muted">Not linked (legacy purchase record)</span>
             }
         </div>
-        <div class="col-md-3"><div class="text-muted">Requisition destination</div><div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.RequisitionDepartmentName) ? "None" : Model.RequisitionDepartmentName)</div></div>
+        <div class="col-md-3"><div class="text-muted">Requisition destination</div><div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.RequisitionDepartmentName) ? "None" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.RequisitionDepartmentName))</div></div>
         @if (!string.IsNullOrWhiteSpace(Model.TargetSummary))
         {
             <div class="col-12 mt-2" id="receive-requisition-target"><div class="text-muted">Requisition target</div><div class="fw-semibold">@Model.TargetSummary</div></div>

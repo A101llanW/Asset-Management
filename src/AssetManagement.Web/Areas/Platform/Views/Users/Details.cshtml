@@ -39,7 +39,7 @@
             <dd class="col-sm-9">@Model.RoleName</dd>
 
             <dt class="col-sm-3">Department</dt>
-            <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
+            <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.DepartmentName))</dd>
 
             <dt class="col-sm-3">Position</dt>
             <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.PositionTitle) ? DisplayText.Empty : Model.PositionTitle)</dd>

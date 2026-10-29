@@ -327,7 +327,7 @@ namespace AssetManagement.Application.Helpers
             if (!IsValidRoomTarget(department, organizationId))
             {
                 var name = department == null || string.IsNullOrWhiteSpace(department.Name) ? "The selected target" : department.Name.Trim();
-                throw new BusinessException(name + " is not a room or classroom that can receive requisitions. Choose a room from the list.");
+                throw new BusinessException(name + " is not a room or class that can receive requisitions. Choose a room from the list.");
             }
         }
 

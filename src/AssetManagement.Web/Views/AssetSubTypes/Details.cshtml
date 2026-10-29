@@ -102,7 +102,7 @@
                                     <tr data-asset-id="@asset.Id">
                                         <td class="ps-3 fw-medium">@asset.AssetTag</td>
                                         <td>@asset.AssetName</td>
-                                        <td>@(string.IsNullOrWhiteSpace(asset.DepartmentName) ? "Company custody" : asset.DepartmentName)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(asset.DepartmentName) ? "Company custody" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(asset.DepartmentName))</td>
                                         <td>@DisplayText.FormatCustodian(asset.CurrentCustodianName, asset.CurrentStatus)</td>
                                         <td><span class="badge bg-@StatusHtmlHelpers.ToBadgeClass(asset.CurrentStatus) badge-status">@statusLabel</span></td>
                                         <td class="text-end text-nowrap am-asset-price @(asset.AcquisitionCost.HasValue ? "" : "text-muted fst-italic")"

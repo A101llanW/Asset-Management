@@ -1045,10 +1045,10 @@ namespace AssetManagement.Web.Controllers
 
             if (includeOrgModes)
             {
-                items.Add(new { Value = DepartmentService.SetupModeGradeStreams, Text = "Year with classroom streams" });
+                items.Add(new { Value = DepartmentService.SetupModeGradeStreams, Text = "Year with class streams" });
                 items.Add(new { Value = DepartmentService.SetupModeBulkGrades, Text = "Bulk years 1-6" });
                 items.Add(new { Value = DepartmentService.SetupModeGrade, Text = "Single year (e.g. Prep)" });
-                items.Add(new { Value = DepartmentService.SetupModeClass, Text = "Single classroom under a year" });
+                items.Add(new { Value = DepartmentService.SetupModeClass, Text = "Single class under a year" });
             }
 
             return new SelectList(items, "Value", "Text", selected);

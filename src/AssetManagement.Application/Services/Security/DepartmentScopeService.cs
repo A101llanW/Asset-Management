@@ -301,7 +301,7 @@ namespace AssetManagement.Application.Services
 
             if (!department.IsRequisitionTarget)
             {
-                throw new BusinessException("Requisition target must be a leaf department (classroom or admin unit).");
+                throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
             }
 
             if (CanCreateForAnyDepartmentOrAdministrator())

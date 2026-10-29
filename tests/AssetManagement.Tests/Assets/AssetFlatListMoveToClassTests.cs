@@ -76,7 +76,7 @@ namespace AssetManagement.Tests.Assets
             var result = service.RelocateSelectedToClassDepartment(new[] { 1 }, 10, ActorUserId);
 
             Assert.AreEqual(0, result.ProcessedCount);
-            StringAssert.Contains("must be a classroom", result.Messages.Single());
+            StringAssert.Contains("must be a class.", result.Messages.Single());
         }
 
         [Test]
@@ -125,7 +125,7 @@ namespace AssetManagement.Tests.Assets
             Assert.AreEqual(1, Regex.Matches(index, @"@Html\.Hidden\(""view"", ""grouped""\)").Count, "only the group-to-classroom modal is grouped-only");
 
             // Bulk: option + classroom select (flat list only), shown by list-bulk.js, routed to the classroom move.
-            StringAssert.Contains("<option value=\"classroom\">Move to classroom</option>", toolbar);
+            StringAssert.Contains("<option value=\"classroom\">Move to class</option>", toolbar);
             StringAssert.Contains("TargetClassDepartmentId", toolbar);
             StringAssert.Contains("var isFlat = !isGrouped && !isRoom;", toolbar);
             // Razor: the classroom block sits inside the @if (canBulkEdit) code block, so it must be a plain `if`

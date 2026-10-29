@@ -43,7 +43,7 @@
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8"><span class="badge bg-secondary">@Model.ApprovalStatus</span></dd>
                     <dt class="col-sm-4">Department</dt>
-                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : Model.DepartmentName)</dd>
+                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.DepartmentName) ? DisplayText.Empty : AssetManagement.Application.Helpers.GradeDisplay.ToYear(Model.DepartmentName))</dd>
                     @if (!string.IsNullOrWhiteSpace(Model.TargetSummary))
                     {
                         @* Migration 110; requisitions saved before it have no summary (their department is the target). *@

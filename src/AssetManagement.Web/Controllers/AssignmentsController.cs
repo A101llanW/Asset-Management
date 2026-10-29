@@ -632,12 +632,12 @@ namespace AssetManagement.Web.Controllers
             ViewBag.PicPlacementValue = choice;
             ViewBag.PicUserName = picUser == null ? pic : BuildUserLabel(picUser);
             ViewBag.PicRoleLabel = dept != null && dept.DepartmentKind == AssetManagement.Domain.Enums.DepartmentKind.Class
-                ? "classroom teacher"
+                ? "class teacher"
                 : "room custodian";
             ViewBag.PicTargetDepartmentName = dept == null ? "target location" : dept.Name;
             ModelState.AddModelError(
                 "PicPlacementChoice",
-                "This Classroom/Room has a person in charge. Choose whether to put the asset under that person or leave it as a department pool.");
+                "This Class/Room has a person in charge. Choose whether to put the asset under that person or leave it as a department pool.");
             return false;
         }
 

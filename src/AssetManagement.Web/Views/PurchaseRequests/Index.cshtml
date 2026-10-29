@@ -57,7 +57,7 @@
                             }
                         </td>
                         <td>
-                            @(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : r.DepartmentName)
+                            @(string.IsNullOrWhiteSpace(r.DepartmentName) ? DisplayText.Empty : AssetManagement.Application.Helpers.GradeDisplay.ToYear(r.DepartmentName))
                             @if (r.DepartmentKind.HasValue)
                             {
                                 <span class="ms-1">@Html.DepartmentKindBadge(r.DepartmentKind.Value)</span>

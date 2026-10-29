@@ -23,7 +23,7 @@ namespace AssetManagement.Application.Helpers
                 case DepartmentKind.Grade:
                     return "Year";
                 case DepartmentKind.Class:
-                    return "Classroom";
+                    return "Class";
                 default:
                     return kind.ToString();
             }

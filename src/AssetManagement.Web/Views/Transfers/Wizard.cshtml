@@ -36,7 +36,7 @@
                     @if (lockToDepartment)
                     {
                         @Html.HiddenFor(m => m.ToDepartmentId)
-                        <input type="text" class="form-control" readonly="readonly" value="@(ViewBag.ToDepartmentName as string)" />
+                        <input type="text" class="form-control" readonly="readonly" value="@(AssetManagement.Application.Helpers.GradeDisplay.ToYear(ViewBag.ToDepartmentName as string))" />
                     }
                     else
                     {

@@ -532,7 +532,7 @@ namespace AssetManagement.Tests.Requisitions
         {
             var uow = Seed();
             var ex = Assert.Throws<BusinessException>(() => Service(uow).SubmitBatchCompleted(uow, Form("Room", AdminId), "requester"));
-            StringAssert.Contains("not a room or classroom", ex.Message);
+            StringAssert.Contains("not a room or class that", ex.Message);
             Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count());
         }
 
