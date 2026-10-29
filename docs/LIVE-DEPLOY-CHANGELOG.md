@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-29 16:09 EAT - Short class labels (Grade 6A -> 6A under Year 6), tenant-kept session-end login and tenant isolation hardening (0656ac8), per-company password login with no cross-company hints (5ce8390), signed-in users on another company's address sent back to their own company (8dd29b3), room/class moves in all directions (188ce56): 188ce56 PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
+
+- Approval: Allan, 2026-10-29 16:06 EAT (answering t771s3038, relayed by Grok Bot): "Yes, publish it to localhost:8080 now". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted), no Test-WF or other DB data touched.
+- main fast-forwarded b617426..188ce56 (fix/short-class-tenant-login). Tests 1539 total / 1532 passed / 7 skipped / 0 failed. aspnet_compiler precompile OK.
+- DB: no migration (no database/*.sql in b617426..188ce56). COPY_ONLY backup with CHECKSUM + RESTORE VERIFYONLY: AssetManagementModuleDb_pre_tenantmoves_20261029_160831.bak in the SQLEXPRESS Backup folder. No other SQL run.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement): staged at CodexAsset-artifacts\shortclass-stage-188ce56 without the root Web.config. One UAC prompt (accepted 16:09 EAT). Add/overwrite only, App_Data excluded; root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3 before and after). 302 files hash-checked, 0 mismatches. Pool stopped for the copy and restarted.
+  - AssetManagement.Web.dll 0312E1ED1939BE3473AF00CB679E488DFC315B51BFDB1646541F266793C69206 (was 62B19C1D...63B8, the 7b36ea8 build). Site backup C:\inetpub\_backups\AssetManagement_root_pre_tenantmoves_20261029_160910.
+  - Smoke 16:09 EAT (GET only, no login, no data): /Account/Login, /nis/Account/Login, /A46138179/Account/Login 200, no YSOD. Anonymous /A46138179/Assets, /A46138179/PurchaseRequests/Create, /nis/PurchaseRequests/Create, /A46138179/Purchases/Receive/1, /nis/Purchases/Receive/1 all 302 to {tenant}/Account/Login with returnUrl, no YSOD. Scripts/app/*.js checked and vendor html2pdf 200 (on-disk copies match the stage). No new Application event-log warnings or errors, no 5xx in the IIS log.
+- Desktop\publish refreshed from the stage (no root Web.config); previous copy kept as Desktop\publish_old_20261029_161036.
+- LIVE: nothing published.
+
 ## 2026-10-29 12:22 EAT - Departments and Classes menu entry + Classroom->Class / Grade->Year display labels, with the requisition room list (6e8069f, b157914: valid rooms only, Log off revokes the session server side) and requisition role access (44a0fa7): 7b36ea8 PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
 
 - Approval: Allan, 2026-10-29 (relayed by Grok Bot): "Publish everything, including the room-list and Log off fix and the requisition role-access changes". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted), no Test-WF or other DB data touched.
