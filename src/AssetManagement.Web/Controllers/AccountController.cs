@@ -139,22 +139,29 @@ namespace AssetManagement.Web.Controllers
                 }
             }
 
-            var disambiguationResult = HandleLoginDisambiguation(model, candidates, organizationId, tenantSlug);
-            if (disambiguationResult != null)
+            // 2026-10-29 (t770u): each company account is its own Users row with its own password hash. Check the typed
+            // password against each row separately. Company portal: only that company's row. Root portal: only rows whose
+            // own password matches (one = sign in there, several = chooser of exactly those). Companies whose password does
+            // not match are never listed or hinted; no match anywhere is the same generic failure as a wrong password.
+            var resolution = LoginCandidateRules.Resolve(candidates, model.Password, organizationId);
+            if (resolution.Outcome == LoginCandidateOutcome.Choose)
             {
-                return disambiguationResult;
+                var chooserFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
+                ViewBag.MultiCandidates = BuildPortalCandidates(resolution.Verified, chooserFactory);
+                ModelState.AddModelError("", "This email and password open more than one account. Select the portal to sign in to.");
+                return View(model);
             }
 
-            var primaryUser = candidates.Count == 1 ? candidates[0] : null;
-
-            // Root portal (no tenant slug) that resolved to exactly one tenant account: count attempts
-            // and lockout in that account's organisation bucket, the same bucket its own portal uses.
-            // Before, root-portal failures went to the NULL (platform) bucket, so the same email got a
-            // separate allowance per portal and shared a bucket with any same-email platform admin.
+            // Root portal: count attempts and lockout in the matched account's organisation bucket (the same bucket its
+            // own portal uses). A wrong password with one candidate counts in that candidate's bucket, as before; with
+            // several candidates and no match it counts in the root (NULL) bucket, as before.
+            ApplicationUser bucketUser = resolution.Outcome == LoginCandidateOutcome.SignIn
+                ? resolution.User
+                : (candidates.Count == 1 ? candidates[0] : null);
             var attemptOrganizationId = organizationId;
-            if (!attemptOrganizationId.HasValue && primaryUser != null && primaryUser.OrganizationId.HasValue)
+            if (!attemptOrganizationId.HasValue && bucketUser != null && bucketUser.OrganizationId.HasValue)
             {
-                attemptOrganizationId = primaryUser.OrganizationId;
+                attemptOrganizationId = bucketUser.OrganizationId;
                 if (_accountSecurityService.IsAccountLocked(model.Email, attemptOrganizationId))
                 {
                     return LoginLockedResult(model, clientIp, attemptOrganizationId);
@@ -162,27 +169,20 @@ namespace AssetManagement.Web.Controllers
             }
 
             string userId;
-            if (primaryUser != null)
+            if (resolution.Outcome == LoginCandidateOutcome.SignIn)
             {
-                var verifyResult = PasswordHasher.VerifyHashedPassword(primaryUser.PasswordHash, model.Password);
-                if (verifyResult == PasswordVerificationResult.Failed)
-                {
-                    _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, attemptOrganizationId, "Invalid credentials");
-                    var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, attemptOrganizationId);
-                    ModelState.AddModelError("", AuthenticationErrorMessages.LoginFailure(model.Email, tenantSlug, remaining));
-                    return View(model);
-                }
-
-                userId = primaryUser.Id;
-                if (verifyResult == PasswordVerificationResult.SuccessRehashNeeded && _userAccountService != null)
+                userId = resolution.User.Id;
+                if (resolution.RehashNeeded && _userAccountService != null)
                 {
                     _userAccountService.RehashPasswordOnLogin(userId, model.Password);
                 }
             }
-            else if (!_userAccountService.ValidateCredentials(model.Email, model.Password, tenantSlug, out userId))
+            else if (candidates.Count > 0
+                || !_userAccountService.ValidateCredentials(model.Email, model.Password, tenantSlug, out userId))
             {
-                _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, organizationId, "Invalid credentials");
-                var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, organizationId);
+                userId = null;
+                _accountSecurityService.RecordLoginAttempt(model.Email, clientIp, false, attemptOrganizationId, "Invalid credentials");
+                var remaining = _accountSecurityService.GetRemainingLoginAttempts(model.Email, attemptOrganizationId);
                 ModelState.AddModelError("", AuthenticationErrorMessages.LoginFailure(model.Email, tenantSlug, remaining));
                 return View(model);
             }
@@ -674,63 +674,6 @@ namespace AssetManagement.Web.Controllers
             }
 
             return new UserAccountRepository(connectionFactory).FindActiveByEmail(email, organizationId);
-        }
-
-        private ActionResult HandleLoginDisambiguation(
-            LoginViewModel model,
-            System.Collections.Generic.IList<ApplicationUser> candidates,
-            int? organizationId,
-            string tenantSlug)
-        {
-            if (candidates == null || candidates.Count <= 1)
-            {
-                if (organizationId.HasValue && candidates != null && candidates.Count == 0)
-                {
-                    var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
-                    if (connectionFactory != null)
-                    {
-                        // QA 2026-10-29 (tenant isolation): only point to another company's portal once the password
-                        // verifies for that account. Before, any visitor typing an email on /<tenant>/Account/Login learnt
-                        // which other company (name + slug) the email belongs to, without knowing the password.
-                        var elsewhere = new UserAccountRepository(connectionFactory).FindActiveByEmail(model.Email, null)
-                            .Where(u => u.OrganizationId.HasValue && u.OrganizationId.Value != organizationId.Value)
-                            .Where(u => !string.IsNullOrEmpty(model.Password)
-                                && !string.IsNullOrEmpty(u.PasswordHash)
-                                && PasswordHasher.VerifyHashedPassword(u.PasswordHash, model.Password) != PasswordVerificationResult.Failed)
-                            .ToList();
-                        if (elsewhere.Count > 0)
-                        {
-                            ViewBag.MultiCandidates = BuildPortalCandidates(elsewhere, connectionFactory);
-                            ModelState.AddModelError("", "No account for this email in this organization portal. Select your organization below.");
-                            return View(model);
-                        }
-                    }
-                }
-
-                return null;
-            }
-
-            if (!organizationId.HasValue)
-            {
-                // QA 2026-10-29 (tenant isolation): list only the accounts the typed password opens, so the root
-                // chooser never shows which companies an email belongs to before the password is proven.
-                var verified = candidates
-                    .Where(u => !string.IsNullOrEmpty(model.Password)
-                        && !string.IsNullOrEmpty(u.PasswordHash)
-                        && PasswordHasher.VerifyHashedPassword(u.PasswordHash, model.Password) != PasswordVerificationResult.Failed)
-                    .ToList();
-                if (verified.Count == 0)
-                {
-                    return null;
-                }
-
-                var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
-                ViewBag.MultiCandidates = BuildPortalCandidates(verified, connectionFactory);
-                ModelState.AddModelError("", "We found multiple accounts for this email. Select the correct portal below.");
-                return View(model);
-            }
-
-            return null;
         }
 
         private static System.Collections.Generic.IList<LoginPortalCandidate> BuildPortalCandidates(

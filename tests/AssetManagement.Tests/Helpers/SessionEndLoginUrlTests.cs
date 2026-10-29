@@ -152,11 +152,13 @@ namespace AssetManagement.Tests.Helpers
         public void LoginPortalHints_RequireTheVerifiedPassword()
         {
             var source = RepoFile("src", "AssetManagement.Web", "Controllers", "AccountController.cs");
-            var start = source.IndexOf("private ActionResult HandleLoginDisambiguation(", StringComparison.Ordinal);
-            var end = source.IndexOf("private static System.Collections.Generic.IList<LoginPortalCandidate> BuildPortalCandidates(", StringComparison.Ordinal);
-            var body = source.Substring(start, end - start);
-            Assert.AreEqual(2, Regex.Matches(body, @"PasswordHasher\.VerifyHashedPassword\(").Count);
-            StringAssert.Contains("BuildPortalCandidates(verified,", body);
+            // t770u: the only chooser is built from the accounts whose own password matched, and a company portal never
+            // looks up the email in other companies.
+            Assert.AreEqual(1, Regex.Matches(source, @"BuildPortalCandidates\(").Count - 1, "one chooser call site");
+            StringAssert.Contains("BuildPortalCandidates(resolution.Verified,", source);
+            StringAssert.Contains("LoginCandidateRules.Resolve(candidates, model.Password, organizationId)", source);
+            StringAssert.DoesNotContain("FindActiveByEmail(model.Email, null)", source);
+            StringAssert.DoesNotContain("Select your organization below", source);
         }
 
         private static string RepoFile(params string[] parts)
