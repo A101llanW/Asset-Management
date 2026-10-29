@@ -198,7 +198,7 @@ namespace AssetManagement.Web.Controllers
                 categoryName = x.CategoryName,
                 assetTypeName = x.AssetTypeName,
                 assetSubTypeName = string.IsNullOrWhiteSpace(x.AssetSubTypeName) ? DisplayText.Empty : x.AssetSubTypeName,
-                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(x.DepartmentName),
                 statusLabel = x.CurrentStatus.ToString()
                     .Replace("AwaitingApproval", "Pending Approval")
                     .Replace("InStore", "In Store"),

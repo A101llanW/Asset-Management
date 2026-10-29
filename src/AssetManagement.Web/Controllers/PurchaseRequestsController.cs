@@ -460,7 +460,7 @@ namespace AssetManagement.Web.Controllers
                 assetName = x.AssetName,
                 categoryName = x.CategoryName,
                 departmentId = x.DepartmentId,
-                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : x.DepartmentName,
+                departmentName = string.IsNullOrWhiteSpace(x.DepartmentName) ? "Company custody" : AssetManagement.Application.Helpers.GradeDisplay.ToYear(x.DepartmentName),
                 departmentInactive = IsInactiveAssetRoom(x.DepartmentId, activeDepartmentIds),
                 custodianName = string.IsNullOrWhiteSpace(x.CurrentCustodianName) ? "" : x.CurrentCustodianName,
                 status = FormatAssetStatusLabel(x.CurrentStatus),

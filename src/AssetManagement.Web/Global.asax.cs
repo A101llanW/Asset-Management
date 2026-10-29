@@ -178,7 +178,7 @@ namespace AssetManagement.Web
             // Every ticket must carry the user's access token so Log off / password change can revoke it server side.
             if (!AuthTicketHelper.HasServerAccessToken(ticket.UserData))
             {
-                InvalidateSession("session_invalid");
+                InvalidateSession("session_invalid", TryReadTicketOrganizationId(ticket));
                 return;
             }
 
@@ -198,20 +198,20 @@ namespace AssetManagement.Web
                 var connectionFactory = DependencyResolver.Current.GetService<ISqlConnectionFactory>();
                 if (connectionFactory == null)
                 {
-                    InvalidateSession("session_invalid");
+                    InvalidateSession("session_invalid", organizationId);
                     return;
                 }
 
                 var repository = new UserAccountRepository(connectionFactory);
                 if (!repository.ValidateAccessToken(userId, organizationId, accessToken))
                 {
-                    InvalidateSession("session_invalid");
+                    InvalidateSession("session_invalid", organizationId);
                     return;
                 }
 
                 if (!ValidateUserAgentFingerprint(uaHash))
                 {
-                    InvalidateSession("session_hijack");
+                    InvalidateSession("session_hijack", organizationId);
                     return;
                 }
 
@@ -220,7 +220,7 @@ namespace AssetManagement.Web
                     && !string.IsNullOrWhiteSpace(ticket.Name)
                     && accountSecurity.IsAccountLocked(ticket.Name, organizationId))
                 {
-                    InvalidateSession("account_locked");
+                    InvalidateSession("account_locked", organizationId);
                     return;
                 }
             }
@@ -333,7 +333,7 @@ namespace AssetManagement.Web
             Context.ApplicationInstance.CompleteRequest();
         }
 
-        private void InvalidateSession(string reason)
+        private void InvalidateSession(string reason, int? organizationId)
         {
             AuthSessionHelper.SignOut(new HttpContextWrapper(Context));
             var loginUrl = FormsAuthentication.LoginUrl;
@@ -342,9 +342,49 @@ namespace AssetManagement.Web
                 loginUrl = "~/Account/Login";
             }
 
-            var separator = loginUrl.Contains("?") ? "&" : "?";
-            Response.Redirect(loginUrl + separator + "reason=" + reason, false);
+            // QA 2026-10-29: keep the tenant (the user's own organisation, else a KNOWN tenant segment of the request)
+            // instead of always sending an ended session to the root login page.
+            string redirectUrl;
+            try
+            {
+                var unitOfWork = DependencyResolver.Current.GetService<IUnitOfWork>();
+                var ownSlug = organizationId.HasValue
+                    ? TenantUrlHelper.ResolveOrganizationSlug(unitOfWork, organizationId.Value)
+                    : null;
+                redirectUrl = SessionEndLoginUrl.Build(
+                    Request.AppRelativeCurrentExecutionFilePath,
+                    Request.RawUrl,
+                    Request.HttpMethod,
+                    reason,
+                    segment =>
+                    {
+                        var organization = TenantResolutionHelper.ResolveOrganization(unitOfWork, segment);
+                        return organization == null ? null : organization.Slug;
+                    },
+                    ownSlug,
+                    VirtualPathUtility.ToAbsolute(loginUrl));
+            }
+            catch (Exception)
+            {
+                var separator = loginUrl.Contains("?") ? "&" : "?";
+                redirectUrl = loginUrl + separator + "reason=" + reason;
+            }
+
+            Response.Redirect(redirectUrl, false);
             Context.ApplicationInstance.CompleteRequest();
+        }
+
+        private static int? TryReadTicketOrganizationId(FormsAuthenticationTicket ticket)
+        {
+            string userId;
+            int? organizationId;
+            string accessToken;
+            string uaHash;
+            bool requirePasswordChange;
+            return ticket != null
+                && AuthTicketHelper.TryParseUserData(ticket.UserData, out userId, out organizationId, out accessToken, out uaHash, out requirePasswordChange)
+                ? organizationId
+                : null;
         }
 
         protected void Application_BeginRequest()

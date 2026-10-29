@@ -75,7 +75,7 @@ namespace AssetManagement.Web.Controllers
             return View();
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         public ActionResult Landing()
         {
             var userId = User.GetUserId();
@@ -260,7 +260,7 @@ namespace AssetManagement.Web.Controllers
             return View(model);
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpGet]
         public ActionResult Profile()
         {
@@ -295,7 +295,7 @@ namespace AssetManagement.Web.Controllers
             return View(model);
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult Profile(ProfileViewModel model)
@@ -318,7 +318,7 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("Profile");
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpGet]
         public ActionResult ChangePassword()
         {
@@ -326,7 +326,7 @@ namespace AssetManagement.Web.Controllers
             return View(new ChangePasswordViewModel());
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult ChangePassword(ChangePasswordViewModel model)
@@ -389,7 +389,7 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("Profile");
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpGet]
         public ActionResult ChangeEmail()
         {
@@ -406,7 +406,7 @@ namespace AssetManagement.Web.Controllers
             });
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult ChangeEmail(ChangeEmailViewModel model)
@@ -463,7 +463,7 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("ConfirmChangeEmail");
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpGet]
         public ActionResult ConfirmChangeEmail()
         {
@@ -481,7 +481,7 @@ namespace AssetManagement.Web.Controllers
             });
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult ConfirmChangeEmail(ConfirmChangeEmailViewModel model)
@@ -552,7 +552,7 @@ namespace AssetManagement.Web.Controllers
             return RedirectToAction("Profile");
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult ResendChangeEmailCode()
@@ -689,8 +689,14 @@ namespace AssetManagement.Web.Controllers
                     var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
                     if (connectionFactory != null)
                     {
+                        // QA 2026-10-29 (tenant isolation): only point to another company's portal once the password
+                        // verifies for that account. Before, any visitor typing an email on /<tenant>/Account/Login learnt
+                        // which other company (name + slug) the email belongs to, without knowing the password.
                         var elsewhere = new UserAccountRepository(connectionFactory).FindActiveByEmail(model.Email, null)
                             .Where(u => u.OrganizationId.HasValue && u.OrganizationId.Value != organizationId.Value)
+                            .Where(u => !string.IsNullOrEmpty(model.Password)
+                                && !string.IsNullOrEmpty(u.PasswordHash)
+                                && PasswordHasher.VerifyHashedPassword(u.PasswordHash, model.Password) != PasswordVerificationResult.Failed)
                             .ToList();
                         if (elsewhere.Count > 0)
                         {
@@ -706,8 +712,20 @@ namespace AssetManagement.Web.Controllers
 
             if (!organizationId.HasValue)
             {
+                // QA 2026-10-29 (tenant isolation): list only the accounts the typed password opens, so the root
+                // chooser never shows which companies an email belongs to before the password is proven.
+                var verified = candidates
+                    .Where(u => !string.IsNullOrEmpty(model.Password)
+                        && !string.IsNullOrEmpty(u.PasswordHash)
+                        && PasswordHasher.VerifyHashedPassword(u.PasswordHash, model.Password) != PasswordVerificationResult.Failed)
+                    .ToList();
+                if (verified.Count == 0)
+                {
+                    return null;
+                }
+
                 var connectionFactory = DependencyResolver.Current.GetService<Infrastructure.Persistence.ISqlConnectionFactory>();
-                ViewBag.MultiCandidates = BuildPortalCandidates(candidates, connectionFactory);
+                ViewBag.MultiCandidates = BuildPortalCandidates(verified, connectionFactory);
                 ModelState.AddModelError("", "We found multiple accounts for this email. Select the correct portal below.");
                 return View(model);
             }
@@ -969,7 +987,7 @@ namespace AssetManagement.Web.Controllers
             return Json(new { success = true, message = AuthenticationErrorMessages.MfaResendSuccess(devMode) });
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpGet]
         [ActionName("LogOff")]
         public ActionResult LogOffGet()
@@ -977,7 +995,7 @@ namespace AssetManagement.Web.Controllers
             return PerformLogOff();
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("LogOff")]
@@ -1004,14 +1022,14 @@ namespace AssetManagement.Web.Controllers
             return RedirectToLogin(tenantSlug);
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         public ActionResult LicenseSuspended()
         {
             ConfigureLicenseStatusViewBag(LicenseStatus.Paused);
             return View();
         }
 
-        [Authorize]
+        [AssetManagement.Web.Filters.TenantAuthorize]
         public ActionResult LicenseExpired()
         {
             ConfigureLicenseStatusViewBag(LicenseStatus.Expired);

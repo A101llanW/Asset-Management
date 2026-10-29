@@ -93,6 +93,14 @@ namespace AssetManagement.Web.Filters
                 return;
             }
 
+            if (IsSignedInToAnotherOrganization(filterContext, organization.Id))
+            {
+                // QA 2026-10-29 (tenant isolation): a signed-in user on ANOTHER company's URL must never run with that
+                // company's scope or branding, even on the whitelisted Account/Home/Dashboard actions that are not
+                // redirected below. Leave the scope on the user's own organisation (Global.asax AuthenticatedOrganizationId).
+                return;
+            }
+
             filterContext.HttpContext.Items[TenantContextKeys.OrganizationId] = organization.Id;
             filterContext.HttpContext.Items[TenantContextKeys.TenantToken] = organization.Slug ?? tenantToken;
             filterContext.Controller.ViewBag.TenantContext = organization;
@@ -117,6 +125,24 @@ namespace AssetManagement.Web.Filters
                     ImpersonationReason = session == null ? null : session["ImpersonationReason"] as string
                 });
             }
+        }
+
+        internal static bool IsSignedInToAnotherOrganization(ActionExecutingContext filterContext, int urlOrganizationId)
+        {
+            var httpContext = filterContext.HttpContext;
+            if (httpContext == null || httpContext.User == null || httpContext.User.Identity == null || !httpContext.User.Identity.IsAuthenticated)
+            {
+                return false;
+            }
+
+            var session = httpContext.Session;
+            if (session != null && session["ImpersonatedOrganizationId"] != null)
+            {
+                return false;
+            }
+
+            var authenticatedOrganizationId = httpContext.Items[TenantContextKeys.AuthenticatedOrganizationId] as int?;
+            return authenticatedOrganizationId.HasValue && authenticatedOrganizationId.Value != urlOrganizationId;
         }
 
         /// <summary>

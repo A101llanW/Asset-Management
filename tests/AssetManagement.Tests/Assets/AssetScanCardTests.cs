@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -79,7 +79,7 @@ namespace AssetManagement.Tests.Assets
             Assert.IsNull(Row(card, "serial"), "review S8: serial hidden from signed-out viewers");
             Assert.AreEqual("Academics", Row(card, "location-administrative"));
             Assert.AreEqual("Year 7", Row(card, "location-grade"));
-            Assert.AreEqual("Year 7B", Row(card, "location-class"));
+            Assert.AreEqual("7B", Row(card, "location-class"));
             Assert.AreEqual("Room 12", Row(card, "location-room"));
             Assert.AreEqual("Senior school", Row(card, "section"));
             Assert.AreEqual("In store", Row(card, "status"));
@@ -212,7 +212,7 @@ namespace AssetManagement.Tests.Assets
         {
             var lookup = SampleLookup();
             lookup.LocationPath.RemoveAt(3);
-            Assert.AreEqual("In Year 7B", AssetScanCardBuilder.Build(lookup, AssetScanViewer.Anonymous).CustodianText);
+            Assert.AreEqual("In 7B", AssetScanCardBuilder.Build(lookup, AssetScanViewer.Anonymous).CustodianText);
         }
 
         [Test]

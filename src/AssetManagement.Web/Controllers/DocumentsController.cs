@@ -9,7 +9,7 @@ using AssetManagement.Web.Security;
 
 namespace AssetManagement.Web.Controllers
 {
-    [Authorize]
+    [TenantAuthorize]
     public class DocumentsController : BaseController
     {
         private readonly IAssetDocumentService _documentService;

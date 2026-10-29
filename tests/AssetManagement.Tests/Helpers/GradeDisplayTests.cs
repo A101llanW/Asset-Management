@@ -10,11 +10,11 @@ namespace AssetManagement.Tests.Helpers
     public class GradeDisplayTests
     {
         [TestCase("Grade 2", "Year 2")]
-        [TestCase("Grade 2A", "Year 2A")]
-        [TestCase("grade 10b", "year 10b")]
+        [TestCase("Grade 2A", "2A")]
+        [TestCase("grade 10b", "10b")]
         [TestCase("GRADE 3", "YEAR 3")]
         [TestCase("Grades & Streams", "Years & Streams")]
-        [TestCase("Grade 2 \u2192 Grade 2A", "Year 2 \u2192 Year 2A")]
+        [TestCase("Grade 2 \u2192 Grade 2A", "Year 2 \u2192 2A")]
         [TestCase("G02 - Grade 2", "G02 - Year 2")]
         [TestCase("Grade10", "Year10")]
         [TestCase("Upgrade lab", "Upgrade lab")]
@@ -26,6 +26,17 @@ namespace AssetManagement.Tests.Helpers
         [TestCase("ACADEMIC-GRADE2HR \u2014 Grade 2 homerooms", "ACADEMIC-GRADE2HR \u2014 Year 2 homerooms")]
         [TestCase("GRADE-2", "GRADE-2")]
         [TestCase("SCH_GRADE", "SCH_GRADE")]
+        [TestCase("Grade 13D", "13D")]
+        [TestCase("Grade 6", "Year 6")]
+        [TestCase("Grade 6 homerooms", "Year 6 homerooms")]
+        [TestCase("Grade 6A, Grade 6B", "6A, 6B")]
+        [TestCase("Audio mixer - Grade 6A", "Audio mixer - 6A")]
+        [TestCase("Academics > Grade 6 > Grade 6A", "Academics > Year 6 > 6A")]
+        [TestCase("Grade 6AB", "Year 6AB")]
+        [TestCase("Grade 6A-1", "Year 6A-1")]
+        [TestCase("GRADE 7B", "7B")]
+        [TestCase("G7-G7B-045", "G7-G7B-045")]
+        [TestCase("Grades 6A", "Years 6A")]
         public void ToYear_ReplacesWholeWordGradeOnly(string input, string expected)
         {
             Assert.AreEqual(expected, GradeDisplay.ToYear(input));
@@ -47,16 +58,16 @@ namespace AssetManagement.Tests.Helpers
             var display = ReportYearLabels.Apply(headers, rows);
 
             CollectionAssert.AreEqual(
-                new[] { "ACA-G2A-001", "ACADEMIC-GRADE2HR", "Year 2A", "Year 9A", "Year 9B", "Grade 2 note" },
+                new[] { "ACA-G2A-001", "ACADEMIC-GRADE2HR", "2A", "9A", "9B", "Grade 2 note" },
                 display[0].ToArray());
             Assert.AreEqual("Grade 2A", stored[2], "the shared CSV row keeps the stored name");
         }
 
         [Test]
-        public void RoomGroupDisplayName_ShowsYear()
+        public void RoomGroupDisplayName_ShowsShortClass()
         {
             var vm = new AssetRoomGroupVm { DepartmentId = 5, Name = "Grade 4B", DepartmentKind = (int)DepartmentKind.Class };
-            Assert.AreEqual("Year 4B", vm.DisplayName);
+            Assert.AreEqual("4B", vm.DisplayName);
             Assert.AreEqual("Grade 4B", vm.Name, "stored name is not changed");
         }
     }

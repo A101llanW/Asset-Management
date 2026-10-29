@@ -629,7 +629,7 @@ namespace AssetManagement.Web.Controllers
                 .Select(x => new SelectListItem
                 {
                     Value = x.Id.ToString(),
-                    Text = x.Name
+                    Text = AssetManagement.Application.Helpers.GradeDisplay.ToYear(x.Name)
                 })
                 .ToList();
 

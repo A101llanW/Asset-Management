@@ -252,6 +252,7 @@
     <Compile Include="Helpers\TenantReservedSegments.cs" />
     <Compile Include="Helpers\TenantResolutionHelper.cs" />
     <Compile Include="Helpers\TenantRouteConstraint.cs" />
+    <Compile Include="Helpers\SessionEndLoginUrl.cs" />
     <Compile Include="Helpers\TenantUrlHelper.cs" />
     <Compile Include="Helpers\HelpVideoFiles.cs" />
     <Compile Include="Helpers\HelpVideoStreamResult.cs" />
