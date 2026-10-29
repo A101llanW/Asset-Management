@@ -35,12 +35,26 @@ namespace AssetManagement.Web.Filters
             }
 
             var tenantToken = TenantUrlHelper.GetTenantToken(routeData);
-            ResolveTenantContext(filterContext, tenantToken);
+            var refusedForeignTenant = ResolveTenantContext(filterContext, tenantToken);
 
             if (httpContext == null || httpContext.User == null || !httpContext.User.Identity.IsAuthenticated)
             {
                 base.OnActionExecuting(filterContext);
                 return;
+            }
+
+            if (refusedForeignTenant)
+            {
+                // t770u (tenant isolation, every page): a signed-in user on ANOTHER company's URL is sent to the same
+                // page on their own company's URL, including the Account/Home/Captcha/Dashboard actions that are
+                // whitelisted below and that would otherwise build the URL company's name, logo or licence banner
+                // (Login, ForgotPassword, ResetPassword, Register, AcceptInvite, LicenseSuspended/Expired, Privacy, Terms).
+                var ownTenantRedirect = BuildOwnTenantRedirect(filterContext);
+                if (ownTenantRedirect != null)
+                {
+                    filterContext.Result = ownTenantRedirect;
+                    return;
+                }
             }
 
             var emailVerificationBlock = BuildEmailVerificationBlock(filterContext);
@@ -67,38 +81,39 @@ namespace AssetManagement.Web.Filters
             base.OnActionExecuting(filterContext);
         }
 
-        private static void ResolveTenantContext(ActionExecutingContext filterContext, string tenantToken)
+        /// <summary>Returns true when the URL names another (active) company than the signed-in user's own.</summary>
+        private static bool ResolveTenantContext(ActionExecutingContext filterContext, string tenantToken)
         {
             if (string.IsNullOrWhiteSpace(tenantToken))
             {
-                return;
+                return false;
             }
 
             var unitOfWork = DependencyResolver.Current.GetService<IUnitOfWork>();
             if (unitOfWork == null)
             {
-                return;
+                return false;
             }
 
             var connectionFactory = DependencyResolver.Current.GetService<ISqlConnectionFactory>();
             var organizationId = TenantResolutionHelper.ResolveOrganizationId(unitOfWork, connectionFactory, tenantToken);
             if (!organizationId.HasValue)
             {
-                return;
+                return false;
             }
 
             var organization = unitOfWork.Repository<Organization>().GetById(organizationId.Value);
             if (organization == null || !organization.IsActive)
             {
-                return;
+                return false;
             }
 
             if (IsSignedInToAnotherOrganization(filterContext, organization.Id))
             {
                 // QA 2026-10-29 (tenant isolation): a signed-in user on ANOTHER company's URL must never run with that
-                // company's scope or branding, even on the whitelisted Account/Home/Dashboard actions that are not
-                // redirected below. Leave the scope on the user's own organisation (Global.asax AuthenticatedOrganizationId).
-                return;
+                // company's scope or branding. Leave the scope on the user's own organisation (Global.asax
+                // AuthenticatedOrganizationId); OnActionExecuting then sends the request to the user's own company URL.
+                return true;
             }
 
             filterContext.HttpContext.Items[TenantContextKeys.OrganizationId] = organization.Id;
@@ -125,6 +140,55 @@ namespace AssetManagement.Web.Filters
                     ImpersonationReason = session == null ? null : session["ImpersonationReason"] as string
                 });
             }
+
+            return false;
+        }
+
+        /// <summary>
+        /// t770u: same controller/action/id/query on the signed-in user's own company URL. Log off still runs where it
+        /// was asked (it only ends the user's own session) and child actions never redirect (their parent already did).
+        /// Null when the own company's slug cannot be resolved (the request then keeps the user's own scope, as before).
+        /// </summary>
+        internal static ActionResult BuildOwnTenantRedirect(ActionExecutingContext filterContext)
+        {
+            if (filterContext == null || filterContext.IsChildAction)
+            {
+                return null;
+            }
+
+            var controllerName = filterContext.ActionDescriptor.ControllerDescriptor.ControllerName;
+            var actionName = filterContext.ActionDescriptor.ActionName;
+            if (IsForeignTenantPassThrough(controllerName, actionName))
+            {
+                return null;
+            }
+
+            var authenticatedOrganizationId = filterContext.HttpContext.Items[TenantContextKeys.AuthenticatedOrganizationId] as int?;
+            var unitOfWork = DependencyResolver.Current.GetService<IUnitOfWork>();
+            if (!authenticatedOrganizationId.HasValue || unitOfWork == null)
+            {
+                return null;
+            }
+
+            var ownSlug = TenantUrlHelper.ResolveOrganizationSlug(unitOfWork, authenticatedOrganizationId.Value);
+            if (string.IsNullOrWhiteSpace(ownSlug))
+            {
+                return null;
+            }
+
+            object id = null;
+            if (filterContext.RouteData.Values.ContainsKey("id"))
+            {
+                id = filterContext.RouteData.Values["id"];
+            }
+
+            return TenantUrlHelper.CreateTenantRedirect(ownSlug, controllerName, actionName, id, TenantUrlHelper.QueryToCarry(filterContext.HttpContext.Request));
+        }
+
+        internal static bool IsForeignTenantPassThrough(string controllerName, string actionName)
+        {
+            return string.Equals(controllerName, "Account", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(actionName, "LogOff", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool IsSignedInToAnotherOrganization(ActionExecutingContext filterContext, int urlOrganizationId)
