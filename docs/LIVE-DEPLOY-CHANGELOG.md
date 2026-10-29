@@ -1,5 +1,15 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-10-29 19:46 EAT - Grade labels leftover fix: custody and movement history tabs, approval-flow summaries, department pickers and requisition/receiving text show short class names (6A under Year 6), class page breadcrumb shows the full path (4c7ab62): 4c7ab62 PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
+
+- Approval: Allan, 2026-10-29 19:44 EAT (relayed by Grok Bot): "Proceed with asset". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted), no Test-WF or other DB data touched.
+- main fast-forwarded c8c1760..4c7ab62 (fix/grade-label-history). Tests 1550 passed, 0 failed (pre-stage run). Printed labels unchanged (still the full department name).
+- DB: no migration (no database/*.sql in c8c1760..4c7ab62). COPY_ONLY backup with CHECKSUM + RESTORE VERIFYONLY: AssetManagementModuleDb_pre_gradehist_20261029_194501.bak in the SQLEXPRESS Backup folder. No other SQL run.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement): staged at CodexAsset-artifacts\gradehist-stage-4c7ab62 without the root Web.config. One UAC prompt (accepted 19:45 EAT). Add/overwrite only, App_Data excluded; root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3 before and after). 302 files hash-checked, 0 mismatches. Pool stopped for the copy and restarted.
+  - AssetManagement.Web.dll B42B6466B4A25303B0C609E4350B213A5D3FDC8A83573FD8BEA0D3639292E9E2 (was 0312E1ED...9206, the 188ce56 build). Site backup C:\inetpub\_backups\AssetManagement_root_pre_gradehist_20261029_194543.
+  - Smoke 19:46 EAT (GET only, no login, no data): /Account/Login, /nis/Account/Login, /A46138179/Account/Login 200, no YSOD. Anonymous /A46138179/Assets, /A46138179/PurchaseRequests/Create, /nis/PurchaseRequests/Create, /A46138179/Purchases/Receive/1, /nis/Purchases/Receive/1 all 302 to {tenant}/Account/Login with returnUrl, no YSOD. Scripts/app/*.js checked and vendor html2pdf 200 (on-disk copies match the stage). No new Application event-log warnings or errors, no 5xx in the IIS log.
+- Desktop\publish refreshed from the stage (no root Web.config); previous copy kept as Desktop\publish_old_20261029_194653.
+- LIVE: nothing published.
 ## 2026-10-29 16:09 EAT - Short class labels (Grade 6A -> 6A under Year 6), tenant-kept session-end login and tenant isolation hardening (0656ac8), per-company password login with no cross-company hints (5ce8390), signed-in users on another company's address sent back to their own company (8dd29b3), room/class moves in all directions (188ce56): 188ce56 PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
 
 - Approval: Allan, 2026-10-29 16:06 EAT (answering t771s3038, relayed by Grok Bot): "Yes, publish it to localhost:8080 now". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted), no Test-WF or other DB data touched.
