@@ -114,7 +114,8 @@ namespace AssetManagement.Tests.Persistence
                 Assert.AreEqual(0, Scalar(connection, "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Department') AND name = N'Section' AND is_nullable = 1"));
                 Assert.AreEqual(1, Scalar(connection, "SELECT COUNT(*) FROM sys.check_constraints WHERE name = N'CK_Department_Section'"));
                 Assert.AreEqual(1, Scalar(connection, "SELECT COUNT(*) FROM [dbo].[SchemaMigrationHistory] WHERE [ScriptName] = N'" + ScriptName + "'"));
-                Assert.AreEqual(0, Scalar(connection, "SELECT COUNT(*) FROM [dbo].[Department] WHERE [Section] NOT IN (0, 1)"));
+                // Migration 111 widened the allowed values to 0, 1, 2 (KG).
+                Assert.AreEqual(0, Scalar(connection, "SELECT COUNT(*) FROM [dbo].[Department] WHERE [Section] NOT IN (0, 1, 2)"));
             }
         }
 

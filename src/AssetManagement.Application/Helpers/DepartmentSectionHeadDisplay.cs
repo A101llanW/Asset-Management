@@ -40,7 +40,7 @@ namespace AssetManagement.Application.Helpers
 
             // Departments / sub-departments serve both sections; a year, classroom or room only its own.
             var sections = unit.DepartmentKind == DepartmentKind.Administrative || unit.DepartmentKind == DepartmentKind.SubDepartment
-                ? new[] { DepartmentSection.Prep, DepartmentSection.SeniorSchool }
+                ? DepartmentSectionHelper.All
                 : new[] { DepartmentSectionHelper.Normalize(unit.Section) };
             foreach (var section in sections)
             {
@@ -63,7 +63,9 @@ namespace AssetManagement.Application.Helpers
             var depth = 0;
             while (current != null && depth < 32 && visited.Add(current.Id))
             {
-                var raw = section == DepartmentSection.Prep ? current.PrepHeadUserId : current.SeniorHeadUserId;
+                var raw = section == DepartmentSection.KG
+                    ? current.KgHeadUserId
+                    : section == DepartmentSection.Prep ? current.PrepHeadUserId : current.SeniorHeadUserId;
                 var head = string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
                 if (head != null && (isActiveUser == null || isActiveUser(head)))
                 {

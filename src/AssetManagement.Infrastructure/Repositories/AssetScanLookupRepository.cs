@@ -48,7 +48,7 @@ SELECT TOP 1
     a.[DepartmentId],
     d.[Section],
     CASE WHEN EXISTS (SELECT 1 FROM [Department] dp
-      WHERE dp.[OrganizationId] = a.[OrganizationId] AND dp.[IsActive] = 1 AND dp.[Section] = 1) THEN 1 ELSE 0 END AS OrganizationUsesPrep,
+      WHERE dp.[OrganizationId] = a.[OrganizationId] AND dp.[IsActive] = 1 AND dp.[Section] <> 0) THEN 1 ELSE 0 END AS OrganizationUsesPrep,
     ph.[FilePath] AS PhotoFilePath,
     ph.[ContentType] AS PhotoContentType,
     ph.[DocumentType] AS PhotoDocumentType,

@@ -154,7 +154,7 @@
         <label class="form-label" for="department-section-select">Section</label>
         @Html.DropDownListFor(m => m.Section, sectionSelectList, new { @class = "form-select", id = "department-section-select" })
         @Html.ValidationMessageFor(m => m.Section, "", new { @class = "text-danger small" })
-        <div class="form-text">Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a year's Section also moves its classes that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
+        <div class="form-text">KG, Prep and Senior school are kept apart in the tree, the asset register and reports.@(isGrade ? " Changing a year's Section also moves its classes that were in the old Section." : string.Empty) Existing tags are never renamed.</div>
     </div>
     if (isGrade)
     {
@@ -266,9 +266,17 @@
     <div class="card mb-3 js-edit-section-heads" id="edit-section-heads" style="@(isClass || isRoom ? "display:none;" : null)">
         <div class="card-body">
             <h2 class="h6 card-title">Department heads by section</h2>
-            <p class="form-text mt-0">Optional. Prep and Senior school can have different heads (for example a different HOD Academics for each). Pick anyone, whatever their role. When a requisition, transfer or disposal reaches the <strong>Department Head</strong> approval stage, it goes to the head of the request's section, set here or on a parent department. Leave blank to keep the current rule (the users holding the Department Head role).</p>
+            <p class="form-text mt-0">Optional. KG, Prep and Senior school can have different heads (for example a different HOD Academics for each). Pick anyone, whatever their role. When a requisition, transfer or disposal reaches the <strong>Department Head</strong> approval stage, it goes to the head of the request's section, set here or on a parent department. Leave blank to keep the current rule (the users holding the Department Head role).</p>
             <div class="row g-3">
-                <div class="col-md-6">
+                <div class="col-md-4">
+                    <label class="form-label" for="KgHeadUserId">Head (KG)</label>
+                    @Html.DropDownListFor(
+                        m => m.KgHeadUserId,
+                        ViewBag.KgHeadUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()),
+                        "-- Not set (use Department Head role) --",
+                        new { @class = "form-select", id = "KgHeadUserId" })
+                </div>
+                <div class="col-md-4">
                     <label class="form-label" for="PrepHeadUserId">Head (Prep)</label>
                     @Html.DropDownListFor(
                         m => m.PrepHeadUserId,
@@ -276,7 +284,7 @@
                         "-- Not set (use Department Head role) --",
                         new { @class = "form-select", id = "PrepHeadUserId" })
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <label class="form-label" for="SeniorHeadUserId">Head (Senior school)</label>
                     @Html.DropDownListFor(
                         m => m.SeniorHeadUserId,
@@ -338,6 +346,7 @@
             var sectionHeads = document.getElementById('edit-section-heads');
             var prepHeadSelect = document.getElementById('PrepHeadUserId');
             var seniorHeadSelect = document.getElementById('SeniorHeadUserId');
+            var kgHeadSelect = document.getElementById('KgHeadUserId');
             var submitButton = kindSelect && kindSelect.form
                 ? kindSelect.form.querySelector('.am-form-actions button[type="submit"]')
                 : null;
@@ -375,6 +384,7 @@
                 if (sectionHeads) { sectionHeads.style.display = showHeads ? '' : 'none'; }
                 if (prepHeadSelect) { prepHeadSelect.disabled = !showHeads; }
                 if (seniorHeadSelect) { seniorHeadSelect.disabled = !showHeads; }
+                if (kgHeadSelect) { kgHeadSelect.disabled = !showHeads; }
                 syncSubmitLabel();
             }
 

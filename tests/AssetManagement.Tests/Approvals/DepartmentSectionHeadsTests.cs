@@ -193,10 +193,12 @@ namespace AssetManagement.Tests.Approvals
             Func<string, string> label = id => id == "prep-head" ? "Pat Prep" : null;
 
             var dept = DepartmentSectionHeadDisplay.Build(vms[40], get, label, id => true);
-            Assert.AreEqual(2, dept.Count);
-            Assert.AreEqual("Pat Prep", dept[0].HeadName);
-            Assert.AreEqual("Set on this unit", dept[0].Source);
-            Assert.IsTrue(dept[1].IsFallback);
+            Assert.AreEqual(3, dept.Count);
+            Assert.AreEqual(DepartmentSection.KG, dept[0].Section);
+            Assert.IsTrue(dept[0].IsFallback);
+            Assert.AreEqual("Pat Prep", dept[1].HeadName);
+            Assert.AreEqual("Set on this unit", dept[1].Source);
+            Assert.IsTrue(dept[2].IsFallback);
 
             var room = DepartmentSectionHeadDisplay.Build(vms[41], get, label, id => true);
             Assert.AreEqual(1, room.Count);

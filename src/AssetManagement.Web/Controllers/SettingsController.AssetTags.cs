@@ -75,6 +75,12 @@ namespace AssetManagement.Web.Controllers
                 ModelState.AddModelError("SeniorPrefix", "Senior school prefix: use letters, digits and hyphens only.");
             }
 
+            var kgPrefix = AssetTagPrefixResolver.NormalizePrefix(model.KgPrefix);
+            if (!string.IsNullOrWhiteSpace(model.KgPrefix) && kgPrefix == null)
+            {
+                ModelState.AddModelError("KgPrefix", "KG prefix: use letters, digits and hyphens only.");
+            }
+
             var departmentRepository = UnitOfWork.Repository<Department>();
             var departments = departmentRepository.GetAll().ToDictionary(x => x.Id);
             var postedRows = PostedTagRows(model, departments);
@@ -94,6 +100,7 @@ namespace AssetManagement.Web.Controllers
                 invalid.TenantPrefix = model.TenantPrefix;
                 invalid.PrepPrefix = model.PrepPrefix;
                 invalid.SeniorPrefix = model.SeniorPrefix;
+                invalid.KgPrefix = model.KgPrefix;
                 invalid.UseDepartmentSegment = model.UseDepartmentSegment;
                 invalid.UseSubDepartmentSegment = model.UseSubDepartmentSegment;
                 invalid.UseRoomSegment = model.UseRoomSegment;
@@ -108,6 +115,7 @@ namespace AssetManagement.Web.Controllers
                 settings.ToDictionary(x => x.Key, x => x.Value == null ? null : x.Value.SettingValue, StringComparer.OrdinalIgnoreCase));
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.PrepPrefixSettingKey, prepPrefix ?? string.Empty, "Asset tag prefix for Prep units (used with the room, e.g. PP-GALA-001). Blank = no Prep prefix. Overrides on a department/room still win.");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.SeniorPrefixSettingKey, seniorPrefix ?? string.Empty, "Asset tag prefix for Senior school units. Blank = no Senior school prefix (existing behaviour).");
+            UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.KgPrefixSettingKey, kgPrefix ?? string.Empty, "Asset tag prefix for KG (Kindergarten) units (used with the room). Blank = no KG prefix. Overrides on a department/room still win.");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.UseDepartmentSegmentSettingKey, model.UseDepartmentSegment.ToString(), "Derived asset tags include the top-department segment unless a department/sub-department/room says otherwise (rel1018b).");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.UseSubDepartmentSegmentSettingKey, model.UseSubDepartmentSegment.ToString(), "Derived asset tags include the sub-department segment unless a node says otherwise (rel1018b).");
             UpsertSetting(settingRepository, settings, AssetTagPrefixResolver.UseRoomSegmentSettingKey, model.UseRoomSegment.ToString(), "Derived asset tags include the room segment unless a node says otherwise (rel1018b).");
@@ -150,6 +158,7 @@ namespace AssetManagement.Web.Controllers
                 "enabled=" + model.Enabled + "; tenant=" + (tenantPrefix ?? "(derived)")
                     + "; prepPrefix=" + (prepPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.Prep) ? previousSectionPrefixes[DepartmentSection.Prep] : "none") + ")"
                     + "; seniorPrefix=" + (seniorPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? previousSectionPrefixes[DepartmentSection.SeniorSchool] : "none") + ")"
+                    + "; kgPrefix=" + (kgPrefix ?? "(none)") + " (was " + (previousSectionPrefixes.ContainsKey(DepartmentSection.KG) ? previousSectionPrefixes[DepartmentSection.KG] : "none") + ")"
                     + "; segments(D/S/R)=" + model.UseDepartmentSegment + "/" + model.UseSubDepartmentSegment + "/" + model.UseRoomSegment
                     + "; overrides=" + (changes.Count == 0 ? "unchanged" : string.Join(", ", changes)));
             TempData["SuccessMessage"] = "Asset tag prefix settings saved. Existing tags are unchanged; new assets use the new prefix.";
@@ -247,6 +256,8 @@ namespace AssetManagement.Web.Controllers
             var senior = AssetTagPrefixResolver.NormalizePrefix(model.SeniorPrefix);
             if (prep != null) { result[DepartmentSection.Prep] = prep; }
             if (senior != null) { result[DepartmentSection.SeniorSchool] = senior; }
+            var kg = AssetTagPrefixResolver.NormalizePrefix(model.KgPrefix);
+            if (kg != null) { result[DepartmentSection.KG] = kg; }
             return result;
         }
 
@@ -288,6 +299,7 @@ namespace AssetManagement.Web.Controllers
                 TenantPrefix = options.TenantPrefix,
                 PrepPrefix = sectionPrefixes.ContainsKey(DepartmentSection.Prep) ? sectionPrefixes[DepartmentSection.Prep] : null,
                 SeniorPrefix = sectionPrefixes.ContainsKey(DepartmentSection.SeniorSchool) ? sectionPrefixes[DepartmentSection.SeniorSchool] : null,
+                KgPrefix = sectionPrefixes.ContainsKey(DepartmentSection.KG) ? sectionPrefixes[DepartmentSection.KG] : null,
                 UseDepartmentSegment = options.UseDepartmentSegment,
                 UseSubDepartmentSegment = options.UseSubDepartmentSegment,
                 UseRoomSegment = options.UseRoomSegment

@@ -51,9 +51,12 @@ namespace AssetManagement.Application.Helpers
                 return null;
             }
 
-            var value = DepartmentSectionHelper.Normalize(section) == DepartmentSection.Prep
-                ? department.PrepHeadUserId
-                : department.SeniorHeadUserId;
+            var normalized = DepartmentSectionHelper.Normalize(section);
+            var value = normalized == DepartmentSection.KG
+                ? department.KgHeadUserId
+                : normalized == DepartmentSection.Prep
+                    ? department.PrepHeadUserId
+                    : department.SeniorHeadUserId;
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 

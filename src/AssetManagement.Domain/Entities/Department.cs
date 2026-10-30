@@ -84,6 +84,9 @@ namespace AssetManagement.Domain.Entities
         /// <summary>Migration 107: optional head of this department for the Senior school section (any active user). Null = not set.</summary>
         public string SeniorHeadUserId { get; set; }
 
+        /// <summary>Migration 111: optional head of this department for the KG (Kindergarten) section (any active user). Null = not set.</summary>
+        public string KgHeadUserId { get; set; }
+
         public virtual ICollection<Asset> Assets { get; set; } = new HashSet<Asset>();
     }
 }

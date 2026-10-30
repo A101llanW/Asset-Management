@@ -134,6 +134,8 @@ namespace AssetManagement.Infrastructure.Services
             // Migration 107: section heads (Prep / Senior) also point at Users.
             NullColumn("Department", "PrepHeadUserId"),
             NullColumn("Department", "SeniorHeadUserId"),
+            // Migration 111: KG section head.
+            NullColumn("Department", "KgHeadUserId"),
             Delete("Users"),
             Delete("RolePermission"),
             Delete("Roles"),

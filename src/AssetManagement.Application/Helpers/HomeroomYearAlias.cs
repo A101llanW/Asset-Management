@@ -16,13 +16,15 @@ namespace AssetManagement.Application.Helpers
     /// and asset tags are untouched; only labels, grouping and order change.
     /// A group is an alias only when its code is ACADEMIC-GRADE{N}HR and exactly one active top-level Year N exists
     /// in the same list ("Grade N" / "Year N" by name, else G0N by code). Anything else is shown as before.
+    /// KG (pt560u, 2026-10-30): a letters-only token works the same way: ACADEMIC-GRADEKGHR ("KG homerooms") is shown
+    /// as the single active top-level Year whose code is exactly KG.
     /// </summary>
     public static class HomeroomYearAlias
     {
         public const string PathSeparator = " > ";
 
         private static readonly Regex GroupCodePattern = new Regex(
-            @"^\s*ACADEMIC-GRADE([0-9]{1,2})HR\s*$",
+            @"^\s*ACADEMIC-GRADE([0-9]{1,2}|[A-Z]{1,10})HR\s*$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
         private static readonly Regex YearNamePattern = new Regex(
@@ -31,6 +33,11 @@ namespace AssetManagement.Application.Helpers
 
         private static readonly Regex YearCodePattern = new Regex(
             @"^\s*G0*([0-9]{1,2})\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>A letters-only Year code (KG) used as the alias token when the Year has no number.</summary>
+        private static readonly Regex YearLetterCodePattern = new Regex(
+            @"^\s*([A-Z]{1,10})\s*$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
         /// <summary>Year number of a homerooms group code (ACADEMIC-GRADE7HR -> 7), else null.</summary>
@@ -45,9 +52,42 @@ namespace AssetManagement.Application.Helpers
             return ParseNumber(YearNamePattern, name) ?? ParseNumber(YearCodePattern, code);
         }
 
+        /// <summary>
+        /// Alias token of a homerooms group code: "7" for ACADEMIC-GRADE7HR (and ACADEMIC-GRADE07HR), "KG" for
+        /// ACADEMIC-GRADEKGHR; null for any other code.
+        /// </summary>
+        public static string ParseGroupYearKey(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return null;
+            }
+
+            var match = GroupCodePattern.Match(code);
+            return match.Success ? NormalizeKey(match.Groups[1].Value) : null;
+        }
+
+        /// <summary>Alias token of a Year: its number ("Grade 7" / "Year 7" / G07 -> "7"), else a letters-only code ("KG").</summary>
+        public static string ParseYearKey(string name, string code)
+        {
+            var number = ParseYearNumber(name, code);
+            if (number.HasValue)
+            {
+                return number.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return null;
+            }
+
+            var match = YearLetterCodePattern.Match(code);
+            return match.Success ? NormalizeKey(match.Groups[1].Value) : null;
+        }
+
         public static bool LooksLikeGroup(DepartmentKind kind, string code)
         {
-            return kind == DepartmentKind.SubDepartment && ParseGroupYearNumber(code).HasValue;
+            return kind == DepartmentKind.SubDepartment && ParseGroupYearKey(code) != null;
         }
 
         /// <summary>group id -> Year id for the alias groups in <paramref name="departments"/>.</summary>
@@ -74,7 +114,7 @@ namespace AssetManagement.Application.Helpers
             where T : class
         {
             var list = (items ?? Enumerable.Empty<T>()).Where(x => x != null).ToList();
-            var years = YearIdsByNumber(list, id, kind, name, code, parentId, isActive);
+            var years = YearIdsByKey(list, id, kind, name, code, parentId, isActive);
             var map = new Dictionary<int, int>();
             if (years.Count == 0)
             {
@@ -83,9 +123,9 @@ namespace AssetManagement.Application.Helpers
 
             foreach (var group in list.Where(x => kind(x) == DepartmentKind.SubDepartment))
             {
-                var number = ParseGroupYearNumber(code(group));
+                var key = ParseGroupYearKey(code(group));
                 int yearId;
-                if (number.HasValue && years.TryGetValue(number.Value, out yearId) && !map.ContainsKey(id(group)))
+                if (key != null && years.TryGetValue(key, out yearId) && !map.ContainsKey(id(group)))
                 {
                     map[id(group)] = yearId;
                 }
@@ -128,6 +168,48 @@ namespace AssetManagement.Application.Helpers
             }
 
             var result = new Dictionary<int, int>();
+            foreach (var pair in candidates.Where(x => x.Value.Count == 1))
+            {
+                result[pair.Key] = pair.Value.First();
+            }
+
+            return result;
+        }
+
+        /// <summary>Alias token ("7", "KG") -> Year id, only for tokens with exactly one active top-level Year.</summary>
+        public static IDictionary<string, int> YearIdsByKey<T>(
+            IEnumerable<T> items,
+            Func<T, int> id,
+            Func<T, DepartmentKind> kind,
+            Func<T, string> name,
+            Func<T, string> code,
+            Func<T, int?> parentId,
+            Func<T, bool> isActive)
+            where T : class
+        {
+            var candidates = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var year in (items ?? Enumerable.Empty<T>()).Where(x => x != null
+                && kind(x) == DepartmentKind.Grade
+                && !parentId(x).HasValue
+                && isActive(x)))
+            {
+                var key = ParseYearKey(name(year), code(year));
+                if (key == null)
+                {
+                    continue;
+                }
+
+                HashSet<int> ids;
+                if (!candidates.TryGetValue(key, out ids))
+                {
+                    ids = new HashSet<int>();
+                    candidates[key] = ids;
+                }
+
+                ids.Add(id(year));
+            }
+
+            var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in candidates.Where(x => x.Value.Count == 1))
             {
                 result[pair.Key] = pair.Value.First();
@@ -261,6 +343,19 @@ namespace AssetManagement.Application.Helpers
                     admin.Children = keep;
                 }
             }
+        }
+
+        /// <summary>"07" -> "7", "kg" -> "KG".</summary>
+        private static string NormalizeKey(string token)
+        {
+            var text = (token ?? string.Empty).Trim();
+            int number;
+            if (text.Length > 0 && char.IsDigit(text[0]) && int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out number))
+            {
+                return number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return text.Length == 0 ? null : text.ToUpperInvariant();
         }
 
         private static int? ParseNumber(Regex pattern, string value)

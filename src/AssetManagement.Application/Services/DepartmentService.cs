@@ -100,7 +100,7 @@ namespace AssetManagement.Application.Services
                 .ToList();
 
             var sections = new List<DepartmentTreeSectionVm>();
-            foreach (var section in new[] { DepartmentSection.Prep, DepartmentSection.SeniorSchool })
+            foreach (var section in DepartmentSectionHelper.All)
             {
                 var current = section;
                 var grades = departments
@@ -348,6 +348,7 @@ namespace AssetManagement.Application.Services
             var oldSection = entity.Section;
             var oldPrepHead = entity.PrepHeadUserId;
             var oldSeniorHead = entity.SeniorHeadUserId;
+            var oldKgHead = entity.KgHeadUserId;
             entity.Name = model.Name;
             entity.Code = model.Code;
             entity.Description = model.Description;
@@ -394,11 +395,13 @@ namespace AssetManagement.Application.Services
             {
                 entity.PrepHeadUserId = string.IsNullOrWhiteSpace(model.PrepHeadUserId) ? null : model.PrepHeadUserId.Trim();
                 entity.SeniorHeadUserId = string.IsNullOrWhiteSpace(model.SeniorHeadUserId) ? null : model.SeniorHeadUserId.Trim();
+                entity.KgHeadUserId = string.IsNullOrWhiteSpace(model.KgHeadUserId) ? null : model.KgHeadUserId.Trim();
             }
             else
             {
                 entity.PrepHeadUserId = null;
                 entity.SeniorHeadUserId = null;
+                entity.KgHeadUserId = null;
             }
 
             if (flowConfigurable)
@@ -467,10 +470,11 @@ namespace AssetManagement.Application.Services
             }
 
             var headsChanged = !string.Equals(oldPrepHead ?? string.Empty, entity.PrepHeadUserId ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(oldSeniorHead ?? string.Empty, entity.SeniorHeadUserId ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+                || !string.Equals(oldSeniorHead ?? string.Empty, entity.SeniorHeadUserId ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(oldKgHead ?? string.Empty, entity.KgHeadUserId ?? string.Empty, StringComparison.OrdinalIgnoreCase);
             if (headsChanged)
             {
-                auditOld.Add("PrepHead=" + (oldPrepHead ?? "-") + ";SeniorHead=" + (oldSeniorHead ?? "-"));
+                auditOld.Add("PrepHead=" + (oldPrepHead ?? "-") + ";SeniorHead=" + (oldSeniorHead ?? "-") + ";KgHead=" + (oldKgHead ?? "-"));
             }
 
             WriteDepartmentAudit(
@@ -478,7 +482,7 @@ namespace AssetManagement.Application.Services
                 entity.Id.ToString(),
                 auditOld.Count > 0 ? string.Join(";", auditOld) : null,
                 (oldSection != entity.Section ? entity.Name + ";Section=" + entity.Section : entity.Name)
-                    + (headsChanged ? ";PrepHead=" + (entity.PrepHeadUserId ?? "-") + ";SeniorHead=" + (entity.SeniorHeadUserId ?? "-") : string.Empty));
+                    + (headsChanged ? ";PrepHead=" + (entity.PrepHeadUserId ?? "-") + ";SeniorHead=" + (entity.SeniorHeadUserId ?? "-") + ";KgHead=" + (entity.KgHeadUserId ?? "-") : string.Empty));
             foreach (var follower in sectionFollowers)
             {
                 WriteDepartmentAudit(
@@ -707,6 +711,7 @@ namespace AssetManagement.Application.Services
             {
                 guard.EnsureUserInOrganization(organizationId, model.PrepHeadUserId, "Head (Prep)", "Departments.Edit", nameof(Department), entityId);
                 guard.EnsureUserInOrganization(organizationId, model.SeniorHeadUserId, "Head (Senior school)", "Departments.Edit", nameof(Department), entityId);
+                guard.EnsureUserInOrganization(organizationId, model.KgHeadUserId, "Head (KG)", "Departments.Edit", nameof(Department), entityId);
             }
 
             var custom = flowConfigurable
@@ -1280,7 +1285,8 @@ namespace AssetManagement.Application.Services
                 Section = entity.Section,
                 SortOrder = entity.SortOrder,
                 PrepHeadUserId = entity.PrepHeadUserId,
-                SeniorHeadUserId = entity.SeniorHeadUserId
+                SeniorHeadUserId = entity.SeniorHeadUserId,
+                KgHeadUserId = entity.KgHeadUserId
             };
         }
 

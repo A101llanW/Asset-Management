@@ -91,10 +91,10 @@ OPTION (LOOP JOIN, ORDER GROUP)";
                                 PricedTotal = ReadDecimalOrZero(reader, "PricedTotal")
                             };
                             groups.Add(group);
-                            var yearNumber = HomeroomYearAlias.ParseGroupYearNumber(parentCode);
-                            if (parentKind == (int)DepartmentKind.SubDepartment && yearNumber.HasValue && parentOrganizationId.HasValue)
+                            var yearKey = HomeroomYearAlias.ParseGroupYearKey(parentCode);
+                            if (parentKind == (int)DepartmentKind.SubDepartment && yearKey != null && parentOrganizationId.HasValue)
                             {
-                                aliasCandidates.Add(new HomeroomParentCandidate { Group = group, YearNumber = yearNumber.Value, OrganizationId = parentOrganizationId.Value });
+                                aliasCandidates.Add(new HomeroomParentCandidate { Group = group, YearKey = yearKey, OrganizationId = parentOrganizationId.Value });
                             }
                         }
                     }
@@ -112,7 +112,7 @@ OPTION (LOOP JOIN, ORDER GROUP)";
         private sealed class HomeroomParentCandidate
         {
             public AssetRoomGroupVm Group { get; set; }
-            public int YearNumber { get; set; }
+            public string YearKey { get; set; }
             public int OrganizationId { get; set; }
         }
 
@@ -159,7 +159,7 @@ OPTION (LOOP JOIN, ORDER GROUP)";
             foreach (var org in candidates.GroupBy(x => x.OrganizationId))
             {
                 var orgYears = years.Where(x => x.OrganizationId == org.Key).ToList();
-                var byNumber = HomeroomYearAlias.YearIdsByNumber(
+                var byKey = HomeroomYearAlias.YearIdsByKey(
                     orgYears,
                     x => x.Id,
                     x => DepartmentKind.Grade,
@@ -170,7 +170,7 @@ OPTION (LOOP JOIN, ORDER GROUP)";
                 foreach (var candidate in org)
                 {
                     int yearId;
-                    if (byNumber.TryGetValue(candidate.YearNumber, out yearId))
+                    if (byKey.TryGetValue(candidate.YearKey, out yearId))
                     {
                         candidate.Group.ParentName = orgYears.First(x => x.Id == yearId).Name;
                     }

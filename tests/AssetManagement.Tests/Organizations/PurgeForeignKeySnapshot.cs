@@ -141,6 +141,7 @@ namespace AssetManagement.Tests.Organizations
             // Migration 107_DepartmentSectionHeads.sql (section heads per Prep / Senior).
             new ForeignKeyEdge("FK_Department_PrepHeadUser", "Department", "PrepHeadUserId", "Users", "NO_ACTION"),
             new ForeignKeyEdge("FK_Department_SeniorHeadUser", "Department", "SeniorHeadUserId", "Users", "NO_ACTION"),
+            new ForeignKeyEdge("FK_Department_KgHeadUser", "Department", "KgHeadUserId", "Users", "NO_ACTION"),
         };
     }
 }

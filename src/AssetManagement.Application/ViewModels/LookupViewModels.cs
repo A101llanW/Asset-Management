@@ -100,6 +100,13 @@ namespace AssetManagement.Application.ViewModels
         public string SeniorHeadUserId { get; set; }
 
         public string SeniorHeadName { get; set; }
+
+        /// <summary>Migration 111: head for the KG section (any active user, whatever their role). Null = not set (fallback).</summary>
+        [StringLength(128)]
+        [Display(Name = "Head (KG)")]
+        public string KgHeadUserId { get; set; }
+
+        public string KgHeadName { get; set; }
     }
 
     public class DepartmentChildMoveVm

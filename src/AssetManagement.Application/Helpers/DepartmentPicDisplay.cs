@@ -28,6 +28,12 @@ namespace AssetManagement.Application.Helpers
 
             // Admin / Sub / Grade: show the section heads set on this unit (migration 107), if any.
             var parts = new System.Collections.Generic.List<string>();
+            var kg = FormatName(department.KgHeadName, department.KgHeadUserId, "Head, KG");
+            if (!string.IsNullOrEmpty(kg))
+            {
+                parts.Add(kg);
+            }
+
             var prep = FormatName(department.PrepHeadName, department.PrepHeadUserId, "Head, Prep");
             if (!string.IsNullOrEmpty(prep))
             {

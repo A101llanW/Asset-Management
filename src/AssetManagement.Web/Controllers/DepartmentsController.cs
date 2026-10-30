@@ -749,6 +749,11 @@ namespace AssetManagement.Web.Controllers
                 ids.Add(dept.SeniorHeadUserId.Trim());
             }
 
+            if (!string.IsNullOrWhiteSpace(dept.KgHeadUserId))
+            {
+                ids.Add(dept.KgHeadUserId.Trim());
+            }
+
             if (dept.Children == null)
             {
                 return;
@@ -790,6 +795,12 @@ namespace AssetManagement.Web.Controllers
                 && labels.TryGetValue(dept.SeniorHeadUserId.Trim(), out label))
             {
                 dept.SeniorHeadName = label;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dept.KgHeadUserId)
+                && labels.TryGetValue(dept.KgHeadUserId.Trim(), out label))
+            {
+                dept.KgHeadName = label;
             }
 
             if (dept.Children == null)
@@ -869,6 +880,7 @@ namespace AssetManagement.Web.Controllers
             // Migration 107: section heads can be ANY active user (whatever their role).
             ViewBag.PrepHeadUsers = BuildActiveUserSelectList(model.PrepHeadUserId);
             ViewBag.SeniorHeadUsers = BuildActiveUserSelectList(model.SeniorHeadUserId);
+            ViewBag.KgHeadUsers = BuildActiveUserSelectList(model.KgHeadUserId);
 
             if (DepartmentHierarchyRules.CanConfigureRequisitionFlow(model.DepartmentKind))
             {

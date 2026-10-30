@@ -54,6 +54,60 @@ namespace AssetManagement.Tests.Helpers
             Assert.AreEqual(7, map[70]);
         }
 
+        [TestCase("ACADEMIC-GRADEKGHR", "KG")]
+        [TestCase("academic-gradekghr", "KG")]
+        [TestCase("ACADEMIC-GRADE07HR", "7")]
+        [TestCase("ACADEMIC-GRADE7HR", "7")]
+        public void ParseGroupYearKey_NumbersAndLetterTokens(string code, string expected)
+        {
+            Assert.AreEqual(expected, HomeroomYearAlias.ParseGroupYearKey(code));
+        }
+
+        [TestCase("ACADEMIC-KGHOMEROOM")]
+        [TestCase("ACADEMIC-GRADEHR")]
+        [TestCase(null)]
+        public void ParseGroupYearKey_NoMatch(string code)
+        {
+            Assert.IsNull(HomeroomYearAlias.ParseGroupYearKey(code));
+        }
+
+        [Test]
+        public void ParseGroupYearNumber_StaysNumericOnly()
+        {
+            Assert.IsNull(HomeroomYearAlias.ParseGroupYearNumber("ACADEMIC-GRADEKGHR"));
+        }
+
+        private static List<DepartmentVm> SchoolWithKg()
+        {
+            var list = School();
+            list.Add(new DepartmentVm { Id = 50, Name = "KG", Code = "KG", DepartmentKind = DepartmentKind.Grade, Section = DepartmentSection.KG, IsActive = true });
+            list.Add(new DepartmentVm { Id = 51, Name = "KG homerooms", Code = "ACADEMIC-GRADEKGHR", ParentDepartmentId = 1, DepartmentKind = DepartmentKind.SubDepartment, Section = DepartmentSection.KG, IsActive = true });
+            list.Add(new DepartmentVm { Id = 53, Name = "Galaxy B", Code = "ACADEMICGR-GALAXYB", ParentDepartmentId = 51, DepartmentKind = DepartmentKind.Room, Section = DepartmentSection.KG, IsActive = true, IsRequisitionTarget = true });
+            list.Add(new DepartmentVm { Id = 52, Name = "Galaxy A", Code = "ACADEMICGR-GALAXYA", ParentDepartmentId = 51, DepartmentKind = DepartmentKind.Room, Section = DepartmentSection.KG, IsActive = true, IsRequisitionTarget = true });
+            return list;
+        }
+
+        [Test]
+        public void BuildMap_MapsKgHomeroomsToTheKgYear_AndKeepsNumericGroups()
+        {
+            var map = HomeroomYearAlias.BuildMap(SchoolWithKg());
+            Assert.AreEqual(2, map.Count);
+            Assert.AreEqual(7, map[70]);
+            Assert.AreEqual(50, map[51]);
+            Assert.AreEqual(new[] { 52, 53 }, HomeroomYearAlias.RoomsForYear(50, SchoolWithKg()).Select(x => x.Id).ToArray());
+        }
+
+        [Test]
+        public void BuildMap_NoKgAliasWhenKgYearMissingOrDuplicated()
+        {
+            var missing = SchoolWithKg().Where(x => x.Id != 50).ToList();
+            Assert.IsFalse(HomeroomYearAlias.BuildMap(missing).ContainsKey(51));
+
+            var dup = SchoolWithKg();
+            dup.Add(new DepartmentVm { Id = 55, Name = "KG two", Code = "kg", DepartmentKind = DepartmentKind.Grade, IsActive = true });
+            Assert.IsFalse(HomeroomYearAlias.BuildMap(dup).ContainsKey(51));
+        }
+
         [Test]
         public void BuildMap_NoAliasWhenYearMissing()
         {

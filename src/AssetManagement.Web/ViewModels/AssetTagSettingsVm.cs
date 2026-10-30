@@ -10,6 +10,8 @@ namespace AssetManagement.Web.ViewModels
         public string PrepPrefix { get; set; }
         /// <summary>Optional prefix for Senior school units. Blank = no section prefix: nothing changes for Senior school.</summary>
         public string SeniorPrefix { get; set; }
+        /// <summary>Optional prefix for KG (Kindergarten) units (migration 111). Blank = no section prefix: nothing changes for KG.</summary>
+        public string KgPrefix { get; set; }
 
         /// <summary>rel1018b tenant defaults for the per-level segment switches.</summary>
         public bool UseDepartmentSegment { get; set; } = true;

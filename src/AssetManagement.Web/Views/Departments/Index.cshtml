@@ -45,7 +45,7 @@
         ?? new Dictionary<DepartmentKind, int>();
     Func<DepartmentKind, int> kindCountOf = k => kindCounts.ContainsKey(k) ? kindCounts[k] : 0;
     Func<DepartmentVm, int> childCountOf = d => d != null && d.Children != null ? d.Children.Count : 0;
-    // Prep first, then Senior school. Headings only appear when the tree really has more than one section.
+    // KG first, then Prep, then Senior school. Headings only appear when the tree really has more than one section.
     var showSectionHeadings = treeSections.Select(s => s.SectionGroup).Distinct().Count() > 1;
 }
 @if (canCreateDepartment)

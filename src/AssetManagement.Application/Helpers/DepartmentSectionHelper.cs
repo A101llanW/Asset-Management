@@ -8,13 +8,17 @@ using AssetManagement.Domain.Enums;
 namespace AssetManagement.Application.Helpers
 {
     /// <summary>
-    /// Section (Prep / Senior school) labels, parsing, ordering and the grade sort number (migration 106).
+    /// Section (KG / Prep / Senior school) labels, parsing, ordering and the grade sort number (migration 106; KG = migration 111).
     /// A null section always means Senior school: that is what every pre-existing row is.
     /// </summary>
     public static class DepartmentSectionHelper
     {
+        public const string KgLabel = "KG";
         public const string PrepLabel = "Prep";
         public const string SeniorLabel = "Senior school";
+
+        /// <summary>Every section in display order: KG, then Prep, then Senior school.</summary>
+        public static readonly DepartmentSection[] All = { DepartmentSection.KG, DepartmentSection.Prep, DepartmentSection.SeniorSchool };
 
         private static readonly Regex GradeCodeRegex = new Regex(
             @"^G(\d{1,2})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -26,22 +30,45 @@ namespace AssetManagement.Application.Helpers
 
         public static string Label(DepartmentSection? section)
         {
-            return Normalize(section) == DepartmentSection.Prep ? PrepLabel : SeniorLabel;
+            switch (Normalize(section))
+            {
+                case DepartmentSection.KG:
+                    return KgLabel;
+                case DepartmentSection.Prep:
+                    return PrepLabel;
+                default:
+                    return SeniorLabel;
+            }
         }
 
-        /// <summary>Prep first (0), then Senior school (1).</summary>
+        /// <summary>KG first (0), then Prep (1), then Senior school (2).</summary>
         public static int Rank(DepartmentSection? section)
         {
-            return Normalize(section) == DepartmentSection.Prep ? 0 : 1;
+            switch (Normalize(section))
+            {
+                case DepartmentSection.KG:
+                    return 0;
+                case DepartmentSection.Prep:
+                    return 1;
+                default:
+                    return 2;
+            }
         }
 
-        /// <summary>Accepts Prep, Senior, SeniorSchool, "Senior school", 0 and 1 (case-insensitive). Blank or unknown = null.</summary>
+        /// <summary>Accepts KG, Kindergarten, Prep, Senior, SeniorSchool, "Senior school", 0, 1 and 2 (case-insensitive). Blank or unknown = null.</summary>
         public static DepartmentSection? ParseOrNull(string raw)
         {
             var text = (raw ?? string.Empty).Trim().Replace(" ", string.Empty).Replace("_", string.Empty);
             if (text.Length == 0)
             {
                 return null;
+            }
+
+            if (string.Equals(text, "KG", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(text, "Kindergarten", StringComparison.OrdinalIgnoreCase)
+                || text == "2")
+            {
+                return DepartmentSection.KG;
             }
 
             if (string.Equals(text, "Prep", StringComparison.OrdinalIgnoreCase) || text == "1")
@@ -62,7 +89,15 @@ namespace AssetManagement.Application.Helpers
         /// <summary>Value used in query strings and form posts (enum name).</summary>
         public static string ToQueryValue(DepartmentSection section)
         {
-            return section == DepartmentSection.Prep ? "Prep" : "SeniorSchool";
+            switch (section)
+            {
+                case DepartmentSection.KG:
+                    return "KG";
+                case DepartmentSection.Prep:
+                    return "Prep";
+                default:
+                    return "SeniorSchool";
+            }
         }
 
         /// <summary>The grade number in a G## code (G00 = 0, G05 = 5); null for any other code.</summary>
@@ -109,6 +144,7 @@ namespace AssetManagement.Application.Helpers
         {
             return new List<KeyValuePair<DepartmentSection, string>>
             {
+                new KeyValuePair<DepartmentSection, string>(DepartmentSection.KG, KgLabel),
                 new KeyValuePair<DepartmentSection, string>(DepartmentSection.Prep, PrepLabel),
                 new KeyValuePair<DepartmentSection, string>(DepartmentSection.SeniorSchool, SeniorLabel)
             };

@@ -26,6 +26,7 @@ namespace AssetManagement.Application.Helpers
         public const string TenantPrefixSettingKey = "AssetTag.Prefix.TenantDefault";
         public const string PrepPrefixSettingKey = "AssetTag.Prefix.Section.Prep";
         public const string SeniorPrefixSettingKey = "AssetTag.Prefix.Section.Senior";
+        public const string KgPrefixSettingKey = "AssetTag.Prefix.Section.KG";
 
         // rel1018b: tenant defaults for the per-level "use this segment" switches (SystemSetting rows; missing = the default below).
         public const string UseDepartmentSegmentSettingKey = "AssetTag.Segment.Department";
@@ -130,7 +131,15 @@ namespace AssetManagement.Application.Helpers
 
         public static string SectionSettingKey(DepartmentSection section)
         {
-            return section == DepartmentSection.Prep ? PrepPrefixSettingKey : SeniorPrefixSettingKey;
+            switch (section)
+            {
+                case DepartmentSection.KG:
+                    return KgPrefixSettingKey;
+                case DepartmentSection.Prep:
+                    return PrepPrefixSettingKey;
+                default:
+                    return SeniorPrefixSettingKey;
+            }
         }
 
         /// <summary>The configured section prefixes (normalized). A section without a usable value is absent, so nothing changes for it.</summary>
@@ -142,7 +151,7 @@ namespace AssetManagement.Application.Helpers
                 return result;
             }
 
-            foreach (var section in new[] { DepartmentSection.Prep, DepartmentSection.SeniorSchool })
+            foreach (var section in DepartmentSectionHelper.All)
             {
                 string value;
                 var normalized = settings.TryGetValue(SectionSettingKey(section), out value) ? NormalizePrefix(value) : null;

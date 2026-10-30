@@ -59,6 +59,7 @@ namespace AssetManagement.Tests.Departments
             Assert.AreEqual(DepartmentSection.SeniorSchool, new Department().Section);
             Assert.AreEqual(0, (int)DepartmentSection.SeniorSchool);
             Assert.AreEqual(1, (int)DepartmentSection.Prep);
+            Assert.AreEqual(2, (int)DepartmentSection.KG);
             Assert.AreEqual(DepartmentSection.SeniorSchool, DepartmentSectionHelper.Normalize(null));
             Assert.IsNull(new Department().SortOrder);
         }
@@ -70,6 +71,10 @@ namespace AssetManagement.Tests.Departments
         [TestCase("SeniorSchool", DepartmentSection.SeniorSchool)]
         [TestCase("Senior school", DepartmentSection.SeniorSchool)]
         [TestCase("0", DepartmentSection.SeniorSchool)]
+        [TestCase("KG", DepartmentSection.KG)]
+        [TestCase(" kg ", DepartmentSection.KG)]
+        [TestCase("Kindergarten", DepartmentSection.KG)]
+        [TestCase("2", DepartmentSection.KG)]
         public void ParseOrNull_AcceptsKnownValues(string raw, DepartmentSection expected)
         {
             Assert.AreEqual(expected, DepartmentSectionHelper.ParseOrNull(raw));
@@ -93,7 +98,35 @@ namespace AssetManagement.Tests.Departments
             Assert.Less(DepartmentSectionHelper.Rank(DepartmentSection.Prep), DepartmentSectionHelper.Rank(DepartmentSection.SeniorSchool));
             Assert.AreEqual("Prep", DepartmentSectionHelper.ToQueryValue(DepartmentSection.Prep));
             Assert.AreEqual("SeniorSchool", DepartmentSectionHelper.ToQueryValue(DepartmentSection.SeniorSchool));
-            Assert.AreEqual(new[] { DepartmentSection.Prep, DepartmentSection.SeniorSchool }, DepartmentSectionHelper.Options().Select(x => x.Key).ToArray());
+            Assert.AreEqual(new[] { DepartmentSection.KG, DepartmentSection.Prep, DepartmentSection.SeniorSchool }, DepartmentSectionHelper.Options().Select(x => x.Key).ToArray());
+        }
+
+        [Test]
+        public void Kg_LabelRankAndQueryValue_ComesFirst()
+        {
+            Assert.AreEqual("KG", DepartmentSectionHelper.Label(DepartmentSection.KG));
+            Assert.AreEqual("KG", DepartmentSectionHelper.ToQueryValue(DepartmentSection.KG));
+            Assert.AreEqual(DepartmentSection.KG, DepartmentSectionHelper.ParseOrNull(DepartmentSectionHelper.ToQueryValue(DepartmentSection.KG)));
+            Assert.Less(DepartmentSectionHelper.Rank(DepartmentSection.KG), DepartmentSectionHelper.Rank(DepartmentSection.Prep));
+            Assert.AreEqual(new[] { DepartmentSection.KG, DepartmentSection.Prep, DepartmentSection.SeniorSchool }, DepartmentSectionHelper.All);
+            Assert.AreEqual(DepartmentSection.SeniorSchool, DepartmentSectionHelper.Normalize(null), "Senior school stays the default");
+        }
+
+        [Test]
+        public void TreeSections_KgYearHasItsOwnGroup_BeforePrepAndSenior()
+        {
+            var service = CreateService(new FakeUnitOfWork());
+            var departments = new List<DepartmentVm>
+            {
+                Vm(1, "Grade 1", "G01", DepartmentKind.Grade),
+                Vm(2, "Prep", "G00", DepartmentKind.Grade, DepartmentSection.Prep),
+                Vm(3, "KG", "KG", DepartmentKind.Grade, DepartmentSection.KG)
+            };
+
+            var sections = service.GetTreeSections(departments).ToList();
+
+            Assert.AreEqual(new[] { "KG", "Prep", "Grade 1" }, sections.Select(x => x.Title).ToArray());
+            Assert.AreEqual(new[] { DepartmentSection.KG, DepartmentSection.Prep, DepartmentSection.SeniorSchool }, sections.Select(x => x.SectionGroup).ToArray());
         }
 
         [Test]
