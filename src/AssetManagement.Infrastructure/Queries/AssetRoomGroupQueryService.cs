@@ -49,7 +49,8 @@ namespace AssetManagement.Infrastructure.Queries
             // order even with a search filter, so the GROUP BY never needs a sort (no grant).
             var sql = @"
 SELECT g.[DepartmentId], g.[UnitCount], g.[PricedCount], g.[PricedTotal],
-       d.[Name] AS DepartmentName, d.[DepartmentKind], p.[Name] AS ParentName
+       d.[Name] AS DepartmentName, d.[DepartmentKind], p.[Name] AS ParentName,
+       p.[Code] AS ParentCode, p.[DepartmentKind] AS ParentKind, p.[OrganizationId] AS ParentOrganizationId
 FROM (
     SELECT a.[DepartmentId],
            COUNT(*) AS UnitCount,
@@ -63,6 +64,7 @@ LEFT JOIN [Department] p ON p.[Id] = d.[ParentDepartmentId]
 OPTION (LOOP JOIN, ORDER GROUP)";
 
             var groups = new List<AssetRoomGroupVm>();
+            var aliasCandidates = new List<HomeroomParentCandidate>();
             using (var connection = _connectionFactory.CreateConnection())
             {
                 connection.Open();
@@ -75,7 +77,10 @@ OPTION (LOOP JOIN, ORDER GROUP)";
                     {
                         while (reader.Read())
                         {
-                            groups.Add(new AssetRoomGroupVm
+                            var parentKind = reader["ParentKind"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ParentKind"]);
+                            var parentCode = SqlQueryHelper.GetString(reader, "ParentCode");
+                            var parentOrganizationId = reader["ParentOrganizationId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ParentOrganizationId"]);
+                            var group = new AssetRoomGroupVm
                             {
                                 DepartmentId = reader["DepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["DepartmentId"]),
                                 Name = SqlQueryHelper.GetString(reader, "DepartmentName"),
@@ -84,13 +89,93 @@ OPTION (LOOP JOIN, ORDER GROUP)";
                                 AssetCount = Convert.ToInt32(reader["UnitCount"]),
                                 PricedCount = Convert.ToInt32(reader["PricedCount"]),
                                 PricedTotal = ReadDecimalOrZero(reader, "PricedTotal")
-                            });
+                            };
+                            groups.Add(group);
+                            var yearNumber = HomeroomYearAlias.ParseGroupYearNumber(parentCode);
+                            if (parentKind == (int)DepartmentKind.SubDepartment && yearNumber.HasValue && parentOrganizationId.HasValue)
+                            {
+                                aliasCandidates.Add(new HomeroomParentCandidate { Group = group, YearNumber = yearNumber.Value, OrganizationId = parentOrganizationId.Value });
+                            }
                         }
                     }
+                }
+
+                if (aliasCandidates.Count > 0)
+                {
+                    ApplyHomeroomYearParents(connection, aliasCandidates);
                 }
             }
 
             return AssetRoomGroupView.SortAndPage(groups, page, pageSize);
+        }
+
+        private sealed class HomeroomParentCandidate
+        {
+            public AssetRoomGroupVm Group { get; set; }
+            public int YearNumber { get; set; }
+            public int OrganizationId { get; set; }
+        }
+
+        private sealed class YearRow
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
+            public string Code { get; set; }
+            public int? ParentDepartmentId { get; set; }
+            public bool IsActive { get; set; }
+            public int OrganizationId { get; set; }
+        }
+
+        /// <summary>
+        /// pt547u (display only): a room under "Grade 7 homerooms" (ACADEMIC-GRADE7HR) shows "in Year 7" instead of the
+        /// homerooms group, when exactly one active top-level Year 7 exists in that organisation (HomeroomYearAlias rules).
+        /// </summary>
+        private static void ApplyHomeroomYearParents(IDbConnection connection, IList<HomeroomParentCandidate> candidates)
+        {
+            var organizationIds = candidates.Select(x => x.OrganizationId).Distinct().ToList();
+            var years = new List<YearRow>();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT [Id], [Name], [Code], [ParentDepartmentId], [IsActive], [OrganizationId] FROM [Department] WHERE [DepartmentKind] = "
+                    + ((int)DepartmentKind.Grade).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " AND [OrganizationId] IN (" + string.Join(",", organizationIds.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()) + ")";
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        years.Add(new YearRow
+                        {
+                            Id = Convert.ToInt32(reader["Id"]),
+                            Name = SqlQueryHelper.GetString(reader, "Name"),
+                            Code = SqlQueryHelper.GetString(reader, "Code"),
+                            ParentDepartmentId = reader["ParentDepartmentId"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ParentDepartmentId"]),
+                            IsActive = reader["IsActive"] != DBNull.Value && Convert.ToBoolean(reader["IsActive"]),
+                            OrganizationId = Convert.ToInt32(reader["OrganizationId"])
+                        });
+                    }
+                }
+            }
+
+            foreach (var org in candidates.GroupBy(x => x.OrganizationId))
+            {
+                var orgYears = years.Where(x => x.OrganizationId == org.Key).ToList();
+                var byNumber = HomeroomYearAlias.YearIdsByNumber(
+                    orgYears,
+                    x => x.Id,
+                    x => DepartmentKind.Grade,
+                    x => x.Name,
+                    x => x.Code,
+                    x => x.ParentDepartmentId,
+                    x => x.IsActive);
+                foreach (var candidate in org)
+                {
+                    int yearId;
+                    if (byNumber.TryGetValue(candidate.YearNumber, out yearId))
+                    {
+                        candidate.Group.ParentName = orgYears.First(x => x.Id == yearId).Name;
+                    }
+                }
+            }
         }
 
         public IList<AssetRoomCategoryGroupVm> GetRoomCategories(AssetFilterVm filter, int roomId)

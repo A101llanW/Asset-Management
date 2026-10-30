@@ -23,6 +23,15 @@ namespace AssetManagement.Application.Helpers
 
         public static string BuildPathLabel(int departmentId, IDictionary<int, DepartmentVm> lookup)
         {
+            return lookup == null ? string.Empty : BuildPathLabel(departmentId, lookup, HomeroomYearAlias.BuildMap(lookup.Values));
+        }
+
+        /// <summary>
+        /// Same, with the homerooms alias map (pt547u, display only): a room under "Grade 7 homerooms" reads
+        /// "Grade 7 &gt; Grade 7A" (callers apply GradeDisplay: "Year 7 &gt; 7A"); the homerooms level is skipped.
+        /// </summary>
+        public static string BuildPathLabel(int departmentId, IDictionary<int, DepartmentVm> lookup, IDictionary<int, int> aliasMap)
+        {
             if (lookup == null)
             {
                 return string.Empty;
@@ -37,6 +46,16 @@ namespace AssetManagement.Application.Helpers
                 if (!lookup.TryGetValue(current.Value, out node) || node == null)
                 {
                     break;
+                }
+
+                int yearId;
+                if (node.Id != departmentId
+                    && aliasMap != null
+                    && aliasMap.TryGetValue(node.Id, out yearId)
+                    && lookup.ContainsKey(yearId))
+                {
+                    current = yearId;
+                    continue;
                 }
 
                 names.Insert(0, (node.Name ?? string.Empty).Trim());
@@ -60,6 +79,8 @@ namespace AssetManagement.Application.Helpers
                 return trail;
             }
 
+            // pt547u (display only): a room under "Grade 7 homerooms" shows Departments > Year 7 > 7A.
+            var aliasMap = HomeroomYearAlias.BuildMap(lookup.Values);
             var seen = new HashSet<int> { department.Id };
             var current = department.ParentDepartmentId;
             while (current.HasValue && seen.Add(current.Value) && trail.Count < MaxDepth)
@@ -68,6 +89,13 @@ namespace AssetManagement.Application.Helpers
                 if (!lookup.TryGetValue(current.Value, out node) || node == null)
                 {
                     break;
+                }
+
+                int yearId;
+                if (aliasMap.TryGetValue(node.Id, out yearId) && lookup.ContainsKey(yearId))
+                {
+                    current = yearId;
+                    continue;
                 }
 
                 var label = GradeDisplay.ToYear((node.Name ?? string.Empty).Trim());
@@ -163,14 +191,18 @@ namespace AssetManagement.Application.Helpers
         /// </summary>
         public static IList<KeyValuePair<int, string>> BuildTreeOptions(IEnumerable<DepartmentVm> departments, bool requisitionTargetsOnly)
         {
-            var list = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null && x.IsActive).ToList();
-            var lookup = ToLookup(list);
+            var all = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null && x.IsActive).ToList();
+            var lookup = ToLookup(all);
+            // pt547u (display only): homerooms groups are hidden and their rooms listed under the matching Year.
+            var aliasMap = HomeroomYearAlias.BuildMap(all);
+            var list = all.Where(x => !aliasMap.ContainsKey(x.Id)).ToList();
+            Func<DepartmentVm, int?> displayParent = x => HomeroomYearAlias.DisplayParentId(x.ParentDepartmentId, aliasMap);
             var childrenByParent = list
-                .Where(x => x.ParentDepartmentId.HasValue && lookup.ContainsKey(x.ParentDepartmentId.Value))
-                .GroupBy(x => x.ParentDepartmentId.Value)
+                .Where(x => displayParent(x).HasValue && lookup.ContainsKey(displayParent(x).Value))
+                .GroupBy(x => displayParent(x).Value)
                 .ToDictionary(g => g.Key, g => SortSiblings(g).ToList());
             var roots = list
-                .Where(x => !x.ParentDepartmentId.HasValue || !lookup.ContainsKey(x.ParentDepartmentId.Value))
+                .Where(x => !displayParent(x).HasValue || !lookup.ContainsKey(displayParent(x).Value))
                 .OrderBy(x => DepartmentSectionHelper.Rank(x.Section))
                 .ThenBy(x => RootRank(x.DepartmentKind))
                 .ThenBy(x => x.DepartmentKind == DepartmentKind.Grade ? DepartmentSectionHelper.EffectiveSortNumber(x.SortOrder, x.Code) : 0)
@@ -180,7 +212,7 @@ namespace AssetManagement.Application.Helpers
             var seen = new HashSet<int>();
             foreach (var root in roots)
             {
-                Walk(root, childrenByParent, lookup, result, seen, 0, requisitionTargetsOnly);
+                Walk(root, childrenByParent, lookup, aliasMap, result, seen, 0, requisitionTargetsOnly);
             }
 
             return result;
@@ -232,6 +264,7 @@ namespace AssetManagement.Application.Helpers
             DepartmentVm node,
             IDictionary<int, List<DepartmentVm>> childrenByParent,
             IDictionary<int, DepartmentVm> lookup,
+            IDictionary<int, int> aliasMap,
             IList<KeyValuePair<int, string>> result,
             ISet<int> seen,
             int depth,
@@ -244,7 +277,7 @@ namespace AssetManagement.Application.Helpers
 
             if (node.IsRequisitionTarget || !requisitionTargetsOnly)
             {
-                result.Add(new KeyValuePair<int, string>(node.Id, BuildPathLabel(node.Id, lookup)));
+                result.Add(new KeyValuePair<int, string>(node.Id, BuildPathLabel(node.Id, lookup, aliasMap)));
             }
 
             List<DepartmentVm> children;
@@ -252,7 +285,7 @@ namespace AssetManagement.Application.Helpers
             {
                 foreach (var child in children)
                 {
-                    Walk(child, childrenByParent, lookup, result, seen, depth + 1, requisitionTargetsOnly);
+                    Walk(child, childrenByParent, lookup, aliasMap, result, seen, depth + 1, requisitionTargetsOnly);
                 }
             }
         }
@@ -260,8 +293,8 @@ namespace AssetManagement.Application.Helpers
         private static IEnumerable<DepartmentVm> SortSiblings(IEnumerable<DepartmentVm> siblings)
         {
             return siblings
-                .OrderBy(x => string.IsNullOrWhiteSpace(x.Code) ? x.Name : x.Code, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase);
+                .OrderBy(x => string.IsNullOrWhiteSpace(x.Code) ? x.Name : x.Code, NaturalStringComparer.Instance)
+                .ThenBy(x => x.Name, NaturalStringComparer.Instance);
         }
 
         private static int RootRank(DepartmentKind kind)

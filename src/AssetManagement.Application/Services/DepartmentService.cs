@@ -89,6 +89,8 @@ namespace AssetManagement.Application.Services
             // Section order: Prep first, then Senior school. Inside a section: its grades (by sort number, not by a
             // hard-coded G01..G99 list, so Prep G00 and any non-G## grade code are shown), Administration, Other.
             var adminItems = DepartmentOrgHierarchyDisplay.BuildAdministrativeSectionItems(departments);
+            // pt547u (display only): rooms of "Grade N homerooms" (ACADEMIC-GRADE{N}HR) show under Year N; the group is hidden.
+            HomeroomYearAlias.AttachRoomsToYears(departments, adminItems);
             var ungrouped = departments
                 .Where(x => !x.ParentDepartmentId.HasValue
                     && x.DepartmentKind != DepartmentKind.Grade

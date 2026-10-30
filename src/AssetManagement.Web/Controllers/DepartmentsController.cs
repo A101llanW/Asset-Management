@@ -92,7 +92,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.StatusFilter = status;
             ViewBag.ViewMode = string.Equals(view, "list", StringComparison.OrdinalIgnoreCase) ? "list" : "tree";
             ViewBag.Search = search;
-            var itemsList = items.OrderBy(x => x.Name).ToList();
+            var itemsList = items.OrderBy(x => x.Name, NaturalStringComparer.Instance).ToList();
             EnrichDepartmentPicNames(itemsList);
             // One grouped pass over the filtered list (no N+1): per-kind counts for the Index summary.
             ViewBag.KindCounts = itemsList
@@ -120,6 +120,28 @@ namespace AssetManagement.Web.Controllers
                 })
                 .Where(section => section.Items.Any())
                 .ToList();
+
+            // pt547u (display only): the flat list hides "Grade N homerooms" and shows Year N as the parent of its rooms.
+            var aliasMap = HomeroomYearAlias.BuildMap(itemsList);
+            if (aliasMap.Count > 0)
+            {
+                var itemById = itemsList.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+                foreach (var item in itemsList)
+                {
+                    int yearId;
+                    if (item.ParentDepartmentId.HasValue
+                        && aliasMap.TryGetValue(item.ParentDepartmentId.Value, out yearId)
+                        && itemById.ContainsKey(yearId))
+                    {
+                        item.ParentDepartmentName = itemById[yearId].Name;
+                    }
+                }
+
+                itemsList = itemsList.Where(x => !aliasMap.ContainsKey(x.Id)).ToList();
+                ViewBag.KindCounts = itemsList
+                    .GroupBy(x => x.DepartmentKind)
+                    .ToDictionary(g => g.Key, g => g.Count());
+            }
 
             return View(itemsList);
         }
@@ -203,7 +225,11 @@ namespace AssetManagement.Web.Controllers
             ViewBag.BreadcrumbAncestors = DepartmentTreeHelper.GetAncestorTrail(model, scopedDepartments);
             if (model.DepartmentKind == DepartmentKind.Administrative && !model.ParentDepartmentId.HasValue)
             {
-                ViewBag.SubDepartments = DepartmentOrgHierarchyDisplay.GetSubDepartmentsUnder(scopedDepartments, model.Id);
+                // pt547u (display only): "Grade N homerooms" groups are shown as their Years, not as sub-departments.
+                var subAliasMap = HomeroomYearAlias.BuildMap(scopedDepartments);
+                ViewBag.SubDepartments = DepartmentOrgHierarchyDisplay.GetSubDepartmentsUnder(scopedDepartments, model.Id)
+                    .Where(x => !subAliasMap.ContainsKey(x.Id))
+                    .ToList();
                 ViewBag.DirectRooms = DepartmentOrgHierarchyDisplay.GetDirectRoomsUnderAdministrative(scopedDepartments, model.Id);
             }
             else if (model.DepartmentKind == DepartmentKind.SubDepartment)

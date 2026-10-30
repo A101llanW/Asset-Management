@@ -38,7 +38,7 @@ namespace AssetManagement.Application.ViewModels
                 .Where(x => x != null)
                 .OrderBy(x => x.DepartmentId.HasValue ? 0 : 1)
                 .ThenBy(x => x.IsRoom ? 0 : 1)
-                .ThenBy(x => x.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Name ?? string.Empty, AssetManagement.Application.Helpers.NaturalStringComparer.Instance)
                 .ThenBy(x => x.DepartmentId ?? 0)
                 .ToList();
 

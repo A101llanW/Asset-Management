@@ -284,12 +284,23 @@ namespace AssetManagement.Application.Helpers
 
             var parts = new List<string> { department.Name };
             var current = department;
+            // pt547u (display only): skip "Grade N homerooms" so the label reads "Grade 7 > Grade 7A" (Year 7 > 7A).
+            var aliasMap = byId == null
+                ? new Dictionary<int, int>()
+                : HomeroomYearAlias.BuildMap(byId.Values, x => x.Id, x => x.DepartmentKind, x => x.Name, x => x.Code, x => x.ParentDepartmentId, x => x.IsActive);
             for (var i = 0; i < 6 && current.ParentDepartmentId.HasValue; i++)
             {
                 Department parent;
                 if (byId == null || !byId.TryGetValue(current.ParentDepartmentId.Value, out parent) || parent == null)
                 {
                     break;
+                }
+
+                int yearId;
+                Department year;
+                if (aliasMap.TryGetValue(parent.Id, out yearId) && byId.TryGetValue(yearId, out year) && year != null)
+                {
+                    parent = year;
                 }
 
                 parts.Insert(0, parent.Name);
@@ -352,6 +363,8 @@ namespace AssetManagement.Application.Helpers
 
             var groupsById = new Dictionary<int, RequisitionRoomGroup>();
             RequisitionRoomGroup noDepartment = null;
+            // pt547u (display only): rooms of "Grade N homerooms" are grouped under Year N (no homerooms heading).
+            var aliasMap = HomeroomYearAlias.BuildMap(lookup.Values);
             foreach (var d in lookup.Values)
             {
                 if (!IsValidRoomTarget(d))
@@ -359,8 +372,14 @@ namespace AssetManagement.Application.Helpers
                     continue;
                 }
 
-                int? groupId = d.ParentDepartmentId.HasValue && d.ParentDepartmentId.Value != d.Id && lookup.ContainsKey(d.ParentDepartmentId.Value)
-                    ? d.ParentDepartmentId
+                var displayParentId = HomeroomYearAlias.DisplayParentId(d.ParentDepartmentId, aliasMap);
+                if (displayParentId.HasValue && !lookup.ContainsKey(displayParentId.Value))
+                {
+                    displayParentId = d.ParentDepartmentId;
+                }
+
+                int? groupId = displayParentId.HasValue && displayParentId.Value != d.Id && lookup.ContainsKey(displayParentId.Value)
+                    ? displayParentId
                     : null;
 
                 RequisitionRoomGroup group;
@@ -375,7 +394,7 @@ namespace AssetManagement.Application.Helpers
                 }
                 else if (!groupsById.TryGetValue(groupId.Value, out group))
                 {
-                    var path = BuildDepartmentPath(groupId.Value, lookup);
+                    var path = BuildDepartmentPath(groupId.Value, lookup, aliasMap);
                     group = new RequisitionRoomGroup
                     {
                         DepartmentId = groupId.Value,
@@ -454,7 +473,7 @@ namespace AssetManagement.Application.Helpers
             return rest != 0 ? rest : string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static List<string> BuildDepartmentPath(int departmentId, IDictionary<int, DepartmentVm> lookup)
+        private static List<string> BuildDepartmentPath(int departmentId, IDictionary<int, DepartmentVm> lookup, IDictionary<int, int> aliasMap)
         {
             var names = new List<string>();
             var seen = new HashSet<int>();
@@ -465,6 +484,13 @@ namespace AssetManagement.Application.Helpers
                 if (!lookup.TryGetValue(current.Value, out node) || node == null)
                 {
                     break;
+                }
+
+                int yearId;
+                if (aliasMap != null && aliasMap.TryGetValue(node.Id, out yearId) && lookup.ContainsKey(yearId))
+                {
+                    current = yearId;
+                    continue;
                 }
 
                 var name = (node.Name ?? string.Empty).Trim();

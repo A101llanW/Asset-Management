@@ -496,11 +496,38 @@ namespace AssetManagement.Web.Controllers
                     departments = departments.Where(x => x.IsActive);
                 }
 
-                return new SelectList(departments.OrderBy(x => x.Name).Select(x => new SelectListItem { Value = x.Id.ToString(), Text = GradeDisplay.ToYear(x.Name) }).ToList(), "Value", "Text", selectedDepartmentId);
+                return new SelectList(BuildFlatDepartmentItems(departments, selectedDepartmentId), "Value", "Text", selectedDepartmentId);
             }
 
             var cachedDepartments = BuildReferenceDataCache().GetDepartments(orgId.Value, activeOnly);
-            return new SelectList(cachedDepartments.OrderBy(x => x.Name).Select(x => new SelectListItem { Value = x.Id.ToString(), Text = GradeDisplay.ToYear(x.Name) }).ToList(), "Value", "Text", selectedDepartmentId);
+            return new SelectList(BuildFlatDepartmentItems(cachedDepartments, selectedDepartmentId), "Value", "Text", selectedDepartmentId);
+        }
+
+        /// <summary>
+        /// Flat department options (asset filter and forms). pt547u, display only: a room under "Grade 7 homerooms"
+        /// reads "Year 7 &gt; 7A" and the homerooms group itself is hidden (unless it is the selected value); order is
+        /// number-aware so Year 2 comes before Year 10.
+        /// </summary>
+        private static List<SelectListItem> BuildFlatDepartmentItems(IEnumerable<DepartmentVm> departments, int? selectedDepartmentId)
+        {
+            var list = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null).ToList();
+            var aliasMap = HomeroomYearAlias.BuildMap(list);
+            var byId = list.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+            return list
+                .Where(x => !aliasMap.ContainsKey(x.Id) || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value))
+                .Select(x =>
+                {
+                    int yearId;
+                    var text = x.ParentDepartmentId.HasValue
+                        && aliasMap.TryGetValue(x.ParentDepartmentId.Value, out yearId)
+                        && byId.ContainsKey(yearId)
+                            ? HomeroomYearAlias.FormatRoomUnderYear(byId[yearId].Name, x.Name)
+                            : GradeDisplay.ToYear(x.Name);
+                    return new SelectListItem { Value = x.Id.ToString(), Text = text };
+                })
+                .OrderBy(x => x.Text, NaturalStringComparer.Instance)
+                .ThenBy(x => x.Value, StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>rel1009g: every active department in tree order with "Parent > Child" labels (Asset Requests).</summary>
@@ -526,7 +553,7 @@ namespace AssetManagement.Web.Controllers
                 .Select(x => new SelectListItem
                 {
                     Value = x.Key.ToString(),
-                    Text = x.Value,
+                    Text = GradeDisplay.ToYear(x.Value),
                     Selected = selectedDepartmentId.HasValue && x.Key == selectedDepartmentId.Value
                 })
                 .ToList();
@@ -553,7 +580,8 @@ namespace AssetManagement.Web.Controllers
             {
                 var groupVm = new DepartmentSelectGroupVm
                 {
-                    Label = group.Label,
+                    // Display only: "Year 7" heading for the rooms of "Grade 7 homerooms" (pt547u).
+                    Label = GradeDisplay.ToYear(group.Label ?? string.Empty),
                     CssClass = "am-req-target-g am-req-target-g-" + (groups.Count % 5)
                 };
                 foreach (var option in group.Options)
@@ -1280,6 +1308,8 @@ namespace AssetManagement.Web.Controllers
         {
             var all = BuildDepartmentService().GetAll().ToList();
             var byId = all.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
+            // pt547u (display only): "Grade N homerooms" is hidden; its rooms are grouped under "Year N".
+            var aliasMap = HomeroomYearAlias.BuildMap(all);
             Func<int?, string> pathOf = null;
             pathOf = id =>
             {
@@ -1287,7 +1317,14 @@ namespace AssetManagement.Web.Controllers
                 var guard = 0;
                 while (id.HasValue && byId.ContainsKey(id.Value) && guard++ < 10)
                 {
-                    parts.Insert(0, byId[id.Value].Name);
+                    int yearId;
+                    if (aliasMap.TryGetValue(id.Value, out yearId) && byId.ContainsKey(yearId))
+                    {
+                        id = yearId;
+                        continue;
+                    }
+
+                    parts.Insert(0, GradeDisplay.ToYear(byId[id.Value].Name));
                     id = byId[id.Value].ParentDepartmentId;
                 }
 
@@ -1297,6 +1334,7 @@ namespace AssetManagement.Web.Controllers
             var targets = all
                 .Where(x => x.IsActive
                     && x.DepartmentKind != DepartmentKind.Grade
+                    && !aliasMap.ContainsKey(x.Id)
                     && (!kindFilter.HasValue || x.DepartmentKind == kindFilter.Value))
                 .Select(x => new { Department = x, Group = x.ParentDepartmentId.HasValue ? pathOf(x.ParentDepartmentId) : string.Empty })
                 .ToList();
@@ -1305,10 +1343,10 @@ namespace AssetManagement.Web.Controllers
             foreach (var group in targets
                 .GroupBy(x => string.IsNullOrWhiteSpace(x.Group) ? "Top level" : x.Group)
                 .OrderBy(x => x.Key == "Top level" ? 0 : 1)
-                .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+                .ThenBy(x => x.Key, NaturalStringComparer.Instance))
             {
                 var vm = new DepartmentSelectGroupVm { Label = group.Key };
-                foreach (var item in group.OrderBy(x => x.Department.Name, StringComparer.OrdinalIgnoreCase))
+                foreach (var item in group.OrderBy(x => x.Department.Name, NaturalStringComparer.Instance))
                 {
                     vm.Items.Add(new DepartmentSelectOptionVm
                     {
@@ -1353,9 +1391,24 @@ namespace AssetManagement.Web.Controllers
                     || (includeInactiveDepartmentId.HasValue && x.Id == includeInactiveDepartmentId.Value));
             }
 
-            var list = departments
+            // pt547u (display only): number-aware order (Year 2 before Year 10); "Grade N homerooms" hidden unless selected,
+            // and its rooms read "Year N > NA".
+            var allDepartments = departments.ToList();
+            var aliasMap = HomeroomYearAlias.BuildMap(allDepartments);
+            var departmentById = allDepartments.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+            Func<DepartmentVm, string> displayName = x =>
+            {
+                int yearId;
+                return x.ParentDepartmentId.HasValue
+                    && aliasMap.TryGetValue(x.ParentDepartmentId.Value, out yearId)
+                    && departmentById.ContainsKey(yearId)
+                        ? HomeroomYearAlias.FormatRoomUnderYear(departmentById[yearId].Name, x.Name)
+                        : GradeDisplay.ToYear(x.Name);
+            };
+            var list = allDepartments
+                .Where(x => !aliasMap.ContainsKey(x.Id) || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value))
                 .OrderBy(x => x.DepartmentKind)
-                .ThenBy(x => x.Name)
+                .ThenBy(x => displayName(x), NaturalStringComparer.Instance)
                 .ToList();
 
             var orgGroup = new DepartmentSelectGroupVm { Label = "Organizational" };
@@ -1368,8 +1421,8 @@ namespace AssetManagement.Web.Controllers
                     Value = dept.Id.ToString(),
                     // QA W5.6: Year wording on the name only; the code keeps its stored value (ACADEMIC-GRADE2HR).
                     Text = string.IsNullOrWhiteSpace(dept.Code)
-                        ? GradeDisplay.ToYear(dept.Name)
-                        : dept.Code + " — " + GradeDisplay.ToYear(dept.Name),
+                        ? displayName(dept)
+                        : dept.Code + " — " + displayName(dept),
                     Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
                 };
                 if (!dept.IsActive)
