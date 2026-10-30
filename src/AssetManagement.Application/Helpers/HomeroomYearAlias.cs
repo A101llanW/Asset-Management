@@ -167,6 +167,38 @@ namespace AssetManagement.Application.Helpers
         }
 
         /// <summary>
+        /// Allan t550s2044: the Year whose page an alias group opens instead (Departments/Details of "Grade 7 homerooms"
+        /// goes to Year 7). Null when the department is not an alias group.
+        /// </summary>
+        public static int? RedirectYearId(int departmentId, IEnumerable<DepartmentVm> departments)
+        {
+            int yearId;
+            var map = BuildMap((departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null).ToList());
+            return map.TryGetValue(departmentId, out yearId) ? yearId : (int?)null;
+        }
+
+        /// <summary>
+        /// Year Details "Rooms" (Allan t550s2044): the Year's direct children plus the rooms of its alias groups
+        /// (e.g. 7A-7D under "Grade 7 homerooms"), in natural order. The groups themselves are not listed.
+        /// </summary>
+        public static IList<DepartmentVm> RoomsForYear(int yearId, IEnumerable<DepartmentVm> departments)
+        {
+            var list = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null).ToList();
+            var map = BuildMap(list);
+            var groupIds = new HashSet<int>(map.Where(x => x.Value == yearId).Select(x => x.Key));
+            return list
+                .Where(x => x.ParentDepartmentId.HasValue
+                    && x.Id != yearId
+                    && !groupIds.Contains(x.Id)
+                    && (x.ParentDepartmentId.Value == yearId || groupIds.Contains(x.ParentDepartmentId.Value)))
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
+                .OrderBy(x => GradeDisplay.ToYear(x.Name ?? string.Empty), NaturalStringComparer.Instance)
+                .ThenBy(x => x.Id)
+                .ToList();
+        }
+
+        /// <summary>
         /// Departments tree: moves each alias group's rooms under its Year (after the Year's classes) and drops the
         /// group from its department's children. Call after Grade/Administrative children are attached.
         /// </summary>

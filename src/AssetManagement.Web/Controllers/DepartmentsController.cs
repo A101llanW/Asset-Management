@@ -208,6 +208,15 @@ namespace AssetManagement.Web.Controllers
                 return HttpNotFound();
             }
 
+            var scopedDepartments = _departmentService.GetAll().ToList();
+            // Allan t550s2044 (display only): "Grade N homerooms" is shown as Year N, so its Details page opens Year N
+            // (which lists the rooms 7A-7D). Edit of the group stays reachable for admins; data is unchanged.
+            var aliasYearId = HomeroomYearAlias.RedirectYearId(model.Id, scopedDepartments);
+            if (aliasYearId.HasValue && aliasYearId.Value != model.Id)
+            {
+                return RedirectToAction("Details", new { id = aliasYearId.Value, returnUrl });
+            }
+
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             if (DepartmentHierarchyRules.ShowsRequisitionFlowColumns(model.DepartmentKind))
             {
@@ -220,7 +229,6 @@ namespace AssetManagement.Web.Controllers
                     .CountActiveUsersForDepartment(organizationId.Value, id)
                 : 0;
             ViewBag.AssetCount = BuildAssetService().CountAssets(new AssetFilterVm { DepartmentId = model.Id });
-            var scopedDepartments = _departmentService.GetAll().ToList();
             // QA 188ce56: breadcrumb shows the parent path (e.g. Academics > Year 6 > 6A), display labels only.
             ViewBag.BreadcrumbAncestors = DepartmentTreeHelper.GetAncestorTrail(model, scopedDepartments);
             if (model.DepartmentKind == DepartmentKind.Administrative && !model.ParentDepartmentId.HasValue)
@@ -235,6 +243,11 @@ namespace AssetManagement.Web.Controllers
             else if (model.DepartmentKind == DepartmentKind.SubDepartment)
             {
                 ViewBag.ChildRooms = DepartmentOrgHierarchyDisplay.GetRoomsUnderSubDepartment(scopedDepartments, model.Id);
+            }
+            else if (model.DepartmentKind == DepartmentKind.Grade)
+            {
+                // Allan t550s2044: Year N lists its rooms (direct children and the rooms of "Grade N homerooms").
+                ViewBag.ChildRooms = HomeroomYearAlias.RoomsForYear(model.Id, scopedDepartments);
             }
 
             // Migration 107: who approves the "Department Head" stage for each section of this unit.

@@ -490,16 +490,13 @@ namespace AssetManagement.Web.Controllers
             var orgId = ResolveCurrentOrganizationId();
             if (!orgId.HasValue)
             {
+                // Allan t550s2044: every row is loaded so a child of an inactive parent is recognised too;
+                // BuildFlatDepartmentItems drops inactive rows unless selected (whatever activeOnly says).
                 var departments = BuildDepartmentService().GetAll();
-                if (activeOnly)
-                {
-                    departments = departments.Where(x => x.IsActive);
-                }
-
                 return new SelectList(BuildFlatDepartmentItems(departments, selectedDepartmentId), "Value", "Text", selectedDepartmentId);
             }
 
-            var cachedDepartments = BuildReferenceDataCache().GetDepartments(orgId.Value, activeOnly);
+            var cachedDepartments = BuildReferenceDataCache().GetDepartments(orgId.Value, false);
             return new SelectList(BuildFlatDepartmentItems(cachedDepartments, selectedDepartmentId), "Value", "Text", selectedDepartmentId);
         }
 
@@ -513,8 +510,12 @@ namespace AssetManagement.Web.Controllers
             var list = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null).ToList();
             var aliasMap = HomeroomYearAlias.BuildMap(list);
             var byId = list.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
+            // Allan t550s2044: inactive departments and children of an inactive parent (e.g. 17C under Grade 17) are
+            // hidden unless selected; a selected hidden value reads "(inactive)".
+            var hidden = DepartmentPickerVisibility.HiddenIds(list);
             return list
-                .Where(x => !aliasMap.ContainsKey(x.Id) || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value))
+                .Where(x => (!aliasMap.ContainsKey(x.Id) && !hidden.Contains(x.Id))
+                    || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value))
                 .Select(x =>
                 {
                     int yearId;
@@ -523,6 +524,11 @@ namespace AssetManagement.Web.Controllers
                         && byId.ContainsKey(yearId)
                             ? HomeroomYearAlias.FormatRoomUnderYear(byId[yearId].Name, x.Name)
                             : GradeDisplay.ToYear(x.Name);
+                    if (hidden.Contains(x.Id))
+                    {
+                        text += " (inactive)";
+                    }
+
                     return new SelectListItem { Value = x.Id.ToString(), Text = text };
                 })
                 .OrderBy(x => x.Text, NaturalStringComparer.Instance)
@@ -535,8 +541,9 @@ namespace AssetManagement.Web.Controllers
         {
             var orgId = ResolveCurrentOrganizationId();
             var departments = orgId.HasValue
-                ? BuildReferenceDataCache().GetDepartments(orgId.Value, true)
-                : BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList();
+                ? BuildReferenceDataCache().GetDepartments(orgId.Value, false)
+                : BuildDepartmentService().GetAll().ToList();
+            // BuildTreeOptions drops inactive rows and children of inactive parents (Allan t550s2044).
             var items = AssetManagement.Application.Helpers.DepartmentTreeHelper
                 .BuildTreeOptions(departments, false)
                 .Select(x => new SelectListItem { Value = x.Key.ToString(), Text = GradeDisplay.ToYear(x.Value) })
@@ -549,7 +556,7 @@ namespace AssetManagement.Web.Controllers
             // rel1009g: full-depth tree (Grade > Class, Admin > Sub > Room, ...) with "Parent > Child" labels; the
             // two-level version dropped every requisition target below the second level (also the Browse-assets modal).
             var items = AssetManagement.Application.Helpers.DepartmentTreeHelper
-                .BuildRequisitionOptions(BuildDepartmentService().GetAll().Where(x => x.IsActive))
+                .BuildRequisitionOptions(BuildDepartmentService().GetAll())
                 .Select(x => new SelectListItem
                 {
                     Value = x.Key.ToString(),
@@ -569,14 +576,19 @@ namespace AssetManagement.Web.Controllers
         /// </summary>
         protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(int? selectedDepartmentId = null)
         {
-            return BuildRequisitionDepartmentGroups(selectedDepartmentId, BuildDepartmentService().GetAll().Where(x => x.IsActive).ToList());
+            return BuildRequisitionDepartmentGroups(selectedDepartmentId, BuildDepartmentService().GetAll().ToList());
         }
 
         /// <summary>Same grouping over a given department set (e.g. the active departments of the organisation).</summary>
         protected IList<DepartmentSelectGroupVm> BuildRequisitionDepartmentGroups(int? selectedDepartmentId, IEnumerable<DepartmentVm> departments)
         {
             var groups = new List<DepartmentSelectGroupVm>();
-            foreach (var group in AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets(departments))
+            // Allan t550s2044: rooms under an inactive parent are not listed (callers often pass active rows only).
+            var pickerHidden = DepartmentPickerVisibility.HiddenIds(BuildDepartmentService().GetAll());
+            var pickerDepartments = (departments ?? Enumerable.Empty<DepartmentVm>())
+                .Where(x => x != null && !pickerHidden.Contains(x.Id))
+                .ToList();
+            foreach (var group in AssetManagement.Application.Helpers.RequisitionTargetRules.GroupRoomTargets(pickerDepartments))
             {
                 var groupVm = new DepartmentSelectGroupVm
                 {
@@ -636,11 +648,15 @@ namespace AssetManagement.Web.Controllers
                 return new SelectList(items, "Value", "Text", selectedDepartmentId);
             }
 
+            // Allan t550s2044: classes under an inactive Grade are hidden unless selected.
+            var classPickerHidden = DepartmentPickerVisibility.HiddenIds(BuildDepartmentService().GetAll());
             foreach (var section in BuildDepartmentService().GetTreeSections())
             {
                 foreach (var parent in section.Items)
                 {
-                    foreach (var child in parent.Children.Where(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class))
+                    foreach (var child in parent.Children.Where(x => x.IsActive
+                        && x.DepartmentKind == DepartmentKind.Class
+                        && (!classPickerHidden.Contains(x.Id) || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value))))
                     {
                         items.Add(new SelectListItem
                         {
@@ -682,11 +698,15 @@ namespace AssetManagement.Web.Controllers
             }
 
             var items = new List<SelectListItem>();
+            // Allan t550s2044: the asset filter hides inactive rows and children of inactive parents unless selected.
+            var filterHidden = DepartmentPickerVisibility.HiddenIds(BuildDepartmentService().GetAll());
             foreach (var section in sections)
             {
                 foreach (var parent in section.Items)
                 {
-                    foreach (var child in parent.Children.Where(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class))
+                    foreach (var child in parent.Children.Where(x => x.IsActive
+                        && x.DepartmentKind == DepartmentKind.Class
+                        && (!filterHidden.Contains(x.Id) || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value))))
                     {
                         items.Add(new SelectListItem
                         {
@@ -698,6 +718,7 @@ namespace AssetManagement.Web.Controllers
 
                     if (parent.DepartmentKind != DepartmentKind.Grade
                         && parent.IsActive
+                        && !filterHidden.Contains(parent.Id)
                         && !parent.Children.Any(x => x.IsActive && x.DepartmentKind == DepartmentKind.Class))
                     {
                         items.Add(new SelectListItem
@@ -1310,6 +1331,8 @@ namespace AssetManagement.Web.Controllers
             var byId = all.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
             // pt547u (display only): "Grade N homerooms" is hidden; its rooms are grouped under "Year N".
             var aliasMap = HomeroomYearAlias.BuildMap(all);
+            // Allan t550s2044: a target under an inactive parent is not offered.
+            var moveHidden = DepartmentPickerVisibility.HiddenIds(all);
             Func<int?, string> pathOf = null;
             pathOf = id =>
             {
@@ -1333,6 +1356,7 @@ namespace AssetManagement.Web.Controllers
 
             var targets = all
                 .Where(x => x.IsActive
+                    && !moveHidden.Contains(x.Id)
                     && x.DepartmentKind != DepartmentKind.Grade
                     && !aliasMap.ContainsKey(x.Id)
                     && (!kindFilter.HasValue || x.DepartmentKind == kindFilter.Value))
@@ -1382,13 +1406,17 @@ namespace AssetManagement.Web.Controllers
             bool activeOnly = true,
             int? includeInactiveDepartmentId = null)
         {
-            var departments = BuildDepartmentService().GetAll();
+            var everyDepartment = BuildDepartmentService().GetAll().ToList();
+            // Allan t550s2044: children of an inactive parent are hidden too; the selected value stays.
+            var groupedHidden = DepartmentPickerVisibility.HiddenIds(everyDepartment);
+            IEnumerable<DepartmentVm> departments = everyDepartment;
             if (activeOnly)
             {
                 // Inactive = deactivated or soft-deleted. The asset's own current department stays visible
                 // (labelled "(inactive)") so an Edit save doesn't silently clear it.
-                departments = departments.Where(x => x.IsActive
-                    || (includeInactiveDepartmentId.HasValue && x.Id == includeInactiveDepartmentId.Value));
+                departments = departments.Where(x => !groupedHidden.Contains(x.Id)
+                    || (includeInactiveDepartmentId.HasValue && x.Id == includeInactiveDepartmentId.Value)
+                    || (selectedDepartmentId.HasValue && x.Id == selectedDepartmentId.Value));
             }
 
             // pt547u (display only): number-aware order (Year 2 before Year 10); "Grade N homerooms" hidden unless selected,
@@ -1425,7 +1453,7 @@ namespace AssetManagement.Web.Controllers
                         : dept.Code + " — " + displayName(dept),
                     Selected = selectedDepartmentId.HasValue && dept.Id == selectedDepartmentId.Value
                 };
-                if (!dept.IsActive)
+                if (!dept.IsActive || groupedHidden.Contains(dept.Id))
                 {
                     option.Text += " (inactive)";
                 }

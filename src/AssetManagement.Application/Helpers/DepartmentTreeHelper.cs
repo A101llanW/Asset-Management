@@ -191,7 +191,8 @@ namespace AssetManagement.Application.Helpers
         /// </summary>
         public static IList<KeyValuePair<int, string>> BuildTreeOptions(IEnumerable<DepartmentVm> departments, bool requisitionTargetsOnly)
         {
-            var all = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null && x.IsActive).ToList();
+            // Allan t550s2044: inactive departments and children of an inactive parent are not listed.
+            var all = DepartmentPickerVisibility.VisibleForPicker(departments, null).ToList();
             var lookup = ToLookup(all);
             // pt547u (display only): homerooms groups are hidden and their rooms listed under the matching Year.
             var aliasMap = HomeroomYearAlias.BuildMap(all);

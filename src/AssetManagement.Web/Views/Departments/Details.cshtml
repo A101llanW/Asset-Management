@@ -228,6 +228,25 @@ else if (isSubDepartment)
         </div>
     </div>
 }
+else if (Model.DepartmentKind == DepartmentKind.Grade)
+{
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="card card-kpi">
+                <div class="card-header">Rooms</div>
+                <div class="card-body">
+                    @Html.Partial("_DepartmentChildList", new DepartmentChildListViewModel
+                    {
+                        ListDomId = "year-rooms",
+                        ReturnUrl = detailsReturnUrl,
+                        EmptyMessage = "No rooms have been added under this year yet.",
+                        Items = childRooms
+                    })
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <script>
     (function () {

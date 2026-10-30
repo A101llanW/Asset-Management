@@ -353,7 +353,8 @@ namespace AssetManagement.Application.Helpers
         public static IList<RequisitionRoomGroup> GroupRoomTargets(IEnumerable<DepartmentVm> departments)
         {
             var lookup = new Dictionary<int, DepartmentVm>();
-            foreach (var d in departments ?? Enumerable.Empty<DepartmentVm>())
+            // Allan t550s2044: rooms under an inactive parent are not listed either.
+            foreach (var d in DepartmentPickerVisibility.VisibleForPicker(departments, null))
             {
                 if (d != null && d.IsActive && !lookup.ContainsKey(d.Id))
                 {

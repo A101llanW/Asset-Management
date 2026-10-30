@@ -459,7 +459,8 @@ namespace AssetManagement.Tests.Requisitions
                 + " | Administration > Facilities: store 2, Store 10"
                 + " | Grade 2: Grade 2 East, Grade 2 West"
                 + " | Information Technology: ICT"
-                + " | No department: Art room, Library, Orphan room",
+                // Allan t550s2044: "Orphan room" sits under the inactive "Closed sub", so it is no longer offered.
+                + " | No department: Art room, Library",
                 Describe(groups));
             Assert.IsTrue(groups.Last().IsNoDepartment);
             Assert.AreEqual(RequisitionTargetRules.NoDepartmentGroupLabel, groups.Last().Label);
