@@ -18,6 +18,13 @@ namespace AssetManagement.Application.Contracts
         /// <summary>Batch with its asset list; null when it is not this tenant's.</summary>
         LabelPrintBatchVm GetBatch(int batchId, string userId, bool canManageAll);
 
+        /// <summary>
+        /// Read-only "View assets" list of one batch for the print batch log: every asset in the batch (inactive ones
+        /// flagged, not dropped) with tag, name and department. Null when the batch is not this tenant's or not in the
+        /// user's department scope. Never prints or queues anything.
+        /// </summary>
+        LabelPrintBatchVm GetBatchAssets(int batchId, string userId, bool canManageAll);
+
         IList<LabelPrintBatchVm> GetBatches(bool includeCleared, int take, string userId, bool canManageAll);
 
         /// <summary>Soft-hide one batch entry. Only its creator or a user who can manage all batches (Assets.Edit) may clear it.</summary>

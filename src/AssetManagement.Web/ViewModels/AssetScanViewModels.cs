@@ -90,6 +90,7 @@ namespace AssetManagement.Web.ViewModels
         public string CompleteBatchUrl { get; set; }
         public string BatchesUrl { get; set; }
         public string BatchItemsUrl { get; set; }
+        public string BatchAssetsUrl { get; set; }
         public string ClearBatchUrl { get; set; }
     }
 }

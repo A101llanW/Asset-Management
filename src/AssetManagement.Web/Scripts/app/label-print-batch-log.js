@@ -1,6 +1,7 @@
 // rel1022a: "Print batch log" drawer on Bulk Label Print. Collapsed and not loaded until the user opens it.
 // Reprint group: loads the batch's assets into the print queue as a reprint (the user still clicks Print).
 // Clear: soft-hides the entry (who/when kept on the batch); the per-asset print audit trail is never touched.
+// View assets: read-only list of the batch's assets (tag, name, department, prints) under the row. Never prints or queues.
 (function (window) {
     "use strict";
 
@@ -44,7 +45,8 @@
             var group = "<div>" + escapeHtml(b.groupLabel || "(no group)") + "</div>"
                 + (b.filterDescription ? '<div class="text-muted">' + escapeHtml(b.filterDescription) + "</div>" : "");
             var cleared = b.isCleared ? '<div class="text-muted">Cleared by ' + escapeHtml(b.clearedByName || "") + " " + escapeHtml(b.clearedAt || "") + "</div>" : "";
-            var actions = '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" data-am-print-batch-reprint="' + b.id + '">Reprint group</button>';
+            var actions = '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-am-print-batch-view="' + b.id + '" aria-expanded="false" aria-controls="amPrintBatchAssets' + b.id + '">View assets</button>'
+                + ' <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" data-am-print-batch-reprint="' + b.id + '">Reprint group</button>';
             if (b.canClear && !b.isCleared) {
                 actions += ' <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" data-am-print-batch-clear="' + b.id + '">Clear</button>';
             }
@@ -76,6 +78,61 @@
             renderBatches(body.batches || []);
         }).catch(function (error) {
             setStatus(error && error.message ? error.message : "Could not load the print batch log.", "error");
+        });
+    }
+
+    function renderAssets(batch) {
+        var items = batch && batch.items ? batch.items : [];
+        if (!items.length) {
+            return '<p class="text-muted small mb-0">This batch has no assets.</p>';
+        }
+        var rows = items.map(function (item, index) {
+            var name = escapeHtml(item.name || "") + (item.isActive === false ? ' <span class="badge bg-secondary">Inactive</span>' : "");
+            return "<tr" + (item.isActive === false ? ' class="text-muted"' : "") + ">"
+                + "<td>" + (index + 1) + "</td>"
+                + '<td class="text-nowrap"><code>' + escapeHtml(item.tag || "") + "</code></td>"
+                + "<td>" + name + "</td>"
+                + "<td>" + escapeHtml(item.department || "") + "</td>"
+                + '<td class="text-nowrap">' + (item.printCount || 0) + (item.lastPrintedAt ? ' <span class="text-muted">(' + escapeHtml(item.lastPrintedAt) + ")</span>" : "") + "</td>"
+                + "</tr>";
+        }).join("");
+        return '<div class="small fw-semibold mb-1">Assets in batch #' + batch.id + " (" + items.length + ")</div>"
+            + '<table class="table table-sm table-bordered small mb-0 bg-white" data-am-print-batch-assets-table>'
+            + "<thead><tr><th>#</th><th>Asset tag</th><th>Name</th><th>Department</th><th>Printed</th></tr></thead>"
+            + "<tbody>" + rows + "</tbody></table>";
+    }
+
+    function toggleAssets(batchId, button) {
+        var row = root.querySelector('[data-am-print-batch-row="' + batchId + '"]');
+        if (!row) {
+            return;
+        }
+        var existing = root.querySelector('[data-am-print-batch-assets-row="' + batchId + '"]');
+        if (existing) {
+            existing.parentNode.removeChild(existing);
+            if (button) {
+                button.setAttribute("aria-expanded", "false");
+                button.textContent = "View assets";
+            }
+            return;
+        }
+        var detail = document.createElement("tr");
+        detail.setAttribute("data-am-print-batch-assets-row", batchId);
+        detail.id = "amPrintBatchAssets" + batchId;
+        detail.className = "am-print-batch-assets";
+        detail.innerHTML = '<td colspan="8" class="bg-light"><span class="text-muted small">Loading assets...</span></td>';
+        row.parentNode.insertBefore(detail, row.nextSibling);
+        if (button) {
+            button.setAttribute("aria-expanded", "true");
+            button.textContent = "Hide assets";
+        }
+        window.AmLabelPrintLog.get(root.getAttribute("data-batch-assets-url"), { id: batchId }).then(function (body) {
+            detail.firstChild.innerHTML = renderAssets(body.batch);
+        }).catch(function (error) {
+            var message = error && error.message && error.message.indexOf("HTTP 404") >= 0
+                ? "Batch #" + batchId + " was not found."
+                : (error && error.message ? error.message : "Could not load the batch's assets.");
+            detail.firstChild.innerHTML = '<span class="text-danger small">' + escapeHtml(message) + "</span>";
         });
     }
 
@@ -143,12 +200,17 @@
             });
         }
         root.addEventListener("click", function (event) {
-            var target = event.target && event.target.closest ? event.target.closest("[data-am-print-batch-reprint], [data-am-print-batch-clear], [data-am-print-batch-log-refresh]") : null;
+            var target = event.target && event.target.closest ? event.target.closest("[data-am-print-batch-view], [data-am-print-batch-reprint], [data-am-print-batch-clear], [data-am-print-batch-log-refresh]") : null;
             if (!target) {
                 return;
             }
             if (target.hasAttribute("data-am-print-batch-log-refresh")) {
                 load();
+                return;
+            }
+            var viewId = target.getAttribute("data-am-print-batch-view");
+            if (viewId) {
+                toggleAssets(viewId, target);
                 return;
             }
             var reprintId = target.getAttribute("data-am-print-batch-reprint");

@@ -48,6 +48,14 @@ namespace AssetManagement.Application.ViewModels
         public string AssetTag { get; set; }
         public string AssetName { get; set; }
         public int PrintCount { get; set; }
+
+        /// <summary>Department label for display (GradeDisplay: a class reads "7A", never "Grade 7A").</summary>
+        public string DepartmentName { get; set; }
+
+        /// <summary>False when the asset was deactivated after the batch was sent (shown, but not reprinted).</summary>
+        public bool IsActive { get; set; } = true;
+
+        public string LastPrintedAtDisplay { get; set; }
     }
 
     public class LabelPrintBatchVm

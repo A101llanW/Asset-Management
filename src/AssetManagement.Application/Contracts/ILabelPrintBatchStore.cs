@@ -64,6 +64,9 @@ namespace AssetManagement.Application.Contracts
         public bool AssetIsActive { get; set; }
         public int? DepartmentId { get; set; }
         public bool DepartmentIsActiveClass { get; set; }
+
+        /// <summary>Stored department name (raw, e.g. "Grade 7A"); the UI shows it through GradeDisplay.</summary>
+        public string DepartmentName { get; set; }
         public int PrintCount { get; set; }
         public DateTime? LastPrintedAtUtc { get; set; }
     }

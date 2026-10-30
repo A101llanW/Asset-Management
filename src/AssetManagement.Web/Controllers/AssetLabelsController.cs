@@ -199,6 +199,52 @@ namespace AssetManagement.Web.Controllers
             }, JsonRequestBehavior.AllowGet);
         }
 
+        /// <summary>
+        /// Read-only asset list of one batch for the print batch log ("View assets"): tag, name, department and print
+        /// count. Tenant- and department-scoped through the service; another company's batch id reads as not found.
+        /// Never prints, queues or reprints anything.
+        /// </summary>
+        [HttpGet]
+        [Authorize]
+        [TenantAuthorize]
+        [PermissionAuthorize("Assets.View")]
+        public JsonResult BatchAssets(int id)
+        {
+            return RunJson(service =>
+            {
+                var batch = service.GetBatchAssets(id, User.GetUserId(), CanManageAllBatches());
+                if (batch == null)
+                {
+                    Response.StatusCode = 404;
+                    Response.TrySkipIisCustomErrors = true;
+                    return new { success = false, message = "The print batch was not found." };
+                }
+
+                return new { success = true, batch = ToAssetsJson(batch) };
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        public static object ToAssetsJson(LabelPrintBatchVm b)
+        {
+            return new
+            {
+                id = b.Id,
+                assetCount = b.AssetCount,
+                printedCount = b.PrintedCount,
+                status = b.Status,
+                items = (b.Items ?? new List<LabelPrintBatchItemVm>()).Select(i => new
+                {
+                    id = i.AssetId,
+                    tag = i.AssetTag,
+                    name = i.AssetName,
+                    department = i.DepartmentName,
+                    isActive = i.IsActive,
+                    printCount = i.PrintCount,
+                    lastPrintedAt = i.LastPrintedAtDisplay
+                }).ToList()
+            };
+        }
+
         /// <summary>Soft-hides one batch entry (Cleared flag, who, when). The per-asset print audit trail is kept.</summary>
         [HttpPost]
         [Authorize]
@@ -270,6 +316,7 @@ namespace AssetManagement.Web.Controllers
                 CompleteBatchUrl = TenantUrlHelper.TenantRouteUrl(Url, "CompleteBatch", "AssetLabels"),
                 BatchesUrl = TenantUrlHelper.TenantRouteUrl(Url, "Batches", "AssetLabels"),
                 BatchItemsUrl = TenantUrlHelper.TenantRouteUrl(Url, "BatchItems", "AssetLabels"),
+                BatchAssetsUrl = TenantUrlHelper.TenantRouteUrl(Url, "BatchAssets", "AssetLabels"),
                 ClearBatchUrl = TenantUrlHelper.TenantRouteUrl(Url, "ClearBatch", "AssetLabels")
             };
         }

@@ -198,11 +198,11 @@ WHERE a.[Id] = @Asset AND a.[OrganizationId] = @Org
             {
                 command.CommandText = @"
 SELECT i.[AssetId], COALESCE(a.[AssetTag], i.[AssetTag]), a.[AssetName], CAST(CASE WHEN a.[IsActive] = 1 AND a.[OrganizationId] = @Org THEN 1 ELSE 0 END AS bit), i.[PrintCount], i.[LastPrintedAt],
-       a.[DepartmentId], CAST(CASE WHEN d.[IsActive] = 1 AND d.[DepartmentKind] = 2 THEN 1 ELSE 0 END AS bit)
+       a.[DepartmentId], CAST(CASE WHEN d.[IsActive] = 1 AND d.[DepartmentKind] = 2 THEN 1 ELSE 0 END AS bit), d.[Name]
 FROM [dbo].[LabelPrintBatchItem] i
 INNER JOIN [dbo].[LabelPrintBatch] b ON b.[Id] = i.[BatchId] AND b.[OrganizationId] = @Org
-LEFT JOIN [dbo].[Asset] a ON a.[Id] = i.[AssetId]
-LEFT JOIN [dbo].[Department] d ON d.[Id] = a.[DepartmentId]
+LEFT JOIN [dbo].[Asset] a ON a.[Id] = i.[AssetId] AND a.[OrganizationId] = @Org
+LEFT JOIN [dbo].[Department] d ON d.[Id] = a.[DepartmentId] AND d.[OrganizationId] = @Org
 WHERE i.[BatchId] = @Batch AND i.[OrganizationId] = @Org
 ORDER BY i.[SortOrder], i.[Id]";
                 command.Parameters.Add("@Org", SqlDbType.Int).Value = organizationId;
@@ -220,7 +220,8 @@ ORDER BY i.[SortOrder], i.[Id]";
                             PrintCount = reader.GetInt32(4),
                             LastPrintedAtUtc = reader.IsDBNull(5) ? (DateTime?)null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc),
                             DepartmentId = reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6),
-                            DepartmentIsActiveClass = !reader.IsDBNull(7) && reader.GetBoolean(7)
+                            DepartmentIsActiveClass = !reader.IsDBNull(7) && reader.GetBoolean(7),
+                            DepartmentName = reader.IsDBNull(8) ? null : reader.GetString(8)
                         });
                     }
                 }

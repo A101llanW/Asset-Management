@@ -322,6 +322,47 @@ namespace AssetManagement.Application.Services
             return vm;
         }
 
+        public LabelPrintBatchVm GetBatchAssets(int batchId, string userId, bool canManageAll)
+        {
+            var organizationId = RequireOrganizationId();
+            if (batchId <= 0)
+            {
+                return null;
+            }
+
+            var batch = _store.GetBatch(organizationId, batchId);
+            if (batch == null || batch.OrganizationId != organizationId)
+            {
+                return null;
+            }
+
+            var items = _store.GetBatchItems(organizationId, batchId) ?? new List<LabelPrintBatchItemInfo>();
+            if (!IsBatchInScope(batch, items, userId))
+            {
+                return null;
+            }
+
+            var vm = ToVm(batch, userId, canManageAll);
+            vm.Items = items.Select(ToAssetVm).ToList();
+            return vm;
+        }
+
+        /// <summary>One row of the read-only batch asset list. The department name goes through GradeDisplay.</summary>
+        public static LabelPrintBatchItemVm ToAssetVm(LabelPrintBatchItemInfo item)
+        {
+            var department = string.IsNullOrWhiteSpace(item.DepartmentName) ? null : GradeDisplay.ToYear(item.DepartmentName.Trim());
+            return new LabelPrintBatchItemVm
+            {
+                AssetId = item.AssetId,
+                AssetTag = item.AssetTag,
+                AssetName = item.AssetName,
+                PrintCount = item.PrintCount,
+                DepartmentName = department,
+                IsActive = item.AssetIsActive,
+                LastPrintedAtDisplay = item.LastPrintedAtUtc.HasValue ? FormatUtc(item.LastPrintedAtUtc.Value) : null
+            };
+        }
+
         public IList<LabelPrintBatchVm> GetBatches(bool includeCleared, int take, string userId, bool canManageAll)
         {
             var organizationId = RequireOrganizationId();

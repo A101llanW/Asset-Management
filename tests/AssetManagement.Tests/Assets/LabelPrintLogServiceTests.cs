@@ -276,6 +276,115 @@ namespace AssetManagement.Tests.Assets
             Assert.IsNull(_service.GetBatch(otherTenantBatch, "user-a", true));
         }
 
+        // ---- "View assets" (read-only batch asset list) ----
+
+        [Test]
+        public void GetBatchAssets_OwnCompanyBatch_ListsEveryAssetWithTagNameDepartmentAndPrintCount()
+        {
+            _store.AddAsset(Org, 111, "TWF-7A-1", "Desk 7A", departmentId: 275);
+            _store.AddAsset(Org, 112, "TWF-ICT-1", "Projector", departmentId: 50);
+            _store.AddAsset(Org, 113, "TWF-Y7-1", "Year cupboard", departmentId: 305);
+            _store.SetDepartmentName(275, "Grade 7A");
+            _store.SetDepartmentName(50, "ICT");
+            _store.SetDepartmentName(305, "Grade 7");
+            var vm = _service.CreateBatch(BatchRequest(111, 112, 113), "user-a");
+            _service.RecordPrints(new LabelPrintRecordRequestVm { AssetIds = new List<int> { 111 }, BatchId = vm.Id }, "user-a");
+            _store.SetActive(113, false);
+
+            var loaded = _service.GetBatchAssets(vm.Id, "user-a", false);
+
+            Assert.IsNotNull(loaded);
+            Assert.AreEqual(vm.Id, loaded.Id);
+            CollectionAssert.AreEqual(new[] { 111, 112, 113 }, loaded.Items.Select(i => i.AssetId).ToArray(), "every batch asset, in batch order, inactive ones kept");
+            CollectionAssert.AreEqual(new[] { "TWF-7A-1", "TWF-ICT-1", "TWF-Y7-1" }, loaded.Items.Select(i => i.AssetTag).ToArray());
+            CollectionAssert.AreEqual(new[] { "Desk 7A", "Projector", "Year cupboard" }, loaded.Items.Select(i => i.AssetName).ToArray());
+            CollectionAssert.AreEqual(new[] { "7A", "ICT", "Year 7" }, loaded.Items.Select(i => i.DepartmentName).ToArray(), "GradeDisplay: a class reads 7A, a year reads Year 7");
+            CollectionAssert.AreEqual(new[] { true, true, false }, loaded.Items.Select(i => i.IsActive).ToArray());
+            Assert.AreEqual(1, loaded.Items[0].PrintCount);
+            StringAssert.EndsWith("EAT", loaded.Items[0].LastPrintedAtDisplay);
+            Assert.IsNull(loaded.Items[1].LastPrintedAtDisplay);
+
+            // The reprint list (GetBatch) is unchanged: active assets only.
+            CollectionAssert.AreEqual(new[] { 111, 112 }, _service.GetBatch(vm.Id, "user-a", false).Items.Select(i => i.AssetId).ToArray());
+        }
+
+        [Test]
+        public void GetBatchAssets_OtherCompanyBatch_IsNotFound_EvenForManagers()
+        {
+            var otherTenantBatch = _store.CreateBatch(new LabelPrintBatchCreate
+            {
+                OrganizationId = 2,
+                Source = "BulkPrint",
+                CreatedById = "user-a",
+                CreatedAtUtc = Now,
+                Assets = new List<LabelPrintAssetInfo> { new LabelPrintAssetInfo { AssetId = 201, AssetTag = "B-201", AssetName = "Other tenant asset" } }
+            });
+
+            Assert.IsNull(_service.GetBatchAssets(otherTenantBatch, "user-a", false));
+            Assert.IsNull(_service.GetBatchAssets(otherTenantBatch, "manager", true));
+            Assert.IsNull(_service.GetBatchAssets(9999, "manager", true), "unknown id");
+            Assert.IsNull(_service.GetBatchAssets(0, "manager", true));
+
+            // The same batch is visible to its own company.
+            var otherOrgService = new LabelPrintLogService(_store, _dispatcher, _audit, new FakeOrganizationScopeService(2), () => Now);
+            var own = otherOrgService.GetBatchAssets(otherTenantBatch, "user-a", false);
+            Assert.IsNotNull(own);
+            Assert.AreEqual("B-201", own.Items.Single().AssetTag);
+            Assert.AreEqual(0, _dispatcher.Jobs.Count, "viewing never prints");
+        }
+
+        [Test]
+        public void GetBatchAssets_StoreRowsFromAnotherCompany_AreNeverMapped()
+        {
+            // Defence in depth: even if a store returned a batch row of another company, the service drops it.
+            var leaky = new LeakyBatchStore();
+            var service = new LabelPrintLogService(leaky, _dispatcher, _audit, new FakeOrganizationScopeService(Org), () => Now);
+            Assert.IsNull(service.GetBatchAssets(7, "manager", true));
+        }
+
+        [Test]
+        public void GetBatchAssets_IsDepartmentScoped_LikeTheBatchLog()
+        {
+            AddScopedAssets();
+            var orgWide = ScopedService(new FakeDeptScope { BypassesDepartmentScope = true });
+            var mine = orgWide.CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 302 } }, "admin");
+            var mixed = orgWide.CreateBatch(new LabelPrintBatchCreateVm { AssetIds = new List<int> { 301, 401 } }, "admin");
+
+            var scoped = ScopedService(new FakeDeptScope { ScopedDepartmentId = 10 });
+            Assert.AreEqual(2, scoped.GetBatchAssets(mine.Id, "user-a", false).Items.Count);
+            Assert.IsNull(scoped.GetBatchAssets(mixed.Id, "user-a", false));
+            Assert.AreEqual(2, orgWide.GetBatchAssets(mixed.Id, "admin", true).Items.Count);
+        }
+
+        [Test]
+        public void ToAssetVm_UsesGradeDisplayForTheDepartment()
+        {
+            Assert.AreEqual("7A", LabelPrintLogService.ToAssetVm(new LabelPrintBatchItemInfo { DepartmentName = "Grade 7A" }).DepartmentName);
+            Assert.AreEqual("13D", LabelPrintLogService.ToAssetVm(new LabelPrintBatchItemInfo { DepartmentName = " Grade 13D " }).DepartmentName);
+            Assert.AreEqual("Year 7", LabelPrintLogService.ToAssetVm(new LabelPrintBatchItemInfo { DepartmentName = "Grade 7" }).DepartmentName);
+            Assert.AreEqual("Art room", LabelPrintLogService.ToAssetVm(new LabelPrintBatchItemInfo { DepartmentName = "Art room" }).DepartmentName);
+            Assert.IsNull(LabelPrintLogService.ToAssetVm(new LabelPrintBatchItemInfo { DepartmentName = null }).DepartmentName);
+        }
+
+        [Test]
+        public void SqlStore_BatchItems_JoinsAssetAndDepartmentWithinTheCompanyOnly()
+        {
+            var path = FindRepoFile(Path.Combine("src", "AssetManagement.Infrastructure", "Queries", "LabelPrintBatchStore.cs"));
+            if (path == null)
+            {
+                Assert.Ignore("Source tree not found next to the test binaries.");
+            }
+
+            var text = File.ReadAllText(path);
+            var start = text.IndexOf("public IList<LabelPrintBatchItemInfo> GetBatchItems(", StringComparison.Ordinal);
+            var end = text.IndexOf("public void MarkItemPrinted(", start, StringComparison.Ordinal);
+            var body = text.Substring(start, end - start);
+            StringAssert.Contains("b.[OrganizationId] = @Org", body);
+            StringAssert.Contains("a.[Id] = i.[AssetId] AND a.[OrganizationId] = @Org", body);
+            StringAssert.Contains("d.[Id] = a.[DepartmentId] AND d.[OrganizationId] = @Org", body);
+            StringAssert.Contains("i.[OrganizationId] = @Org", body);
+        }
+
         // ---- clear (soft-hide) ----
 
         [Test]
@@ -503,6 +612,7 @@ namespace AssetManagement.Tests.Assets
             Assert.Throws<BusinessException>(() => noOrg.CreateBatch(BatchRequest(101), "u"));
             Assert.Throws<BusinessException>(() => noOrg.CompleteBatch(1, false, "u"));
             Assert.Throws<BusinessException>(() => noOrg.GetBatch(1, "u", true));
+            Assert.Throws<BusinessException>(() => noOrg.GetBatchAssets(1, "u", true));
             Assert.Throws<BusinessException>(() => noOrg.GetBatches(false, 10, "u", true));
             Assert.Throws<BusinessException>(() => noOrg.ClearBatch(1, "u", true));
             Assert.Throws<BusinessException>(() => noOrg.GetPrintHistory(101, 10));
@@ -569,6 +679,7 @@ namespace AssetManagement.Tests.Assets
 
         [TestCase("Batches")]
         [TestCase("BatchItems")]
+        [TestCase("BatchAssets")]
         public void PrintLogReads_AreGetOnly_AndPermissionChecked(string actionName)
         {
             var method = typeof(AssetLabelsController).GetMethod(actionName);
@@ -596,6 +707,38 @@ namespace AssetManagement.Tests.Assets
             {
                 Assert.IsFalse(text.Contains(forbidden), file + " must not contain " + forbidden);
             }
+        }
+
+        private static string FindRepoFile(string relative)
+        {
+            var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+            while (dir != null)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+
+                dir = dir.Parent;
+            }
+
+            return null;
+        }
+
+        /// <summary>A broken store that ignores the organization filter; the service must still refuse its rows.</summary>
+        private sealed class LeakyBatchStore : ILabelPrintBatchStore
+        {
+            public IList<LabelPrintAssetInfo> GetPrintableAssets(int organizationId, ICollection<int> assetIds) { return new List<LabelPrintAssetInfo>(); }
+            public IDictionary<int, int> GetPriorPrintCounts(int organizationId, ICollection<int> assetIds) { return new Dictionary<int, int>(); }
+            public int CreateBatch(LabelPrintBatchCreate batch) { return 0; }
+            public LabelPrintBatchInfo GetBatch(int organizationId, int batchId) { return new LabelPrintBatchInfo { Id = batchId, OrganizationId = organizationId + 1, CreatedById = "manager" }; }
+            public IList<LabelPrintBatchInfo> GetBatches(int organizationId, bool includeCleared, int take) { return new List<LabelPrintBatchInfo>(); }
+            public IList<LabelPrintBatchItemInfo> GetBatchItems(int organizationId, int batchId) { return new List<LabelPrintBatchItemInfo> { new LabelPrintBatchItemInfo { AssetId = 1, AssetTag = "LEAK", AssetIsActive = true } }; }
+            public void MarkItemPrinted(int organizationId, int batchId, int assetId, string assetTag, DateTime printedAtUtc) { }
+            public void CompleteBatch(int organizationId, int batchId, bool stoppedEarly, DateTime completedAtUtc) { }
+            public bool ClearBatch(int organizationId, int batchId, string clearedById, DateTime clearedAtUtc) { return false; }
+            public AssetPrintHistory GetPrintHistory(int organizationId, int assetId, int take) { return new AssetPrintHistory(); }
         }
 
         private static string FindWebFile(string relative)
@@ -675,6 +818,13 @@ namespace AssetManagement.Tests.Assets
                 _assets[id] = Tuple.Create(org, new LabelPrintAssetInfo { AssetId = id, AssetTag = tag, AssetName = name, DepartmentId = departmentId, DepartmentIsActiveClass = departmentIsActiveClass }, isActive);
             }
 
+            private readonly Dictionary<int, string> _departmentNames = new Dictionary<int, string>();
+
+            public void SetDepartmentName(int departmentId, string name)
+            {
+                _departmentNames[departmentId] = name;
+            }
+
             public void SetActive(int id, bool isActive)
             {
                 _assets[id] = Tuple.Create(_assets[id].Item1, _assets[id].Item2, isActive);
@@ -740,6 +890,8 @@ namespace AssetManagement.Tests.Assets
                 foreach (var item in Items[batchId])
                 {
                     item.AssetIsActive = _assets.ContainsKey(item.AssetId) && _assets[item.AssetId].Item3 && _assets[item.AssetId].Item1 == organizationId;
+                    string departmentName;
+                    item.DepartmentName = item.DepartmentId.HasValue && _departmentNames.TryGetValue(item.DepartmentId.Value, out departmentName) ? departmentName : null;
                 }
 
                 return Items[batchId];
