@@ -32,7 +32,7 @@
                     <th>Requisition target</th>
                     <th>Requested by</th>
                     <th>Status</th>
-                    <th>Submitted</th>
+                    <th>Submitted (@KenyaTimeHelper.DisplayAbbreviation)</th>
                     <th></th>
                 </tr>
             </thead>
@@ -67,7 +67,7 @@
                         </td>
                         <td>@r.RequestedById</td>
                         <td><span class="badge bg-secondary">@r.ApprovalStatus</span></td>
-                        <td>@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@KenyaTimeHelper.FormatUtc(r.CreatedAt, KenyaTimeHelper.ShortTimestampFormat)</td>
                         <td><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Details", new { id = r.Id, returnUrl = Request.RawUrl })">Details</a></td>
                     </tr>
                 }

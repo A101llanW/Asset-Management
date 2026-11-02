@@ -2,7 +2,10 @@
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Purchases";
-    var canCreatePurchase = Html.HasPermission("Purchases.Create");
+    // QA 2026-11-02: "New Purchase Record" opens Purchases/Create (the same action as "Record purchase order" on an approved
+    // requisition, which starts at the requisition picker). Show it exactly when that action accepts the user: the
+    // controller filter Purchases.View plus the action filter Purchases.Edit (RequisitionAccessRules.HasPurchaseOrderPermission).
+    var canCreatePurchase = AssetManagement.Application.Security.RequisitionAccessRules.HasPurchaseOrderPermission(code => Html.HasPermission(code));
     var supplierFilter = ViewBag.SupplierFilter as SelectList;
     var currentSort = ViewBag.Sort as string;
     var currentDirection = ViewBag.Direction as string;

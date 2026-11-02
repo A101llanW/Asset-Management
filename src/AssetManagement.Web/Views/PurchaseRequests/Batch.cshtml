@@ -23,7 +23,7 @@
             <dt class="col-sm-3">Batch</dt>
             <dd class="col-sm-9">@Model.BatchLabel</dd>
             <dt class="col-sm-3">Submitted</dt>
-            <dd class="col-sm-9">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm") @if (!string.IsNullOrWhiteSpace(Model.CreatedByName)) {<span>by @Model.CreatedByName</span>}</dd>
+            <dd class="col-sm-9">@KenyaTimeHelper.FormatUtc(Model.CreatedAt, KenyaTimeHelper.ShortTimestampFormat) @KenyaTimeHelper.DisplayAbbreviation @if (!string.IsNullOrWhiteSpace(Model.CreatedByName)) {<span>by @Model.CreatedByName</span>}</dd>
             <dt class="col-sm-3">Requisitions</dt>
             <dd class="col-sm-9">@(Model.Requests.Count + Model.HiddenCount)</dd>
         </dl>
