@@ -18,11 +18,13 @@ Files (SSMS / sqlcmd; every one guarded and idempotent; @Confirm = 0 by default 
                                  Procurement Manager / Officer + Purchases.Edit; Department Head, Procurement Officer,
                                  Facilities Manager, Company Admin + Purchases.Create. INSERT only, one transaction.
 02_NIS_org21_grant.sql           Same for "Nairobi International School" (org 21).
-03_TestWF_org13_departments.sql  Test-WF test users: depthead -> Academics (1456); procofficer -> the Procurement
-                                 department only if exactly one exists (alLAN's copy has none -> reported, skipped;
-                                 never invented). Only moves a user whose department is NULL.
+03_TestWF_org13_departments.sql  Test-WF ONLY (Allan 2026-11-02 15:03 EAT): creates a top-level active 'Procurement'
+                                 department (Code PROCUREMENT, administrative, requisition target, plus the app's
+                                 Departments.Create audit row) if org 13 has none; depthead -> Academics (1456);
+                                 procofficer -> Procurement. Only moves a user whose department is NULL. NIS gets nothing.
 99_rollback_DO_NOT_RUN.sql       Removes the Finance Officer grants for one organisation; for org 13 also clears the
-                                 03 departments (only while still on them).
+                                 03 departments (only while still on them) and deletes the Procurement department 03
+                                 created, only if nothing else references it (else IN_USE, left in place).
 live/                            Console kit for the live database (01_backup, 02_precheck, 03_change, 04_verify,
                                  README_RUN_ORDER.txt). Grants only; org set by @OrgName; names resolved by name.
 
@@ -44,4 +46,5 @@ State on alLAN's local copy before the run (2026-11-02)
 -------------------------------------------------------
 Finance Officer 62 (Test-WF) and 125 (NIS): Assets.View, Purchases.View, Purchases.Approve.
 Purchases.Create already held by Department Head 63/126, Procurement Officer 61/124, Facilities Manager 57/120,
-Company Admin 59/122. No department named like "Procurement" exists in org 13.
+Company Admin 59/122. No department named like "Procurement" existed in org 13; 03 (15:08 EAT) created Procurement
+(Department 3696) and put procofficer.a46138179 in it (backup AssetManagementModuleDb_pre_procdept_20261102_1507.bak).
