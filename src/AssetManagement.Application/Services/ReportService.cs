@@ -483,7 +483,9 @@ namespace AssetManagement.Application.Services
             // 2026-10-29 (#9): same scope as the requisition list (see GenerateReportDocument "pending-approvals").
             var purchaseListScope = AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(
                 _departmentScope,
-                CanCurrentUserApprovePurchases());
+                CanCurrentUserApprovePurchases(),
+                AssetManagement.Application.Security.RequisitionTargetScope.ToParentPairs(
+                    _unitOfWork.Repository<Department>() == null ? null : _unitOfWork.Repository<Department>().GetAll()));
             foreach (var purchaseRequest in _unitOfWork.Repository<PurchaseRequest>()
                 .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
                 .OrderByDescending(x => x.CreatedAt))

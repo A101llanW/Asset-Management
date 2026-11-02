@@ -515,6 +515,28 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException(name + " has no room or department that can receive requisitions. Choose a room as the requisition target instead.");
             }
 
+            // Allan 2026-11-02 (answer 2): the person's own room / department must be inside the requester's scope too
+            // (same rule as the "A room" list), also when approval follows the requester's locked department.
+            var personRouting = locked == null ? routing : RequisitionTargetRules.ResolveRoutingDepartment(null, room, profile);
+            if (personRouting == null)
+            {
+                throw new BusinessException(name + " has no room or department inside your scope. Choose a person in your department, or a room.");
+            }
+
+            try
+            {
+                _departmentScope.EnsureCanCreateForRequisitionTarget(personRouting);
+            }
+            catch (BusinessException ex)
+            {
+                if (ex.Message == AssetManagement.Application.Security.RequisitionTargetScope.OutsideScopeMessage)
+                {
+                    throw new BusinessException(name + " is outside your department. Choose a person in your department or the rooms under it.");
+                }
+
+                throw;
+            }
+
             model.TargetUserId = user.Id;
             model.TargetPlacement = placement;
             model.DepartmentId = routing.Id;
@@ -1465,7 +1487,42 @@ namespace AssetManagement.Application.Services
                 return true;
             }
 
-            return request.DepartmentId == departmentId.Value || IsCurrentStageApprover(request);
+            // Allan 2026-11-02 (answer 2): the requester's own department and the units below it (the subtree they may
+            // raise for), their own requisitions, and the current stage approver.
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            if (!string.IsNullOrWhiteSpace(userId)
+                && string.Equals(request.RequestedById, userId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return request.DepartmentId == departmentId.Value
+                || IsInOwnDepartmentSubtree(request.DepartmentId, departmentId.Value)
+                || IsCurrentStageApprover(request);
+        }
+
+        private bool IsInOwnDepartmentSubtree(int requestDepartmentId, int ownDepartmentId)
+        {
+            if (_unitOfWork == null)
+            {
+                return false;
+            }
+
+            return AssetManagement.Application.Security.RequisitionTargetScope
+                .SelfAndActiveDescendants(ownDepartmentId, ActiveDepartmentParents())
+                .Contains(requestDepartmentId);
+        }
+
+        private IEnumerable<KeyValuePair<int, int?>> ActiveDepartmentParents()
+        {
+            var repository = _unitOfWork == null ? null : _unitOfWork.Repository<Department>();
+            if (repository == null || repository.GetAll() == null)
+            {
+                return new List<KeyValuePair<int, int?>>();
+            }
+
+            return AssetManagement.Application.Security.RequisitionTargetScope.ToParentPairs(
+                OrganizationDepartments(_organizationScope == null ? null : _organizationScope.GetCurrentOrganizationId()));
         }
 
         /// <summary>
@@ -1522,7 +1579,12 @@ namespace AssetManagement.Application.Services
         /// <summary>Shared with the pending-approvals report (ReportService) so both show the same requisitions.</summary>
         private AssetManagement.Application.Security.RequisitionListScope ResolveListScope()
         {
-            return AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(_departmentScope, CanApprovePurchases());
+            var canApprove = CanApprovePurchases();
+            var needsTree = !canApprove && !_departmentScope.BypassesDepartmentScope && _departmentScope.ScopedDepartmentId.HasValue;
+            return AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(
+                _departmentScope,
+                canApprove,
+                needsTree ? ActiveDepartmentParents() : null);
         }
 
         private static string NormalizeText(string value)

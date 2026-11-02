@@ -453,6 +453,35 @@ namespace AssetManagement.Tests.Helpers
         }
     }
 
+    /// <summary>Permissions granted per user id (2026-11-02 requisition access tests).</summary>
+    internal class PerUserPermissionAuthorizationService : IAuthorizationService
+    {
+        private readonly Dictionary<string, HashSet<string>> _granted = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        public PerUserPermissionAuthorizationService Grant(string userId, params string[] permissionCodes)
+        {
+            HashSet<string> set;
+            if (!_granted.TryGetValue(userId, out set))
+            {
+                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _granted[userId] = set;
+            }
+
+            foreach (var code in permissionCodes ?? new string[0])
+            {
+                set.Add(code);
+            }
+
+            return this;
+        }
+
+        public bool HasPermission(string userId, string permissionCode)
+        {
+            HashSet<string> set;
+            return userId != null && _granted.TryGetValue(userId, out set) && set.Contains(permissionCode);
+        }
+    }
+
     internal class FakeCurrentUserContext : ICurrentUserContext
     {
         public FakeCurrentUserContext(string userId)

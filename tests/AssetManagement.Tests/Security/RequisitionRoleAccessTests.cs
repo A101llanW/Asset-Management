@@ -123,7 +123,8 @@ namespace AssetManagement.Tests.Security
         public void CreateForAnyHolder_GetsOrganisationRoomList_AndIsNotPinnedToOwnDepartment()
         {
             var controller = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "PurchaseRequestsController.cs");
-            StringAssert.Contains(": BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments());", controller);
+            // 2026-11-02 (answer 2): the list goes through the shared scope; create-for-any keeps the organisation's rooms.
+            StringAssert.Contains(": BuildScopedRequisitionDepartmentGroups(departmentId, activeDepartments, targetScope);", controller);
             StringAssert.DoesNotContain("? BuildRequisitionDepartmentGroups(departmentId)\n", controller.Replace("\r\n", "\n"));
             StringAssert.DoesNotContain("ApplyLockedUserDepartment(", controller,
                 "the own-department overwrite applied to create-for-any holders with a department");
@@ -200,11 +201,12 @@ namespace AssetManagement.Tests.Security
         }
 
         [Test]
-        public void RequisitionTarget_ViewAllHolderWithTransfer_MayStillRaiseForAClassroom()
+        public void RequisitionTarget_ViewAllHolderWithTransfer_NoLongerRaisesForAClassroomOutsideTheirDepartment()
         {
+            // 2026-11-02 (answer 2): one shared scope rule; Assets.Transfer no longer widens raising to every classroom.
             var service = CreateScope(new Role { Id = 5, Name = "Auditor", IsActive = true }, departmentId: 10,
                 companyAdmin: false, permissions: new[] { "Assets.ViewAll", "Assets.Transfer" });
-            Assert.DoesNotThrow(() => service.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Class)));
+            Assert.Throws<BusinessException>(() => service.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Class)));
             Assert.Throws<BusinessException>(() => service.EnsureCanCreateForRequisitionTarget(Room(31, DepartmentKind.Room)));
         }
 
@@ -224,9 +226,14 @@ namespace AssetManagement.Tests.Security
             Assert.DoesNotThrow(() => createForAny.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)));
 
             var noDepartment = CreateScope(new Role { Id = 7, Name = "Staff", IsActive = true },
-                departmentId: null, companyAdmin: false, permissions: new string[0]);
-            Assert.DoesNotThrow(() => noDepartment.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)),
-                "no-department rule unchanged (#1 pending)");
+                departmentId: null, companyAdmin: false, permissions: new[] { "Purchases.Create" });
+            var ex = Assert.Throws<BusinessException>(() => noDepartment.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)),
+                "2026-11-02 (answer 1): no department and no create-for-any = cannot raise");
+            Assert.AreEqual(RequisitionTargetScope.BlockedMessage, ex.Message);
+
+            var noDepartmentCreateForAny = CreateScope(new Role { Id = 8, Name = "Facilities Manager", IsActive = true },
+                departmentId: null, companyAdmin: false, permissions: new[] { "Purchases.Create", "Purchases.CreateForAnyDepartment" });
+            Assert.DoesNotThrow(() => noDepartmentCreateForAny.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)));
         }
 
         // ---- #9 pending-approvals report uses the requisition list rule ----

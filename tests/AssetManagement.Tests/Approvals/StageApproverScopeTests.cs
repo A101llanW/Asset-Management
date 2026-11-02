@@ -307,10 +307,14 @@ namespace AssetManagement.Tests.Approvals
             var config = new ApprovalProcessConfiguration { PurchaseOrderRaiserRoleId = ProcOfficer };
             var scope = PurchaseOrderRaiserRules.ResolveRaiserScope(uow, users, config, 20);
             CollectionAssert.AreEquivalent(new[] { "proc-arts" }, scope.UserIds);
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(config, "proc-arts", ProcOfficer, scope));
-            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(config, "proc-sci", ProcOfficer, scope));
+            // Allan 2026-11-02 (answer 5): the configured raiser is the EXPECTED raiser (named + notified), not a gate.
+            Assert.IsTrue(PurchaseOrderRaiserRules.IsConfiguredRaiser(config, "proc-arts", ProcOfficer, scope));
+            Assert.IsFalse(PurchaseOrderRaiserRules.IsConfiguredRaiser(config, "proc-sci", ProcOfficer, scope));
             // No scope supplied = legacy role check.
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(config, "proc-sci", ProcOfficer));
+            Assert.IsTrue(PurchaseOrderRaiserRules.IsConfiguredRaiser(config, "proc-sci", ProcOfficer));
+            // Raising itself is permission-based.
+            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(true));
+            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(false));
         }
 
         internal sealed class CapturingOutbox : IOutboxWriter

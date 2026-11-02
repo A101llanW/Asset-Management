@@ -37,14 +37,7 @@ namespace AssetManagement.Web.Controllers
             if (model != null)
             {
                 // Same lock as submit: a locked requester's department routes approval (also for a person target).
-                model.DepartmentLocked = IsRequisitionDepartmentLocked();
-                ApplyLockedUserDepartment(GetCurrentUserDepartmentId(), deptId =>
-                {
-                    if (deptId.HasValue)
-                    {
-                        model.DepartmentId = deptId.Value;
-                    }
-                });
+                ApplyRequisitionTargetLock(model);
             }
 
             var preview = _purchaseRequestService.PreviewPaths(model);

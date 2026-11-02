@@ -240,7 +240,7 @@ namespace AssetManagement.Web.Controllers
             string raiserBlock;
             if (!CanCurrentUserRaisePurchaseOrder(req, out raiserBlock))
             {
-                // "Purchase order raised by" configured for this requisition's flow and this user is not it.
+                // The user lacks the PO permission (answer 5: permission-based, not the configured raiser).
                 TempData["Error"] = raiserBlock;
                 return RedirectToAction("Details", "PurchaseRequests", new { id = req.Id, returnUrl = returnUrl });
             }
@@ -380,19 +380,15 @@ namespace AssetManagement.Web.Controllers
         private bool CanCurrentUserRaisePurchaseOrder(PurchaseRequest request, out string message)
         {
             message = null;
-            var config = Application.Services.PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, request);
+            // Allan 2026-11-02 (answer 5): permission-based, the same check as the Create filters (Purchases.View +
+            // Purchases.Edit). The configured "Purchase order raised by" is the expected raiser, not an exclusive gate.
             if (Application.Services.PurchaseOrderRaiserRules.CanRaise(
-                    config,
-                    User.GetUserId(),
-                    GetCurrentUserRoleId(),
-                    Application.Services.PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), config, request == null ? (int?)null : request.DepartmentId, request != null && Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource))))
+                    Application.Security.RequisitionAccessRules.HasPurchaseOrderPermission(HasPermission)))
             {
                 return true;
             }
 
-            var label = Application.Services.PurchaseOrderRaiserRules.Describe(UnitOfWork, BuildUserService(), config);
-            message = "Only " + (string.IsNullOrWhiteSpace(label) ? "the configured purchase order raiser" : label)
-                + " can raise the purchase order for this requisition.";
+            message = Application.Services.PurchaseOrderRaiserRules.MissingPermissionMessage;
             return false;
         }
 

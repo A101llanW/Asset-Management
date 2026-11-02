@@ -578,7 +578,8 @@ namespace AssetManagement.Tests.Requisitions
         public void CreateLookups_RoomListIsRoomsOnly_ForEveryUnlockedRequester()
         {
             var controller = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "PurchaseRequestsController.cs");
-            StringAssert.Contains("BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments())", controller, "no flat fallback for users without CreateForAnyDepartment");
+            StringAssert.Contains("BuildScopedRequisitionDepartmentGroups(departmentId, activeDepartments, targetScope)", controller, "no flat fallback for users without CreateForAnyDepartment");
+            StringAssert.Contains("var groups = BuildRequisitionDepartmentGroups(selectedDepartmentId, activeDepartments);", controller, "2026-11-02: grouped room list, filtered to the requester's scope");
             var view = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Views", "PurchaseRequests", "Create.cshtml");
             StringAssert.Contains("@Html.GroupedDepartmentDropDown(\"DepartmentId\", departmentGroups", view);
             StringAssert.Contains("Pick a room; rooms are grouped by department and sub-department.", view);

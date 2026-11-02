@@ -483,6 +483,7 @@
     <Content Include="Views\Purchases\_ReceiveSerialWizardModal.cshtml" />
     <Content Include="Views\Purchases\Index.cshtml" />
     <Content Include="Views\PurchaseRequests\Create.cshtml" />
+    <Content Include="Views\PurchaseRequests\CannotRaise.cshtml" />
     <Content Include="Views\PurchaseRequests\Batch.cshtml" />
     <Content Include="Views\PurchaseRequests\_TargetAssetPickerModal.cshtml" />
     <Content Include="Views\PurchaseRequests\Details.cshtml" />

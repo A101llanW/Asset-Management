@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Application.Contracts.Security;
@@ -304,32 +305,37 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
             }
 
-            if (CanCreateForAnyDepartmentOrAdministrator())
-            {
-                return;
-            }
+            // Allan 2026-11-02 (answers 1 and 2): one shared scope rule (RequisitionTargetScope). Organisation-wide for
+            // Purchases.CreateForAnyDepartment / the tenant administrator; a department user raises for their own
+            // department and the units below it; no department and no create-for-any = cannot raise. Assets.ViewAll and
+            // Assets.Transfer no longer widen it (2026-10-29 #10; the old Class exception for Assets.Transfer is gone).
+            GetRequisitionTargetScope().EnsureContains(department);
+        }
 
-            // 2026-10-29 (#10): Assets.ViewAll ("see every asset") no longer lets a requester raise for any department.
-            // Compare with the profile department directly: ScopedDepartmentId is null for a ViewAll holder.
+        /// <summary>The requisition target scope of the signed-in user (see RequisitionTargetScope).</summary>
+        public AssetManagement.Application.Security.RequisitionTargetScope GetRequisitionTargetScope()
+        {
             EnsureProfileLoaded();
             var ownDepartmentId = _profile == null ? null : _profile.DepartmentId;
-            if (!ownDepartmentId.HasValue || department.Id == ownDepartmentId.Value)
+            if (CanCreateForAnyDepartmentOrAdministrator())
             {
-                return;
+                return AssetManagement.Application.Security.RequisitionTargetScope.OrganizationWideScope();
             }
 
-            if (department.DepartmentKind == DepartmentKind.Class && ResolveIncludesClassDepartmentAssets())
-            {
-                return;
-            }
-
-            throw new BusinessException("This department is outside your scope. Only administrators can access it.");
+            var repository = _unitOfWork == null ? null : _unitOfWork.Repository<Department>();
+            var all = repository == null ? null : repository.GetAll();
+            var departments = all == null ? new List<Department>() : all.ToList();
+            return AssetManagement.Application.Security.RequisitionTargetScope.Resolve(
+                false,
+                false,
+                ownDepartmentId,
+                departments);
         }
 
         /// <summary>
         /// Who may raise a requisition for any valid room: Purchases.CreateForAnyDepartment, the tenant administrator
-        /// (Company Admin or support impersonation), a member with no department (organisation-wide, unchanged), or the
-        /// legacy construction without an authorization service.
+        /// (Company Admin or support impersonation), or the legacy construction without an authorization service.
+        /// A member with no department is no longer organisation-wide for raising (Allan 2026-11-02, answer 1).
         /// </summary>
         private bool CanCreateForAnyDepartmentOrAdministrator()
         {
@@ -339,11 +345,6 @@ namespace AssetManagement.Application.Services
             }
 
             if (_organizationScope != null && (_organizationScope.IsImpersonating() || _organizationScope.IsCompanyAdmin()))
-            {
-                return true;
-            }
-
-            if (IsUnassignedOrganizationWide)
             {
                 return true;
             }

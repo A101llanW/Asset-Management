@@ -1,5 +1,19 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-11-02 12:40 EAT - Requisition role access phase 2 (Allan's answers of 2026-11-02 12:11 EAT): no-department raising blocked, department-subtree raising scope, permission-based purchase orders, Receive button matches its action, approval-path preview scoped; role-data scripts PREPARED, NOT RUN - LOCAL COMMIT ONLY (feature/req-role-access-2, main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
+
+- Scope: local only. Nothing pushed, no PR, no IIS publish, nanosoft.africa and the live DB not touched, no DB writes anywhere (read-only SELECTs on alLAN's .\SQLEXPRESS only), no Web.config change, nothing printed (Zebra ZD421 not contacted).
+- Base: main 2a36e3e (contains 64a0aad label print batch log and 44a0fa7 requisition role access phase 1).
+- 1 No department and no Purchases.CreateForAnyDepartment: cannot raise. Server refuses (DepartmentScopeService.EnsureCanCreateForRequisitionTarget), Create GET/POST show the new CannotRaise page, the requisition list hides New and shows the reason. Company Admin, support impersonation and CreateForAny holders keep raising for any valid room.
+- 2 Department users raise for their own department and the valid rooms under it (active subtree). One shared rule (RequisitionTargetScope) drives the room list, the person list (by the person's routing room/department) and the server check. Requisition visibility = own department subtree + own requisitions + stage approver (list SQL walks 8 parent levels).
+- 3 Tagging stays organisation-wide and organisation-scoped (no change). 4 Purchases.Approve keeps the organisation-wide view (no change).
+- 5 Purchase orders: recording needs Purchases.View + Purchases.Edit everywhere (button, Purchases/Create, PurchaseService). The flow's raiser role/person is now the expected raiser (shown and notified), not a gate.
+- 6/7 Assets.ViewAll is read scope only (no longer unlocks request-for-others or inline classification create). Users.View is read-only (every user write needs Users.Create/Edit/Delete).
+- Audit #11: approval-path preview refuses departments outside the requester's scope. Receive button shown only with Purchases.View + Assets.Receive (same as the actions).
+- Tests: Release build 0 errors, aspnet_compiler precompile exit 0, 1641 total / 1633 passed / 8 skipped / 0 failed.
+- Role data PREPARED, NOT RUN: database/scripts/ops/RoleData_20261102_req_access/ (01 Test-WF org 13, 02 NIS org 21: Finance Officer + Purchases.Edit, Assets.ViewAll, Users.View; Procurement + Purchases.Edit no-op; 99 rollback; optional department script for Test-WF depthead/procofficer). Each needs Allan's individual approval.
+- Effect without the scripts on Test-WF: depthead.a46138179 and procofficer.a46138179 (no department) can no longer raise until a department is assigned. Finance Officer cannot record purchase orders until 01/02 run.
+
 ## 2026-11-02 12:02 EAT - Label print batch log: View assets per batch (tag, name, department, prints), company-scoped (64a0aad): 64a0aad PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
 
 - Approval: Allan, 2026-11-02 11:54 EAT (relayed by Grok Bot), publish 64a0aad to local IIS only. Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted, no Print/Label/Preview/Reprint, no ZPL), no DB data touched.

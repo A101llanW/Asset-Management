@@ -19,19 +19,22 @@ namespace AssetManagement.Application.Services
         private readonly IOrganizationScopeService _organizationScope;
         private readonly IAuditWriter _auditWriter;
         private readonly IUserService _userService;
+        private readonly IAuthorizationService _authorizationService;
 
         public PurchaseService(
             IUnitOfWork unitOfWork,
             IOperationsQueryRepository operationsQueryRepository,
             IOrganizationScopeService organizationScope,
             IAuditWriter auditWriter = null,
-            IUserService userService = null)
+            IUserService userService = null,
+            IAuthorizationService authorizationService = null)
         {
             _unitOfWork = unitOfWork;
             _operationsQueryRepository = operationsQueryRepository;
             _organizationScope = organizationScope;
             _auditWriter = auditWriter;
             _userService = userService;
+            _authorizationService = authorizationService;
         }
 
         public IEnumerable<PurchaseRecordVm> GetAll()
@@ -590,23 +593,30 @@ namespace AssetManagement.Application.Services
             return string.Join(" > ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
         }
 
-        /// <summary>Server-side "Purchase order raised by" check for a requisition-linked PO (all create paths).</summary>
+        /// <summary>
+        /// Server-side PO raiser check for a requisition-linked PO (all create paths). Allan 2026-11-02 (answer 5):
+        /// permission-based. The acting user needs the PO permission (Purchases.View + Purchases.Edit, the same as the
+        /// PurchasesController.Create filters); a configured "Purchase order raised by" is the expected raiser and no
+        /// longer blocks other permission holders. Without an authorization service (legacy construction) the
+        /// controller filters are the gate; a configured raiser still needs an acting user.
+        /// </summary>
         private void EnsurePurchaseOrderRaiser(PurchaseRequest request, string actingUserId, int? actingRoleId)
         {
-            var config = PurchaseOrderRaiserRules.ResolveForRequest(_unitOfWork, request);
-            if (!PurchaseOrderRaiserRules.IsConfigured(config))
+            var actor = string.IsNullOrWhiteSpace(actingUserId) ? null : actingUserId.Trim();
+            if (_authorizationService != null)
             {
-                return; // Unconfigured anywhere in the chain: legacy behaviour.
+                PurchaseOrderRaiserRules.EnsureCanRaise(
+                    actor != null
+                    && _authorizationService.HasPermission(actor, AssetManagement.Application.Security.RequisitionAccessRules.ViewPermission)
+                    && _authorizationService.HasPermission(actor, AssetManagement.Application.Security.RequisitionAccessRules.EditPermission));
+                return;
             }
 
-            // Configured: only the raiser (person, else any active holder of the role). No Company Admin exemption.
-            // rel1009e: role-only raiser = holders of that role scoped to the requisition's department (shared resolver).
-            PurchaseOrderRaiserRules.EnsureCanRaise(
-                config,
-                actingUserId,
-                actingRoleId,
-                null,
-                PurchaseOrderRaiserRules.ResolveRaiserScope(_unitOfWork, _userService, config, request == null ? (int?)null : request.DepartmentId, request != null && Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(request.ApprovalFlowSource)));
+            var config = PurchaseOrderRaiserRules.ResolveForRequest(_unitOfWork, request);
+            if (PurchaseOrderRaiserRules.IsConfigured(config) && actor == null)
+            {
+                PurchaseOrderRaiserRules.EnsureCanRaise(false);
+            }
         }
     }
 }

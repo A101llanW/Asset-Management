@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using AssetManagement.Application.Contracts;
 using AssetManagement.Domain.Entities;
 
@@ -16,6 +18,7 @@ namespace AssetManagement.Application.Security
         public const string ApprovePermission = "Purchases.Approve";
         public const string EditPermission = "Purchases.Edit";
         public const string CreateForAnyDepartmentPermission = "Purchases.CreateForAnyDepartment";
+        public const string ReceivePermission = "Assets.Receive";
 
         /// <summary>
         /// The requisition PDF and attachment follow who can open Details: any of View / Create / Approve. The record
@@ -50,9 +53,7 @@ namespace AssetManagement.Application.Security
             return isApproved
                 && outstandingToOrder > 0
                 && canRaisePurchaseOrder
-                && hasPermission != null
-                && hasPermission(ViewPermission)
-                && hasPermission(EditPermission);
+                && HasPurchaseOrderPermission(hasPermission);
         }
 
         /// <summary>
@@ -88,31 +89,72 @@ namespace AssetManagement.Application.Security
 
         /// <summary>
         /// The requisition list scope (Index, batch, and the pending-approvals report): organisation-wide when the user
-        /// bypasses department scope or holds Purchases.Approve; otherwise the user's own department; nothing when a
-        /// scoped user has no department.
+        /// bypasses department scope or holds Purchases.Approve (every approver, HoDs included: Allan 2026-11-02, answer
+        /// 4); otherwise the user's own department and the units below it (the same subtree they may raise for, answer
+        /// 2); nothing when a scoped user has no department.
         /// </summary>
-        public static RequisitionListScope ResolveListScope(IDepartmentScopeService departmentScope, bool canApprovePurchases)
+        /// <param name="activeDepartments">Active departments as (id, parent id); null = own department only.</param>
+        public static RequisitionListScope ResolveListScope(
+            IDepartmentScopeService departmentScope,
+            bool canApprovePurchases,
+            IEnumerable<KeyValuePair<int, int?>> activeDepartments = null)
         {
             var bypass = canApprovePurchases || (departmentScope != null && departmentScope.BypassesDepartmentScope);
             int? departmentId = null;
             var deny = false;
+            IEnumerable<int> subtree = null;
             if (!bypass)
             {
                 departmentId = departmentScope == null ? null : departmentScope.ScopedDepartmentId;
                 deny = !departmentId.HasValue;
+                if (departmentId.HasValue && activeDepartments != null)
+                {
+                    subtree = RequisitionTargetScope.SelfAndActiveDescendants(departmentId.Value, activeDepartments);
+                }
             }
 
-            return new RequisitionListScope(bypass, departmentId, deny);
+            return new RequisitionListScope(bypass, departmentId, deny, subtree);
+        }
+
+        /// <summary>
+        /// "Receive" on requisition Details is shown only when PurchasesController.ReceiveForRequisition / Receive would
+        /// accept the user: Purchases.View (class filter) and Assets.Receive (action filter).
+        /// </summary>
+        public static bool CanShowReceive(Func<string, bool> hasPermission)
+        {
+            return hasPermission != null
+                && hasPermission(ViewPermission)
+                && hasPermission(ReceivePermission);
+        }
+
+        /// <summary>
+        /// Allan 2026-11-02 (answer 5): raising a purchase order is permission-based, not tied to Finance, Procurement or
+        /// a configured raiser. The "PO permission" is what PurchasesController.Create enforces: Purchases.View (class)
+        /// and Purchases.Edit (action). A configured "Purchase order raised by" role / person is the expected raiser
+        /// (named on the page and notified when the requisition is approved), not an exclusive gate.
+        /// </summary>
+        public static bool HasPurchaseOrderPermission(Func<string, bool> hasPermission)
+        {
+            return hasPermission != null
+                && hasPermission(ViewPermission)
+                && hasPermission(EditPermission);
         }
     }
 
     public sealed class RequisitionListScope
     {
-        public RequisitionListScope(bool bypassDepartmentScope, int? departmentId, bool denyDepartmentScope)
+        private readonly HashSet<int> _departmentIds;
+
+        public RequisitionListScope(bool bypassDepartmentScope, int? departmentId, bool denyDepartmentScope, IEnumerable<int> departmentIds = null)
         {
             BypassDepartmentScope = bypassDepartmentScope;
             DepartmentId = departmentId;
             DenyDepartmentScope = denyDepartmentScope;
+            _departmentIds = new HashSet<int>(departmentIds ?? Enumerable.Empty<int>());
+            if (departmentId.HasValue)
+            {
+                _departmentIds.Add(departmentId.Value);
+            }
         }
 
         public bool BypassDepartmentScope { get; private set; }
@@ -128,7 +170,7 @@ namespace AssetManagement.Application.Security
                 return true;
             }
 
-            return !DenyDepartmentScope && DepartmentId.HasValue && DepartmentId.Value == requisitionDepartmentId;
+            return !DenyDepartmentScope && DepartmentId.HasValue && _departmentIds.Contains(requisitionDepartmentId);
         }
     }
 }

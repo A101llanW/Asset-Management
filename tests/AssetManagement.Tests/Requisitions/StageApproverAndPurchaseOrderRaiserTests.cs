@@ -376,20 +376,27 @@ namespace AssetManagement.Tests.Requisitions
         // ---------- PO raiser enforcement ----------
 
         [Test]
-        public void PoRaiserRules_CanRaise()
+        public void PoRaiserRules_ConfiguredRaiserIsTheExpectedRaiser_RaisingIsPermissionBased()
         {
+            // The configured person / role is who the requisition names and notifies (IsConfiguredRaiser) ...
             var person = new ApprovalProcessConfiguration { PurchaseOrderRaiserRoleId = ProcManagerRole, PurchaseOrderRaiserUserId = "pm-2" };
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(person, "pm-2", ProcManagerRole));
-            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(person, "pm-1", ProcManagerRole), "same role, not the person");
-            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(person, "admin", 59), "Company Admin is not exempt");
+            Assert.IsTrue(PurchaseOrderRaiserRules.IsConfiguredRaiser(person, "pm-2", ProcManagerRole));
+            Assert.IsFalse(PurchaseOrderRaiserRules.IsConfiguredRaiser(person, "pm-1", ProcManagerRole), "same role, not the person");
 
             var roleOnly = new ApprovalProcessConfiguration { PurchaseOrderRaiserRoleId = ProcManagerRole };
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(roleOnly, "pm-1", ProcManagerRole));
-            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(roleOnly, "po-1", ProcOfficerRole));
+            Assert.IsTrue(PurchaseOrderRaiserRules.IsConfiguredRaiser(roleOnly, "pm-1", ProcManagerRole));
+            Assert.IsFalse(PurchaseOrderRaiserRules.IsConfiguredRaiser(roleOnly, "po-1", ProcOfficerRole));
 
             var none = new ApprovalProcessConfiguration();
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(none, "anyone", ProcOfficerRole));
-            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(null, "anyone", null));
+            Assert.IsTrue(PurchaseOrderRaiserRules.IsConfiguredRaiser(none, "anyone", ProcOfficerRole));
+
+            // ... but raising is permission-based (Allan 2026-11-02, answer 5).
+            Assert.IsTrue(PurchaseOrderRaiserRules.CanRaise(true));
+            Assert.IsFalse(PurchaseOrderRaiserRules.CanRaise(false));
+            var ex = Assert.Throws<BusinessException>(() => PurchaseOrderRaiserRules.EnsureCanRaise(false));
+            StringAssert.Contains("Purchases.Edit", ex.Message);
+            StringAssert.DoesNotContain("Only ", PurchaseOrderRaiserRules.BuildBlockedNote("Procurement Manager"));
+            StringAssert.Contains("expected from Procurement Manager", PurchaseOrderRaiserRules.BuildBlockedNote("Procurement Manager"));
 
             var everyone = Users().Values.ToList();
             CollectionAssert.AreEquivalent(new[] { "pm-2" }, PurchaseOrderRaiserRules.ResolveNotifyUserIds(person, everyone));
@@ -412,17 +419,37 @@ namespace AssetManagement.Tests.Requisitions
         }
 
         [Test]
-        public void PurchaseService_Create_ConfiguredPerson_AllowedOthersBlocked()
+        public void PurchaseService_Create_ConfiguredPerson_AnyPoPermissionHolderMayRaise()
         {
+            // Allan 2026-11-02 (answer 5): the configured person (pm-2) is the expected raiser; anyone holding the PO
+            // permission (Purchases.View + Purchases.Edit) may record the PO; without it nobody may, the raiser included.
             var unitOfWork = SeedHierarchy(configureSub: true, configureDept: false);
             SeedApprovedRequest(unitOfWork, 700);
-            var service = BuildPurchaseService(unitOfWork);
+            var authorization = new PerUserPermissionAuthorizationService();
+            authorization.Grant("pm-1", "Purchases.View", "Purchases.Edit");
+            authorization.Grant("finance-1", "Purchases.View", "Purchases.Edit");
+            authorization.Grant("pm-2", "Purchases.View");
+            authorization.Grant("viewer-1", "Purchases.View", "Purchases.Approve");
+            var service = new PurchaseService(unitOfWork, new FakeOperationsQueryRepository(), new FakeOrganizationScopeService(organizationId: Org), new NoOpAuditWriter(), null, authorization);
 
-            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-1", ProcManagerRole));
-            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "company-admin", 59), "Company Admin not exempt");
+            Assert.Greater(service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-1", ProcManagerRole), -1,
+                "same role, not the configured person: allowed (permission-based)");
+            Assert.Greater(service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "finance-1", 62), -1,
+                "a Finance role holding the PO permission");
+            var ex = Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-2", ProcManagerRole));
+            StringAssert.Contains("Purchases.Edit", ex.Message, "the configured raiser without the permission");
+            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "viewer-1", 62));
             Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }), "no actor = fail closed");
-            var id = service.Create(new PurchaseRecordVm { PurchaseRequestId = 700, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-2", ProcManagerRole);
-            Assert.Greater(id, -1);
+        }
+
+        [Test]
+        public void PurchaseService_Create_LegacyWithoutAuthorization_ConfiguredRaiserNoLongerExclusive()
+        {
+            var unitOfWork = SeedHierarchy(configureSub: true, configureDept: false);
+            SeedApprovedRequest(unitOfWork, 702);
+            var service = BuildPurchaseService(unitOfWork);
+            Assert.DoesNotThrow(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 702, Quantity = 1, UnitCost = 10, Currency = "KES" }, "pm-1", ProcManagerRole));
+            Assert.Throws<BusinessException>(() => service.Create(new PurchaseRecordVm { PurchaseRequestId = 702, Quantity = 1, UnitCost = 10, Currency = "KES" }), "no actor = fail closed");
         }
 
         [Test]

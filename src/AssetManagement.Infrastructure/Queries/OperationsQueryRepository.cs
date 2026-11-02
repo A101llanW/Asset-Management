@@ -11,6 +11,33 @@ namespace AssetManagement.Infrastructure.Queries
 {
     public class OperationsQueryRepository : IOperationsQueryRepository
     {
+        /// <summary>
+        /// Allan 2026-11-02 (answer 2): a department user sees requisitions of their own department and of every active
+        /// unit below it (up to 8 levels), the same subtree as RequisitionTargetScope. Expects alias p (requisition).
+        /// </summary>
+        private const string PurchaseRequestDepartmentScopeSql = @"
+  AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND (p.[DepartmentId] = @DepartmentId OR EXISTS (
+    SELECT 1
+    FROM [Department] sd0
+    LEFT JOIN [Department] sd1 ON sd1.[Id] = sd0.[ParentDepartmentId]
+    LEFT JOIN [Department] sd2 ON sd2.[Id] = sd1.[ParentDepartmentId]
+    LEFT JOIN [Department] sd3 ON sd3.[Id] = sd2.[ParentDepartmentId]
+    LEFT JOIN [Department] sd4 ON sd4.[Id] = sd3.[ParentDepartmentId]
+    LEFT JOIN [Department] sd5 ON sd5.[Id] = sd4.[ParentDepartmentId]
+    LEFT JOIN [Department] sd6 ON sd6.[Id] = sd5.[ParentDepartmentId]
+    LEFT JOIN [Department] sd7 ON sd7.[Id] = sd6.[ParentDepartmentId]
+    WHERE sd0.[Id] = p.[DepartmentId]
+      AND (
+        (sd0.[IsActive] = 1 AND sd0.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd1.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd2.[IsActive] = 1 AND sd2.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd2.[IsActive] = 1 AND sd3.[IsActive] = 1 AND sd3.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd2.[IsActive] = 1 AND sd3.[IsActive] = 1 AND sd4.[IsActive] = 1 AND sd4.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd2.[IsActive] = 1 AND sd3.[IsActive] = 1 AND sd4.[IsActive] = 1 AND sd5.[IsActive] = 1 AND sd5.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd2.[IsActive] = 1 AND sd3.[IsActive] = 1 AND sd4.[IsActive] = 1 AND sd5.[IsActive] = 1 AND sd6.[IsActive] = 1 AND sd6.[ParentDepartmentId] = @DepartmentId)
+     OR (sd0.[IsActive] = 1 AND sd1.[IsActive] = 1 AND sd2.[IsActive] = 1 AND sd3.[IsActive] = 1 AND sd4.[IsActive] = 1 AND sd5.[IsActive] = 1 AND sd6.[IsActive] = 1 AND sd7.[IsActive] = 1 AND sd7.[ParentDepartmentId] = @DepartmentId)
+      )))))";
+
         private const string PurchaseRequestListSql = @"
 SELECT
     p.[Id],
@@ -31,8 +58,7 @@ FROM [PurchaseRequest] p
 LEFT JOIN [Department] d ON d.[Id] = p.[DepartmentId]
 LEFT JOIN [Asset] ta ON ta.[Id] = p.[TargetAssetId]
 WHERE p.[OrganizationId] = @OrganizationId
-  AND p.[IsActive] = 1
-  AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND p.[DepartmentId] = @DepartmentId))
+  AND p.[IsActive] = 1" + PurchaseRequestDepartmentScopeSql + @"
 ORDER BY p.[CreatedAt] DESC, p.[Id] DESC";
 
         private const string PurchaseRecordListSql = @"
@@ -571,8 +597,7 @@ FROM [PurchaseRequest] p
 LEFT JOIN [Department] d ON d.[Id] = p.[DepartmentId]
 LEFT JOIN [Asset] ta ON ta.[Id] = p.[TargetAssetId]
 WHERE p.[OrganizationId] = @OrganizationId
-  AND p.[IsActive] = 1
-  AND (@BypassDepartmentScope = 1 OR (@DenyDepartmentScope = 0 AND @DepartmentId IS NOT NULL AND p.[DepartmentId] = @DepartmentId))";
+  AND p.[IsActive] = 1" + PurchaseRequestDepartmentScopeSql;
 
             var totalCount = CountPurchaseRequests(fromClause + whereClause, organizationId, departmentId, bypassDepartmentScope, denyDepartmentScope, search);
             int safePage;

@@ -330,7 +330,9 @@ namespace AssetManagement.Web.Controllers
 
         protected bool CanRequestForOthers(string permissionCode)
         {
-            if (IsCurrentUserSuperAdmin())
+            // Allan 2026-11-02 (answer 6): Assets.ViewAll is read scope only; it no longer grants an action. The Company
+            // Admin keeps its bypass; everyone else needs the permission.
+            if (IsCurrentUserCompanyAdmin())
             {
                 return true;
             }
@@ -357,7 +359,7 @@ namespace AssetManagement.Web.Controllers
         /// </summary>
         protected void PopulateClassificationInlineCreate(string origin, string controllerName)
         {
-            ViewBag.CanCreateClassification = ClassificationInlineCreatePolicy.CanCreate(origin, HasPermission, IsCurrentUserSuperAdmin());
+            ViewBag.CanCreateClassification = ClassificationInlineCreatePolicy.CanCreate(origin, HasPermission, IsCurrentUserCompanyAdmin()); // answer 6: not Assets.ViewAll
             ViewBag.ClassificationInlineCreateUrl = TenantUrlHelper.TenantRouteUrl(Url, "CreateClassification", controllerName);
         }
 

@@ -472,7 +472,9 @@ namespace AssetManagement.Application.Services
             // department's; a scoped user with no department sees none.
             var purchaseListScope = AssetManagement.Application.Security.RequisitionAccessRules.ResolveListScope(
                 _departmentScope,
-                CanCurrentUserApprovePurchases());
+                CanCurrentUserApprovePurchases(),
+                AssetManagement.Application.Security.RequisitionTargetScope.ToParentPairs(
+                    _unitOfWork.Repository<Department>() == null ? null : _unitOfWork.Repository<Department>().GetAll()));
             foreach (var purchaseRequest in _unitOfWork.Repository<PurchaseRequest>()
                 .Find(x => x.ApprovalStatus == ApprovalStatus.Pending && x.IsActive)
                 .OrderByDescending(x => x.CreatedAt))

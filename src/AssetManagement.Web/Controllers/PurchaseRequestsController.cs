@@ -17,6 +17,7 @@ using AssetManagement.Web.Filters;
 using AssetManagement.Web.Helpers;
 using AssetManagement.Web.Security;
 using RequisitionAccessRules = AssetManagement.Application.Security.RequisitionAccessRules;
+using RequisitionTargetScope = AssetManagement.Application.Security.RequisitionTargetScope;
 
 namespace AssetManagement.Web.Controllers
 {
@@ -38,6 +39,17 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Index(string search = null, string sort = "created", string direction = "desc", int page = 1, int pageSize = 10)
         {
             var pageResult = _purchaseRequestService.GetListPage(search, sort, direction, page, pageSize);
+            // Allan 2026-11-02 (answer 1): a requester who cannot raise (no department, no create-for-any) gets a clear
+            // message instead of a "New requisition" button that leads to a form they cannot submit.
+            if (HasPermission("Purchases.Create"))
+            {
+                var targetScope = ResolveRequisitionTargetScope();
+                if (targetScope.IsBlocked)
+                {
+                    ViewBag.RequisitionRaiseBlockedMessage = RequisitionTargetScope.BlockedMessage;
+                }
+            }
+
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
             return View(ToListPage(pageResult));
@@ -46,6 +58,12 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public ActionResult Create(string returnUrl = null, int? fromAssetRequestId = null)
         {
+            var targetScope = ResolveRequisitionTargetScope();
+            if (targetScope.IsBlocked)
+            {
+                return CannotRaise(returnUrl);
+            }
+
             var model = new PurchaseRequestCreateVm
             {
                 Currency = GetDefaultCurrencyCode(),
@@ -57,9 +75,9 @@ namespace AssetManagement.Web.Controllers
                 }
             };
 
-            // Only a locked requester is pinned to their own department. A Purchases.CreateForAnyDepartment holder who
-            // also has a department picks any valid room (it used to be pinned to its own department on save).
-            model.DepartmentLocked = IsRequisitionDepartmentLocked();
+            // Only a requester whose scope is just their own department is pinned to it. A Purchases.CreateForAnyDepartment
+            // holder picks any valid room; a department user picks a room under their department (answer 2).
+            model.DepartmentLocked = targetScope.LocksToOwnDepartment(GetActiveDepartments());
             if (model.DepartmentLocked)
             {
                 model.DepartmentId = GetCurrentUserDepartmentId().Value;
@@ -70,7 +88,9 @@ namespace AssetManagement.Web.Controllers
                 var assetRequest = BuildAssetRequestService().GetById(fromAssetRequestId.Value);
                 if (assetRequest != null)
                 {
-                    if (assetRequest.DepartmentId.HasValue)
+                    if (assetRequest.DepartmentId.HasValue
+                        && !model.DepartmentLocked
+                        && targetScope.Contains(assetRequest.DepartmentId.Value))
                     {
                         model.DepartmentId = assetRequest.DepartmentId.Value;
                     }
@@ -164,18 +184,15 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public ActionResult Create(PurchaseRequestCreateVm model, HttpPostedFileBase attachment, string returnUrl = null)
         {
+            // Allan 2026-11-02 (answer 1): no department and no create-for-any = cannot raise (the service refuses too).
+            var targetScope = ResolveRequisitionTargetScope();
+            if (targetScope.IsBlocked)
+            {
+                return CannotRaise(returnUrl);
+            }
+
             // Migration 110: never bound from the form; a locked requester's department routes approval for a person too.
-            model.DepartmentLocked = IsRequisitionDepartmentLocked();
-            if (model.DepartmentLocked)
-            {
-                model.DepartmentId = GetCurrentUserDepartmentId().Value;
-            }
-            model.RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind);
-            if (model.RequisitionTargetKind == null && !model.DepartmentLocked)
-            {
-                // The form only offers Room or Person; a post without a kind is checked as a Room target (rooms only).
-                model.RequisitionTargetKind = RequisitionTargetRules.KindRoom;
-            }
+            ApplyRequisitionTargetLock(model, targetScope);
 
             if (RequisitionTargetRules.IsPerson(model.RequisitionTargetKind) && !model.DepartmentLocked)
             {
@@ -257,15 +274,13 @@ namespace AssetManagement.Web.Controllers
                     // rel1009e: same approver resolver as the notification and the approve/reject check.
                     StageApproverScopeResolver.ResolveFor(UnitOfWork, BuildUserService(), model.CurrentStageRoleId, model.CurrentStageUserId, model.DepartmentId, AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(model.ApprovalFlowSource)));
 
-            // "Purchase order raised by" (resolved from the unit the flow is taken from): hide the PO button for others.
+            // "Purchase order raised by" (resolved from the unit the flow is taken from) is the expected raiser, shown on
+            // the page. Allan 2026-11-02 (answer 5): whoever holds the PO permission may record it.
             var entity = UnitOfWork.Repository<Domain.Entities.PurchaseRequest>().GetById(id);
             var poRaiserConfig = PurchaseOrderRaiserRules.ResolveForRequest(UnitOfWork, entity);
             model.PurchaseOrderRaiserLabel = PurchaseOrderRaiserRules.Describe(UnitOfWork, BuildUserService(), poRaiserConfig);
             model.CanCurrentUserRaisePurchaseOrder = PurchaseOrderRaiserRules.CanRaise(
-                poRaiserConfig,
-                currentUserId,
-                currentRoleId,
-                PurchaseOrderRaiserRules.ResolveRaiserScope(UnitOfWork, BuildUserService(), poRaiserConfig, entity == null ? (int?)null : entity.DepartmentId, entity != null && AssetManagement.Application.Helpers.CatalogRequisitionFlowResolver.IsCatalogSource(entity.ApprovalFlowSource)));
+                RequisitionAccessRules.HasPurchaseOrderPermission(HasPermission));
 
             ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
             // The path this requisition resolves to (its snapshot / unit flow), not the org default.
@@ -424,6 +439,18 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public JsonResult PreviewApprovalPath(int? departmentId = null)
         {
+            // Audit #11 (2026-11-02): only preview the approval path of a department the requester may raise for.
+            var targetScope = ResolveRequisitionTargetScope();
+            if (targetScope.IsBlocked)
+            {
+                return Json(new { summary = RequisitionTargetScope.BlockedMessage, outOfScope = true }, JsonRequestBehavior.AllowGet);
+            }
+
+            if (departmentId.HasValue && departmentId.Value > 0 && !targetScope.Contains(departmentId.Value))
+            {
+                return Json(new { summary = RequisitionTargetScope.OutsideScopeMessage, outOfScope = true }, JsonRequestBehavior.AllowGet);
+            }
+
             return Json(new
             {
                 summary = BuildDepartmentRequisitionApprovalSummary(departmentId)
@@ -502,18 +529,121 @@ namespace AssetManagement.Web.Controllers
         /// unless the role grants Purchases.CreateForAnyDepartment or the user is the Company Admin. Assets.ViewAll alone
         /// no longer unlocks it (2026-10-29).
         /// </summary>
-        private bool IsRequisitionDepartmentLocked()
+        /// <summary>
+        /// Never bound from the form (migration 110). A requester whose scope is only their own department is pinned to
+        /// it (approval follows it, also for a person target). A department user who picks their own department from the
+        /// room list routes the same way (it is what they raised for before 2026-11-02), so it is not held to the
+        /// room-kind rule. Shared by submit and the line-path preview.
+        /// </summary>
+        private void ApplyRequisitionTargetLock(PurchaseRequestCreateVm model, RequisitionTargetScope targetScope = null)
         {
-            return RequisitionAccessRules.IsDepartmentLocked(
+            if (model == null)
+            {
+                return;
+            }
+
+            targetScope = targetScope ?? ResolveRequisitionTargetScope();
+            model.DepartmentLocked = targetScope.LocksToOwnDepartment(GetActiveDepartments());
+            if (model.DepartmentLocked)
+            {
+                model.DepartmentId = GetCurrentUserDepartmentId().Value;
+            }
+
+            model.RequisitionTargetKind = RequisitionTargetRules.NormalizeKind(model.RequisitionTargetKind);
+            if (model.RequisitionTargetKind == null && !model.DepartmentLocked)
+            {
+                // The form only offers Room or Person; a post without a kind is checked as a Room target (rooms only).
+                model.RequisitionTargetKind = RequisitionTargetRules.KindRoom;
+            }
+
+            if (!model.DepartmentLocked
+                && !RequisitionTargetRules.IsPerson(model.RequisitionTargetKind)
+                && targetScope.IsOwnDepartment(model.DepartmentId))
+            {
+                model.DepartmentLocked = true;
+            }
+        }
+
+        /// <summary>
+        /// The "A room" optgroups limited to the requester's scope: organisation-wide for create-for-any / the Company
+        /// Admin; for a department user their own department first (when it is a requisition target that is not itself
+        /// listed as a room) and then the valid rooms under it, under the usual department headings.
+        /// </summary>
+        private IList<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm> BuildScopedRequisitionDepartmentGroups(
+            int? selectedDepartmentId,
+            IList<DepartmentVm> activeDepartments,
+            RequisitionTargetScope targetScope)
+        {
+            var groups = BuildRequisitionDepartmentGroups(selectedDepartmentId, activeDepartments);
+            if (targetScope == null || targetScope.IsOrganizationWide)
+            {
+                return groups;
+            }
+
+            var allowed = targetScope.AllowedRoomOptionIds(activeDepartments);
+            var scoped = new List<AssetManagement.Web.ViewModels.DepartmentSelectGroupVm>();
+            foreach (var group in groups)
+            {
+                var items = group.Items.Where(x => { int id; return int.TryParse(x.Value, out id) && allowed.Contains(id); }).ToList();
+                if (items.Count == 0)
+                {
+                    continue;
+                }
+
+                group.Items = items;
+                scoped.Add(group);
+            }
+
+            var ownId = targetScope.RootDepartmentId;
+            var listed = new HashSet<string>(scoped.SelectMany(x => x.Items).Select(x => x.Value));
+            if (ownId.HasValue && allowed.Contains(ownId.Value) && !listed.Contains(ownId.Value.ToString()))
+            {
+                var own = activeDepartments.FirstOrDefault(x => x != null && x.Id == ownId.Value);
+                var ownGroup = new AssetManagement.Web.ViewModels.DepartmentSelectGroupVm
+                {
+                    Label = "Your department",
+                    CssClass = "am-req-target-g am-req-target-g-0"
+                };
+                ownGroup.Items.Add(new AssetManagement.Web.ViewModels.DepartmentSelectOptionVm
+                {
+                    Value = ownId.Value.ToString(),
+                    Text = GradeDisplay.ToYear(own == null ? "Your department" : (own.Name ?? string.Empty)),
+                    Selected = selectedDepartmentId.HasValue && selectedDepartmentId.Value == ownId.Value
+                });
+                scoped.Insert(0, ownGroup);
+            }
+
+            return scoped;
+        }
+
+        /// <summary>
+        /// Allan 2026-11-02 (answers 1 and 2): the shared requisition target scope (RequisitionTargetScope), the same rule
+        /// DepartmentScopeService.EnsureCanCreateForRequisitionTarget applies on submit.
+        /// </summary>
+        private RequisitionTargetScope ResolveRequisitionTargetScope()
+        {
+            var orgScope = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Security.IOrganizationScopeService>();
+            var isTenantAdministrator = IsCurrentUserCompanyAdmin() || (orgScope != null && orgScope.IsImpersonating());
+            return RequisitionTargetScope.Resolve(
                 HasPermission(RequisitionAccessRules.CreateForAnyDepartmentPermission),
-                IsCurrentUserCompanyAdmin(),
-                GetCurrentUserDepartmentId());
+                isTenantAdministrator,
+                GetCurrentUserDepartmentId(),
+                GetActiveDepartments());
+        }
+
+        private ActionResult CannotRaise(string returnUrl)
+        {
+            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
+            ViewBag.RequisitionRaiseBlockedMessage = RequisitionTargetScope.BlockedMessage;
+            return View("CannotRaise");
         }
 
         private void PopulateCreateLookups(PurchaseRequestCreateVm model)
         {
             var canCreateForAnyDepartment = HasPermission("Purchases.CreateForAnyDepartment");
-            var lockDepartment = IsRequisitionDepartmentLocked();
+            var targetScope = ResolveRequisitionTargetScope();
+            var activeDepartments = GetActiveDepartments();
+            var lockDepartment = targetScope.LocksToOwnDepartment(activeDepartments);
             int? departmentId = model == null ? GetCurrentUserDepartmentId() : (int?)model.DepartmentId;
             ViewBag.CanCreateForAnyDepartment = canCreateForAnyDepartment;
             ViewBag.LockDepartment = lockDepartment;
@@ -525,9 +655,11 @@ namespace AssetManagement.Web.Controllers
             // 2026-10-29 (#2): the list is the organisation's valid rooms for every unlocked requester, including a
             // Purchases.CreateForAnyDepartment holder who has a department (it used the department-scoped list, so it
             // showed only their own department although the server accepts any valid room).
+            // Allan 2026-11-02 (answer 2): a department user's list is limited to their scope (their own department first,
+            // then the rooms under it); create-for-any / the Company Admin keep the organisation's valid rooms.
             var departmentGroups = lockDepartment
                 ? null
-                : BuildRequisitionDepartmentGroups(departmentId, GetActiveDepartments());
+                : BuildScopedRequisitionDepartmentGroups(departmentId, activeDepartments, targetScope);
             ViewBag.DepartmentGroups = departmentGroups;
             // Never leave the DepartmentId dropdown without a list: with no groups (e.g. a department scope that
             // returned nothing) the view used to fall through to DropDownListFor with a null SelectList, which
@@ -540,7 +672,8 @@ namespace AssetManagement.Web.Controllers
             PopulateCatalogPickers();
             PopulateClassificationInlineCreate(ClassificationCreateOrigin.Requisition, "PurchaseRequests");
             // Migration 110: "Requisition target (room or person)" person list.
-            ViewBag.PersonTargetOptions = _purchaseRequestService.GetPersonTargetOptions();
+            // Allan 2026-11-02 (answer 2): only people whose room / department is in the requester's scope.
+            ViewBag.PersonTargetOptions = targetScope.FilterPersonOptions(_purchaseRequestService.GetPersonTargetOptions());
             // Migration 108: tags are per line. An older link / asset request posting the header tag shows it on line 1.
             if (model != null)
             {

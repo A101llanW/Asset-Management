@@ -9,10 +9,13 @@ using AssetManagement.Domain.Entities;
 namespace AssetManagement.Application.Services
 {
     /// <summary>
-    /// "Purchase order raised by" enforcement. Configuration comes from the requisition flow resolver
-    /// (the unit the flow is effectively taken from). Unconfigured = legacy behaviour (anyone who already has
-    /// the Purchases permission). Configured person = only that person; role only = any active role holder.
-    /// There is no Company Admin exemption ("only the configured role/person"); admins can change the setting.
+    /// "Purchase order raised by" (the designated raiser). Configuration comes from the requisition flow resolver
+    /// (the unit the flow is effectively taken from).
+    /// Allan 2026-11-02 (answer 5): raising a PO is permission-based. Anyone holding the PO permission (Purchases.View +
+    /// Purchases.Edit, the PurchasesController.Create filters) may raise it, whether or not a raiser role / person is
+    /// configured. A configured raiser is the EXPECTED raiser: named on the requisition ("Purchase order expected
+    /// from") and notified when the requisition is approved; it no longer locks other permission holders out, and it
+    /// grants nothing to a user without the permission.
     /// </summary>
     public static class PurchaseOrderRaiserRules
     {
@@ -49,26 +52,28 @@ namespace AssetManagement.Application.Services
                 && ApprovalWorkflowHelper.IsInApproverScope(raiserScope, actor);
         }
 
-        public static bool CanRaise(ApprovalProcessConfiguration config, string userId, int? roleId, StageApproverScope raiserScope = null)
+        public const string MissingPermissionMessage = "You need the purchase order permission (Purchases.Edit) to raise a purchase order. Ask your Company Admin to add it to your role.";
+
+        /// <summary>Permission-based (answer 5): true when the user holds the PO permission; the configured raiser does not matter.</summary>
+        public static bool CanRaise(bool hasPurchaseOrderPermission)
         {
-            return !IsConfigured(config) || IsConfiguredRaiser(config, userId, roleId, raiserScope);
+            return hasPurchaseOrderPermission;
         }
 
-        public static void EnsureCanRaise(
-            ApprovalProcessConfiguration config,
-            string userId,
-            int? roleId,
-            string raiserLabel,
-            StageApproverScope raiserScope = null)
+        public static void EnsureCanRaise(bool hasPurchaseOrderPermission)
         {
-            if (CanRaise(config, userId, roleId, raiserScope))
+            if (!CanRaise(hasPurchaseOrderPermission))
             {
-                return;
+                throw new BusinessException(MissingPermissionMessage);
             }
+        }
 
-            throw new BusinessException(
-                "Only " + (string.IsNullOrWhiteSpace(raiserLabel) ? "the configured purchase order raiser" : raiserLabel)
-                + " can raise the purchase order for this requisition.");
+        /// <summary>The note shown on an approved requisition to a user who cannot record its purchase order.</summary>
+        public static string BuildBlockedNote(string raiserLabel)
+        {
+            return string.IsNullOrWhiteSpace(raiserLabel)
+                ? "Ready for purchase order. A user with the purchase order permission records it."
+                : "Ready for purchase order. A user with the purchase order permission records it (expected from " + raiserLabel.Trim() + ").";
         }
 
         /// <summary>Users who get the "ready for purchase order" notification when configured.</summary>
