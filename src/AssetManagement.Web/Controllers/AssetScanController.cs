@@ -615,7 +615,13 @@ namespace AssetManagement.Web.Controllers
             return File(content, lookup.PhotoContentType);
         }
 
-        /// <summary>Department filter options for the bulk label print page (AssetLabels/BulkPrint).</summary>
+        /// <summary>
+        /// Department filter options for the bulk label print page (AssetLabels/BulkPrint). Same tree as the other
+        /// department pickers (DepartmentTreeHelper.BuildTreeOptions, 51872c9 / 0ae93a1 / 57e6578): KG, Prep, then
+        /// Years in number order with their classes under them ("Year 7 &gt; 7A", the "Grade N homerooms" level hidden),
+        /// then departments with their sub-departments and rooms ("Academics &gt; Science &gt; Biology Lab"). Inactive
+        /// departments and anything under an inactive parent are not listed. Display only: values stay department ids.
+        /// </summary>
         public static System.Collections.Generic.IEnumerable<SelectListItem> BuildDepartmentOptions(IDepartmentService departmentService)
         {
             if (departmentService == null)
@@ -623,18 +629,23 @@ namespace AssetManagement.Web.Controllers
                 return new SelectListItem[0];
             }
 
-            var departments = departmentService.GetAll()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.Name)
+            return BuildDepartmentOptions(departmentService.GetAll());
+        }
+
+        /// <summary>Same options over a given (already company- and scope-filtered) department list.</summary>
+        public static System.Collections.Generic.IList<SelectListItem> BuildDepartmentOptions(System.Collections.Generic.IEnumerable<DepartmentVm> departments)
+        {
+            var options = AssetManagement.Application.Helpers.DepartmentTreeHelper
+                .BuildTreeOptions(departments, false)
                 .Select(x => new SelectListItem
                 {
-                    Value = x.Id.ToString(),
-                    Text = AssetManagement.Application.Helpers.GradeDisplay.ToYear(x.Name)
+                    Value = x.Key.ToString(),
+                    Text = AssetManagement.Application.Helpers.GradeDisplay.ToYear(x.Value)
                 })
                 .ToList();
 
-            departments.Insert(0, new SelectListItem { Value = string.Empty, Text = "All departments" });
-            return departments;
+            options.Insert(0, new SelectListItem { Value = string.Empty, Text = "All departments" });
+            return options;
         }
 
         /// <summary>Status filter options for the bulk label print page (AssetLabels/BulkPrint).</summary>

@@ -148,6 +148,9 @@ namespace AssetManagement.Application.Helpers
         /// <summary>
         /// Department filter for Bulk Label Print: the chosen department/class/room and, when includeDescendants,
         /// every node below it (DepartmentSubtreeHelper, cycle-safe). Null = no department filter.
+        /// The filter list shows the rooms of "Grade N homerooms" under Year N (HomeroomYearAlias, display only), so a
+        /// Year with sub-departments included also covers its homerooms group and the rooms in it (7A-7D under Year 7).
+        /// Only departments in <paramref name="departments"/> (the caller's company / scope list) can be added.
         /// </summary>
         public static IList<int> ResolveDepartmentIds(int? departmentId, bool includeDescendants, IEnumerable<DepartmentVm> departments)
         {
@@ -161,7 +164,13 @@ namespace AssetManagement.Application.Helpers
                 return new List<int> { departmentId.Value };
             }
 
-            var ids = DepartmentSubtreeHelper.GetSelfAndDescendantIds(departmentId.Value, departments ?? Enumerable.Empty<DepartmentVm>());
+            var list = (departments ?? Enumerable.Empty<DepartmentVm>()).Where(x => x != null).ToList();
+            var ids = DepartmentSubtreeHelper.GetSelfAndDescendantIds(departmentId.Value, list);
+            foreach (var alias in HomeroomYearAlias.BuildMap(list).Where(x => ids.Contains(x.Value)).ToList())
+            {
+                ids.UnionWith(DepartmentSubtreeHelper.GetSelfAndDescendantIds(alias.Key, list));
+            }
+
             if (ids.Count > MaxDepartmentScopeIds)
             {
                 return new List<int> { departmentId.Value };
