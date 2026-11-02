@@ -1,5 +1,13 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-11-02 16:03 EAT - QA retest of 4cb3a03 (d347996): 'New Purchase Record' shown for Purchases.View + Purchases.Edit (as Purchases/Create checks), requisition times shown in Kenya time; IIS package STAGED, NOT RUN - LOCAL COMMIT ONLY (main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
+
+- Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
+- 1 Purchases list 'New Purchase Record' opens Purchases/Create (no requisition id -> the approved-requisition picker), the same action as 'Record purchase order' on a requisition (Purchases/Create?purchaseRequestId=). The action needs Purchases.View (controller) + Purchases.Edit (both Create overloads); the button checked Purchases.Create, so Finance Officer (View + Edit, no Create) could not see it. The button now uses RequisitionAccessRules.HasPurchaseOrderPermission (View + Edit), the same rule as the action.
+- 2 Requisition Submitted / Approved times are stored in UTC (DateTime.UtcNow) but the requisition list, details and batch pages printed them raw (12:43 instead of 15:43 EAT). They now use KenyaTimeHelper.FormatUtc (as Asset requests, Incidents, Claims, Notifications and the approval history already do), with the EAT label. Purchase dates and received dates are date-only and unchanged.
+- New tests Security/QaRetestPurchasesAndTimesTests (3). Release build 0 errors (232 warnings), aspnet_compiler precompile exit 0, 1658 total / 1650 passed / 8 skipped / 0 failed.
+- IIS publish STAGED, NOT RUN: Desktop\Staged_d347996 (304 files, no root Web.config), package Web.dll F8919AC32ACDA006DB39AE3C92F35897C55AE561FE68727C968AC1306D2726A3; current local IIS Web.dll 552FBCD7...A231D (the 776769c publish). artifacts\ra3c-iis-precheck.ps1 = READY; artifacts\ra3c-launch-elevated.ps1 -> artifacts\ra3c-iis-publish.ps1 (site backup first, Web.config untouched, GET-only smoke incl. anonymous /Purchases) waits for Allan's UAC. No migration.
+- LIVE: nothing published.
 ## 2026-11-02 15:16 EAT - Test-WF Procurement department created LOCALLY and procofficer placed in it (776769c, Allan 2026-11-02 15:03 EAT), on top of bf2d45c (Bulk Label Print department-tree filter); combined IIS package STAGED, NOT RUN - LOCAL COMMITS ONLY (main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
 
 - Scope: local only. Nothing pushed, no PR, no IIS publish, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed (Zebra ZD421 not contacted). NIS (org 21) got nothing. Live console kit unchanged.
