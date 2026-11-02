@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-11-02 12:02 EAT - Label print batch log: View assets per batch (tag, name, department, prints), company-scoped (64a0aad): 64a0aad PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
+
+- Approval: Allan, 2026-11-02 11:54 EAT (relayed by Grok Bot), publish 64a0aad to local IIS only. Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted, no Print/Label/Preview/Reprint, no ZPL), no DB data touched.
+- Live before: 57e6578 (Web.dll 7CE7EEDA...763D). Release build 0 errors (228 warnings). Tests 1620 total / 1612 passed / 8 skipped / 0 failed. aspnet_compiler precompile exit 0.
+- DB: no migration needed (no database/*.sql in 57e6578..64a0aad; 111_DepartmentSectionKG already applied). COPY_ONLY backup with CHECKSUM + RESTORE VERIFYONLY: AssetManagementModuleDb_pre_labelbatch_20261102_120044.bak in the SQLEXPRESS Backup folder. Only read-only SELECTs otherwise.
+- Local IIS C:\inetpub\AssetManagement (pool AssetManagement): staged at CodexAsset-artifacts\labelbatch-stage-64a0aad without the root Web.config. One UAC prompt (accepted 12:02 EAT). Add/overwrite only, App_Data excluded; root Web.config, Views web.configs and smtp.secrets.config excluded and unchanged (Web.config 27426D6E...D4D3 before and after). 302 files hash-checked, 0 mismatches. Pool stopped for the copy and restarted.
+  - AssetManagement.Web.dll DCAC8144C821E2E49533BF6361A5D7A85CD8E2698458283F2C3BB27B038A31A5 (was 7CE7EEDA...763D, the 57e6578 build). Site backup C:\inetpub\_backups\AssetManagement_root_pre_labelbatch_20261102_120220.
+  - Smoke 12:02 EAT (GET only, no login, no data): /Account/Login, /nis/Account/Login, /A46138179/Account/Login 200, no YSOD; / 302 to /Account/Login. Anonymous /A46138179/Assets, PurchaseRequests/Create, Purchases/Receive/1 (A46138179 and nis) 302 to {tenant}/Account/Login with returnUrl, no YSOD. Scripts/app/label-print-batch-log.js 200 with the View assets code; other Scripts/app/*.js and vendor html2pdf 200 (on-disk copies match the stage). No new Application event-log warnings or errors, no 5xx in the IIS log.
+- Desktop\publish refreshed from the stage (no root Web.config); previous copy kept as Desktop\publish_old_20261102_120302.
+- LIVE: nothing published.
+
 ## 2026-10-29 19:46 EAT - Grade labels leftover fix: custody and movement history tabs, approval-flow summaries, department pickers and requisition/receiving text show short class names (6A under Year 6), class page breadcrumb shows the full path (4c7ab62): 4c7ab62 PUBLISHED to local IIS (localhost:8080) - LIVE NOT TOUCHED
 
 - Approval: Allan, 2026-10-29 19:44 EAT (relayed by Grok Bot): "Proceed with asset". Local only: nothing pushed, no PR, nanosoft.africa and the live DB not touched, nothing printed (Zebra ZD421 not contacted), no Test-WF or other DB data touched.
