@@ -1,19 +1,22 @@
--- 02  NIS (Nairobi International School) (OrganizationId 21) role data for the 2026-11-02 requisition access answers.  PREPARED, NOT RUN.
--- Run only with Allan's individual approval, in SSMS or sqlcmd against the NIS (Nairobi International School) database. Never via an agent.
+-- 02  NIS (OrganizationId 21) role data for the 2026-11-02 requisition access answers (corrected 14:34 EAT).
+-- Approved by Allan 2026-11-02 for this database. Guarded and idempotent; @Confirm = 0 (default) only reports.
 -- What it does (INSERT into [RolePermission] only; nothing is removed or changed):
---   Finance Officer     + Purchases.Edit  (answer 5: record purchase orders; Purchases.Edit gates only Purchases/Create)
---   Finance Officer     + Assets.ViewAll  (answer 6: read the whole asset register; read scope only)
---   Finance Officer     + Users.View      (answer 7: member details; every user write needs Users.Create/Edit/Delete)
---   Procurement Manager + Purchases.Edit  (answer 5; already present on alLAN's copy -> no-op)
---   Procurement Officer + Purchases.Edit  (answer 5; already present on alLAN's copy -> no-op)
--- Guards: database name, organisation id + name, active role by exact name in this organisation, active permission
--- code, NOT EXISTS (idempotent: a second run inserts 0 rows). One transaction; XACT_ABORT rolls back on any error.
--- Safety switch: nothing is written unless @Confirm is set to 1 below. With @Confirm = 0 it only reports what it would add.
--- Rollback: 99_rollback_DO_NOT_RUN.sql (removes exactly these grants for this organisation).
+--   Finance Officer     + Purchases.Edit    (answer 5: record purchase orders; Purchases.Edit gates only Purchases/Create)
+--   Finance Officer     + Assets.ViewAll    (answer 6: read the whole asset register; read scope only)
+--   Finance Officer     + Users.View        (answer 7: member details; every user write needs Users.Create/Edit/Delete)
+--   Procurement Manager + Purchases.Edit    (answer 5)
+--   Procurement Officer + Purchases.Edit    (answer 5)
+--   Department Head, Procurement Officer, Facilities Manager, Company Admin + Purchases.Create
+--                                           (correction 2: raising a requisition needs Purchases.Create; these are
+--                                            the roles that raise. Already held on alLAN's copy -> no-op, ensured here.)
+--   Staff, Auditor, Asset Manager, Finance Officer, Procurement Manager do NOT get Purchases.Create (not without Allan).
+-- Guards: database name, organisation id + name, exactly one active role by name in this organisation, exactly one
+-- active permission code, NOT EXISTS (a second run inserts 0 rows). One transaction; XACT_ABORT rolls back on error.
+-- Rollback: 99_rollback_DO_NOT_RUN.sql (removes exactly the Finance Officer grants for this organisation).
 -- Users must sign out and back in (or wait for the permission cache) to pick up the change.
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
-DECLARE @Confirm BIT = 0;  -- set to 1 only after Allan approves this run
+DECLARE @Confirm BIT = 0;  -- set to 1 only for the approved run
 DECLARE @OrgId INT = 21;
 DECLARE @OrgName NVARCHAR(200) = N'Nairobi International School';
 
@@ -35,7 +38,11 @@ INSERT INTO @Wanted ([RoleName], [Code]) VALUES
     (N'Finance Officer', N'Assets.ViewAll'),
     (N'Finance Officer', N'Users.View'),
     (N'Procurement Manager', N'Purchases.Edit'),
-    (N'Procurement Officer', N'Purchases.Edit');
+    (N'Procurement Officer', N'Purchases.Edit'),
+    (N'Department Head', N'Purchases.Create'),
+    (N'Procurement Officer', N'Purchases.Create'),
+    (N'Facilities Manager', N'Purchases.Create'),
+    (N'Company Admin', N'Purchases.Create');
 
 -- Refuse if a role or permission is missing or ambiguous (exactly one active match each).
 IF EXISTS (
@@ -65,6 +72,7 @@ FROM @Plan ORDER BY [RoleName], [Code];
 IF @Confirm <> 1
 BEGIN
     PRINT N'02: @Confirm = 0, nothing written (report only).';
+    SELECT N'REPORT_ONLY' AS [RESULT], (SELECT COUNT(*) FROM @Plan WHERE [AlreadyGranted] = 0) AS to_add;
     RETURN;
 END
 
@@ -81,7 +89,9 @@ SELECT r.[Name] AS [role], p.[Code]
 FROM [RolePermission] rp
 JOIN [Roles] r ON r.[Id] = rp.[RoleId]
 JOIN [Permission] p ON p.[Id] = rp.[PermissionId]
-WHERE r.[OrganizationId] = @OrgId AND r.[Name] IN (N'Finance Officer', N'Procurement Manager', N'Procurement Officer')
-  AND p.[Code] IN (N'Purchases.Edit', N'Assets.ViewAll', N'Users.View')
+JOIN @Wanted w ON w.[RoleName] = r.[Name] AND w.[Code] = p.[Code]
+WHERE r.[OrganizationId] = @OrgId
 ORDER BY r.[Name], p.[Code];
+SELECT N'GRANT_OK' AS [RESULT], @added AS added,
+    (SELECT COUNT(*) FROM @Plan pl WHERE NOT EXISTS (SELECT 1 FROM [RolePermission] rp WHERE rp.[RoleId] = pl.[RoleId] AND rp.[PermissionId] = pl.[PermissionId])) AS still_missing;
 GO

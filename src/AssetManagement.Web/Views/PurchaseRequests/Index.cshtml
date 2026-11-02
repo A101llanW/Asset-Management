@@ -2,9 +2,9 @@
 @using AssetManagement.Web.Helpers
 @{
     ViewBag.Title = "Requisitions";
-    var raiseBlockedMessage = ViewBag.RequisitionRaiseBlockedMessage as string;
-    // Allan 2026-11-02 (answer 1): no department and no create-for-any = no "New requisition" button, a message instead.
-    var canCreate = Html.HasPermission("Purchases.Create") && string.IsNullOrEmpty(raiseBlockedMessage);
+    // Allan 2026-11-02 correction 2: "New requisition" needs the requisition create permission (Purchases.Create);
+    // correction 1: a member with no department is not blocked (organisation-wide).
+    var canCreate = Html.HasPermission("Purchases.Create");
 }
 @Html.Partial("_PageHeader", new AssetManagement.Web.ViewModels.PageHeaderViewModel
 {
@@ -20,11 +20,6 @@
         new AssetManagement.Web.ViewModels.BreadcrumbItemViewModel { Label = "Requisitions" }
     }
 })
-
-@if (!string.IsNullOrEmpty(raiseBlockedMessage))
-{
-    <div class="alert alert-info" role="status" data-am-req-raise-blocked="true">@raiseBlockedMessage</div>
-}
 
 <div class="card card-kpi">
     <div class="card-body p-0">

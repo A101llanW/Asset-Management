@@ -305,10 +305,11 @@ namespace AssetManagement.Application.Services
                 throw new BusinessException("Requisition target must be a leaf department (class or admin unit).");
             }
 
-            // Allan 2026-11-02 (answers 1 and 2): one shared scope rule (RequisitionTargetScope). Organisation-wide for
-            // Purchases.CreateForAnyDepartment / the tenant administrator; a department user raises for their own
-            // department and the units below it; no department and no create-for-any = cannot raise. Assets.ViewAll and
-            // Assets.Transfer no longer widen it (2026-10-29 #10; the old Class exception for Assets.Transfer is gone).
+            // Allan 2026-11-02 (answers 1 and 2, corrected 14:34 EAT): one shared scope rule (RequisitionTargetScope).
+            // Raising needs Purchases.Create (department membership alone is not enough). Organisation-wide for
+            // Purchases.CreateForAnyDepartment, the tenant administrator and a member with no department; a department
+            // user raises for their own department and the units below it. Assets.ViewAll and Assets.Transfer do not
+            // widen it (2026-10-29 #10; the old Class exception for Assets.Transfer is gone).
             GetRequisitionTargetScope().EnsureContains(department);
         }
 
@@ -317,46 +318,52 @@ namespace AssetManagement.Application.Services
         {
             EnsureProfileLoaded();
             var ownDepartmentId = _profile == null ? null : _profile.DepartmentId;
-            if (CanCreateForAnyDepartmentOrAdministrator())
+            if (IsTenantAdministrator())
             {
                 return AssetManagement.Application.Security.RequisitionTargetScope.OrganizationWideScope();
             }
 
+            var canCreate = CanCreateRequisitions();
+            var canCreateForAny = CanCreateForAnyDepartment() || (_authorizationService == null && BypassesDepartmentScope);
             var repository = _unitOfWork == null ? null : _unitOfWork.Repository<Department>();
             var all = repository == null ? null : repository.GetAll();
             var departments = all == null ? new List<Department>() : all.ToList();
             return AssetManagement.Application.Security.RequisitionTargetScope.Resolve(
-                false,
+                canCreate,
+                canCreateForAny,
                 false,
                 ownDepartmentId,
                 departments);
         }
 
-        /// <summary>
-        /// Who may raise a requisition for any valid room: Purchases.CreateForAnyDepartment, the tenant administrator
-        /// (Company Admin or support impersonation), or the legacy construction without an authorization service.
-        /// A member with no department is no longer organisation-wide for raising (Allan 2026-11-02, answer 1).
-        /// </summary>
-        private bool CanCreateForAnyDepartmentOrAdministrator()
+        /// <summary>The tenant administrator (Company Admin or support impersonation) raises for any valid room.</summary>
+        private bool IsTenantAdministrator()
         {
-            if (CanCreateForAnyDepartment())
-            {
-                return true;
-            }
-
             if (_organizationScope != null && (_organizationScope.IsImpersonating() || _organizationScope.IsCompanyAdmin()))
             {
                 return true;
             }
 
             EnsureProfileLoaded();
-            if (_role != null
-                && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRole(_role.Name, _role.IsSystemRole))
+            return _role != null
+                && AssetManagement.Application.Security.OrgCapabilities.IsTenantAdministratorRole(_role.Name, _role.IsSystemRole);
+        }
+
+        /// <summary>
+        /// Allan 2026-11-02 correction 2: raising needs the requisition create permission (Purchases.Create), for
+        /// department users and organisation-wide (no department / create-for-any) users alike. Without an
+        /// authorization service (legacy construction) the controller's Purchases.Create filter is the gate.
+        /// </summary>
+        private bool CanCreateRequisitions()
+        {
+            if (_authorizationService == null)
             {
                 return true;
             }
 
-            return _authorizationService == null && BypassesDepartmentScope;
+            var userId = _currentUser == null ? null : _currentUser.UserId;
+            return !string.IsNullOrWhiteSpace(userId)
+                && _authorizationService.HasPermission(userId, AssetManagement.Application.Security.RequisitionAccessRules.CreatePermission);
         }
 
         private bool CanCreateForAnyDepartment()

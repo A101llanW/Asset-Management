@@ -1,43 +1,47 @@
-RoleData_20261102_req_access  -  PREPARED 2026-11-02, NOT RUN ANYWHERE
-=====================================================================
+RoleData_20261102_req_access  -  2026-11-02 (corrected 14:34 EAT, branch feature/req-role-access-3)
+=====================================================================================================
 
-Context: Allan's answers of 2026-11-02 (requisition role access, phase 2, branch feature/req-role-access-2).
-The code no longer hard-codes Finance/Procurement for purchase orders: recording a PO needs Purchases.View +
-Purchases.Edit. Finance should also read the whole asset register (Assets.ViewAll) and member details (Users.View).
-These scripts give the roles those permissions. Each one needs Allan's individual approval. Agents never run them.
+Context: Allan's answers of 2026-11-02 (requisition role access) and his corrections:
+  1. A member with no department is NOT blocked: organisation-wide for rooms, people and assets, still bounded by
+     role permissions.
+  2. Raising a requisition (own department subtree, or organisation-wide) needs Purchases.Create, in the UI and on
+     the server.
+  3. Department model: a procurement officer belongs under Procurement; a department head heads one department and a
+     department can have several heads (role-based: every active "Department Head" holder whose department is the
+     unit; no schema change needed - see tests Approvals/DepartmentHeadModelTests and StageApproverScopeTests).
+Recording a PO needs Purchases.View + Purchases.Edit. Finance also reads the whole asset register (Assets.ViewAll)
+and member details (Users.View).
 
-Files
------
-01_TestWF_org13_grant.sql   Test-WF (org 13). Finance Officer + Purchases.Edit, Assets.ViewAll, Users.View;
-                            Procurement Manager / Procurement Officer + Purchases.Edit (already present on
-                            alLAN's copy -> no-op). INSERT only, guarded, idempotent, one transaction.
-02_NIS_org21_grant.sql      Same for NIS, "Nairobi International School" (org 21).
-99_rollback_DO_NOT_RUN.sql  Removes the Finance Officer grants for one organisation (set @OrgId/@OrgName).
-optional_assign_department_depthead_procofficer_PREPARE.sql
-                            Optional. Gives Test-WF depthead / procofficer a department so they can raise again.
-                            The department is Allan's choice; placeholders are NULL and it refuses until they are set.
+Files (SSMS / sqlcmd; every one guarded and idempotent; @Confirm = 0 by default = report only)
+--------------------------------------------------------------------------------------------
+01_TestWF_org13_grant.sql        Test-WF (org 13). Finance Officer + Purchases.Edit, Assets.ViewAll, Users.View;
+                                 Procurement Manager / Officer + Purchases.Edit; Department Head, Procurement Officer,
+                                 Facilities Manager, Company Admin + Purchases.Create. INSERT only, one transaction.
+02_NIS_org21_grant.sql           Same for "Nairobi International School" (org 21).
+03_TestWF_org13_departments.sql  Test-WF test users: depthead -> Academics (1456); procofficer -> the Procurement
+                                 department only if exactly one exists (alLAN's copy has none -> reported, skipped;
+                                 never invented). Only moves a user whose department is NULL.
+99_rollback_DO_NOT_RUN.sql       Removes the Finance Officer grants for one organisation; for org 13 also clears the
+                                 03 departments (only while still on them).
+live/                            Console kit for the live database (01_backup, 02_precheck, 03_change, 04_verify,
+                                 README_RUN_ORDER.txt). Grants only; org set by @OrgName; names resolved by name.
 
 Safety
 ------
-- Every script refuses unless the database is AssetManagementModuleDb* and the organisation id + name match.
-- Every script only reports what it would do while @Confirm = 0 (the default). Set @Confirm = 1 to write.
-- Run in SSMS/sqlcmd, not the web Sys/Database console. Take the usual COPY_ONLY backup first on live.
+- Every script refuses unless the database is AssetManagementModuleDb* and the organisation matches.
+- Roles that do NOT get Purchases.Create here: Staff, Auditor, Asset Manager, Finance Officer, Procurement Manager,
+  Accounts clerk. Adding it to Staff needs Allan's decision.
 - Users pick up new permissions after signing out/in (or after the permission cache refresh).
 
-What the grants give (checked in the code on feature/req-role-access-2)
------------------------------------------------------------------------
+What the grants give
+--------------------
+- Purchases.Create: New requisition button, Create GET/POST, approval-path preview; the server refuses without it.
 - Purchases.Edit: only Purchases/Create (record a purchase order) and the Purchase orders menu entry.
-- Assets.ViewAll: organisation-wide read of the asset register and lists. It gives no edit, assign, transfer or
-  dispose: those buttons and actions still need Assets.Edit / Assets.Assign / Assets.Transfer / Assets.Dispose,
-  which Finance Officer does not have. Since 2026-11-02 it no longer unlocks "request for others" or inline
-  classification create either, and it never unlocks raising requisitions.
-- Users.View: Users list and details only. Create, edit, role/department assignment, activate, unlock and delete
-  need Users.Create / Users.Edit / Users.Delete.
+- Assets.ViewAll: organisation-wide read only (no edit/assign/transfer/dispose; never unlocks raising).
+- Users.View: Users list and details only.
 
-State on alLAN's local copy (read-only SELECTs, 2026-11-02)
------------------------------------------------------------
-Finance Officer 62 (Test-WF) and 125 (NIS): Assets.View, Purchases.View only.
-Procurement Manager 58/121 and Procurement Officer 61/124: already have Purchases.Edit.
-Test-WF users depthead.a46138179 and procofficer.a46138179 have no department and no CreateForAny, so after
-answer 1 they cannot raise until a department is assigned (see the optional script, or Users > Assign department).
-Re-check on the target database before running: the plan result set shows each row as "to add" or "no-op".
+State on alLAN's local copy before the run (2026-11-02)
+-------------------------------------------------------
+Finance Officer 62 (Test-WF) and 125 (NIS): Assets.View, Purchases.View, Purchases.Approve.
+Purchases.Create already held by Department Head 63/126, Procurement Officer 61/124, Facilities Manager 57/120,
+Company Admin 59/122. No department named like "Procurement" exists in org 13.

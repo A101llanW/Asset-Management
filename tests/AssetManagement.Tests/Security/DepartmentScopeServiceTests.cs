@@ -289,6 +289,8 @@ namespace AssetManagement.Tests.Security
 
             var authorization = new Mock<IAuthorizationService>();
             authorization.Setup(x => x.HasPermission("proc-user", "Purchases.CreateForAnyDepartment")).Returns(true);
+            // 2026-11-02 correction 2: raising also needs the requisition create permission itself.
+            authorization.Setup(x => x.HasPermission("proc-user", "Purchases.Create")).Returns(true);
 
             var service = CreateDepartmentScopeService(
                 unitOfWork.Object,

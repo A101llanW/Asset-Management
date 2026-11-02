@@ -192,7 +192,7 @@ namespace AssetManagement.Tests.Security
         public void RequisitionTarget_ViewAllHolderWithDepartment_CannotRaiseForAnotherDepartment()
         {
             var service = CreateScope(new Role { Id = 5, Name = "Auditor", IsActive = true }, departmentId: 10,
-                companyAdmin: false, permissions: new[] { "Assets.ViewAll" });
+                companyAdmin: false, permissions: new[] { "Purchases.Create", "Assets.ViewAll" });
             Assert.IsTrue(service.BypassesDepartmentScope, "still sees every asset");
 
             var ex = Assert.Throws<BusinessException>(() => service.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)));
@@ -205,7 +205,7 @@ namespace AssetManagement.Tests.Security
         {
             // 2026-11-02 (answer 2): one shared scope rule; Assets.Transfer no longer widens raising to every classroom.
             var service = CreateScope(new Role { Id = 5, Name = "Auditor", IsActive = true }, departmentId: 10,
-                companyAdmin: false, permissions: new[] { "Assets.ViewAll", "Assets.Transfer" });
+                companyAdmin: false, permissions: new[] { "Purchases.Create", "Assets.ViewAll", "Assets.Transfer" });
             Assert.Throws<BusinessException>(() => service.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Class)));
             Assert.Throws<BusinessException>(() => service.EnsureCanCreateForRequisitionTarget(Room(31, DepartmentKind.Room)));
         }
@@ -222,14 +222,27 @@ namespace AssetManagement.Tests.Security
             Assert.DoesNotThrow(() => companyAdminByRole.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)));
 
             var createForAny = CreateScope(new Role { Id = 6, Name = "Procurement Officer", IsActive = true },
-                departmentId: 10, companyAdmin: false, permissions: new[] { "Purchases.CreateForAnyDepartment" });
+                departmentId: 10, companyAdmin: false, permissions: new[] { "Purchases.Create", "Purchases.CreateForAnyDepartment" });
             Assert.DoesNotThrow(() => createForAny.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)));
 
+            // 2026-11-02 correction 2: create-for-any without the create permission itself does not raise.
+            var createForAnyOnly = CreateScope(new Role { Id = 6, Name = "Procurement Officer", IsActive = true },
+                departmentId: 10, companyAdmin: false, permissions: new[] { "Purchases.CreateForAnyDepartment" });
+            var refused = Assert.Throws<BusinessException>(() => createForAnyOnly.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)));
+            Assert.AreEqual(RequisitionTargetScope.MissingCreatePermissionMessage, refused.Message);
+
+            // 2026-11-02 correction 1: no department = organisation-wide (not blocked), with Purchases.Create.
             var noDepartment = CreateScope(new Role { Id = 7, Name = "Staff", IsActive = true },
                 departmentId: null, companyAdmin: false, permissions: new[] { "Purchases.Create" });
-            var ex = Assert.Throws<BusinessException>(() => noDepartment.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)),
-                "2026-11-02 (answer 1): no department and no create-for-any = cannot raise");
-            Assert.AreEqual(RequisitionTargetScope.BlockedMessage, ex.Message);
+            Assert.DoesNotThrow(() => noDepartment.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)),
+                "2026-11-02 correction 1: no department = organisation-wide");
+            Assert.IsTrue(noDepartment.GetRequisitionTargetScope().IsOrganizationWide);
+
+            var noDepartmentNoCreate = CreateScope(new Role { Id = 7, Name = "Staff", IsActive = true },
+                departmentId: null, companyAdmin: false, permissions: new[] { "Assets.View" });
+            var ex = Assert.Throws<BusinessException>(() => noDepartmentNoCreate.EnsureCanCreateForRequisitionTarget(Room(30, DepartmentKind.Room)),
+                "2026-11-02 correction 2: organisation-wide users need Purchases.Create too");
+            Assert.AreEqual(RequisitionTargetScope.MissingCreatePermissionMessage, ex.Message);
 
             var noDepartmentCreateForAny = CreateScope(new Role { Id = 8, Name = "Facilities Manager", IsActive = true },
                 departmentId: null, companyAdmin: false, permissions: new[] { "Purchases.Create", "Purchases.CreateForAnyDepartment" });

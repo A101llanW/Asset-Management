@@ -39,17 +39,8 @@ namespace AssetManagement.Web.Controllers
         public ActionResult Index(string search = null, string sort = "created", string direction = "desc", int page = 1, int pageSize = 10)
         {
             var pageResult = _purchaseRequestService.GetListPage(search, sort, direction, page, pageSize);
-            // Allan 2026-11-02 (answer 1): a requester who cannot raise (no department, no create-for-any) gets a clear
-            // message instead of a "New requisition" button that leads to a form they cannot submit.
-            if (HasPermission("Purchases.Create"))
-            {
-                var targetScope = ResolveRequisitionTargetScope();
-                if (targetScope.IsBlocked)
-                {
-                    ViewBag.RequisitionRaiseBlockedMessage = RequisitionTargetScope.BlockedMessage;
-                }
-            }
-
+            // Allan 2026-11-02 correction 1: no "no department" block. "New requisition" follows Purchases.Create only
+            // (correction 2); a member with no department raises organisation-wide.
             ViewBag.Sort = sort;
             ViewBag.Direction = direction;
             return View(ToListPage(pageResult));
@@ -58,11 +49,8 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public ActionResult Create(string returnUrl = null, int? fromAssetRequestId = null)
         {
+            // Purchases.Create (filter above) is required; a member with no department is organisation-wide (correction 1).
             var targetScope = ResolveRequisitionTargetScope();
-            if (targetScope.IsBlocked)
-            {
-                return CannotRaise(returnUrl);
-            }
 
             var model = new PurchaseRequestCreateVm
             {
@@ -184,12 +172,9 @@ namespace AssetManagement.Web.Controllers
         [PermissionAuthorize("Purchases.Create")]
         public ActionResult Create(PurchaseRequestCreateVm model, HttpPostedFileBase attachment, string returnUrl = null)
         {
-            // Allan 2026-11-02 (answer 1): no department and no create-for-any = cannot raise (the service refuses too).
+            // Allan 2026-11-02 corrections 1 and 2: Purchases.Create is required (filter above, and the service refuses
+            // without it); a member with no department raises organisation-wide.
             var targetScope = ResolveRequisitionTargetScope();
-            if (targetScope.IsBlocked)
-            {
-                return CannotRaise(returnUrl);
-            }
 
             // Migration 110: never bound from the form; a locked requester's department routes approval for a person too.
             ApplyRequisitionTargetLock(model, targetScope);
@@ -443,7 +428,7 @@ namespace AssetManagement.Web.Controllers
             var targetScope = ResolveRequisitionTargetScope();
             if (targetScope.IsBlocked)
             {
-                return Json(new { summary = RequisitionTargetScope.BlockedMessage, outOfScope = true }, JsonRequestBehavior.AllowGet);
+                return Json(new { summary = RequisitionTargetScope.MissingCreatePermissionMessage, outOfScope = true }, JsonRequestBehavior.AllowGet);
             }
 
             if (departmentId.HasValue && departmentId.Value > 0 && !targetScope.Contains(departmentId.Value))
@@ -617,25 +602,20 @@ namespace AssetManagement.Web.Controllers
         }
 
         /// <summary>
-        /// Allan 2026-11-02 (answers 1 and 2): the shared requisition target scope (RequisitionTargetScope), the same rule
-        /// DepartmentScopeService.EnsureCanCreateForRequisitionTarget applies on submit.
+        /// Allan 2026-11-02 (answers 1 and 2, corrected 14:34 EAT): the shared requisition target scope
+        /// (RequisitionTargetScope), the same rule DepartmentScopeService.EnsureCanCreateForRequisitionTarget applies on
+        /// submit: Purchases.Create required; no department = organisation-wide; else own department subtree.
         /// </summary>
         private RequisitionTargetScope ResolveRequisitionTargetScope()
         {
             var orgScope = DependencyResolver.Current.GetService<AssetManagement.Application.Contracts.Security.IOrganizationScopeService>();
             var isTenantAdministrator = IsCurrentUserCompanyAdmin() || (orgScope != null && orgScope.IsImpersonating());
             return RequisitionTargetScope.Resolve(
+                HasPermission(RequisitionAccessRules.CreatePermission),
                 HasPermission(RequisitionAccessRules.CreateForAnyDepartmentPermission),
                 isTenantAdministrator,
                 GetCurrentUserDepartmentId(),
                 GetActiveDepartments());
-        }
-
-        private ActionResult CannotRaise(string returnUrl)
-        {
-            ViewBag.ReturnUrl = ResolveReturnUrl(returnUrl, "Index");
-            ViewBag.RequisitionRaiseBlockedMessage = RequisitionTargetScope.BlockedMessage;
-            return View("CannotRaise");
         }
 
         private void PopulateCreateLookups(PurchaseRequestCreateVm model)

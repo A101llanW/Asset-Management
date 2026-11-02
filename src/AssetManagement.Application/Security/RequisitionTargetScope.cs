@@ -10,10 +10,16 @@ namespace AssetManagement.Application.Security
 {
     public enum RequisitionTargetScopeMode
     {
-        /// <summary>No department and no Purchases.CreateForAnyDepartment: cannot raise (Allan 2026-11-02, answer 1).</summary>
+        /// <summary>
+        /// No requisition create permission (Purchases.Create): cannot raise, whatever the department (Allan 2026-11-02
+        /// correction 2: department membership alone is not enough).
+        /// </summary>
         Blocked = 0,
 
-        /// <summary>Purchases.CreateForAnyDepartment or the tenant administrator: any valid room of the organisation.</summary>
+        /// <summary>
+        /// Purchases.CreateForAnyDepartment, the tenant administrator, or a member with no department (Allan 2026-11-02
+        /// correction 1: no department = organisation-wide, not blocked): any valid room of the organisation.
+        /// </summary>
         OrganizationWide = 1,
 
         /// <summary>A department user: their own department and any valid room under it (answer 2).</summary>
@@ -21,18 +27,20 @@ namespace AssetManagement.Application.Security
     }
 
     /// <summary>
-    /// The one requisition target scope rule (Allan 2026-11-02, answers 1 and 2), shared by the "A room" list, the
-    /// "A person" list (the person's room, else their profile department), the approval-path preview and the server
-    /// check (DepartmentScopeService.EnsureCanCreateForRequisitionTarget):
-    ///   - Purchases.CreateForAnyDepartment or the tenant administrator (Company Admin / support impersonation):
-    ///     organisation-wide;
-    ///   - otherwise a user with a profile department: that department and every active unit below it (any depth);
-    ///   - otherwise (no department): blocked, with <see cref="BlockedMessage"/>.
+    /// The one requisition target scope rule (Allan 2026-11-02, answers 1 and 2 as corrected at 14:34 EAT), shared by
+    /// the "A room" list, the "A person" list (the person's room, else their profile department), the approval-path
+    /// preview and the server check (DepartmentScopeService.EnsureCanCreateForRequisitionTarget):
+    ///   - the tenant administrator (Company Admin / support impersonation): organisation-wide;
+    ///   - no requisition create permission (Purchases.Create): blocked, with <see cref="MissingCreatePermissionMessage"/>
+    ///     (correction 2: being in the department is not enough);
+    ///   - Purchases.CreateForAnyDepartment: organisation-wide;
+    ///   - no profile department: organisation-wide (correction 1: not blocked; still organisation-bounded);
+    ///   - otherwise: the profile department and every active unit below it (any depth).
     /// Tagging an asset is not limited by this scope (answer 3: tags are categorisation data only).
     /// </summary>
     public sealed class RequisitionTargetScope
     {
-        public const string BlockedMessage = "You can't raise requisitions yet because your profile has no department. Ask your Company Admin to assign you a department.";
+        public const string MissingCreatePermissionMessage = "You need the requisition create permission (Purchases.Create) to raise requisitions. Ask your Company Admin to add it to your role.";
 
         public const string OutsideScopeMessage = "This room is outside your scope. You can raise requisitions for your own department and the rooms under it.";
 
@@ -76,21 +84,29 @@ namespace AssetManagement.Application.Security
             return new RequisitionTargetScope(RequisitionTargetScopeMode.Blocked, null, null);
         }
 
+        /// <param name="canCreateRequisitions">The requisition create permission (Purchases.Create).</param>
         /// <param name="activeDepartments">Active departments of the organisation as (id, parent id).</param>
         public static RequisitionTargetScope Resolve(
+            bool canCreateRequisitions,
             bool canCreateForAnyDepartment,
             bool isTenantAdministrator,
             int? profileDepartmentId,
             IEnumerable<KeyValuePair<int, int?>> activeDepartments)
         {
-            if (canCreateForAnyDepartment || isTenantAdministrator)
+            if (isTenantAdministrator)
             {
                 return OrganizationWideScope();
             }
 
-            if (!profileDepartmentId.HasValue || profileDepartmentId.Value <= 0)
+            if (!canCreateRequisitions)
             {
                 return BlockedScope();
+            }
+
+            if (canCreateForAnyDepartment || !profileDepartmentId.HasValue || profileDepartmentId.Value <= 0)
+            {
+                // Correction 1 (2026-11-02 14:34 EAT): a member with no department is organisation-wide, not blocked.
+                return OrganizationWideScope();
             }
 
             return new RequisitionTargetScope(
@@ -99,14 +115,15 @@ namespace AssetManagement.Application.Security
                 SelfAndActiveDescendants(profileDepartmentId.Value, activeDepartments));
         }
 
-        public static RequisitionTargetScope Resolve(bool canCreateForAnyDepartment, bool isTenantAdministrator, int? profileDepartmentId, IEnumerable<Department> departments)
+        public static RequisitionTargetScope Resolve(bool canCreateRequisitions, bool canCreateForAnyDepartment, bool isTenantAdministrator, int? profileDepartmentId, IEnumerable<Department> departments)
         {
-            return Resolve(canCreateForAnyDepartment, isTenantAdministrator, profileDepartmentId, ToParentPairs(departments));
+            return Resolve(canCreateRequisitions, canCreateForAnyDepartment, isTenantAdministrator, profileDepartmentId, ToParentPairs(departments));
         }
 
-        public static RequisitionTargetScope Resolve(bool canCreateForAnyDepartment, bool isTenantAdministrator, int? profileDepartmentId, IEnumerable<DepartmentVm> departments)
+        public static RequisitionTargetScope Resolve(bool canCreateRequisitions, bool canCreateForAnyDepartment, bool isTenantAdministrator, int? profileDepartmentId, IEnumerable<DepartmentVm> departments)
         {
             return Resolve(
+                canCreateRequisitions,
                 canCreateForAnyDepartment,
                 isTenantAdministrator,
                 profileDepartmentId,
@@ -262,7 +279,7 @@ namespace AssetManagement.Application.Security
         {
             if (IsBlocked)
             {
-                throw new BusinessException(BlockedMessage);
+                throw new BusinessException(MissingCreatePermissionMessage);
             }
 
             if (department == null || !Contains(department.Id))

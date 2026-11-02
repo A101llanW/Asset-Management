@@ -19,7 +19,8 @@ using NUnit.Framework;
 namespace AssetManagement.Tests.Security
 {
     /// <summary>
-    /// Allan's answers of 2026-11-02 (requisition role access, phase 2): 1 no department = cannot raise; 2 department
+    /// Allan's answers of 2026-11-02 (requisition role access, phase 2; corrected 14:34 EAT): 1 no department =
+    /// organisation-wide (not blocked) and raising always needs Purchases.Create; 2 department
     /// subtree scope shared by rooms, people and the server; 3 tagging stays org-wide; 4 approvers see all; 5 PO raising
     /// is permission-based; 6 Assets.ViewAll is read scope only; 7 Users.View is read-only; audit #11 preview scope;
     /// Receive button matches its action.
@@ -71,23 +72,46 @@ namespace AssetManagement.Tests.Security
         // ---- answers 1 + 2: the shared scope rule ----
 
         [Test]
-        public void Scope_NoDepartmentAndNoCreateForAny_IsBlocked()
+        public void Scope_NoDepartment_IsOrganisationWide_NotBlocked()
         {
-            var scope = RequisitionTargetScope.Resolve(false, false, (int?)null, Tree());
-            Assert.IsTrue(scope.IsBlocked);
-            Assert.IsFalse(scope.Contains(11));
-            Assert.IsEmpty(scope.AllowedRoomOptionIds(Tree()));
-            StringAssert.Contains("no department", RequisitionTargetScope.BlockedMessage);
-            var ex = Assert.Throws<BusinessException>(() => scope.EnsureContains(new Department { Id = 11 }));
-            Assert.AreEqual(RequisitionTargetScope.BlockedMessage, ex.Message);
+            // Correction 1 (2026-11-02 14:34 EAT): no department = organisation-wide, still needing Purchases.Create.
+            var scope = RequisitionTargetScope.Resolve(true, false, false, (int?)null, Tree());
+            Assert.IsFalse(scope.IsBlocked);
+            Assert.IsTrue(scope.IsOrganizationWide);
+            Assert.IsTrue(scope.Contains(11));
+            Assert.IsTrue(scope.Contains(20));
+            CollectionAssert.AreEquivalent(new[] { 11, 13, 15, 20 }, scope.AllowedRoomOptionIds(Tree()).ToList());
+            Assert.DoesNotThrow(() => scope.EnsureContains(new Department { Id = 20 }));
+            Assert.IsTrue(RequisitionTargetScope.Resolve(true, false, false, 0, Tree()).IsOrganizationWide, "0 = no department");
+        }
+
+        [Test]
+        public void Scope_WithoutCreatePermission_IsBlocked_ForDepartmentAndOrganisationWideUsers()
+        {
+            // Correction 2: raising for rooms / people under your department needs Purchases.Create; so does org-wide.
+            foreach (var dept in new int?[] { 10, null })
+            {
+                foreach (var createForAny in new[] { false, true })
+                {
+                    var scope = RequisitionTargetScope.Resolve(false, createForAny, false, dept, Tree());
+                    Assert.IsTrue(scope.IsBlocked, "dept " + dept + " createForAny " + createForAny);
+                    Assert.IsFalse(scope.Contains(10));
+                    Assert.IsEmpty(scope.AllowedRoomOptionIds(Tree()));
+                    var ex = Assert.Throws<BusinessException>(() => scope.EnsureContains(new Department { Id = 11 }));
+                    Assert.AreEqual(RequisitionTargetScope.MissingCreatePermissionMessage, ex.Message);
+                }
+            }
+
+            StringAssert.Contains("Purchases.Create", RequisitionTargetScope.MissingCreatePermissionMessage);
+            StringAssert.DoesNotContain("no department", RequisitionTargetScope.MissingCreatePermissionMessage);
         }
 
         [Test]
         public void Scope_CreateForAnyOrTenantAdmin_IsOrganisationWide_EvenWithoutDepartment()
         {
-            Assert.IsTrue(RequisitionTargetScope.Resolve(true, false, (int?)null, Tree()).IsOrganizationWide);
-            Assert.IsTrue(RequisitionTargetScope.Resolve(false, true, (int?)null, Tree()).IsOrganizationWide);
-            var any = RequisitionTargetScope.Resolve(true, false, 10, Tree());
+            Assert.IsTrue(RequisitionTargetScope.Resolve(true, true, false, (int?)null, Tree()).IsOrganizationWide);
+            Assert.IsTrue(RequisitionTargetScope.Resolve(false, false, true, (int?)null, Tree()).IsOrganizationWide, "tenant admin");
+            var any = RequisitionTargetScope.Resolve(true, true, false, 10, Tree());
             Assert.IsTrue(any.Contains(20));
             CollectionAssert.AreEquivalent(new[] { 11, 13, 15, 20 }, any.AllowedRoomOptionIds(Tree()).ToList(),
                 "valid rooms of the organisation (the picker hides rooms under an inactive parent separately)");
@@ -96,7 +120,7 @@ namespace AssetManagement.Tests.Security
         [Test]
         public void Scope_DepartmentUser_OwnDepartmentAndActiveSubtree()
         {
-            var scope = RequisitionTargetScope.Resolve(false, false, 10, Tree());
+            var scope = RequisitionTargetScope.Resolve(true, false, false, 10, Tree());
             Assert.AreEqual(RequisitionTargetScopeMode.DepartmentSubtree, scope.Mode);
             CollectionAssert.AreEquivalent(new[] { 10, 11, 14, 15 }, scope.DepartmentIds.ToList(), "inactive unit cuts its branch");
             Assert.IsFalse(scope.Contains(20), "another department");
@@ -109,9 +133,9 @@ namespace AssetManagement.Tests.Security
         [Test]
         public void Scope_DepartmentUserWithNothingBelow_StaysLockedToOwnDepartment()
         {
-            var scope = RequisitionTargetScope.Resolve(false, false, 20, Tree());
+            var scope = RequisitionTargetScope.Resolve(true, false, false, 20, Tree());
             Assert.IsTrue(scope.LocksToOwnDepartment(Tree()));
-            Assert.IsFalse(RequisitionTargetScope.Resolve(true, false, 20, Tree()).LocksToOwnDepartment(Tree()));
+            Assert.IsFalse(RequisitionTargetScope.Resolve(true, true, false, 20, Tree()).LocksToOwnDepartment(Tree()));
         }
 
         [Test]
@@ -136,9 +160,11 @@ namespace AssetManagement.Tests.Security
                 new RequisitionPersonTargetOptionVm { UserId = "artist", RoutingDepartmentId = 20 },
                 new RequisitionPersonTargetOptionVm { UserId = "nobody", RoutingDepartmentId = null }
             };
-            var dept = RequisitionTargetScope.Resolve(false, false, 10, Tree());
+            var dept = RequisitionTargetScope.Resolve(true, false, false, 10, Tree());
             CollectionAssert.AreEquivalent(new[] { "lab-tech", "hod" }, dept.FilterPersonOptions(options).Select(x => x.UserId).ToList());
-            Assert.AreEqual(4, RequisitionTargetScope.Resolve(true, false, 10, Tree()).FilterPersonOptions(options).Count);
+            Assert.AreEqual(4, RequisitionTargetScope.Resolve(true, true, false, 10, Tree()).FilterPersonOptions(options).Count);
+            Assert.AreEqual(4, RequisitionTargetScope.Resolve(true, false, false, (int?)null, Tree()).FilterPersonOptions(options).Count,
+                "no department = every person of the organisation");
             Assert.IsEmpty(RequisitionTargetScope.BlockedScope().FilterPersonOptions(options));
         }
 
@@ -160,16 +186,34 @@ namespace AssetManagement.Tests.Security
         }
 
         [Test]
-        public void ServerCheck_NoDepartment_IsBlocked_WithAuthorizationService()
+        public void ServerCheck_NoDepartment_IsOrganisationWide_WithAuthorizationService()
         {
             var uow = SeedTree();
             var users = new FakeUserService();
             users.Seed(new UserVm { Id = "depthead", RoleId = 5, DepartmentId = null, IsActive = true });
             var scope = new DepartmentScopeService(uow, new FakeCurrentUserContext("depthead"), users,
                 new FakeOrganizationScopeService(organizationId: Org, companyAdmin: false), new FixedPermissionAuthorizationService("Purchases.Create", "Assets.View"));
-            var ex = Assert.Throws<BusinessException>(() => scope.EnsureCanCreateForRequisitionTarget(uow.Repository<Department>().GetById(11)));
-            Assert.AreEqual(RequisitionTargetScope.BlockedMessage, ex.Message);
-            Assert.IsTrue(scope.GetRequisitionTargetScope().IsBlocked);
+            Assert.DoesNotThrow(() => scope.EnsureCanCreateForRequisitionTarget(uow.Repository<Department>().GetById(11)));
+            Assert.DoesNotThrow(() => scope.EnsureCanCreateForRequisitionTarget(uow.Repository<Department>().GetById(20)), "any department");
+            Assert.IsTrue(scope.GetRequisitionTargetScope().IsOrganizationWide);
+        }
+
+        [Test]
+        public void ServerCheck_NoCreatePermission_IsRefused_DepartmentUserAndNoDepartmentUser()
+        {
+            var uow = SeedTree();
+            var users = new FakeUserService();
+            users.Seed(new UserVm { Id = "hod", RoleId = 5, DepartmentId = 10, IsActive = true });
+            users.Seed(new UserVm { Id = "floater", RoleId = 5, DepartmentId = null, IsActive = true });
+            foreach (var userId in new[] { "hod", "floater" })
+            {
+                var scope = new DepartmentScopeService(uow, new FakeCurrentUserContext(userId), users,
+                    new FakeOrganizationScopeService(organizationId: Org, companyAdmin: false),
+                    new FixedPermissionAuthorizationService("Purchases.View", "Purchases.Approve", "Assets.View"));
+                var ex = Assert.Throws<BusinessException>(() => scope.EnsureCanCreateForRequisitionTarget(uow.Repository<Department>().GetById(11)), userId);
+                Assert.AreEqual(RequisitionTargetScope.MissingCreatePermissionMessage, ex.Message, userId);
+                Assert.IsTrue(scope.GetRequisitionTargetScope().IsBlocked, userId);
+            }
         }
 
         private static PurchaseRequestService RequestService(FakeUnitOfWork uow, FakeUserService users, string currentUserId, params string[] permissions)
@@ -217,14 +261,30 @@ namespace AssetManagement.Tests.Security
         }
 
         [Test]
-        public void Submit_NoDepartment_Refused()
+        public void Submit_NoDepartment_AcceptedOrganisationWide()
         {
             var uow = SeedTree();
             var users = new FakeUserService();
             users.Seed(new UserVm { Id = "depthead", RoleId = 5, DepartmentId = null, IsActive = true });
             var service = RequestService(uow, users, "depthead", "Purchases.Create");
-            var ex = Assert.Throws<BusinessException>(() => service.SubmitCompleted(uow, RoomForm(11), "depthead"));
-            Assert.AreEqual(RequisitionTargetScope.BlockedMessage, ex.Message);
+            var id = service.SubmitCompleted(uow, RoomForm(20), "depthead");
+            Assert.AreEqual(20, uow.Repository<PurchaseRequest>().GetById(id).DepartmentId, "correction 1: any valid room");
+        }
+
+        [Test]
+        public void Submit_WithoutCreatePermission_Refused()
+        {
+            var uow = SeedTree();
+            var users = new FakeUserService();
+            users.Seed(new UserVm { Id = "hod", RoleId = 5, DepartmentId = 10, IsActive = true });
+            users.Seed(new UserVm { Id = "floater", RoleId = 5, DepartmentId = null, IsActive = true });
+            foreach (var userId in new[] { "hod", "floater" })
+            {
+                var service = RequestService(uow, users, userId, "Purchases.View", "Purchases.Approve");
+                var ex = Assert.Throws<BusinessException>(() => service.SubmitCompleted(uow, RoomForm(11), userId), userId);
+                Assert.AreEqual(RequisitionTargetScope.MissingCreatePermissionMessage, ex.Message, userId);
+            }
+
             Assert.AreEqual(0, uow.Repository<PurchaseRequest>().GetAll().Count());
         }
 
@@ -258,16 +318,27 @@ namespace AssetManagement.Tests.Security
         {
             var controller = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "PurchaseRequestsController.cs");
             StringAssert.Contains("RequisitionTargetScope.Resolve(", controller);
-            StringAssert.Contains("return CannotRaise(returnUrl);", controller);
+            StringAssert.Contains("HasPermission(RequisitionAccessRules.CreatePermission),", controller, "correction 2");
+            StringAssert.DoesNotContain("CannotRaise", controller, "correction 1: no no-department block screen");
             StringAssert.Contains("targetScope.FilterPersonOptions(_purchaseRequestService.GetPersonTargetOptions())", controller);
             StringAssert.Contains("!targetScope.Contains(departmentId.Value)", controller, "audit #11: preview only in-scope departments");
-            StringAssert.Contains("ViewBag.RequisitionRaiseBlockedMessage", controller);
+            StringAssert.DoesNotContain("ViewBag.RequisitionRaiseBlockedMessage", controller);
             var catalog = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "PurchaseRequestsController.Catalog.cs");
             StringAssert.Contains("ApplyRequisitionTargetLock(model);", catalog, "line-path preview uses the same lock as submit");
             var csproj = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "AssetManagement.Web.csproj");
-            StringAssert.Contains("Views\\PurchaseRequests\\CannotRaise.cshtml", csproj);
+            StringAssert.DoesNotContain("Views\\PurchaseRequests\\CannotRaise.cshtml", csproj);
             var index = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Views", "PurchaseRequests", "Index.cshtml");
-            StringAssert.Contains("data-am-req-raise-blocked", index);
+            StringAssert.DoesNotContain("data-am-req-raise-blocked", index);
+            StringAssert.Contains("var canCreate = Html.HasPermission(\"Purchases.Create\");", index, "correction 2: button follows Purchases.Create");
+            var assetRequests = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "AssetRequestsController.cs");
+            StringAssert.Contains("ViewBag.CanCreateRequisition = HasPermission(\"Purchases.Create\");", assetRequests);
+            var create = typeof(PurchaseRequestsController).GetMethods().Where(m => m.Name == "Create" || m.Name == "PreviewApprovalPath").ToList();
+            Assert.GreaterOrEqual(create.Count, 3);
+            foreach (var method in create)
+            {
+                var attr = method.GetCustomAttributesData().Single(a => a.Constructor.DeclaringType == typeof(PermissionAuthorizeAttribute));
+                Assert.AreEqual("Purchases.Create", attr.ConstructorArguments[0].Value, method.Name);
+            }
         }
 
         // ---- answer 2 list / requisition visibility ----
@@ -363,7 +434,7 @@ namespace AssetManagement.Tests.Security
             Assert.IsFalse(RequisitionAccessRules.CanBypassApprovalStages(viewAll,
                 new Role { Name = "Finance Officer", IsActive = true }, "finance"));
             Assert.IsFalse(ClassificationInlineCreatePolicy.CanCreate(ClassificationCreateOrigin.Requisition, Grants("Assets.View", "Assets.ViewAll"), false));
-            Assert.IsTrue(RequisitionTargetScope.Resolve(false, false, (int?)null, Tree()).IsBlocked, "ViewAll does not unlock raising");
+            Assert.IsTrue(RequisitionTargetScope.Resolve(false, false, false, 10, Tree()).IsBlocked, "ViewAll does not unlock raising");
 
             var baseController = QaSixRequisitionFormTests.Read("src", "AssetManagement.Web", "Controllers", "BaseController.cs");
             StringAssert.Contains("ClassificationInlineCreatePolicy.CanCreate(origin, HasPermission, IsCurrentUserCompanyAdmin());", baseController);
