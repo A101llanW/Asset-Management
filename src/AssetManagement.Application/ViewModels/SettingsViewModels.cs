@@ -19,7 +19,7 @@ namespace AssetManagement.Application.ViewModels
         public int InsuranceThresholdDays { get; set; }
 
         [Range(0, 3650)]
-        [Display(Name = "Maintenance Alert Threshold (Days)")]
+        [Display(Name = "Loan Return Alert Threshold (Days)")]
         public int MaintenanceThresholdDays { get; set; }
 
         [Required]

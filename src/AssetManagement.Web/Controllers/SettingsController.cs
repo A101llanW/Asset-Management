@@ -49,7 +49,7 @@ namespace AssetManagement.Web.Controllers
             UpsertSetting(repository, settings, AttachmentRootPathKey, model.AttachmentRootPath, "Filesystem root path used for uploaded attachments.");
             UpsertSetting(repository, settings, WarrantyThresholdKey, model.WarrantyThresholdDays.ToString(), "Days before warranty expiry to trigger alerts.");
             UpsertSetting(repository, settings, InsuranceThresholdKey, model.InsuranceThresholdDays.ToString(), "Days before insurance expiry to trigger alerts.");
-            UpsertSetting(repository, settings, MaintenanceThresholdKey, model.MaintenanceThresholdDays.ToString(), "Days before maintenance due date to trigger alerts.");
+            UpsertSetting(repository, settings, MaintenanceThresholdKey, model.MaintenanceThresholdDays.ToString(), "Days before a temporary assignment's expected return date to notify the custodian it is due back.");
             UpsertSetting(repository, settings, DefaultCurrencyKey, model.DefaultCurrency.ToUpperInvariant(), "Default finance currency code.");
             CapLabelQrMagnification(model.LabelPrinter, ExternalUrlHelper.GetConfiguredBaseUrl());
             UpsertLabelPrinterSettings(repository, settings, model.LabelPrinter, includeLayoutDesign: false);
