@@ -1,5 +1,12 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-11-03 12:13 EAT - Settings label fix: 'Maintenance Alert Threshold (Days)' renamed 'Loan Return Alert Threshold (Days)' (b55f670) - LOCAL COMMIT ONLY (fix/loan-return-label, main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
+
+- Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
+- Verified first: Notification.MaintenanceThresholdDays (NotificationSettingsHelper.GetMaintenanceThresholdDays, default 14) is read only by NotificationService for GetDueSoonAssignments (AssetAssignment.ExpectedReturnDate within N days) -> TemporaryAssignmentDue to the assignee. IMetricsService.GetMaintenanceThresholdDays has no callers. Maintenance records (ServiceDate/CompletionDate) have no due date; MaintenanceService/Controller read no threshold; NotificationType.ScheduledMaintenance is never raised.
+- Changed (text only): SettingsViewModels Display name 'Maintenance Alert Threshold (Days)' -> 'Loan Return Alert Threshold (Days)'; SettingsController setting description 'Days before maintenance due date to trigger alerts.' -> 'Days before a temporary assignment's expected return date to notify the custodian it is due back.' (written on next Settings save). Key, property names and DB column unchanged; no migration.
+- Tests on b55f670: Release build 0 errors, 1658 total / 1650 passed / 8 skipped / 0 failed.
+- LIVE: nothing published.
 ## 2026-11-02 16:03 EAT - QA retest of 4cb3a03 (d347996): 'New Purchase Record' shown for Purchases.View + Purchases.Edit (as Purchases/Create checks), requisition times shown in Kenya time; IIS package STAGED, NOT RUN - LOCAL COMMIT ONLY (main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
 
 - Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
