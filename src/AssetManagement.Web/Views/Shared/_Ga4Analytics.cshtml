@@ -1,0 +1,24 @@
+@using AssetManagement.Web.Helpers
+@*
+    GA4 anonymous usage analytics. Renders NOTHING unless appSetting Ga4MeasurementId holds a valid ID and the host is
+    nanosoft.africa / www.nanosoft.africa (or the local-only test flag Ga4AllowNonProductionHost=true).
+    Consent Mode v2: everything denied by default; gtag.js is only loaded after the user accepts (ga4-consent.js).
+*@
+@{
+    var ga4 = Ga4AnalyticsHelper.Resolve(ViewContext);
+}
+@if (ga4 != null)
+{
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('consent', 'default', {
+            ad_storage: 'denied',
+            ad_user_data: 'denied',
+            ad_personalization: 'denied',
+            analytics_storage: 'denied'
+        });
+        window.amGa4Config = @Ga4AnalyticsHelper.ToJson(ga4);
+    </script>
+    <script src="@Url.Content("~/Scripts/app/ga4-consent.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/ga4-consent.js")).Ticks" defer></script>
+}

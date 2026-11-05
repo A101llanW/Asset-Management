@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="@Url.Content("~/Content/css/site.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/site.css")).Ticks" />
     <link rel="stylesheet" href="@Url.Content("~/Content/css/am-modules.css")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Content/css/am-modules.css")).Ticks" />
     @RenderSection("head", required: false)
+    @Html.Partial("_Ga4Analytics")
 </head>
 <body class="am-public-scan-body">
 
