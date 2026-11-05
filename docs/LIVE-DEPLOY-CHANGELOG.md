@@ -1,5 +1,14 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-11-05 18:55 EAT - GA4 anonymous usage analytics (78cade7 + config/docs follow-up) on feature/ga4-anon-analytics - LOCAL COMMIT ONLY - NOT PUBLISHED, LIVE NOT TOUCHED
+
+- Scope: local only. Nothing pushed, no PR, no IIS publish, no UAC, no DB change, nanosoft.africa and the live DB not touched, repo Web.config unchanged, nothing printed.
+- Config keys: `Ga4MeasurementId` (missing/empty/invalid = GA OFF, nothing rendered) and `Ga4AllowNonProductionHost` (local verification only, default false). Production ID `G-B7FDYNVT7G` is recorded in Web.Release.config (InsertIfMissing). Live kits strip Web.config, so the live step is a one-line appSettings addition after a Web.config backup (docs/ANALYTICS-GA4.md). Local and dev have no key, so they stay off.
+- Renders only on nanosoft.africa / www.nanosoft.africa (server + client check). Consent Mode v2 sets everything denied by default; gtag.js loads only after Accept, which grants analytics_storage only. Sanitized route-based page_location/page_path ({org}/{id}/{guid}/{tag}, no query), generic page_title, sanitized referrer, Google signals and ad personalization off, no user_id. Name-only events: asset_create, requisition_create, report_export_csv, report_export_pdf.
+- Files: Application Helpers/Ga4AnalyticsRules.cs; Web Helpers/Ga4AnalyticsHelper.cs, Views/Shared/_Ga4Analytics.cshtml, Scripts/app/ga4-consent.js, _Layout + _PublicLayout (partial in head; _PrintLayout untouched), Assets/Create, PurchaseRequests/Create, Reports/Index (data-ga-event), csproj; tests Helpers/Ga4AnalyticsRulesTests (62 cases).
+- Tests on 78cade7: Release build 0 errors (232 warnings), aspnet_compiler precompile exit 0, 1720 total / 1712 passed / 8 skipped / 0 failed.
+- IIS publish STAGED, NOT RUN: Desktop\Staged_ga4_78cade7 (306 files, no root Web.config), package Web.dll 513023FBEB9C3C23B4976CEDE08088D08C08BF73E81B1CA20B5620910C45B579; current local IIS Web.dll F8919AC3...26A3 (d347996). The follow-up commit changes only Web.Release.config and docs, and neither ships in the stage.
+- LIVE: nothing published.
 ## 2026-11-03 12:13 EAT - Settings label fix: 'Maintenance Alert Threshold (Days)' renamed 'Loan Return Alert Threshold (Days)' (b55f670) - LOCAL COMMIT ONLY (fix/loan-return-label, main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
 
 - Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
