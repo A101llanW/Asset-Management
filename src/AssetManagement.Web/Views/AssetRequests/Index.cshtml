@@ -16,7 +16,7 @@
     PrimaryActionLabel = canCreate ? "New request" : null
 })
 
-<form class="am-list-toolbar" method="get">
+<form class="am-list-toolbar" method="get" data-live-filter-form data-live-results="#amAssetRequestsLiveResults">
     <div class="row g-2">
         <div class="col-md-4">
             <input type="text" class="form-control" name="Search" placeholder="Search justification or asset name" value="@Model.Search" />
@@ -28,10 +28,12 @@
             @Html.DropDownList("DepartmentId", departments, "All departments", new { @class = "form-select" })
         </div>
         <div class="col-md-2 d-grid">
-            <button type="submit" class="btn btn-outline-primary">Apply</button>
+            <button data-live-filter-apply type="submit" class="btn btn-outline-primary">Apply</button>
         </div>
     </div>
 </form>
+<div id="amAssetRequestsLiveResults" data-live-results>
+
 
 <div class="card card-kpi am-fade-in">
     <div class="card-body p-0">
@@ -84,3 +86,4 @@
         EndItem = Model.EndItem
     })
 }
+</div>

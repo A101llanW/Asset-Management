@@ -1,3 +1,7 @@
+@using AssetManagement.Web.Helpers
 @{
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    Layout = LiveFilterRequest.ResolveLayout(
+        Request,
+        "~/Views/Shared/_Layout.cshtml",
+        "~/Views/Shared/_LiveFilterLayout.cshtml");
 }

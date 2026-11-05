@@ -21,7 +21,7 @@
 {
     @Html.Partial("_RequisitionWorkflowGuide")
 }
-<form class="am-list-toolbar" method="get">
+<form class="am-list-toolbar" method="get" data-live-filter-form data-live-results="#amRolesLiveResults">
     <div class="row g-2">
         <div class="col-md-7">
             <input type="text" class="form-control" name="search" placeholder="Search by role name or description" value="@Model.Search" />
@@ -38,10 +38,12 @@
             </select>
         </div>
         <div class="col-md-1 d-grid">
-            <button type="submit" class="btn btn-outline-primary">Apply</button>
+            <button data-live-filter-apply type="submit" class="btn btn-outline-primary">Apply</button>
         </div>
     </div>
 </form>
+<div id="amRolesLiveResults" data-live-results>
+
 @if (!Model.Items.Any())
 {
     <div class="card card-kpi">
@@ -102,3 +104,4 @@ else
     </div></div>
     @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }
+</div>

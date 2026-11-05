@@ -37,7 +37,7 @@
 }
 else
 {
-    <form method="get" class="row g-2 mb-3" action="@Url.Action("Index", "AssetMovements")">
+    <form method="get" class="row g-2 mb-3" action="@Url.Action("Index", "AssetMovements")" data-live-filter-form data-live-results="#amAssetMovementsLiveResults">
         <div class="col-md-3"><input class="form-control" name="AssetSearch" placeholder="Asset tag, name or serial" value="@filter.AssetSearch" /></div>
         <div class="col-md-2">
             <select class="form-select" name="MovementType" aria-label="Movement type">
@@ -57,11 +57,13 @@ else
         <div class="col-md-2"><input class="form-control" type="date" name="FromDate" title="From (@eatLabel day)" value="@(filter.FromDate.HasValue ? filter.FromDate.Value.ToString("yyyy-MM-dd") : "")" /></div>
         <div class="col-md-2"><input class="form-control" type="date" name="ToDate" title="To (@eatLabel day, inclusive)" value="@(filter.ToDate.HasValue ? filter.ToDate.Value.ToString("yyyy-MM-dd") : "")" /></div>
         <div class="col-12 d-flex gap-2">
-            <button class="btn btn-outline-primary" type="submit">Filter</button>
+            <button class="btn btn-outline-primary" type="submit" data-live-filter-apply>Filter</button>
             <a class="btn btn-outline-secondary" href="@Url.Action("Index", "AssetMovements")">Clear</a>
             <a class="btn btn-outline-primary ms-auto" href="@Url.Action("Export", "AssetMovements", Request.QueryString)">Export CSV</a>
         </div>
     </form>
+<div id="amAssetMovementsLiveResults" data-live-results>
+
 }
 @if (isBatch)
 {
@@ -112,3 +114,4 @@ else if (!isBatch)
 {
     <p class="small text-muted mt-2">@Model.TotalCount movement(s).</p>
 }
+</div>

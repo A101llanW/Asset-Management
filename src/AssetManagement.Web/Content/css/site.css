@@ -4209,3 +4209,13 @@ body.am-login-page .am-shell-header .am-brand-title {
         max-height: 12rem;
     }
 }
+
+/* Live list filter: subtle busy state while results refresh */
+[data-live-results].am-live-filter-loading {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+form.am-live-filter-busy [data-live-filter-apply] {
+    cursor: wait;
+}

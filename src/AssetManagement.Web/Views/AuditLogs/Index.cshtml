@@ -1,4 +1,4 @@
-﻿@model AssetManagement.Application.ViewModels.AuditLogPageVm
+@model AssetManagement.Application.ViewModels.AuditLogPageVm
 @using System.Linq
 @using AssetManagement.Web.Helpers
 @using AssetManagement.Application.Helpers
@@ -66,7 +66,7 @@ else
     <p><a class="btn btn-sm btn-outline-primary" href="@exportUrl">Export CSV</a></p>
 }
 
-<form method="get" action="@Url.Action("Index", "AuditLogs")" class="row g-2 mb-3 align-items-end" id="audit-log-filter">
+<form method="get" action="@Url.Action("Index", "AuditLogs")" class="row g-2 mb-3 align-items-end" id="audit-log-filter" data-live-filter-form data-live-results="#amAuditLogsLiveResults">
     @if (isRelated)
     {
         <input type="hidden" name="RelatedAssetId" value="@filter.RelatedAssetId.Value" />
@@ -93,10 +93,12 @@ else
         </div>
     }
     <div class="col-md-3">
-        <button class="btn btn-outline-primary" type="submit">Filter</button>
+        <button class="btn btn-outline-primary" type="submit" data-live-filter-apply>Filter</button>
         <a class="btn btn-link" href="@Url.Action("Index", "AuditLogs", isRelated ? (object)new { RelatedAssetId = filter.RelatedAssetId } : null)">Clear</a>
     </div>
 </form>
+<div id="amAuditLogsLiveResults" data-live-results>
+
 
 <div class="card card-kpi"><div class="card-body p-0">
 @if (logs.Any())
@@ -147,3 +149,4 @@ else
         </ul>
     </nav>
 }
+</div>

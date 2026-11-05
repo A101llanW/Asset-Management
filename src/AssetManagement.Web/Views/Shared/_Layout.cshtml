@@ -1,4 +1,4 @@
-﻿@using AssetManagement.Web.App_Start
+@using AssetManagement.Web.App_Start
 @using AssetManagement.Web.Helpers
 <!DOCTYPE html>
 <html>
@@ -299,6 +299,7 @@
     }
     *@
     <script src="@Url.Content("~/Scripts/app/site-interactive.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/site-interactive.js")).Ticks"></script>
+    <script src="@Url.Content("~/Scripts/app/live-filter.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/live-filter.js")).Ticks"></script>
     @if (Request.IsAuthenticated)
     {
         <script src="@Url.Content("~/Scripts/app/am-animations.js")?v=@System.IO.File.GetLastWriteTimeUtc(Server.MapPath("~/Scripts/app/am-animations.js")).Ticks"></script>
