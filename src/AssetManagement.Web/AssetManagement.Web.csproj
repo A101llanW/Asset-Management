@@ -240,6 +240,7 @@
     <Compile Include="Helpers\AuthenticationErrorMessages.cs" />
     <Compile Include="Helpers\AuthFlowClientAddressHelper.cs" />
     <Compile Include="Helpers\CaptchaSettings.cs" />
+    <Compile Include="Helpers\Ga4AnalyticsHelper.cs" />
     <Compile Include="Helpers\ImpersonationDurationOptions.cs" />
     <Compile Include="Helpers\ImpersonationSessionHelper.cs" />
     <Compile Include="Helpers\LegalConsentSession.cs" />
@@ -345,6 +346,7 @@
     <Content Include="Scripts\app\sidebar-nav.js" />
     <Content Include="Scripts\app\document-pdf.js" />
     <Content Include="Scripts\app\reports.js" />
+    <Content Include="Scripts\app\ga4-consent.js" />
     <Content Include="Scripts\app\asset-scan-camera.js" />
     <Content Include="Scripts\app\asset-label.js" />
     <Content Include="Scripts\app\asset-label-zebra.js" />
@@ -556,6 +558,7 @@
     <Content Include="Views\Shared\_Layout.cshtml" />
     <Content Include="Views\Shared\_PrintLayout.cshtml" />
     <Content Include="Views\Shared\_PublicLayout.cshtml" />
+    <Content Include="Views\Shared\_Ga4Analytics.cshtml" />
     <Content Include="Views\Shared\_SidebarNav.cshtml" />
     <Content Include="Views\Shared\_ApprovalActions.cshtml" />
     <Content Include="Views\Shared\_ApprovalHistory.cshtml" />

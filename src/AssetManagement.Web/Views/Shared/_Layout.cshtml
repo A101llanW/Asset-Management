@@ -34,6 +34,7 @@
         .am-brand--org .am-brand-org-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
         .am-brand--org .am-brand-suite-soft { opacity: .65; font-weight: 400; text-transform: none; letter-spacing: .02em; }
     </style>
+    @Html.Partial("_Ga4Analytics")
 </head>
 <body class="@(ViewBag.ShowLoginBackground == true ? "am-login-page am-auth-theme-light" : null)">
     @if (ViewBag.ShowLoginBackground == true)

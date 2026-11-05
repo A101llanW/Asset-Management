@@ -17,7 +17,7 @@
     BackLabel = "Back to Assets"
 })
 
-@using (Html.BeginForm("Create", "Assets", FormMethod.Post))
+@using (Html.BeginForm("Create", "Assets", FormMethod.Post, new { data_ga_event = "asset_create" }))
 {
     @Html.AntiForgeryToken()
     @Html.HiddenFor(m => m.Currency)

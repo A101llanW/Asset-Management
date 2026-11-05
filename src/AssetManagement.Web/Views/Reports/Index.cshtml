@@ -91,10 +91,10 @@
                                 <button type="button" class="btn btn-outline-primary btn-sm am-report-preview" data-report-key="@report.Key">
                                     Preview report
                                 </button>
-                                <button type="button" class="btn btn-primary btn-sm am-report-download-csv" data-report-key="@report.Key">
+                                <button type="button" class="btn btn-primary btn-sm am-report-download-csv" data-report-key="@report.Key" data-ga-event="report_export_csv">
                                     Download CSV
                                 </button>
-                                <button type="button" class="btn btn-dark btn-sm am-report-download-pdf" data-report-key="@report.Key">
+                                <button type="button" class="btn btn-dark btn-sm am-report-download-pdf" data-report-key="@report.Key" data-ga-event="report_export_pdf">
                                     Download PDF
                                 </button>
                             </div>
@@ -198,7 +198,7 @@
                     <div class="small text-muted" id="amReportPreviewMeta"></div>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" id="amReportPreviewDownloadPdf">
+                        <button type="button" class="btn btn-primary" id="amReportPreviewDownloadPdf" data-ga-event="report_export_pdf">
                             Download PDF
                         </button>
                     </div>
