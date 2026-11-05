@@ -1,4 +1,15 @@
-﻿# LIVE DEPLOY CHANGELOG
+# LIVE DEPLOY CHANGELOG
+
+## 2026-11-05 20:23 EAT - Checkpoint pre-sections (GA4 + live search) PUBLISHED to localhost:8080 - LIVE NOT TOUCHED
+
+- Scope: local IIS only (http://localhost:8080). nanosoft.africa / NanoAssetSuite not touched. No live DB script. No Web.config edit. Nothing printed.
+- Source: Desktop\Staged_checkpoint_20261105_2006 from worktree CodexAsset-wt-checkpoint branch checkpoint/pre-sections-20261105 (pre-publish tip 847bf079b9b0c09c6863a49f324a3bc5dd5f27a3). Includes GA4 (through b85bccb) + live search/sort (5ff465c); excludes feature/section-heads / migration 112.
+- Publish: one elevated robocopy at ~20:20 EAT (Allan approved UAC). Log: C:\Users\allan\Documents\Examples\CodexAsset-backups\publish_checkpoint_20261105_2018.log. Pre-publish site backup: C:\inetpub\_backups\AssetManagement_root_pre_checkpoint_20261105_2018 (959 files). Root Web.config excluded from copy (XF Web.config); pool recycled after.
+- AssetManagement.Web.dll (IIS bin) SHA256 3AE03B69C802EADBA7D91DF1844104BCDD1B89243D69F084481463E0E8232CC0 (matches staged kit). Root Web.config SHA256 27426D6E91024DEC055C07EE1D54ACB35A97317BE49F7A281B4D2DA39CF7D4D3 unchanged vs backup.
+- Config hash check (post-publish): all 8 `*.config` files under C:\inetpub\AssetManagement match the pre-publish backup SHA256; zero differ; root Web.config unchanged.
+- Desktop\publish refreshed from IIS after publish (root Web.config removed from kit); previous kit renamed Desktop\publish_old_20261105_202239. Live kit still has no root Web.config.
+- Anonymous smoke (no login): GET / -> 302 to login; /Account/Login -> 200; /Scripts/app/live-filter.js -> 200; /Scripts/app/ga4-consent.js -> 200; no 500. Login HTML has no gtag/googletagmanager (expected: local Web.config has no Ga4MeasurementId; fake G-TEST000000 was never written).
+- LIVE: nothing published.
 
 ## 2026-11-05 20:06 EAT - Checkpoint pre-sections kit (checkpoint/pre-sections-20261105) - STAGED NOT PUBLISHED, LIVE NOT TOUCHED
 
