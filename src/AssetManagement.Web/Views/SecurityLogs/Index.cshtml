@@ -34,7 +34,7 @@
     <div class="col-md-3"><div class="card card-kpi"><div class="card-body"><div class="text-muted small">Security events</div><div class="h4 mb-0">@Model.TotalSecurityEvents</div></div></div></div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
+<form method="get" class="row g-2 mb-3" data-live-filter-form data-live-results="#amSecurityLogsLiveResults">
     <div class="col-md-2"><input class="form-control" name="Username" placeholder="Username / email" value="@(Model.Filter != null ? Model.Filter.Username : null)" /></div>
     <div class="col-md-2"><input class="form-control" name="IpAddress" placeholder="IP address" value="@(Model.Filter != null ? Model.Filter.IpAddress : null)" /></div>
     <div class="col-md-2"><input class="form-control" type="date" name="StartDate" value="@(Model.Filter != null && Model.Filter.StartDate.HasValue ? Model.Filter.StartDate.Value.ToString("yyyy-MM-dd") : null)" /></div>
@@ -46,9 +46,11 @@
             <option value="false" @(Model.Filter != null && Model.Filter.WasSuccessful == false ? "selected" : null)>Failed</option>
         </select>
     </div>
-    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filter</button></div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit" data-live-filter-apply>Filter</button></div>
     <input type="hidden" name="tab" value="@activeTab" />
 </form>
+<div id="amSecurityLogsLiveResults" data-live-results>
+
 
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item"><a class="nav-link @(activeTab == "login" ? "active" : null)" href="@Url.Action("Index", new { tab = "login", Username = Model.Filter != null ? Model.Filter.Username : null, IpAddress = Model.Filter != null ? Model.Filter.IpAddress : null, StartDate = Model.Filter != null && Model.Filter.StartDate.HasValue ? Model.Filter.StartDate.Value.ToString("yyyy-MM-dd") : null, EndDate = Model.Filter != null && Model.Filter.EndDate.HasValue ? Model.Filter.EndDate.Value.ToString("yyyy-MM-dd") : null, WasSuccessful = Model.Filter != null && Model.Filter.WasSuccessful.HasValue ? Model.Filter.WasSuccessful.Value.ToString().ToLowerInvariant() : null })">Login attempts</a></li>
@@ -110,3 +112,4 @@ else
         </table>
     </div></div>
 }
+</div>

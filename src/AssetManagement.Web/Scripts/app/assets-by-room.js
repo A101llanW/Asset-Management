@@ -3,10 +3,12 @@
 // Expanded rooms/categories (and the asset page within each) are remembered per URL in
 // sessionStorage, so Back from an asset's Details page or a refresh restores the open rows.
 (function () {
+    function bootRoomGroups() {
     var root = document.querySelector("[data-am-room-groups]");
-    if (!root) {
+    if (!root || root.getAttribute("data-am-room-ready") === "1") {
         return;
     }
+    root.setAttribute("data-am-room-ready", "1");
 
     var categoriesUrl = root.getAttribute("data-am-room-categories-url") || "";
     var assetsUrl = root.getAttribute("data-am-room-assets-url") || "";
@@ -387,4 +389,10 @@
             });
         });
     })();
+
+    } // bootRoomGroups
+
+    bootRoomGroups();
+    document.addEventListener("am:live-filter-updated", bootRoomGroups);
+    window.AmAssetsByRoom = { init: bootRoomGroups };
 })();

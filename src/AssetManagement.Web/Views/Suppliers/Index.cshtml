@@ -14,10 +14,10 @@
     PrimaryActionUrl = canCreateSupplier ? Url.Action("Create") : null,
     PrimaryActionLabel = canCreateSupplier ? "Create Supplier" : null
 })
-<form class="am-list-toolbar" method="get">
+<form class="am-list-toolbar" method="get" data-live-filter-form data-live-results="#amSuppliersLiveResults">
     <div class="row g-2">
         <div class="col-md-8">
-            <input type="text" class="form-control" name="search" placeholder="Search by supplier, contact, email, or phone" value="@Model.Search" data-am-table-filter autocomplete="off" />
+            <input type="text" class="form-control" name="search" placeholder="Search by supplier, contact, email, or phone" value="@Model.Search" autocomplete="off" />
         </div>
         <div class="col-md-2">
             <select class="form-select" name="pageSize">
@@ -28,10 +28,12 @@
             </select>
         </div>
         <div class="col-md-2 d-grid">
-            <button type="submit" class="btn btn-outline-primary">Apply</button>
+            <button data-live-filter-apply type="submit" class="btn btn-outline-primary">Apply</button>
         </div>
     </div>
 </form>
+<div id="amSuppliersLiveResults" data-live-results>
+
 @if (!Model.Items.Any())
 {
     <div class="card card-kpi">
@@ -73,3 +75,4 @@ else
     </div></div>
     @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }
+</div>

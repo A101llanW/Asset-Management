@@ -12,7 +12,7 @@
     PrimaryActionUrl = canCreate && assetId.HasValue ? Url.Action("Create", new { assetId = assetId.Value }) : null,
     PrimaryActionLabel = canCreate && assetId.HasValue ? "New Claim" : null
 })
-<form class="am-list-toolbar" method="get">
+<form class="am-list-toolbar" method="get" data-live-filter-form data-live-results="#amClaimsLiveResults">
     <div class="row g-2">
         <div class="col-md-8">
             <input type="text" class="form-control" name="search" placeholder="Search claim number, insurer, or asset" value="@Model.Search" />
@@ -30,10 +30,12 @@
             </select>
         </div>
         <div class="col-md-2 d-grid">
-            <button type="submit" class="btn btn-outline-primary">Apply</button>
+            <button data-live-filter-apply type="submit" class="btn btn-outline-primary">Apply</button>
         </div>
     </div>
 </form>
+<div id="amClaimsLiveResults" data-live-results>
+
 @if (!Model.Items.Any())
 {
     <div class="card card-kpi"><div class="card-body am-empty-state">
@@ -64,3 +66,4 @@ else
     </div></div>
     @Html.Partial("_Pagination", new AssetManagement.Web.ViewModels.PaginationViewModel { Page = Model.Page, TotalPages = Model.TotalPages, TotalCount = Model.TotalCount, StartItem = Model.StartItem, EndItem = Model.EndItem })
 }
+</div>

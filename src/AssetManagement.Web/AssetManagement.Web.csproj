@@ -258,6 +258,8 @@
     <Compile Include="Helpers\HelpVideoStreamResult.cs" />
     <Compile Include="Helpers\Mvc3HtmlHelpers.cs" />
     <Compile Include="Helpers\ListHtmlHelpers.cs" />
+    <Compile Include="Helpers\LiveFilterRequest.cs" />
+    <Compile Include="Helpers\LiveFilterQuery.cs" />
     <Compile Include="Helpers\ListRoleDefaultsHelper.cs" />
     <Compile Include="Helpers\PermissionHtmlHelpers.cs" />
     <Compile Include="Helpers\CurrencyHtmlHelpers.cs" />
@@ -342,6 +344,7 @@
     <Content Include="Scripts\app\password-policy-indicator.js" />
     <Content Include="Scripts\app\am-animations.js" />
     <Content Include="Scripts\app\site-interactive.js" />
+    <Content Include="Scripts\app\live-filter.js" />
     <Content Include="Scripts\app\sidebar-nav.js" />
     <Content Include="Scripts\app\document-pdf.js" />
     <Content Include="Scripts\app\reports.js" />
@@ -554,6 +557,7 @@
     <Content Include="Views\Account\LicenseExpired.cshtml" />
     <Content Include="Views\Account\VerifyEmail.cshtml" />
     <Content Include="Views\Shared\_Layout.cshtml" />
+    <Content Include="Views\Shared\_LiveFilterLayout.cshtml" />
     <Content Include="Views\Shared\_PrintLayout.cshtml" />
     <Content Include="Views\Shared\_PublicLayout.cshtml" />
     <Content Include="Views\Shared\_SidebarNav.cshtml" />

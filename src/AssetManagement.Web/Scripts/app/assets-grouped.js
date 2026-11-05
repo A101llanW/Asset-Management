@@ -447,6 +447,10 @@
     }
 
     function wireGroupToggle(btn) {
+        if (!btn || btn.getAttribute("data-am-group-wired") === "1") {
+            return;
+        }
+        btn.setAttribute("data-am-group-wired", "1");
         var targetSelector = btn.getAttribute("data-bs-target");
         if (!targetSelector) {
             return;
@@ -490,50 +494,55 @@
         });
     }
 
-    document.querySelectorAll("[data-am-group-toggle]").forEach(wireGroupToggle);
 
-    document.addEventListener("click", function (event) {
-        var target = event.target;
-        if (!target || !target.closest) {
+    var documentClickBound = false;
+    var expandCollapseBoundFor = null;
+
+    function bindDocumentClickOnce() {
+        if (documentClickBound) {
             return;
         }
-
-        var viewMoreBtn = target.closest("[data-am-view-more]");
-        if (viewMoreBtn) {
-            var panel = viewMoreBtn.closest("[data-am-group-panel]");
-            if (panel) {
-                loadGroupMembers(panel, true);
+        documentClickBound = true;
+        document.addEventListener("click", function (event) {
+            var target = event.target;
+            if (!target || !target.closest) {
+                return;
             }
-        }
-    });
 
-    var expandAllBtn = document.querySelector("[data-am-group-expand-all]");
-    if (expandAllBtn) {
-        expandAllBtn.addEventListener("click", function () {
-            var panels = document.querySelectorAll("[data-am-group-panel]");
-            var chain = Promise.resolve();
-            panels.forEach(function (panel) {
-                chain = chain.then(function () {
-                    return expandPanel(panel, getToggleForPanel(panel));
+            var viewMoreBtn = target.closest("[data-am-view-more]");
+            if (viewMoreBtn) {
+                var panel = viewMoreBtn.closest("[data-am-group-panel]");
+                if (panel) {
+                    loadGroupMembers(panel, true);
+                }
+                return;
+            }
+
+            if (target.closest("[data-am-group-expand-all]")) {
+                var panels = document.querySelectorAll("[data-am-group-panel]");
+                var chain = Promise.resolve();
+                panels.forEach(function (panel) {
+                    chain = chain.then(function () {
+                        return expandPanel(panel, getToggleForPanel(panel));
+                    });
                 });
-            });
+                return;
+            }
+
+            if (target.closest("[data-am-group-collapse-all]")) {
+                document.querySelectorAll("[data-am-group-panel]").forEach(function (panel) {
+                    collapsePanel(panel, getToggleForPanel(panel));
+                });
+                writeExpandedKeys([]);
+            }
         });
     }
 
-    var collapseAllBtn = document.querySelector("[data-am-group-collapse-all]");
-    if (collapseAllBtn) {
-        collapseAllBtn.addEventListener("click", function () {
-            document.querySelectorAll("[data-am-group-panel]").forEach(function (panel) {
-                collapsePanel(panel, getToggleForPanel(panel));
-            });
-            writeExpandedKeys([]);
-        });
-    }
-
-    wireRelocateButtons(document);
-
-    var relocateGroupModal = document.getElementById("amRelocateGroupModal");
-    if (relocateGroupModal && window.bootstrap) {
+    function wireRelocateGroupButtons() {
+        var relocateGroupModal = document.getElementById("amRelocateGroupModal");
+        if (!relocateGroupModal || !window.bootstrap) {
+            return;
+        }
         var groupModalInstance = bootstrap.Modal.getOrCreateInstance(relocateGroupModal);
         var groupAssetNameInput = document.getElementById("amRelocateGroupAssetName");
         var groupAssetSubTypeIdInput = document.getElementById("amRelocateGroupAssetSubTypeId");
@@ -543,6 +552,10 @@
         var groupTargetSelect = document.getElementById("amRelocateGroupTargetDepartmentId");
 
         document.querySelectorAll("[data-am-relocate-group-open]").forEach(function (btn) {
+            if (btn.getAttribute("data-am-relocate-wired") === "1") {
+                return;
+            }
+            btn.setAttribute("data-am-relocate-wired", "1");
             btn.addEventListener("click", function () {
                 if (groupAssetNameInput) {
                     groupAssetNameInput.value = btn.getAttribute("data-asset-name") || "";
@@ -567,14 +580,24 @@
         });
     }
 
-    document.querySelectorAll("[data-am-group-panel]").forEach(function (panel) {
-        ensureMemberTableHeader(panel);
-        wireGroupMaster(panel);
-    });
-    restoreExpandedGroups();
+    function initGroupedRegister() {
+        bindDocumentClickOnce();
+        document.querySelectorAll("[data-am-group-toggle]").forEach(wireGroupToggle);
+        wireRelocateButtons(document);
+        wireRelocateGroupButtons();
+        document.querySelectorAll("[data-am-group-panel]").forEach(function (panel) {
+            ensureMemberTableHeader(panel);
+            wireGroupMaster(panel);
+        });
+        restoreExpandedGroups();
+    }
+
+    initGroupedRegister();
+    document.addEventListener("am:live-filter-updated", initGroupedRegister);
 
     // rel1022a: whole-group selection (asset-group-selection.js) pages every member with the same query.
     window.AmAssetsGrouped = {
-        buildMembersQuery: buildMembersQuery
+        buildMembersQuery: buildMembersQuery,
+        init: initGroupedRegister
     };
 })();

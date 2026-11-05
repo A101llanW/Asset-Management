@@ -54,7 +54,7 @@
 @* Filters *@
 <div class="card card-kpi border-0 shadow-sm mb-4 am-fade-content">
     <div class="card-body p-3">
-        @using (Html.BeginForm("Index", "PendingApprovals", FormMethod.Get, new { @class = "row g-2 align-items-end" }))
+        @using (Html.BeginForm("Index", "PendingApprovals", FormMethod.Get, new { @class = "row g-2 align-items-end", data_live_filter_form = "true", data_live_results = "#amPendingApprovalsLiveResults" }))
         {
             var processOptions = ViewBag.ProcessOptions as IEnumerable<string> ?? Enumerable.Empty<string>();
             <div class="col-md-4">
@@ -78,7 +78,7 @@
                 </div>
             </div>
             <div class="col-md-3 d-grid">
-                <button type="submit" class="btn btn-primary am-click-spark">
+                <button type="submit" class="btn btn-primary am-click-spark" data-live-filter-apply>
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:.35rem"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                     Apply Filter
                 </button>
@@ -88,6 +88,7 @@
 </div>
 
 @* Approval Table *@
+<div id="amPendingApprovalsLiveResults" data-live-results>
 <div class="card card-kpi border-0 shadow-sm am-fade-content">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -175,4 +176,5 @@
             </table>
         </div>
     </div>
+</div>
 </div>

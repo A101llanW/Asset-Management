@@ -1,5 +1,16 @@
 # LIVE DEPLOY CHANGELOG
 
+## 2026-11-05 EAT - Live as-you-type search/sort/filter on list pages (feature/live-search-sort) - LOCAL COMMIT ONLY - NOT PUBLISHED, LIVE NOT TOUCHED
+
+- Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
+- Assets/Index first: typing in Search (tag/name/serial/custodian), changing sort, filters, page size, view or checkboxes refreshes results without pressing Apply (Apply kept as no-JS fallback; hidden when JS is on). Debounced ~350ms; in-flight requests aborted; URL updated with history.replaceState; page resets to 1 on filter change; focus/caret kept in the search box.
+- Implementation: reusable Scripts/app/live-filter.js (data-live-filter-form / data-live-results / data-live-filter-apply). Server detects X-Live-Filter: 1 and renders chrome-free _LiveFilterLayout so the client swaps only the results container. Existing server-side filtering, paging and department/tenant scope unchanged (no client-side full-list load). Asset search still uses the existing prefix LIKE / indexes.
+- Also opted in: Purchases, Suppliers, Users, Asset Requests, Departments, Claims, Incidents, Roles, Asset Types, Asset Categories, Asset SubTypes, Asset Movements, Audit Logs, Security Logs, Pending Approvals.
+- Skipped: PurchaseRequests (no GET filter form in the view), Search (dedicated search page), Notifications/HelpVideos/Dashboard/Settings/Labels (not list filter forms), Assignments Index (asset-scoped), Maintenance (no Index list), POST-only forms.
+- Tests: LiveFilterHelperTests (10) for request detection, layout resolve and page-reset query helpers. Release build 0 errors. Full suite 1668 total / 1660 passed / 8 skipped / 0 failed.
+- Schema / live DB script: none.
+- LIVE: nothing published. Local IIS publish not staged (another branch is staged).
+
 ## 2026-11-03 12:13 EAT - Settings label fix: 'Maintenance Alert Threshold (Days)' renamed 'Loan Return Alert Threshold (Days)' (b55f670) - LOCAL COMMIT ONLY (fix/loan-return-label, main fast-forwarded) - NOT PUBLISHED, LIVE NOT TOUCHED
 
 - Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
