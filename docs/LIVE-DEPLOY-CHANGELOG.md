@@ -1,5 +1,20 @@
 ﻿# LIVE DEPLOY CHANGELOG
 
+## 2026-11-05 20:06 EAT - Checkpoint pre-sections kit (checkpoint/pre-sections-20261105) - STAGED NOT PUBLISHED, LIVE NOT TOUCHED
+
+- Scope: local checkpoint before company-managed sections work. Nothing live. No IIS publish from this step (Allan will fire a single elevated robocopy after Demo Videos pause). No DB migration. feature/section-heads (2d0d869 / migration 112) intentionally excluded.
+- Branch: checkpoint/pre-sections-20261105 from main cbd1b2e (includes b55f670 loan-return label). No-ff merges: feature/ga4-anon-analytics (through b85bccb) + feature/live-search-sort (5ff465c). Tip after merges + this note: see git rev-parse. Local main left at cbd1b2e.
+- Worktree: C:\Users\allan\Documents\Examples\CodexAsset-wt-checkpoint (sibling; CodexAsset-wt-main and Allan WIP wip/tag-work-20261021 untouched).
+- Backups (ts 20261105_1958):
+  - DB COPY_ONLY: C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\Backup\AssetManagementModuleDb_pre_sections_20261105_1958.bak (also copied to CodexAsset-backups\). RESTORE VERIFYONLY OK. SHA256 BB4F6BA4925F0D780806FDD433644126E8B1E63443E340DFFE2FCBE8136B2D88.
+  - IIS site copy (inetpub\_backups needed admin — used fallback): C:\Users\allan\Documents\Examples\CodexAsset-backups\AssetManagement_root_pre_sections_20261105_1958 (includes Web.config; AssetManagement.Web.dll F8919AC3...26A3).
+  - Git bundle --all: CodexAsset-backups\CodexAsset_all_refs_pre_sections_20261105_1958.bundle SHA256 E49D53FAFBBFF0958BBA9822EF0BC4AA27EAEED92A49B55CD44FE8799C26783B.
+  - WIP patches (read-only from wip/tag-work-20261021): CodexAsset-backups\wip_tag-work-20261021_pre_sections_20261105_1958\ (working-tree.patch + untracked_sourceish.zip; full untracked list kept, artifacts/_publish not zipped).
+- Desktop\publish refreshed from current IIS (was DCAC8144..., now matches F8919AC3...26A3); old copy Desktop\publish_old_20261105_1958. Root Web.config excluded from publish kit.
+- Tests on checkpoint tip: Release rebuild 0 errors; vstest 1730 total / 1722 passed / 8 skipped / 0 failed.
+- IIS publish STAGED, NOT RUN: Desktop\Staged_checkpoint_20261105_2006 (305 files, no root Web.config). Package AssetManagement.Web.dll SHA256 3AE03B69C802EADBA7D91DF1844104BCDD1B89243D69F084481463E0E8232CC0.
+- LIVE: nothing published. Local IIS still on prior build F8919AC3...26A3 until Allan's elevated robocopy.
+
 ## 2026-11-05 EAT - Live as-you-type search/sort/filter on list pages (feature/live-search-sort) - LOCAL COMMIT ONLY - NOT PUBLISHED, LIVE NOT TOUCHED
 
 - Scope: local only. Nothing pushed, no PR, no IIS publish, no DB writes, nanosoft.africa and the live DB not touched, no Web.config change, nothing printed.
