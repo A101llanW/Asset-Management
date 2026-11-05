@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
@@ -51,7 +51,7 @@ namespace AssetManagement.Tests.Organizations
         public void MissingTablesFromTheOldList_AreNowPurged()
         {
             var tables = OrganizationPurgeSql.GetDeletedTableNames();
-            foreach (var expected in new[] { "UserInvitation", "DepartmentApprovalStage", "PurchaseRequestLine" })
+            foreach (var expected in new[] { "UserInvitation", "DepartmentApprovalStage", "PurchaseRequestLine", "OrganizationSectionHead" })
             {
                 CollectionAssert.Contains(tables, expected);
             }
@@ -73,6 +73,7 @@ namespace AssetManagement.Tests.Organizations
         [TestCase("LabelPrintBatchItem", "LabelPrintBatch")]
         [TestCase("AssetType", "AssetCategory")]
         [TestCase("RoleTemplate", "Roles")]
+        [TestCase("OrganizationSectionHead", "Users")]
         [TestCase("Users", "Roles")]
         [TestCase("Roles", "Department")]
         public void ChildIsDeletedBeforeParent(string child, string parent)

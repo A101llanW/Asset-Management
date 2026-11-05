@@ -121,6 +121,8 @@ namespace AssetManagement.Web.Controllers
                 .Where(section => section.Items.Any())
                 .ToList();
 
+            ViewBag.OrgSectionHeadLabels = BuildOrgSectionHeadLabels();
+
             // pt547u (display only): the flat list hides "Grade N homerooms" and shows Year N as the parent of its rooms.
             var aliasMap = HomeroomYearAlias.BuildMap(itemsList);
             if (aliasMap.Count > 0)
@@ -253,6 +255,7 @@ namespace AssetManagement.Web.Controllers
             // Migration 107: who approves the "Department Head" stage for each section of this unit.
             var deptById = scopedDepartments.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
             var headUsers = BuildUserService();
+            var orgHeads = TryLoadOrgSectionHeadMap();
             ViewBag.SectionHeadRows = DepartmentSectionHeadDisplay.Build(
                 model,
                 pid =>
@@ -269,7 +272,8 @@ namespace AssetManagement.Web.Controllers
                 {
                     var u = headUsers.GetById(uid);
                     return u != null && u.IsActive;
-                });
+                },
+                section => OrganizationSectionHeads.Get(orgHeads, section));
 
             return View(model);
         }
@@ -1142,6 +1146,49 @@ namespace AssetManagement.Web.Controllers
             TempData["Message"] =
                 "Converting classes to rooms is no longer done from this page. An administrator runs it as a database script (tools/database/Convert-ClassesToRooms.ps1). Nothing was changed.";
             return RedirectToAction("Index");
+        }
+        private IDictionary<DepartmentSection, string> BuildOrgSectionHeadLabels()
+        {
+            var map = TryLoadOrgSectionHeadMap();
+            var labels = new Dictionary<DepartmentSection, string>();
+            var users = BuildUserService();
+            foreach (var section in DepartmentSectionHelper.All)
+            {
+                var headId = OrganizationSectionHeads.Get(map, section);
+                if (string.IsNullOrWhiteSpace(headId))
+                {
+                    continue;
+                }
+
+                var user = users.GetById(headId);
+                labels[section] = user == null ? headId : BuildUserLabel(user);
+            }
+
+            return labels;
+        }
+
+        private IDictionary<DepartmentSection, string> TryLoadOrgSectionHeadMap()
+        {
+            try
+            {
+                return OrganizationSectionHeads.ToMap(UnitOfWork.Repository<OrganizationSectionHead>().GetAll());
+            }
+            catch (Exception ex)
+            {
+                var sql = ex as System.Data.SqlClient.SqlException;
+                if (sql != null && sql.Number == 208)
+                {
+                    return new Dictionary<DepartmentSection, string>();
+                }
+
+                var inner = ex.InnerException as System.Data.SqlClient.SqlException;
+                if (inner != null && inner.Number == 208)
+                {
+                    return new Dictionary<DepartmentSection, string>();
+                }
+
+                throw;
+            }
         }
     }
 }

@@ -120,7 +120,17 @@ else if (viewMode == "tree")
         if (showSectionHeadings && lastSectionGroup != section.SectionGroup)
         {
             lastSectionGroup = section.SectionGroup;
-            <h5 class="mt-4 mb-2 am-dept-section-heading" data-am-section-heading="@DepartmentSectionHelper.ToQueryValue(section.SectionGroup)">@DepartmentSectionHelper.Label(section.SectionGroup)</h5>
+            <h5 class="mt-4 mb-2 am-dept-section-heading" data-am-section-heading="@DepartmentSectionHelper.ToQueryValue(section.SectionGroup)">
+                        @DepartmentSectionHelper.Label(section.SectionGroup)
+                        @{
+                            var orgHeadLabels = ViewBag.OrgSectionHeadLabels as IDictionary<AssetManagement.Domain.Enums.DepartmentSection, string>;
+                            string orgHeadLabel;
+                            if (orgHeadLabels != null && orgHeadLabels.TryGetValue(section.SectionGroup, out orgHeadLabel) && !string.IsNullOrWhiteSpace(orgHeadLabel))
+                            {
+                                <span class="text-muted fw-normal small"> — Head: @orgHeadLabel</span>
+                            }
+                        }
+                    </h5>
         }
         <div class="card card-kpi mb-3" data-am-dept-section data-am-section-group="@DepartmentSectionHelper.ToQueryValue(section.SectionGroup)">
             <div class="card-header bg-light fw-semibold">@(GradeDisplay.ToYear(section.Title))</div>

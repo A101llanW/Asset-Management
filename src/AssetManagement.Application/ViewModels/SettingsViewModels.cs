@@ -36,5 +36,20 @@ namespace AssetManagement.Application.ViewModels
         public IList<ApprovalProcessSettingsVm> ApprovalProcesses { get; set; } = new List<ApprovalProcessSettingsVm>();
 
         public LabelPrinterSettingsVm LabelPrinter { get; set; } = new LabelPrinterSettingsVm();
+
+        /// <summary>Migration 112: company Head of KG (any active user). Blank = not set.</summary>
+        [Display(Name = "Head of KG")]
+        [StringLength(128)]
+        public string KgHeadUserId { get; set; }
+
+        /// <summary>Migration 112: company Head of Prep.</summary>
+        [Display(Name = "Head of Prep")]
+        [StringLength(128)]
+        public string PrepHeadUserId { get; set; }
+
+        /// <summary>Migration 112: company Head of Senior school.</summary>
+        [Display(Name = "Head of Senior school")]
+        [StringLength(128)]
+        public string SeniorHeadUserId { get; set; }
     }
 }

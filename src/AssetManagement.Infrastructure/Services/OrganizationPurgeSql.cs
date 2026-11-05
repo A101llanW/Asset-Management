@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -136,6 +136,8 @@ namespace AssetManagement.Infrastructure.Services
             NullColumn("Department", "SeniorHeadUserId"),
             // Migration 111: KG section head.
             NullColumn("Department", "KgHeadUserId"),
+            // Migration 112: company section heads point at Users - delete before Users.
+            Delete("OrganizationSectionHead"),
             Delete("Users"),
             Delete("RolePermission"),
             Delete("Roles"),

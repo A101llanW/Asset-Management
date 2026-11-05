@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using AssetManagement.Domain.Entities;
 using AssetManagement.Domain.Enums;
@@ -17,27 +17,30 @@ namespace AssetManagement.Application.Helpers
 
         public string UserId { get; private set; }
 
-        /// <summary>The department (the unit itself or an ancestor) that carries the head.</summary>
+        /// <summary>The department (the unit itself or an ancestor) that carries the head. 0 = company section head (migration 112).</summary>
         public int DepartmentId { get; private set; }
 
-        /// <summary>0 = set on the unit itself; 1 = its parent; ...</summary>
+        /// <summary>0 = set on the unit itself; 1 = its parent; ...; -1 = company section head.</summary>
         public int Depth { get; private set; }
+
+        public bool IsOrganizationHead { get { return DepartmentId == 0 && Depth < 0; } }
     }
 
     /// <summary>
-    /// Migration 107: a department can have a different head per school section (Prep / Senior school), regardless of
-    /// the person's role. Rules:
+    /// Migration 107/111: a department can have a different head per school section (KG / Prep / Senior school),
+    /// regardless of the person's role. Rules:
     ///   * Which section: the Section of the unit the request is for (a room, classroom, year, sub-department or department).
     ///   * Which head: walk up from that unit (unit, parent, grandparent ...); the first one with a head set for that
     ///     section (and the person still active) wins.
-    ///   * None set: callers fall back to the old behaviour (the Department Head role holders of the unit / ancestors).
+    ///   * None on the tree: the company section head (migration 112) if set and active.
+    ///   * Still none: callers fall back to the old behaviour (the Department Head role holders of the unit / ancestors).
     /// Classrooms and rooms never carry heads themselves; they take their department's.
     /// </summary>
     public static class DepartmentSectionHeads
     {
         private const int MaxDepth = 32;
 
-        /// <summary>Kinds whose Edit screen offers the two section heads (not classrooms or rooms).</summary>
+        /// <summary>Kinds whose Edit screen offers the three section heads (not classrooms or rooms).</summary>
         public static bool CanHaveSectionHeads(DepartmentKind kind)
         {
             return kind != DepartmentKind.Class && kind != DepartmentKind.Room;
@@ -62,7 +65,7 @@ namespace AssetManagement.Application.Helpers
 
         /// <summary>
         /// Section head for a request on <paramref name="departmentId"/>, in that unit's section. Null when no unit in the
-        /// chain has an (active) head for the section.
+        /// chain has an (active) head for the section and no company section head is set.
         /// </summary>
         public static SectionHeadMatch Resolve(int? departmentId, Func<int, Department> getById, Func<string, bool> isActiveUser)
         {
@@ -77,11 +80,25 @@ namespace AssetManagement.Application.Helpers
                 return null;
             }
 
-            return Resolve(departmentId, DepartmentSectionHelper.Normalize(start.Section), getById, isActiveUser);
+            return Resolve(departmentId, DepartmentSectionHelper.Normalize(start.Section), getById, isActiveUser, null);
         }
 
         /// <summary>As <see cref="Resolve(int?, Func{int, Department}, Func{string, bool})"/> for an explicit section.</summary>
         public static SectionHeadMatch Resolve(int? departmentId, DepartmentSection section, Func<int, Department> getById, Func<string, bool> isActiveUser)
+        {
+            return Resolve(departmentId, section, getById, isActiveUser, null);
+        }
+
+        /// <summary>
+        /// Department-tree section head first (107/111); when none, the company section head (migration 112) if active.
+        /// Org fallback is reported with <see cref="SectionHeadMatch.IsOrganizationHead"/>.
+        /// </summary>
+        public static SectionHeadMatch Resolve(
+            int? departmentId,
+            DepartmentSection section,
+            Func<int, Department> getById,
+            Func<string, bool> isActiveUser,
+            Func<DepartmentSection, string> orgHeadForSection)
         {
             if (!departmentId.HasValue || departmentId.Value <= 0 || getById == null)
             {
@@ -96,7 +113,7 @@ namespace AssetManagement.Application.Helpers
                 var department = getById(current.Value);
                 if (department == null)
                 {
-                    return null;
+                    break;
                 }
 
                 var head = Get(department, section);
@@ -107,6 +124,15 @@ namespace AssetManagement.Application.Helpers
 
                 current = department.ParentDepartmentId;
                 depth++;
+            }
+
+            if (orgHeadForSection != null)
+            {
+                var orgHead = orgHeadForSection(DepartmentSectionHelper.Normalize(section));
+                if (!string.IsNullOrWhiteSpace(orgHead) && (isActiveUser == null || isActiveUser(orgHead)))
+                {
+                    return new SectionHeadMatch(orgHead.Trim(), 0, -1);
+                }
             }
 
             return null;

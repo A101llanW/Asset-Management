@@ -1,4 +1,4 @@
-﻿@model AssetManagement.Application.ViewModels.SettingsVm
+@model AssetManagement.Application.ViewModels.SettingsVm
 @using System.Linq
 @using System.Web.Mvc
 @{
@@ -142,6 +142,27 @@
         </div>
     </div>
 
+
+    <div class="card card-kpi mb-3" id="section-heads-card">
+        <div class="card-header">Section heads (KG / Prep / Senior school)</div>
+        <div class="card-body">
+            <p class="text-muted small">One head per section for this company. Pick any active user. When a requisition, transfer or disposal reaches the <strong>Department Head</strong> stage, it goes to the head of the request's section: first a head set on the department (or a parent), otherwise the company section head set here, otherwise the Department Head role holders. Leave blank when you only use role holders or department-level heads.</p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.KgHeadUserId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.KgHeadUserId, ViewBag.KgSectionHeadUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()), "-- Not set --", new { @class = "form-select", id = "KgHeadUserId" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.PrepHeadUserId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.PrepHeadUserId, ViewBag.PrepSectionHeadUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()), "-- Not set --", new { @class = "form-select", id = "PrepHeadUserId" })
+                </div>
+                <div class="col-md-4">
+                    @Html.LabelFor(m => m.SeniorHeadUserId, new { @class = "form-label" })
+                    @Html.DropDownListFor(m => m.SeniorHeadUserId, ViewBag.SeniorSectionHeadUsers as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>()), "-- Not set --", new { @class = "form-select", id = "SeniorHeadUserId" })
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="card card-kpi mb-3">
         <div class="card-header">Approval Matrix</div>
         <div class="card-body">

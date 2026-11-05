@@ -64,6 +64,8 @@ namespace AssetManagement.Infrastructure.Persistence
             Register(typeof(TemporaryCredential), "TemporaryCredentials");
             Register(typeof(ImpersonationRequest));
             Register(typeof(SystemSetting));
+            Register(typeof(OrganizationSectionHead)); // migration 112: company section heads (KG / Prep / Senior)
+            Maps[typeof(OrganizationSectionHead)].SkipWritesWhenTableMissing = true;
             Register(typeof(ApplicationUser), "Users", "Id", false);
         }
 

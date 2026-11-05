@@ -142,6 +142,9 @@ namespace AssetManagement.Tests.Organizations
             new ForeignKeyEdge("FK_Department_PrepHeadUser", "Department", "PrepHeadUserId", "Users", "NO_ACTION"),
             new ForeignKeyEdge("FK_Department_SeniorHeadUser", "Department", "SeniorHeadUserId", "Users", "NO_ACTION"),
             new ForeignKeyEdge("FK_Department_KgHeadUser", "Department", "KgHeadUserId", "Users", "NO_ACTION"),
+            // Migration 112_OrganizationSectionHead.sql (company section heads).
+            new ForeignKeyEdge("FK_OrganizationSectionHead_Organization", "OrganizationSectionHead", "OrganizationId", "Organization", "NO_ACTION"),
+            new ForeignKeyEdge("FK_OrganizationSectionHead_HeadUser", "OrganizationSectionHead", "HeadUserId", "Users", "NO_ACTION"),
         };
     }
 }

@@ -199,6 +199,7 @@
     <Compile Include="Controllers\BaseController.CatalogRequisition.cs" />
     <Compile Include="Controllers\PurchaseRequestsController.Catalog.cs" />
     <Compile Include="Controllers\SettingsController.AssetTags.cs" />
+    <Compile Include="Controllers\SettingsController.Sections.cs" />
     <Compile Include="Controllers\SettingsController.AssetTagRename.cs" />
     <Compile Include="Controllers\SuppliersController.cs" />
     <Compile Include="Controllers\TransfersController.cs" />

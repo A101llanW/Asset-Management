@@ -6,6 +6,7 @@ using AssetManagement.Application.Helpers;
 using AssetManagement.Application.Security;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Entities;
+using AssetManagement.Domain.Enums;
 
 namespace AssetManagement.Application.Services
 {
@@ -106,26 +107,35 @@ namespace AssetManagement.Application.Services
         private readonly Func<IEnumerable<UserVm>> _usersFactory;
         private readonly Func<int, Department> _departmentById;
         private readonly Func<int, string> _roleNameById;
+        private readonly Func<DepartmentSection, string> _orgHeadForSection;
         private readonly Dictionary<int, string> _roleNames = new Dictionary<int, string>();
         private IList<UserVm> _users;
         private readonly Dictionary<int, Department> _departments = new Dictionary<int, Department>();
 
         public StageApproverScopeResolver(Func<IEnumerable<UserVm>> usersFactory, Func<int, Department> departmentById)
-            : this(usersFactory, departmentById, null)
+            : this(usersFactory, departmentById, null, null)
         {
         }
 
-        /// <param name="roleNameById">Role name lookup; when given, Department Head stages use section heads first (migration 107).</param>
+        /// <param name="roleNameById">Role name lookup; when given, Department Head stages use section heads first (migration 107/112).</param>
         public StageApproverScopeResolver(Func<IEnumerable<UserVm>> usersFactory, Func<int, Department> departmentById, Func<int, string> roleNameById)
+            : this(usersFactory, departmentById, roleNameById, null)
+        {
+        }
+
+        /// <param name="orgHeadForSection">Company section head (migration 112); used after the department-tree walk finds none.</param>
+        public StageApproverScopeResolver(Func<IEnumerable<UserVm>> usersFactory, Func<int, Department> departmentById, Func<int, string> roleNameById, Func<DepartmentSection, string> orgHeadForSection)
         {
             _usersFactory = usersFactory;
             _departmentById = departmentById;
             _roleNameById = roleNameById;
+            _orgHeadForSection = orgHeadForSection;
         }
 
         /// <summary>Resolver over the tenant-filtered user list (IUserService) and the unit of work's departments.</summary>
         public static StageApproverScopeResolver Create(IUnitOfWork unitOfWork, IUserService userService)
         {
+            var orgHeads = LoadOrgSectionHeads(unitOfWork);
             return new StageApproverScopeResolver(
                 () => userService == null ? Enumerable.Empty<UserVm>() : userService.GetAll(),
                 id => unitOfWork == null ? null : unitOfWork.Repository<Department>().GetById(id),
@@ -133,7 +143,46 @@ namespace AssetManagement.Application.Services
                 {
                     var role = unitOfWork == null ? null : unitOfWork.Repository<Role>().GetById(id);
                     return role == null ? null : role.Name;
-                });
+                },
+                section => OrganizationSectionHeads.Get(orgHeads, section));
+        }
+
+        /// <summary>Tenant-filtered company section heads; empty when migration 112 is not applied yet.</summary>
+        private static IDictionary<DepartmentSection, string> LoadOrgSectionHeads(IUnitOfWork unitOfWork)
+        {
+            if (unitOfWork == null)
+            {
+                return new Dictionary<DepartmentSection, string>();
+            }
+
+            try
+            {
+                // Moq / incomplete fakes may return null for an unwired repository.
+                var repo = unitOfWork.Repository<OrganizationSectionHead>();
+                if (repo == null)
+                {
+                    return new Dictionary<DepartmentSection, string>();
+                }
+
+                return OrganizationSectionHeads.ToMap(repo.GetAll());
+            }
+            catch (Exception ex)
+            {
+                // Table missing until migration 112 runs (SQL error 208).
+                var sql = ex as System.Data.SqlClient.SqlException;
+                if (sql != null && sql.Number == 208)
+                {
+                    return new Dictionary<DepartmentSection, string>();
+                }
+
+                var inner = ex.InnerException as System.Data.SqlClient.SqlException;
+                if (inner != null && inner.Number == 208)
+                {
+                    return new Dictionary<DepartmentSection, string>();
+                }
+
+                throw;
+            }
         }
 
         /// <summary>One-shot convenience for <see cref="Create"/> + <see cref="Resolve"/>.</summary>
@@ -256,7 +305,7 @@ namespace AssetManagement.Application.Services
             }
 
             var section = DepartmentSectionHelper.Normalize(start.Section);
-            var match = DepartmentSectionHeads.Resolve(requestDepartmentId, section, GetDepartment, IsActiveUser);
+            var match = DepartmentSectionHeads.Resolve(requestDepartmentId, section, GetDepartment, IsActiveUser, _orgHeadForSection);
             if (match == null)
             {
                 return null;
@@ -283,7 +332,7 @@ namespace AssetManagement.Application.Services
                 depth++;
             }
 
-            return new StageApproverScope(StageApproverScopeKind.SectionHead, match.DepartmentId, new[] { match.UserId });
+            return new StageApproverScope(StageApproverScopeKind.SectionHead, match.IsOrganizationHead ? (int?)null : match.DepartmentId, new[] { match.UserId });
         }
 
         private bool IsActiveUser(string userId)

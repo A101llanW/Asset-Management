@@ -28,6 +28,7 @@ namespace AssetManagement.Web.Controllers
             ViewBag.SmtpRouteSummary = BuildSmtpRouteSummary(ResolveCurrentOrganizationId());
             PopulateApprovalMatrixOptions();
             PopulateRequisitionPolicies(null);
+            PopulateSectionHeadOptions(model);
             return View(model);
         }
 
@@ -37,6 +38,7 @@ namespace AssetManagement.Web.Controllers
         {
             PopulateApprovalMatrixOptions();
             PopulateRequisitionPolicies(Request.Form["RequisitionPolicies.ClassificationMode"] == null ? null : requisitionPolicies);
+            PopulateSectionHeadOptions(model);
             ValidateApprovalProcesses(model);
             if (!ModelState.IsValid)
             {
@@ -67,6 +69,12 @@ namespace AssetManagement.Web.Controllers
                 {
                     UpsertSetting(repository, settings, legacyKey, process.RequiresApproval.ToString(), "Legacy approval toggle for " + process.DisplayName + ".");
                 }
+            }
+
+            SaveSectionHeads(model);
+            if (!ModelState.IsValid)
+            {
+                return View(model);
             }
 
             UnitOfWork.SaveChanges();
@@ -262,7 +270,7 @@ namespace AssetManagement.Web.Controllers
                 : GetActiveUsers();
             var userLookup = ApproverPickerHelper.BuildUserNameLookup(users);
 
-            return new SettingsVm
+            var model = new SettingsVm
             {
                 AttachmentRootPath = ApprovalWorkflowSettingsHelper.GetString(settings, AttachmentRootPathKey, "~/App_Data/Attachments"),
                 WarrantyThresholdDays = GetInt(settings, WarrantyThresholdKey, 30),
@@ -274,6 +282,8 @@ namespace AssetManagement.Web.Controllers
                 ApprovalProcesses = ApprovalProcessCodes.Ordered.Select(code => BuildApprovalProcessVm(code, settings, roleLookup, userLookup, GetDefaultApproverRoleIdForProcess(code, roles))).ToList(),
                 LabelPrinter = LabelPrinterSettingsHelper.FromDictionary(settings)
             };
+            ApplySectionHeadsToModel(model);
+            return model;
         }
 
         private static int? GetDefaultApproverRoleIdForProcess(string processCode, IList<RoleVm> roles)

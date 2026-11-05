@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using AssetManagement.Application.ViewModels;
 using AssetManagement.Domain.Enums;
@@ -15,13 +15,13 @@ namespace AssetManagement.Application.Helpers
         /// <summary>Who approves the "Department Head" stage for this section (null = fallback to role holders).</summary>
         public string HeadName { get; set; }
 
-        /// <summary>"Set on this unit", "From <ancestor>", or the fallback explanation.</summary>
+        /// <summary>"Set on this unit", "From <ancestor>", company section head, or the fallback explanation.</summary>
         public string Source { get; set; }
 
         public bool IsFallback { get; set; }
     }
 
-    /// <summary>Migration 107: effective section heads of a unit, for Details (same walk as the approval resolver).</summary>
+    /// <summary>Migration 107/112: effective section heads of a unit, for Details (same walk as the approval resolver).</summary>
     public static class DepartmentSectionHeadDisplay
     {
         public const string FallbackText = "Not set - the \"Department Head\" approval stage uses the Department Head role holders (unchanged rule).";
@@ -31,6 +31,16 @@ namespace AssetManagement.Application.Helpers
             Func<int, DepartmentVm> getById,
             Func<string, string> userLabel,
             Func<string, bool> isActiveUser)
+        {
+            return Build(unit, getById, userLabel, isActiveUser, null);
+        }
+
+        public static IList<DepartmentSectionHeadRow> Build(
+            DepartmentVm unit,
+            Func<int, DepartmentVm> getById,
+            Func<string, string> userLabel,
+            Func<string, bool> isActiveUser,
+            Func<DepartmentSection, string> orgHeadForSection)
         {
             var rows = new List<DepartmentSectionHeadRow>();
             if (unit == null)
@@ -44,7 +54,7 @@ namespace AssetManagement.Application.Helpers
                 : new[] { DepartmentSectionHelper.Normalize(unit.Section) };
             foreach (var section in sections)
             {
-                rows.Add(BuildRow(unit, section, getById, userLabel, isActiveUser));
+                rows.Add(BuildRow(unit, section, getById, userLabel, isActiveUser, orgHeadForSection));
             }
 
             return rows;
@@ -55,7 +65,8 @@ namespace AssetManagement.Application.Helpers
             DepartmentSection section,
             Func<int, DepartmentVm> getById,
             Func<string, string> userLabel,
-            Func<string, bool> isActiveUser)
+            Func<string, bool> isActiveUser,
+            Func<DepartmentSection, string> orgHeadForSection)
         {
             var row = new DepartmentSectionHeadRow { Section = section, SectionLabel = DepartmentSectionHelper.Label(section) };
             var visited = new HashSet<int>();
@@ -77,6 +88,18 @@ namespace AssetManagement.Application.Helpers
 
                 current = current.ParentDepartmentId.HasValue && getById != null ? getById(current.ParentDepartmentId.Value) : null;
                 depth++;
+            }
+
+            if (orgHeadForSection != null)
+            {
+                var orgHead = orgHeadForSection(section);
+                if (!string.IsNullOrWhiteSpace(orgHead) && (isActiveUser == null || isActiveUser(orgHead)))
+                {
+                    var label = userLabel == null ? null : userLabel(orgHead);
+                    row.HeadName = string.IsNullOrWhiteSpace(label) ? orgHead : label;
+                    row.Source = OrganizationSectionHeads.OrgFallbackSource;
+                    return row;
+                }
             }
 
             row.IsFallback = true;
