@@ -1,0 +1,46 @@
+---
+description: Keep every fix on a branch until the user explicitly approves merging to main
+alwaysApply: true
+---
+
+# Branch until approve — no direct merges to main
+
+`main` is the integration branch. **Do not land fixes on `main` until the user explicitly approves merging** (e.g. “merge the PR”, “approve merge to main”, “go ahead and merge”).
+
+## Required workflow for fixes
+
+Applies to bug fixes, features, refactors, and any other code or config change — not to read-only answers or questions with no repo edits.
+
+1. **Branch** — Create a dedicated feature branch from `main` before making changes. Do not commit fixes directly on `main`.
+2. **Implement & verify** — Complete the work and run the relevant tests on that branch.
+3. **Publish for review** — Push the branch and open or update a pull request targeting `main`. Leave the PR **open** and **ready for review** unless the user asked for a draft.
+4. **Stop before merge** — End the task with the branch and PR link. Do **not** merge without explicit user approval in this conversation.
+
+## Forbidden without explicit user approval
+
+- Merging a pull request into `main` (any forge or CLI).
+- Enabling or using **auto-merge** on a PR.
+- Pushing commits to `origin/main` or fast-forwarding local `main` with fix commits.
+- Rebasing or force-pushing in ways that update `main` on the remote.
+
+## Allowed on `main` without a PR (only if the user clearly asked)
+
+- Checking out `main` to create a new branch.
+- Pulling to sync local `main` with `origin/main` when not adding fix commits.
+
+## After the user approves
+
+When the user explicitly approves merging to `main`:
+
+1. Ensure the PR is green (CI passing) or note failures the user accepted.
+2. Merge via the approved method (squash, merge commit, or rebase — follow repo or user preference).
+3. Confirm merge result briefly; do not delete the branch unless the user asked.
+
+## Branch naming (this repo)
+
+- **Cursor Cloud agents:** `cursor/<short-description>-f012` (lowercase).
+- **Other work:** descriptive `fix/…`, `feat/…`, or `cursor/…` names; one logical change per branch when practical.
+
+## Human enforcement (optional)
+
+Repo settings can require pull requests before merging into `main` and block direct pushes. That complements this rule; agents must still follow it even if branch protection is not configured yet.

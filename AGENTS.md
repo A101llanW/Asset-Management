@@ -77,6 +77,10 @@ If you change controllers or views under `src/AssetManagement.Web/`:
 - For cloud runs, assume MFA bypass is enabled via environment (`MfaAllowAnyCode=true`).
 - Never enable dev MFA bypass in Release/production configs.
 
+### Git workflow — branch until you approve merge
+
+Every fix lives on a **feature branch** with a **pull request to `main`** until you explicitly approve merging. Agents must not commit fixes on `main`, merge PRs, enable auto-merge, or push to `origin/main` without your approval. See `.cursor/rules/branch-until-approve.mdc`.
+
 ### Conventions
 
 - .NET Framework 4.0, C# 6 only — no C# 7+ syntax.
